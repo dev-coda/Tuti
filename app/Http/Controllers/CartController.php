@@ -240,7 +240,7 @@ class CartController extends Controller
                 'order_id' => $order->id,
                 'product_id' => $id,
                 'quantity' => $product['quantity'],
-                'price' => $p->finalPrice['price'],
+                'price' => $p->finalPrice['originalPrice'],
                 'discount' => $p->finalPrice['totalDiscount'],
                 'variation_item_id' => $product['variation_id'] ?? null,
                 'percentage' => $p->finalPrice['discount'] ?? 0,
@@ -250,7 +250,7 @@ class CartController extends Controller
             $bonification = $p->bonifications->first();
             if($bonification){
                 //  floor($product->pivot->quantity / $product->bonifications->first()->buy)
-                $bonification_quantity = floor($product['quantity'] / $bonification->buy);
+                $bonification_quantity = floor($product['quantity'] / $bonification->buy * $bonification->get);
                 if($bonification_quantity > $bonification->max){
                     $bonification_quantity = $bonification->max;
                 }

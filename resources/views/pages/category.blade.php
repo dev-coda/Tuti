@@ -2,20 +2,20 @@
 
 
 @section('head')
-    @include('elements.seo', [
-        'title'=>$category->name, 
-        'description'=>$category->description
-    ])
+@include('elements.seo', [
+'title'=>$category->name,
+'description'=>$category->description
+])
 @endsection
 
 
 @section('content')
-    
 
 
-<section class="w-full grid grid-cols-12 gap-x-10 xl:gap-y-0 gap-y-10">
 
-     <div class="col-span-12">
+<section class="w-full grid grid-cols-10 gap-x-10 xl:gap-y-0 gap-y-10">
+
+    <div class="col-span-10">
         <ul class="flex  space-x-2 text-gray-500">
             <li><a href="#">Inicio</a></li>
             <li>></li>
@@ -24,19 +24,26 @@
     </div>
 
 
-    <h1 class="font-bold my-5 text-2xl col-span-12">{{$category->name}}</h1>
+    <h1 class="font-bold my-5 text-2xl col-span-10">{{$category->name}}</h1>
 
 
-    <div class="col-span-12 ">
+    <div class="col-span-10 ">
         <div class="grid grid-cols-2 xl:grid-cols-6 gap-5 ">
             @foreach ($products as $product)
-                <x-product :product="$product"/>
+            <x-product :product="$product" />
             @endforeach
-           
+
         </div>
     </div>
 
-  
+    <div class="col-span-10 ">
+        {{ $products->links() }}
+
+    </div>
+
+
+
+
 
 
 </section>
@@ -59,64 +66,64 @@
                     @foreach ($categories as $category)
                         <li>
                             <a href="{{ route('category', $category->slug) }}" class="block px-4 py-2 hover:bg-gray-100">{{ $category->name }}</a>
-                        </li>
-                        
-                    @endforeach
-                    <li>
-                        <a href="#" class="block px-4 py-2 hover:bg-gray-100  ">Dashboard</a>
-                    </li>
-                    <li>
-                        <a href="#" class="block px-4 py-2 hover:bg-gray-100  ">Dashboard</a>
-                    </li>
-                    <li aria-labelledby="dropdownNavbarLink">
-                    <button id="doubleDropdownButton" data-dropdown-toggle="doubleDropdown" data-dropdown-placement="right-start" type="button" class="flex items-center justify-between w-full px-4 py-2 hover:bg-gray-100  ">Dropdown<svg aria-hidden="true" class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></button>
-                    <div id="doubleDropdown" class="z-10 hidden bg-white divide-y divide-gray-100 rounded-lg shadow w-44 " style="position: absolute; inset: 0px auto auto 0px; margin: 0px; transform: translate3d(10px, 0px, 0px);" data-popper-placement="right-start" data-popper-reference-hidden="" data-popper-escaped="">
-                        <ul class="py-2 text-sm text-gray-700 " aria-labelledby="doubleDropdownButton">
-                            <li>
-                            <a href="#" class="block px-4 py-2 hover:bg-gray-100   ">Overview</a>
-                            </li>
-                            <li>
-                            <a href="#" class="block px-4 py-2 hover:bg-gray-100   ">My downloads</a>
-                            </li>
-                            <li>
-                            <a href="#" class="block px-4 py-2 hover:bg-gray-100   ">Billing</a>
-                            </li>
-                            <li>
-                            <a href="#" class="block px-4 py-2 hover:bg-gray-100   ">Rewards</a>
-                            </li>
-                        </ul>
-                    </div>
-                    </li>
-                    <li>
-                    <a href="#" class="block px-4 py-2 hover:bg-gray-100  ">Earnings</a>
-                    </li>
-                </ul>
-                <div class="py-1">
-                    <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100   ">Sign out</a>
-                </div>
-            </div>
-        </li>
-        <li>
-            <a href="#" class="block py-2 pl-3 pr-4 text-gray-900 rounded hover:bg-gray-100 md:hover:bg-transparent md:border-0 md:hover:text-blue-700 md:p-0  md:   md:">Services</a>
-        </li>
-        <li>
-            <a href="#" class="block py-2 pl-3 pr-4 text-gray-900 rounded hover:bg-gray-100 md:hover:bg-transparent md:border-0 md:hover:text-blue-700 md:p-0  md:   md:">Pricing</a>
-        </li>
-        <li>
-            <a href="#" class="block py-2 pl-3 pr-4 text-gray-900 rounded hover:bg-gray-100 md:hover:bg-transparent md:border-0 md:hover:text-blue-700 md:p-0  md:   md:">Contact</a>
-        </li>
+</li>
+
+@endforeach
+<li>
+    <a href="#" class="block px-4 py-2 hover:bg-gray-100  ">Dashboard</a>
+</li>
+<li>
+    <a href="#" class="block px-4 py-2 hover:bg-gray-100  ">Dashboard</a>
+</li>
+<li aria-labelledby="dropdownNavbarLink">
+    <button id="doubleDropdownButton" data-dropdown-toggle="doubleDropdown" data-dropdown-placement="right-start" type="button" class="flex items-center justify-between w-full px-4 py-2 hover:bg-gray-100  ">Dropdown<svg aria-hidden="true" class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+            <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path>
+        </svg></button>
+    <div id="doubleDropdown" class="z-10 hidden bg-white divide-y divide-gray-100 rounded-lg shadow w-44 " style="position: absolute; inset: 0px auto auto 0px; margin: 0px; transform: translate3d(10px, 0px, 0px);" data-popper-placement="right-start" data-popper-reference-hidden="" data-popper-escaped="">
+        <ul class="py-2 text-sm text-gray-700 " aria-labelledby="doubleDropdownButton">
+            <li>
+                <a href="#" class="block px-4 py-2 hover:bg-gray-100   ">Overview</a>
+            </li>
+            <li>
+                <a href="#" class="block px-4 py-2 hover:bg-gray-100   ">My downloads</a>
+            </li>
+            <li>
+                <a href="#" class="block px-4 py-2 hover:bg-gray-100   ">Billing</a>
+            </li>
+            <li>
+                <a href="#" class="block px-4 py-2 hover:bg-gray-100   ">Rewards</a>
+            </li>
         </ul>
     </div>
+</li>
+<li>
+    <a href="#" class="block px-4 py-2 hover:bg-gray-100  ">Earnings</a>
+</li>
+</ul>
+<div class="py-1">
+    <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100   ">Sign out</a>
+</div>
+</div>
+</li>
+<li>
+    <a href="#" class="block py-2 pl-3 pr-4 text-gray-900 rounded hover:bg-gray-100 md:hover:bg-transparent md:border-0 md:hover:text-blue-700 md:p-0  md:   md:">Services</a>
+</li>
+<li>
+    <a href="#" class="block py-2 pl-3 pr-4 text-gray-900 rounded hover:bg-gray-100 md:hover:bg-transparent md:border-0 md:hover:text-blue-700 md:p-0  md:   md:">Pricing</a>
+</li>
+<li>
+    <a href="#" class="block py-2 pl-3 pr-4 text-gray-900 rounded hover:bg-gray-100 md:hover:bg-transparent md:border-0 md:hover:text-blue-700 md:p-0  md:   md:">Contact</a>
+</li>
+</ul>
+</div>
 </div> --}}
 
 <script>
     //   for (let index = 0; index < 100; index++) {
-       
+
     //         const n = index + 500;
     //         window.open(`http://localhost:5173/?userid=${n}&username=Daniel${n}`, '_blank');
-            
-    //     }
 
+    //     }
 </script>
 @endsection
-

@@ -64,7 +64,9 @@
           
         </tbody>
     </table>
+<div class="col-span-10">{{$orders->links()}} </div>
 </div>
+
 
 </section>
 

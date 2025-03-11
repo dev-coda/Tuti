@@ -26,7 +26,7 @@ class OrderController extends Controller
             ->with(['user', 'seller'])
             ->withCount('products')
             ->orderByDesc('id')
-            ->paginate();
+            ->paginate()->withQueryString();
 
         $sellers = User::query()->whereRelation('roles', 'name', 'seller')->get()->pluck('name', 'id');
         $sellers = $sellers->prepend('Vendedores', '');
