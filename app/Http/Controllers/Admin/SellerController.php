@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Exports\SellersExport;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Repositories\UserRepository;
 use Illuminate\Http\Request;
+use Maatwebsite\Excel\Facades\Excel;
 
 class SellerController extends Controller
 {
@@ -145,5 +147,10 @@ class SellerController extends Controller
     public function removeclient(){
         session()->forget('user_id');
         return to_route('cart')->with('success', 'Cliente desvinculado');
+    }
+
+    public function export()
+    {
+        return Excel::download(new SellersExport, 'vendedores.xlsx');
     }
 }

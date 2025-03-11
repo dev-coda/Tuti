@@ -11,6 +11,8 @@ use App\Repositories\OrderRepository;
 use App\Repositories\UserRepository;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use App\Exports\UsersExport;
+use Maatwebsite\Excel\Facades\Excel;
 
 class UserController extends Controller
 {
@@ -130,5 +132,10 @@ class UserController extends Controller
         $user->update($validate);
 
         return back()->with('success', 'Contraseña actualizada');
+    }
+
+    public function export()
+    {
+        return Excel::download(new UsersExport, 'usuarios.xlsx');
     }
 }

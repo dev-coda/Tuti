@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Http\Controllers\Admin;
+use App\Exports\ProductExport;
 use App\Http\Controllers\Controller;
 
 use App\Models\Bonification;
@@ -16,7 +17,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Image;
 use Illuminate\Support\Str as Str;
-use Closure;use Illuminate\Database\Eloquent\Model;
+use Closure;
+use Illuminate\Database\Eloquent\Model;
+use Maatwebsite\Excel\Facades\Excel;
 
 class ProductController extends Controller
 {
@@ -322,8 +325,8 @@ class ProductController extends Controller
 
     }
 
-
- 
-
-
+    public function export()
+    {
+        return Excel::download(new ProductExport, 'productos.xlsx');
+    }
 }

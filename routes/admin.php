@@ -21,13 +21,13 @@ use App\Http\Controllers\Admin\SellerController;
 use Illuminate\Support\Facades\Route;
 
 
-// Route::middleware(['auth', 'role:seller'])->group( function () {
+Route::middleware(['auth', 'role:seller'])->group( function () {
     Route::post('/setclient', [SellerController::class, 'setclient'])->name('seller.setclient');
     Route::post('/removeclient', [SellerController::class, 'removeclient'])->name('seller.removeclient');
     
-// });
+});
 
-// Route::middleware(['auth', 'role:admin'])->group(function () {
+ Route::middleware(['auth', 'role:admin'])->group(function () {
 
 
     Route::get('/dashboard', function () {
@@ -47,6 +47,10 @@ use Illuminate\Support\Facades\Route;
 
     //Route::post('/users/{user}/code', [UserController::class, 'code'])->name('users.code');
     Route::post('/users/{user}/password', [UserController::class, 'password'])->name('users.password');
+    Route::get('/userexport', [UserController::class, 'export']);
+    Route::get('/sellerexport', [SellerController::class, 'export']);
+    Route::get('/productexport', [ProductController::class, 'export']);
+    Route::get('/orderexport', [OrderController::class, 'export']);
     Route::resource('users', UserController::class);
     Route::resource('brands', BrandController::class);
     Route::resource('taxes', TaxController::class);
@@ -75,5 +79,5 @@ use Illuminate\Support\Facades\Route;
 
     Route::get('/profile', [VendorController::class, 'index'])->name('profile.update');
 
-// });
+});
 

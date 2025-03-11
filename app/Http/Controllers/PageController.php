@@ -9,6 +9,7 @@ use App\Models\Contact;
 use App\Models\Label;
 use App\Models\Product;
 use Illuminate\Http\Request;
+use Transliterator;
 
 class PageController extends Controller
 {   
@@ -25,11 +26,14 @@ class PageController extends Controller
 
     public function search(Request $request)
     {
+        $transliterator = Transliterator::createFromRules(':: NFD; :: [:Mn:] Remove; :: NFC;');
         $q = $request->input('q');
+        $q = $transliterator->transliterate($q);
         $products = Product::active()->where(function ($query) use ($q) {
-            $query->orWhere('name', 'ILIKE', '%' . $q . '%')
-                ->orWhere('description', 'ILIKE', '%' . $q . '%')
-                ->orWhere('short_description', 'ILIKE', '%' . $q . '%');
+            $query->whereRaw("unaccent(name) ILIKE ?", ['%' . $q . '%'])
+                ->orWhereRaw("unaccent(description) ILIKE ?", ['%' . $q . '%'])
+                ->orWhereRaw("unaccent(lower(short_description)) ILIKE ?", ['%' . $q . '%'])
+                ->orWhereRaw("unaccent(lower(sku)) ILIKE ?", ['%' . $q . '%']);
         })->paginate(24);
         
             

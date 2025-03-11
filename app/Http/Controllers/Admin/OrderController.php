@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Exports\OrdersExport;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\User;
 use App\Repositories\OrderRepository;
 use Illuminate\Http\Request;
+use Maatwebsite\Excel\Facades\Excel;
 
 class OrderController extends Controller
 {
@@ -49,6 +51,11 @@ class OrderController extends Controller
             ]);        
         $context = compact('order');
         return view('orders.edit', $context);
+    }
+
+    public function export()
+    {
+        return Excel::download(new OrdersExport, 'pedidos.xlsx');
     }
 
 }
