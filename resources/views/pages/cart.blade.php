@@ -75,6 +75,13 @@
                 </div> 
             @endif   
     
+            @if($alertTotal)
+                <div class="space-y-2 mb-5">
+                        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+                            El valor de compra mínima es de <strong>${{currency($min_amount)}}.
+                        </div>
+                </div> 
+            @endif  
 
 
             <div class="border rounded p-5">
