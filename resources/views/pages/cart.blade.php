@@ -23,6 +23,7 @@
             
                 <div class='grid grid-cols-1 gap-5'>
                     {{ Aire::input('document', 'Documento')->helpText('Nit sin dígito de verificación')->groupClass('mb-0') }} 
+                    {{ Aire::input('zone', 'Zona')->helpText('Zona de la sucursal')->groupClass('mb-0') }} 
                 </div>
 
                 <div class="flex items-center  mt-4">

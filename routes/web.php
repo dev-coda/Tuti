@@ -23,10 +23,11 @@ use Illuminate\Support\Facades\Route;
 
 
 Route::get('/', [PageController::class, 'home'])->name('home');
-Route::get('/busqueda', [PageController::class, 'search'])->name('search');
+Route::get('/busqueda/{order?}/{category_id?}/{brand_id?}', [PageController::class, 'search'])->name('search');
 
 Route::get('/categoria-producto/{slug}', [PageController::class, 'category'])->name('category');
 Route::get('/categoria-producto/{slug}/{slug2?}', [PageController::class, 'category'])->name('category2');
+Route::get('/categoria-producto/{slug}/{slug2?}/{order?}/{category_id?}/{brand_id?}', [PageController::class, 'category'])->name('category3');
 
 Route::get('/producto/{slug}', [PageController::class, 'product'])->name('product');
 

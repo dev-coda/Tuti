@@ -13,11 +13,44 @@
 
 @section('content')
     
-
+{{-- Add sorting and filtering --}}
+    <div class="col-span-10 pt-3">
+        <div class="flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <span>Ordenar por:</span>
+                <select name="sort" id="sort" class="border border-gray-200 rounded-md p-2" onchange="window.location.href=this.value">
+                    <option {{ $params['order'] === '1' ? 'selected' : '' }} value="{{ route('search', 1 . '/' . $params['category_id'] . '/' . $params['brand_id'] . '?q='. $params['q']) }}">Más reciente</option>
+                    <option {{ $params['order'] === '2' ? 'selected' : '' }}  value="{{ route('search', 2 . '/' . $params['category_id'] . '/' . $params['brand_id'] . '?q='. $params['q']  ) }}">Precio: Menor a Mayor</option>
+                    <option {{ $params['order'] === '3' ? 'selected' : '' }}  value="{{ route('search', 3 . '/' . $params['category_id'] . '/' . $params['brand_id'] . '?q='. $params['q']  ) }}">Precio: Mayor a Menor</option>
+                    <option {{ $params['order'] === '4' ? 'selected' : '' }}  value="{{ route('search', 4 . '/' . $params['category_id'] . '/' . $params['brand_id'] . '?q='. $params['q']  ) }}">Nombre A-Z</option>
+                    <option {{ $params['order'] === '5' ? 'selected' : '' }}  value="{{ route('search', 5 . '/' . $params['category_id'] . '/' . $params['brand_id'] . '?q='. $params['q'] ) }}">Nombre Z-A</option>               
+                </select>
+            </div>
+            <div class="flex items-center space-x-2">
+                <span>Filtrar por:</span> 
+                <select name="filter" id="filter" class="border border-gray-200 rounded-md p-2" onchange="window.location.href=this.value">
+                <option value="#">Marca</option>
+                @foreach ($brands as $brand)
+                    <option {{ $params['brand_id'] == $brand->id ? 'selected' : '' }} value="{{ route('search', $params['order'] . '/' . $params['category_id'] . '/' . $brand->id . '?q='. $params['q'] ) }}">{{ $brand->name }}</option>
+                    @endforeach
+                </select>
+               
+                <select name="filter" id="filter" class="border border-gray-200 rounded-md p-2" onchange="window.location.href=this.value">
+                <option value="#">Categoria</option>   
+                @foreach ($categories as $categoryItem)
+                    <option {{ $params['category_id'] == $categoryItem->id ? 'selected' : '' }} value="{{ route('search', $params['order'] . '/' . $categoryItem->id . '/' . $params['brand_id'] . '?q='. $params['q']  ) }}">{{ $categoryItem->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+        </div>   
+    </div
 
 
 <section class="w-full grid grid-cols-1 gap-x-10 xl:gap-y-0 gap-y-10">
-   <h1 class="text-2xl font-bold mt-5">Resultados de búsqueda: {{request()->q}}</h1>
+    @if (count($products) == 0)
+        <h1 class="text-2xl font-bold mt-5">No se encontraron resultados</h1>
+    @else
+    <h1 class="text-2xl font-bold mt-5">Resultados de búsqueda: {{request()->q}}</h1>
     <div class="my-10">
         <div class="grid grid-cols-2 xl:grid-cols-6 gap-5 ">
             @foreach ($products as $product)
@@ -27,9 +60,7 @@
     </div>
 
     {{ $products->withQueryString()->links() }} 
-
-  
-
+    @endif
 
 </section>
 

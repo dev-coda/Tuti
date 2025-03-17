@@ -24,21 +24,57 @@ class PageController extends Controller
         return view('pages.home', $context);
     }
 
-    public function search(Request $request)
+    public function search(Request $request, $order='1', $category_id='0', $brand_id='0')
     {
+
+        $brands = Brand::whereActive(1)->orderBy('name')->get();
+       $categories = Category::with('parent')->get();
+       
         $transliterator = Transliterator::createFromRules(':: NFD; :: [:Mn:] Remove; :: NFC;');
         $q = $request->input('q');
         $q = $transliterator->transliterate($q);
+
+        $params = compact('q', 'order', 'category_id', 'brand_id');
+        
         $products = Product::active()->where(function ($query) use ($q) {
             $query->whereRaw("unaccent(name) ILIKE ?", ['%' . $q . '%'])
                 ->orWhereRaw("unaccent(description) ILIKE ?", ['%' . $q . '%'])
                 ->orWhereRaw("unaccent(lower(short_description)) ILIKE ?", ['%' . $q . '%'])
                 ->orWhereRaw("unaccent(lower(sku)) ILIKE ?", ['%' . $q . '%']);
-        })->paginate(24);
-        
-            
+        });
 
-        $context = compact('products');
+        if($category_id){
+            $products = $products->whereHas('categories', function($query) use ($category_id){
+                $query->where('category_id', $category_id);
+            });
+        }
+
+        if($brand_id){
+            $products = $products->where('brand_id', $brand_id);
+        }
+
+        switch ($order){
+            case 1:
+                $products = $products->orderBy('created_at', 'desc')->paginate();
+                break;
+            case 2:
+                $products = $products->orderBy('price', 'asc')->paginate();
+                break;
+            case 3:
+                $products = $products->orderBy('price', 'desc')->paginate();
+                break;
+            case 4:
+                $products = $products->orderBy('name', 'asc')->paginate();
+                break;
+            case 5:
+                $products = $products->orderBy('name', 'desc')->paginate();
+                break;
+            default:
+                $products = $products->paginate();
+                break;
+        }
+
+        $context = compact('products', 'brands', 'categories', 'params');
         return view('pages.search', $context);
     }
 
@@ -70,13 +106,16 @@ class PageController extends Controller
         return view('pages.product',  $context);
     }
 
-    public function category($slug, $slug2=null)
+    public function category($slug, $slug2='0', $order='1', $category_id='0', $brand_id='0')
     {
-      
+       $brands = Brand::whereActive(1)->orderBy('name')->get();
+       $categories = Category::with('parent')->get();
+       $params = compact('slug', 'slug2', 'order', 'category_id', 'brand_id');
+    
         if($slug2){
 
             $category = Category::with('parent')->where('slug', $slug2)->firstOrFail();
-            $products = $category->products()->paginate();
+            $products = $category->products();
 
         }else{
 
@@ -90,15 +129,41 @@ class PageController extends Controller
             
             $products = Product::active()->whereHas('categories', function($query) use ($ids){
                 $query->whereIn('category_id', $ids);
-            })->paginate();
-
-          
-        
-            
+            }); 
         }
 
-    
-        $context = compact('category', 'products');
+        if($category_id){
+            $products = $products->whereHas('categories', function($query) use ($category_id){
+                $query->where('category_id', $category_id);
+            });
+        }
+
+        if($brand_id){
+            $products = $products->where('brand_id', $brand_id);
+        }
+
+        switch ($order){
+            case 1:
+                $products = $products->orderBy('created_at', 'desc')->paginate();
+                break;
+            case 2:
+                $products = $products->orderBy('price', 'asc')->paginate();
+                break;
+            case 3:
+                $products = $products->orderBy('price', 'desc')->paginate();
+                break;
+            case 4:
+                $products = $products->orderBy('name', 'asc')->paginate();
+                break;
+            case 5:
+                $products = $products->orderBy('name', 'desc')->paginate();
+                break;
+            default:
+                $products = $products->paginate();
+                break;
+        }
+
+        $context = compact('category', 'products', 'categories', 'brands', 'params');
 
         return view('pages.category', $context);
        
