@@ -41,7 +41,7 @@ class UserRepository
         ];
     }
 
-    public static function getCustomRuteroId($document)
+    public static function getCustomRuteroId($document, $zone = null)
     {
 
         $token = Setting::where('key', 'microsoft_token')->first();
@@ -54,7 +54,7 @@ class UserRepository
         }
 
         $token = $token->value;
-
+        $zone = $zone ?? '';
 
         //901703447
         $body = '<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:dat="http://schemas.microsoft.com/dynamics/2013/01/datacontracts" xmlns:tem="http://tempuri.org" xmlns:dyn="http://schemas.datacontract.org/2004/07/Dynamics.AX.Application">
@@ -73,7 +73,7 @@ class UserRepository
                         <!--Optional:-->
                         <dyn:IdentificationNum>' . $document . '</dyn:IdentificationNum>
                         <!--Optional:-->
-                        <dyn:ruteroId></dyn:ruteroId>
+                        <dyn:ruteroId>' . $zone . '</dyn:ruteroId>
                         <!--Optional:-->
                         <dyn:zona></dyn:zona>
                     </tem:_getRuteros>
