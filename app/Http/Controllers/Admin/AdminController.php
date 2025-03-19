@@ -10,25 +10,16 @@ class AdminController extends Controller
 {
     public function index(Request $request)
     {
-        // $users = User::query()
-        //     ->whereRelation('roles', 'name', 'admin')
-        //     ->when(request('q'), function ($query, $q) {
-        //         $query->where('name', 'ilike', "%{$q}%")
-        //         ->orWhere('email', 'ilike', "%{$q}%");
-        //     })
-        //     ->orderBy('name')
-        //     ->paginate();
-
-        $users = $query = User::query();
-
-        $users = $query->paginate();
+        $users = User::query()
+            ->whereRelation('roles', 'name', 'admin')
+            ->when(request('q'), function ($query, $q) {
+                $query->where('name', 'ilike', "%{$q}%")
+                ->orWhere('email', 'ilike', "%{$q}%");
+            })
+            ->orderBy('name')
+            ->paginate();
 
         $context = compact('users'); 
-
-        if ($users->isEmpty()) {
-            // Si no hay usuarios, puedes manejar este caso en tu vista
-            return view('admins.index', ['message' => 'No se encontraron usuarios']);
-        }
 
         return view('admins.index' , $context);
     }

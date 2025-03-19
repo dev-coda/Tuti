@@ -139,7 +139,7 @@
                             });
 
                             $discount = $products->sum(function($product){
-                                return $product->final_price['totalDiscount'] * $product->quantity;
+                                return $product->final_price['old'] * $product->discount/100 * $product->quantity;
                             });
                         @endphp
 

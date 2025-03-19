@@ -16,6 +16,7 @@
         "laravel/tinker": "^2.8",
         "league/flysystem-aws-s3-v3": "^3.0",
         "livewire/livewire": "^2.12",
+        "maatwebsite/excel": "^3.1",
         "spatie/array-to-xml": "^3.2",
         "spatie/laravel-permission": "^5.10"
     },

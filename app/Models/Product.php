@@ -141,8 +141,8 @@ class Product extends  Model
         }
 
 
-        $pricePreTax = $price - ($price * $discount / 100);
-        $finalPrice = $this->taxValue() > 0 ? ($pricePreTax + ($pricePreTax * $this->taxValue() / 100)) : $pricePreTax;
+        $discountedPrice = $price - ($price * $discount / 100);
+        $finalPrice = $this->taxValue() > 0 ? ($discountedPrice + ($discountedPrice * $this->taxValue() / 100)) : $discountedPrice;
         $pricePreDiscount = $price + ($price * $this->taxValue() / 100);
 
 
@@ -152,7 +152,8 @@ class Product extends  Model
             'totalDiscount' => ($price * $discount / 100),
             'discount' => $discount,
             'discount_on' => $discount_on,
-            'has_discount' => $has_discount
+            'has_discount' => $has_discount,
+            'originalPrice' => $price,
         ];
     }
 

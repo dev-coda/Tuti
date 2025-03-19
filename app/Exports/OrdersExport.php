@@ -16,7 +16,7 @@ class OrdersExport implements FromQuery, WithMapping, WithHeadings
 
     public function map($order): array
     {
-        $orderStatuisId = $order->status_id;
+        /* $orderStatuisId = $order->status_id;
         $orderStatus = '';
         if ($orderStatuisId == Order::STATUS_PENDING) {
             $orderStatus = 'Pendiente';
@@ -31,18 +31,18 @@ class OrdersExport implements FromQuery, WithMapping, WithHeadings
         $orderProductArray = '';
         foreach ($order->products as $product) {
             $orderProductArray .= $product->product->name . ' x' . $product->quantity . ' - c/u $' . $product->price . ', ';
-        }
+        } */
 
 
         return [
             $order->id,
             $order->created_at,
             $order->user->name,
-            $order->$orderStatus,
+            $order->$order->status_id,
             $order->total,
             $order->discount,
             $order->products->count(),
-            $orderProductArray,
+            '',
         ];
     }
 

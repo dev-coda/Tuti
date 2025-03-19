@@ -12,7 +12,7 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        // $schedule->command('inspire')->hourly();
+        $schedule->command('inspire')->hourly();
         //comand every 20 minutes
         $schedule->command('app:get-token')->cron('*/20 * * * *');
     }

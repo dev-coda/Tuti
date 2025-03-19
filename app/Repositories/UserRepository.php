@@ -6,13 +6,16 @@ use App\Models\Setting;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Http;
 
+use function Laravel\Prompts\error;
+
 class UserRepository
 {
 
-    private  static function processData($aListDetailsRuteros, $data){
-       
-   
-   
+    private  static function processData($aListDetailsRuteros, $data)
+    {
+
+
+
         $aZona = $data['aZona'];
         $aRoute = $data['aRoute'];
         $aDiaRecorrido = $data['aDiaRecorrido'];
@@ -26,7 +29,7 @@ class UserRepository
         $aAddress = $aListDetailsRuteros['aAddress'];
         $aName = $aListDetailsRuteros['aName'];
 
-      
+
 
         return  [
             'zone' => $aZona,
@@ -36,23 +39,22 @@ class UserRepository
             'address' => $aAddress,
             'name' => $aName
         ];
-    
     }
 
-    public static function getCustomRuteroId($document){
-
+    public static function getCustomRuteroId($document, $zone = null)
+    {
 
         $token = Setting::where('key', 'microsoft_token')->first();
-        
+
         //check if updated_at is grander than 30 minutes
-        if($token->updated_at->diffInMinutes(now()) > 25){
+        if ($token->updated_at->diffInMinutes(now()) > 25) {
             //call command app:get-token
             Artisan::call('app:get-token');
             $token = Setting::where('key', 'microsoft_token')->first();
         }
 
         $token = $token->value;
-
+        //$zone = $zone ?? '';
 
         //901703447
         $body = '<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:dat="http://schemas.microsoft.com/dynamics/2013/01/datacontracts" xmlns:tem="http://tempuri.org" xmlns:dyn="http://schemas.datacontract.org/2004/07/Dynamics.AX.Application">
@@ -69,7 +71,7 @@ class UserRepository
                     <!--Optional:-->
                     <tem:_getRuteros>
                         <!--Optional:-->
-                        <dyn:IdentificationNum>'.$document.'</dyn:IdentificationNum>
+                        <dyn:IdentificationNum>' . $document . '</dyn:IdentificationNum>
                         <!--Optional:-->
                         <dyn:ruteroId></dyn:ruteroId>
                         <!--Optional:-->
@@ -79,40 +81,39 @@ class UserRepository
             </soapenv:Body>
             </soapenv:Envelope>';
 
-            
+
 
         $response = Http::withHeaders([
             'Content-Type' => 'text/xml;charset=UTF-8',
             'SOAPAction' => 'http://tempuri.org/DWSSalesForce/getRuteros',
             'Authorization' => "Bearer {$token}"
-        ])->send('POST', 'https://uattrx.sandbox.operations.dynamics.com/soap/services/DIITDWSSalesForceGroup?=null', [
+        ])->send('POST', 'https://tronex.operations.dynamics.com/soap/services/DIITDWSSalesForceGroup?=null', [
             'body' => $body
         ]);
-        $data = $response->body();
+	$data = $response->body();
 
-       
+
+
         $xmlString = preg_replace('/<(\/)?(s|a):/', '<$1$2', $data);
         $xml = simplexml_load_string($xmlString);
-      
+
+
         try {
-           // $aListRuteros = $xml->sBody->getRuterosResponse->result->agetRuterosResult->aListRuteros;
+            // $aListRuteros = $xml->sBody->getRuterosResponse->result->agetRuterosResult->aListRuteros;
 
             $addresses = $xml->sBody->getRuterosResponse->result->agetRuterosResult;
-          
+
             $json = json_encode($addresses);
 
             $array = json_decode($json, TRUE);
             $aListRuteros = $array['aListRuteros'];
-  
-
-           
-
         } catch (\Throwable $th) {
             return null;
         }
 
-        
-        if(array_key_exists('aDetail', $aListRuteros)){
+
+        if (!array_key_exists('aDetail', $aListRuteros)) {
+
             return null;
         }
 
@@ -121,38 +122,37 @@ class UserRepository
         $name = '';
 
         foreach ($aListRuteros as $key => $rutero) {
-        //    try {
+            //    try {
 
-                $json = json_encode($rutero);
-                $r = json_decode($json, TRUE);
-                
-                $aListDetailsRuteros = $r['aDetail']['aListDetailsRuteros'];
+            $json = json_encode($rutero);
+            $r = json_decode($json, TRUE);
 
-                $data = [
-                    'aDiaRecorrido' => $rutero['aDiaRecorrido'],
-                    'aRoute' => $rutero['aRoute'],
-                    'aZona' => $rutero['aZona'],
-                ];
-                    
-                //check if exist key 0
-                if(array_key_exists(0, $aListDetailsRuteros)){
-                    
-                    foreach ($aListDetailsRuteros as  $i) {
-                        $items[] = self::processData($i, $data);
-                    }
-                        
-                }else{
-                    $items[] = self::processData($aListDetailsRuteros, $data);
+            $aListDetailsRuteros =  $aListRuteros['aDetail']['aListDetailsRuteros'];
+
+            $data = [
+                'aDiaRecorrido' =>  $aListRuteros['aDiaRecorrido'],
+                'aRoute' => $aListRuteros['aRoute'],
+                'aZona' => $aListRuteros['aZona'],
+            ];
+
+            //check if exist key 0
+            if (array_key_exists(0, $aListDetailsRuteros)) {
+
+                foreach ($aListDetailsRuteros as  $i) {
+                    $items[] = self::processData($i, $data);
                 }
-                
-              
+            } else {
+                $items[] = self::processData($aListDetailsRuteros, $data);
+            }
 
-               
+
+
+
             //   } catch (\Throwable $th) {
             //     info('error '.$key);
             //     info($th->getMessage());
             //     info($rutero);
-                
+
             //     continue;
             //   }
         }
@@ -160,24 +160,23 @@ class UserRepository
         $items = collect($items);
 
 
-        if($items->count()){
+        if ($items->count()) {
 
             $name = $items->first()['name'] ?? 'Sin Nombre';
 
             $data =  [
                 'routes' => $items,
                 'name' => $name
-             ];
+            ];
 
             return $data;
-
-        }else{
+        } else {
             return null;
         }
 
-        
 
-        
+
+
         // if(!empty($aListRuteros->aRoute)){
         //     $address = $aListRuteros->aDetail->aListDetailsRuteros->aAddress->__toString();
         //     $name = $aListRuteros->aDetail->aListDetailsRuteros->aName->__toString();
@@ -186,7 +185,7 @@ class UserRepository
         //     $day = $aListRuteros->aDiaRecorrido->__toString();
         //     $aCustRuteroID = $aListRuteros->aDetail->aListDetailsRuteros-> aCustRuteroID->__toString();
         //     $day = explode('- ', $day)[0];
-            
+
         //     return [
         //         'zone' => $zone,
         //         'route' => $route,
@@ -199,12 +198,10 @@ class UserRepository
         // }else{
         //     return null;
         // }
-       
 
 
-        
-        
+
+
+
     }
-
-
 }
