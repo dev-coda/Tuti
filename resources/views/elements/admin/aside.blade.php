@@ -28,7 +28,7 @@
                         'vendors'=>'Vendors', 
                         'brands'=>'Marcas', 
                         'taxes'=>'Impuestos', 
-                        'vendors'=>'Vendors', 
+                        'vendors'=>'Proveedores', 
                         'categories'=>'Categorías', 
                         'labels'=>'Etiquetas', 
                         'variations'=>'Variaciones', 
