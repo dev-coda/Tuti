@@ -6,6 +6,8 @@ use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PageController;
 use App\Http\Controllers\Seller\PageController as SellerPageController;
 use App\Http\Controllers\Shopper\PageController as ShopperPageController;
+use App\Http\Controllers\UserController;
+
 
 
 use Illuminate\Support\Facades\Route;
@@ -81,6 +83,12 @@ Route::name('shoppers.')->prefix('tendero')->group(function () {
     Route::get('/reports', [ShopperPageController::class, 'reports'])->name('reports');
   
 });
+
+Route::middleware(['auth'])->group(function () {
+    Route::get('/orders/{order}', [OrderController::class, 'show'])->name('orders.show');
+});
+
+
 
 
 require __DIR__.'/auth.php';

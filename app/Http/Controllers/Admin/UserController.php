@@ -52,13 +52,26 @@ class UserController extends Controller
     public function edit(User $user)
     {
         $user->load('zones');
-        $states = State::orderBy('name')->get()->pluck('name', 'id');
-        $cities = City::whereStateId($user->state_id)->orderBy('name')->get()->pluck('name', 'id');
-
-        $context = compact('user', 'states', 'cities');
-
-        return view('users.edit', $context);
-    }
+        $states = State::orderBy('name')->pluck('name', 'id');
+        $cities = City::whereStateId($user->state_id)->orderBy('name')->pluck('name', 'id');
+    
+        $orders = $user->orders()
+            ->with(['zone', 'products'])
+            ->orderBy('created_at', 'desc')
+            ->paginate(10)
+            ->through(function ($order) {
+                return [
+                    'date' => $order->created_at->format('Y-m-d H:i:s'),
+                    'address' => optional($order->zone)->address,
+                    'order_number' => $order->id,
+                    'value' => $order->products->sum(fn($p) => $p->price * $p->quantity),
+                    'units' => $order->products->sum('quantity'),
+                    'status' => $order->status_id == 0 ? 'Pendiente' : 'Completado',
+                ];
+            });
+    
+        return view('users.edit', compact('user', 'states', 'cities', 'orders'));
+    }    
 
     /**
      * Update the specified resource in storage.
@@ -76,8 +89,8 @@ class UserController extends Controller
             'area' => ['required', 'string', 'max:255'],
             'phone' => ['required', 'string', 'max:255'],
             'mobile' => ['required', 'string', 'max:255'],
-            'has_whatsapp' => ['required'],
-            'visit_by_tronex' => ['required'],
+            'has_whatsapp' => ['required', 'boolean'],
+            'visit_by_tronex' => ['required', 'boolean'],
         ]);
         $user->update($validate);
 
