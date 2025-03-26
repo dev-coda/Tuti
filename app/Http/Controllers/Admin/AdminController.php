@@ -16,6 +16,7 @@ class AdminController extends Controller
                 $query->where('name', 'ilike', "%{$q}%")
                 ->orWhere('email', 'ilike', "%{$q}%");
             })
+
             ->orderBy('name')
             ->paginate();
 
@@ -82,4 +83,11 @@ class AdminController extends Controller
         return to_route('admins.index')->with('success', 'Usuario actualizado');
     }
 
+    public function destroy($id)
+    {
+        $user = User::findOrFail($id);
+        $user->delete();
+
+        return to_route('admins.index')->with('success', 'Usuario eliminado');
+    }
 }

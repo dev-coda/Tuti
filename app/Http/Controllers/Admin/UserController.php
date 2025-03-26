@@ -20,23 +20,41 @@ class UserController extends Controller
      * Display a listing of the resource.
      */
     public function index()
-    {
-        
-        $users = User::query()
+{
+    $users = User::query()
         ->whereDoesntHave('roles')
-        ->when(request('q'), function($query, $q){
+        ->when(request('q'), function ($query, $q) {
             $query->where('name', 'ilike', "%{$q}%")
-                ->orWhere('email', 'ilike', "%{$q}%");
+                  ->orWhere('email', 'ilike', "%{$q}%");
+        })
+        ->when(request('zone') !== null, function ($query, $zone) {
+            if ($zone === 'sin_zona') {
+                $query->where('zone', '0')
+                ->orWhereNull('zone');
+            } else {
+                $query->where('zone', $zone);
+            }
         })
         ->orderBy('name')
         ->paginate();
 
-        $context = compact('users'); 
+    // Obtener todas las zonas únicas, excluyendo NULL y "0"
+    $zones = User::select('zone')
+        ->whereDoesntHave('roles')
+        ->distinct()
+        ->whereNotNull('zone') // Excluir NULL
+        ->where('zone', '!=', '0') // Excluir "0" exacto
+        ->orderBy('zone', 'asc')
+        ->pluck('zone', 'zone')
+        ->toArray();
 
-        return view('users.index', $context);
-    }
+    // Agregar la opción "Sin zona" manualmente
+    $zones = ['sin_zona' => 'Sin zona'] + $zones;
 
-  
+    return view('users.index', compact('users', 'zones'));
+}
+
+
 
     /**
      * Display the specified resource.
@@ -54,7 +72,7 @@ class UserController extends Controller
         $user->load('zones');
         $states = State::orderBy('name')->pluck('name', 'id');
         $cities = City::whereStateId($user->state_id)->orderBy('name')->pluck('name', 'id');
-    
+
         $orders = $user->orders()
             ->with(['zone', 'products'])
             ->orderBy('created_at', 'desc')
@@ -69,9 +87,12 @@ class UserController extends Controller
                     'status' => $order->status_id == 0 ? 'Pendiente' : 'Completado',
                 ];
             });
-    
-        return view('users.edit', compact('user', 'states', 'cities', 'orders'));
-    }    
+
+        $context = compact('user', 'states', 'cities', 'orders');
+
+        return view('users.edit', $context);
+    }
+
 
     /**
      * Update the specified resource in storage.

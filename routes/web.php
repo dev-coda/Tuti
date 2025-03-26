@@ -88,6 +88,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/orders/{order}', [OrderController::class, 'show'])->name('orders.show');
 });
 
+Route::delete('/admins/{id}', [AdminController::class, 'destroy'])->name('admins.destroy');
+
+
 
 
 
