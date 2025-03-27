@@ -27,31 +27,31 @@ class UserController extends Controller
             $query->where('name', 'ilike', "%{$q}%")
                   ->orWhere('email', 'ilike', "%{$q}%");
         })
-        ->when(request('zone') !== null, function ($query, $zone) {
-            if ($zone === 'sin_zona') {
-                $query->where('zone', '0')
-                ->orWhereNull('zone');
-            } else {
-                $query->where('zone', $zone);
-            }
-        })
+        // ->when(request('zone') !== null, function ($query, $zone) {
+        //     if ($zone === 'sin_zona') {
+        //         $query->where('zone', '0')
+        //         ->orWhereNull('zone');
+        //     } else {
+        //         $query->where('zone', $zone);
+        //     }
+        // })
         ->orderBy('name')
         ->paginate();
 
     // Obtener todas las zonas únicas, excluyendo NULL y "0"
-    $zones = User::select('zone')
-        ->whereDoesntHave('roles')
-        ->distinct()
-        ->whereNotNull('zone') // Excluir NULL
-        ->where('zone', '!=', '0') // Excluir "0" exacto
-        ->orderBy('zone', 'asc')
-        ->pluck('zone', 'zone')
-        ->toArray();
+    // $zones = User::select('zone')
+    //     ->whereDoesntHave('roles')
+    //     ->distinct()
+    //     ->whereNotNull('zone') // Excluir NULL
+    //     ->where('zone', '!=', '0') // Excluir "0" exacto
+    //     ->orderBy('zone', 'asc')
+    //     ->pluck('zone', 'zone')
+    //     ->toArray();
 
     // Agregar la opción "Sin zona" manualmente
-    $zones = ['sin_zona' => 'Sin zona'] + $zones;
+    // $zones = ['sin_zona' => 'Sin zona'] + $zones;
 
-    return view('users.index', compact('users', 'zones'));
+    return view('users.index', compact('users'));
 }
 
 

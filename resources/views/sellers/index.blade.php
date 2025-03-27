@@ -15,7 +15,21 @@
         <div class="items-center justify-between block sm:flex md:divide-x md:divide-gray-100 ">
             <div class="flex items-center mb-4 sm:mb-0">
                <x-search :home="route('sellers.index')" />
+
+               <form action="{{ route('sellers.index') }}" method="GET" class="flex items-center">
+                <select name="zone" class="border-gray-300 rounded-lg p-2 ml-3" onchange="this.form.submit()">
+                    <option value="">Todas las zonas</option>
+                    @foreach ($zones as $zone)
+                        <option value="{{ $zone }}" {{ request('zone') === (string) $zone ? 'selected' : '' }}>
+                        {{ $zone }}
+                        </option>
+                    @endforeach
+                </select>
+            </form>
+
             </div>
+
+
              <a href="{{ route('sellers.create') }}"
                 class="text-white bg-blue-700 hover:bg-primary-800 focus:ring-4 focus:ring-blue-300 font-bold rounded-lg text-sm px-5 py-2.5 ">
                 Nuevo vendedor

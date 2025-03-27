@@ -64,6 +64,7 @@ class AdminController extends Controller
         $validations =  [
             'name' => 'required|string|max:255',
             'email' => ['required', 'string', 'email', 'max:255', 'unique:' . User::class . ',email,' . $user->id],
+            'status_id' => 'nullable|boolean',
             
         ];
 
@@ -76,6 +77,8 @@ class AdminController extends Controller
         if ($request->filled('password')) {
             $validate['password']  = bcrypt($validate['password']);
         }
+
+        $validate['status_id'] = filter_var($request->status_id, FILTER_VALIDATE_BOOLEAN);
 
         $user->update($validate);
 

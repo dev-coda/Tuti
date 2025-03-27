@@ -16,17 +16,6 @@
             <div class="flex items-center mb-4 sm:mb-0">
                <x-search :home="route('users.index')" />
 
-               <form method="GET" action="{{ route('users.index') }}">
-                    <select name="zone" class="border border-gray-300 rounded p-2 bg-white" onchange="this.form.submit()">
-                        <option value="">Todas las Zonas</option>
-                        @foreach($zones as $key => $label)
-                            <option value="{{ $key }}" {{ request('zone') == $key ? 'selected' : '' }}>
-                                {{ $label }}
-                        </option>
-                        @endforeach
-                     </select>
-                </form>
-
             </div>
        
         </div>
