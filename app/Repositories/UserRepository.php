@@ -75,7 +75,7 @@ class UserRepository
                         <!--Optional:-->
                         <dyn:ruteroId></dyn:ruteroId>
                         <!--Optional:-->
-                        <dyn:zona></dyn:zona>
+                        <dyn:zona>' . $zone . '</dyn:zona>
                     </tem:_getRuteros>
                 </tem:getRuteros>
             </soapenv:Body>
