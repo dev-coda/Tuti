@@ -28,10 +28,12 @@ class OrderController extends Controller
             })->orWhere('id', 'ilike', "%$q%");
         })
 
-        ->when($request->zone, function ($query, $zone) {
-            $query->whereHas('user', function ($subQuery) use ($zone) {
-                $subQuery->where('zone', $zone);
-            });
+        ->when($request->zone, function ($query) use ($request) {
+            if ($request->zone !== '') {
+                $query->whereHas('user', function ($subQuery) use ($request) {
+                    $subQuery->where('zone', $request->zone);
+                });
+            }
         })
 
         ->when($request->filled('from_date') && $request->filled('to_date'), function ($query) use ($request) {
@@ -51,9 +53,14 @@ class OrderController extends Controller
         $query->where('name', 'seller');
         })->pluck('name', 'id')->prepend('Vendedores', '');
 
-        $foo = "cualquier cosa";
+        $zones = User::whereHas('orders') 
+        ->select('zone')
+        ->distinct()
+        ->whereNotNull('zone')
+        ->orderBy('zone', 'asc')
+        ->pluck('zone');
 
-        return view('orders.index', compact('orders', 'sellers', 'foo'));
+        return view('orders.index', compact('orders', 'sellers', 'zones'));
     }
 
     public function edit(Order $order){

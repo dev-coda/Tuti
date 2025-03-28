@@ -26,8 +26,14 @@
                 </div>
 
                 <div>
-                    <input type="text" name="zone" placeholder="Zona" value="{{ request()->zone }}"
-                        class="bg-gray-50 border border-gray-300 text-gray-900 sm:text-sm rounded focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5">
+                    <select name="zone" class="bg-gray-50 border border-gray-300 text-gray-900 sm:text-sm rounded focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5">
+                        <option value="">Todas las zonas</option>
+                        @foreach ($zones as $zone)
+                            <option value="{{ $zone }}" {{ request()->zone == $zone ? 'selected' : '' }}>
+                            {{ $zone }}
+                            </option>
+                        @endforeach
+                    </select>
                 </div>
                 
                 {{ Aire::select($sellers, 'seller_id')->value(request()->seller_id)->groupClass('mb-0') }}
