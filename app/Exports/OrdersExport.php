@@ -8,9 +8,13 @@ use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\WithChunkReading;
 use Maatwebsite\Excel\Concerns\WithBatchInserts;
+use Illuminate\Contracts\Queue\ShouldQueue;
 
 class OrdersExport implements FromQuery, WithMapping, WithHeadings, withChunkReading, withBatchInserts
 {
+
+    use Exportable;
+    
     public function query()
     {
         return Order::query();

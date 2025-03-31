@@ -82,7 +82,9 @@ class OrderController extends Controller
 
     public function export()
     {
-        return Excel::download(new OrdersExport, 'pedidos.xlsx');
+        (new InvoicesExport)->queue('invoices.xlsx');
+
+        return back()->withSuccess('Exportando ordenes');
     }
 
 }
