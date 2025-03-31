@@ -38,7 +38,7 @@ class OrdersExport implements FromQuery, WithMapping, WithHeadings
             $order->id,
             $order->created_at,
             $order->user->name,
-            $order->$order->status_id,
+            $order->status_id,
             $order->total,
             $order->discount,
             $order->products->count(),

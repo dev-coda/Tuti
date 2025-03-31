@@ -9,9 +9,9 @@ return new class extends Migration {
     public function up() {
         DB::table('settings')->insert([
             'id' => 6,  
-            'nombre' => 'Monto Minimo',
-            'clave' => 'min_amount',
-            'valor' => '100000',
+            'name' => 'Monto Minimo',
+            'key' => 'min_amount',
+            'value' => '100000',
             'created_at' => now(),
             'updated_at' => now(),
         ]);
