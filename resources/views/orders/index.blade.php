@@ -7,14 +7,14 @@
 <div class="p-4 bg-white block sm:flex items-center justify-between border-b border-gray-200">
     <div class="flex flex-col w-full mb-1">
     <div class="mb-4 flex justify-between">
-            <h1 class="text-xl font-semibold text-gray-900 sm:text-2xl ">Compras</h1>
-           {{-- <a href="/orderexport">
+            <h1 class="text-xl font-semibold text-gray-900 sm:text-2xl ">Pedidos</h1>
+            <a href="/orderexport">
                 @svg('heroicon-o-arrow-down-on-square', 'w-8 h-8 text-blue-500')
             </a> --}} 
         </div>
    
         <div class="flex items-center mb-4 w-full">
-            <form class="xl:flex grid grid-cols-1 gap-y-5 w-full xl:space-x-2 space-x-0" >
+            <form method="GET" action="{{ route('orders.index') }}" class="xl:flex grid grid-cols-1 gap-y-5 w-full xl:space-x-2 space-x-0" >
             
                 <div>
                     
@@ -24,7 +24,28 @@
                         >
                     </div>
                 </div>
+
+                <div>
+                    <select name="zone" class="bg-gray-50 border border-gray-300 text-gray-900 sm:text-sm rounded focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5">
+                        <option value="">Todas las zonas</option>
+                        @foreach ($zones as $zone)
+                            <option value="{{ $zone }}" {{ request()->zone == $zone ? 'selected' : '' }}>
+                            {{ $zone }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                
                 {{ Aire::select($sellers, 'seller_id')->value(request()->seller_id)->groupClass('mb-0') }}
+                
+                <div>
+                    <input type="date" name="from_date" value="{{ request()->from_date }}"
+                        class="bg-gray-50 border border-gray-300 text-gray-900 sm:text-sm rounded focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5">
+                </div>
+                <div>
+                    <input type="date" name="to_date" value="{{ request()->to_date }}"
+                        class="bg-gray-50 border border-gray-300 text-gray-900 sm:text-sm rounded focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5">
+                </div>
                 {{ Aire::button('Buscar')->variant()->submit() }}
                 @if(request()->q || request()->seller_id)
                     <a href="{{route('orders.index')}}"

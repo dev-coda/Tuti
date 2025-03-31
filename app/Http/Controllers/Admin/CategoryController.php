@@ -135,7 +135,6 @@ class CategoryController extends Controller
             ]
         ]);
 
-       
         // $name = asset_name('categories'); 
         // $n = ProcessImage::dispatch($name, $request->image_file);
         

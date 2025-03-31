@@ -20,23 +20,41 @@ class UserController extends Controller
      * Display a listing of the resource.
      */
     public function index()
-    {
-        
-        $users = User::query()
+{
+    $users = User::query()
         ->whereDoesntHave('roles')
-        ->when(request('q'), function($query, $q){
+        ->when(request('q'), function ($query, $q) {
             $query->where('name', 'ilike', "%{$q}%")
-                ->orWhere('email', 'ilike', "%{$q}%");
+                  ->orWhere('email', 'ilike', "%{$q}%");
         })
+        // ->when(request('zone') !== null, function ($query, $zone) {
+        //     if ($zone === 'sin_zona') {
+        //         $query->where('zone', '0')
+        //         ->orWhereNull('zone');
+        //     } else {
+        //         $query->where('zone', $zone);
+        //     }
+        // })
         ->orderBy('name')
         ->paginate();
 
-        $context = compact('users'); 
+    // Obtener todas las zonas únicas, excluyendo NULL y "0"
+    // $zones = User::select('zone')
+    //     ->whereDoesntHave('roles')
+    //     ->distinct()
+    //     ->whereNotNull('zone') // Excluir NULL
+    //     ->where('zone', '!=', '0') // Excluir "0" exacto
+    //     ->orderBy('zone', 'asc')
+    //     ->pluck('zone', 'zone')
+    //     ->toArray();
 
-        return view('users.index', $context);
-    }
+    // Agregar la opción "Sin zona" manualmente
+    // $zones = ['sin_zona' => 'Sin zona'] + $zones;
 
-  
+    return view('users.index', compact('users'));
+}
+
+
 
     /**
      * Display the specified resource.
@@ -52,13 +70,29 @@ class UserController extends Controller
     public function edit(User $user)
     {
         $user->load('zones');
-        $states = State::orderBy('name')->get()->pluck('name', 'id');
-        $cities = City::whereStateId($user->state_id)->orderBy('name')->get()->pluck('name', 'id');
+        $states = State::orderBy('name')->pluck('name', 'id');
+        $cities = City::whereStateId($user->state_id)->orderBy('name')->pluck('name', 'id');
 
-        $context = compact('user', 'states', 'cities');
+        $orders = $user->orders()
+            ->with(['zone', 'products'])
+            ->orderBy('created_at', 'desc')
+            ->paginate(10)
+            ->through(function ($order) {
+                return [
+                    'date' => $order->created_at->format('Y-m-d H:i:s'),
+                    'address' => optional($order->zone)->address,
+                    'order_number' => $order->id,
+                    'value' => $order->products->sum(fn($p) => $p->price * $p->quantity),
+                    'units' => $order->products->sum('quantity'),
+                    'status' => $order->status_id == 0 ? 'Pendiente' : 'Completado',
+                ];
+            });
+
+        $context = compact('user', 'states', 'cities', 'orders');
 
         return view('users.edit', $context);
     }
+
 
     /**
      * Update the specified resource in storage.
@@ -76,8 +110,8 @@ class UserController extends Controller
             'area' => ['required', 'string', 'max:255'],
             'phone' => ['required', 'string', 'max:255'],
             'mobile' => ['required', 'string', 'max:255'],
-            'has_whatsapp' => ['required'],
-            'visit_by_tronex' => ['required'],
+            'has_whatsapp' => ['required', 'boolean'],
+            'visit_by_tronex' => ['required', 'boolean'],
         ]);
         $user->update($validate);
 
