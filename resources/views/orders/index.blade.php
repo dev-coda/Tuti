@@ -8,9 +8,13 @@
     <div class="flex flex-col w-full mb-1">
     <div class="mb-4 flex justify-between">
             <h1 class="text-xl font-semibold text-gray-900 sm:text-2xl ">Pedidos</h1>
+            <div>
             <a href="/orderexport">
                 @svg('heroicon-o-arrow-down-on-square', 'w-8 h-8 text-blue-500')
-            </a> --}} 
+            </a> 
+            </div>
+           
+
         </div>
    
         <div class="flex items-center mb-4 w-full">
