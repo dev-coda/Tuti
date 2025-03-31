@@ -16,7 +16,7 @@ class OrdersExport implements FromQuery, WithMapping, WithHeadings, withChunkRea
 
     use Exportable;
 
-    public function __construct(str $from_date, str $to_date)
+    public function __construct(str $from_date = '', str $to_date = '')
     {
         $this->from_date = $from_date;
         $this->to_date = $to_date;
@@ -24,7 +24,7 @@ class OrdersExport implements FromQuery, WithMapping, WithHeadings, withChunkRea
 
     public function query()
     {
-        if($this->from_date == null || $this->to_date == null){
+        if($this->from_date == '' || $this->to_date == ''){
             return Order::query()->whereBetween('created_at', [now()->subDays(2), now()]);
         } else {
             return Order::query()->whereBetween('created_at', [$this->from_date, $this->to_date]);
