@@ -80,11 +80,9 @@ class OrderController extends Controller
         return view('orders.edit', $context);
     }
 
-    public function export()
+    public function export($from_date = null, $to_date = null)
     {
-        (new OrdersExport)->queue('invoices.xlsx');
-
-        return back()->withSuccess('Exportando ordenes');
+        return Excel::download(new OrdersExport($from_date, $to_date), 'orders.xlsx');
     }
 
 }
