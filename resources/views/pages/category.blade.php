@@ -25,10 +25,10 @@
     
     {{-- Add sorting and filtering --}}
     <div class="col-span-10 pt-3">
-        <div class="flex justify-between items-center">
-            <div class="flex items-center space-x-2">
-                <span>Ordenar por:</span>
-                <select name="sort" id="sort" class="border border-gray-200 rounded-md p-2" onchange="window.location.href=this.value">
+        <div class="flex md:justify-between md:items-center flex-col md:flex-row pr-3">
+            <div class="flex items-start md:items-center space-x-2 flex-col md:flex-row">
+                <span class="w-full">Ordenar por:</span>
+                <select name="sort" id="sort" class="border border-gray-200 rounded-md p-2 w-full" onchange="window.location.href=this.value">
                     <option {{ $params['order'] === '1' ? 'selected' : '' }} value="{{ route('category', $params['slug'] . '/' . $params['slug2'] . '/' . 1 . '/' . $params['category_id'] . '/' . $params['brand_id']  ) }}">Más reciente</option>
                     <option {{ $params['order'] === '2' ? 'selected' : '' }}  value="{{ route('category', $params['slug'] . '/' . $params['slug2'] . '/' . 2 . '/' . $params['category_id'] . '/' . $params['brand_id']  ) }}">Precio: Menor a Mayor</option>
                     <option {{ $params['order'] === '3' ? 'selected' : '' }}  value="{{ route('category', $params['slug'] . '/' . $params['slug2'] . '/' . 3 . '/' . $params['category_id'] . '/' . $params['brand_id']  ) }}">Precio: Mayor a Menor</option>
@@ -36,16 +36,16 @@
                     <option {{ $params['order'] === '5' ? 'selected' : '' }}  value="{{ route('category', $params['slug'] . '/' . $params['slug2'] . '/' . 5 . '/' . $params['category_id'] . '/' . $params['brand_id']  ) }}">Nombre Z-A</option>               
                 </select>
             </div>
-            <div class="flex items-center space-x-2">
-                <span>Filtrar por:</span> 
-                <select name="filter" id="filter" class="border border-gray-200 rounded-md p-2" onchange="window.location.href=this.value">
+            <div class="flex items-center space-x-2 flex-wrap md:flex-nowrap">
+                <span class="w-full">Filtrar por:</span> 
+                <select name="filter" id="filter" class="border border-gray-200 rounded-md p-2 w-full" onchange="window.location.href=this.value">
                 <option value="#">Marca</option>
                 @foreach ($brands as $brand)
                     <option {{ $params['brand_id'] == $brand->id ? 'selected' : '' }} value="{{ route('category', $params['slug'] . '/' . $params['slug2'] . '/' . $params['order'] . '/' . $params['category_id'] . '/' . $brand->id  ) }}">{{ $brand->name }}</option>
                     @endforeach
                 </select>
                
-                <select name="filter" id="filter" class="border border-gray-200 rounded-md p-2" onchange="window.location.href=this.value">
+                <select name="filter" id="filter" class="border border-gray-200 rounded-md p-2 w-full" onchange="window.location.href=this.value">
                 <option value="#">Categoria</option>   
                 @foreach ($categories as $categoryItem)
                     <option {{ $params['category_id'] == $categoryItem->id ? 'selected' : '' }} value="{{ route('category', $params['slug'] . '/' . $params['slug2'] . '/' . $params['order'] . '/' . $categoryItem->id . '/' . $params['brand_id']  ) }}">{{ $categoryItem->name }}</option>
