@@ -6,8 +6,10 @@ use App\Models\Order;
 use Maatwebsite\Excel\Concerns\FromQuery;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
+use Maatwebsite\Excel\Concerns\WithChunkReading;
+use Maatwebsite\Excel\Concerns\WithBatchInserts;
 
-class OrdersExport implements FromQuery, WithMapping, WithHeadings
+class OrdersExport implements FromQuery, WithMapping, WithHeadings, withChunkReading, withBatchInserts
 {
     public function query()
     {
@@ -58,5 +60,15 @@ class OrdersExport implements FromQuery, WithMapping, WithHeadings
             'Cantidad de Productos',
             'Productos',
         ];
+    }
+
+    public function chunkSize(): int
+    {
+        return 100;
+    }
+
+    public function batchSize(): int
+    {
+        return 100;
     }
 }
