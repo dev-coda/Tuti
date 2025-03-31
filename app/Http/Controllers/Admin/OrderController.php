@@ -82,7 +82,7 @@ class OrderController extends Controller
 
     public function export()
     {
-        (new InvoicesExport)->queue('invoices.xlsx');
+        (new OrdersExport)->queue('invoices.xlsx');
 
         return back()->withSuccess('Exportando ordenes');
     }
