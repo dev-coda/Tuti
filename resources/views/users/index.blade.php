@@ -15,9 +15,7 @@
         <div class="items-center justify-between block sm:flex md:divide-x md:divide-gray-100 ">
             <div class="flex items-center mb-4 sm:mb-0">
                <x-search :home="route('users.index')" />
-
             </div>
-       
         </div>
     </div>
 </div>
@@ -108,7 +106,7 @@
 </div>
 
 
-{{ $users->links() }} 
+{{ $users->withQueryString()->links() }} 
 
 
 

@@ -61,7 +61,10 @@ class OrdersExport implements FromQuery, WithMapping, WithHeadings, withChunkRea
             $order->total,
             $order->discount,
             $order->products->count(),
-            '',
+            $order->seller?->name,
+            $order->zone?->zone,
+            $order->zone?->route,
+
         ];
     }
 
@@ -75,7 +78,10 @@ class OrdersExport implements FromQuery, WithMapping, WithHeadings, withChunkRea
             'Total',
             'Descuento',
             'Cantidad de Productos',
-            'Productos',
+            'Vendedor',
+            'Zona',
+            'Ruta',
+
         ];
     }
 

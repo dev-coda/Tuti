@@ -20,39 +20,57 @@ class UserController extends Controller
      * Display a listing of the resource.
      */
     public function index()
-{
-    $users = User::query()
-        ->whereDoesntHave('roles')
-        ->when(request('q'), function ($query, $q) {
-            $query->where('name', 'ilike', "%{$q}%")
-                  ->orWhere('email', 'ilike', "%{$q}%");
-        })
-        // ->when(request('zone') !== null, function ($query, $zone) {
-        //     if ($zone === 'sin_zona') {
-        //         $query->where('zone', '0')
-        //         ->orWhereNull('zone');
-        //     } else {
-        //         $query->where('zone', $zone);
-        //     }
-        // })
-        ->orderBy('name')
-        ->paginate();
+    {
+        $users = User::query()
+            ->whereDoesntHave('roles')
+            ->when(request('q'), function ($query, $q) {
+                $query->where('name', 'ilike', "%{$q}%")
+                    ->orWhere('email', 'ilike', "%{$q}%");
+            })
+            // ->when(request('zone') !== null, function ($query, $zone) {
+            //     if ($zone === 'sin_zona') {
+            //         $query->where('zone', '0')
+            //         ->orWhereNull('zone');
+            //     } else {
+            //         $query->where('zone', $zone);
+            //     }
+            // })
+            ->orderBy('name')
+            ->paginate();
 
-    // Obtener todas las zonas únicas, excluyendo NULL y "0"
-    // $zones = User::select('zone')
-    //     ->whereDoesntHave('roles')
-    //     ->distinct()
-    //     ->whereNotNull('zone') // Excluir NULL
-    //     ->where('zone', '!=', '0') // Excluir "0" exacto
-    //     ->orderBy('zone', 'asc')
-    //     ->pluck('zone', 'zone')
-    //     ->toArray();
 
-    // Agregar la opción "Sin zona" manualmente
-    // $zones = ['sin_zona' => 'Sin zona'] + $zones;
+        $users = User::query()->whereDoesntHave('roles')
+            ->when(request('q'), function ($query, $q) {
+                $query->where('name', 'ilike', "%{$q}%")
+                    ->orWhere('email', 'ilike', "%{$q}%")->orderBy("name")
+                    ->paginate();
+            })
+            // ->when(request('zone') !== null, function ($query, $zone) {
+            //     if ($zone === 'sin_zona') {
+            //         $query->where('zone', '0')
+            //         ->orWhereNull('zone');
+            //     } else {
+            //         $query->where('zone', $zone);
+            //     }
+            // })
+            ->orderBy('name')
+            ->paginate();
 
-    return view('users.index', compact('users'));
-}
+        // Obtener todas las zonas únicas, excluyendo NULL y "0"
+        // $zones = User::select('zone')
+        //     ->whereDoesntHave('roles')
+        //     ->distinct()
+        //     ->whereNotNull('zone') // Excluir NULL
+        //     ->where('zone', '!=', '0') // Excluir "0" exacto
+        //     ->orderBy('zone', 'asc')
+        //     ->pluck('zone', 'zone')
+        //     ->toArray();
+
+        // Agregar la opción "Sin zona" manualmente
+        // $zones = ['sin_zona' => 'Sin zona'] + $zones;
+
+        return view('users.index', compact('users'));
+    }
 
 
 
@@ -118,7 +136,7 @@ class UserController extends Controller
         return to_route('users.index')->with('success', 'Usuario actualizado');
     }
 
- 
+
     // public function code(Request $request, User $user)
     // {
 
@@ -130,11 +148,11 @@ class UserController extends Controller
 
 
     //     $response = UserRepository::getCustomRuteroId($code);
-        
+
     //     if($response){
 
     //         $orders = $user->orders()->where('status_id', Order::STATUS_PENDING)->get();
-            
+
     //         foreach($orders as $order){
     //             OrderRepository::presalesOrder($order);
     //         }
@@ -143,7 +161,7 @@ class UserController extends Controller
     //         $user->update($response);
 
     //         //pending order to processed
-           
+
 
     //         return back()->with('success', 'Código actualizado, ya este cliente puede comprar');
     //     }
