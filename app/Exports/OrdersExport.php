@@ -13,10 +13,12 @@ use Maatwebsite\Excel\Concerns\Exportable;
 
 class OrdersExport implements FromQuery, WithMapping, WithHeadings, withChunkReading, withBatchInserts
 {
-
     use Exportable;
 
-    public function __construct(str $from_date = null, str $to_date = null)
+    private $from_date;
+    private $to_date;
+
+    public function __construct(string $from_date = null, string $to_date = null)
     {
         $this->from_date = $from_date;
         $this->to_date = $to_date;
@@ -24,7 +26,7 @@ class OrdersExport implements FromQuery, WithMapping, WithHeadings, withChunkRea
 
     public function query()
     {
-        if($this->from_date == null || $this->to_date == null){
+        if ($this->from_date == null || $this->to_date == null) {
             return Order::query()->whereBetween('created_at', [now()->subDays(2), now()]);
         } else {
             return Order::query()->whereBetween('created_at', [$this->from_date, $this->to_date]);

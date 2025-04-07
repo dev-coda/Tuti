@@ -29,18 +29,16 @@
             <div class="flex items-center space-x-2 flex-wrap md:flex-nowrap">
                 <span class="w-full">Filtrar por:</span> 
                 <select name="filter" id="filter" class="border border-gray-200 rounded-md p-2 w-full" onchange="window.location.href=this.value">
-                <option value="#">Marca</option>
+                <option value="#" disabled><b>Marca</b></option>
                 @foreach ($brands as $brand)
-                    <option {{ $params['brand_id'] == $brand->id ? 'selected' : '' }} value="{{ route('search', $params['order'] . '/' . $params['category_id'] . '/' . $brand->id . '?q='. $params['q'] ) }}">{{ $brand->name }}</option>
+                    <option {{ $params['brand_id'] == $brand->id ? 'selected' : '' }} value="{{ route('search', $params['order'] . '/' . $params['category_id'] . '/' . $brand->id . '?q='. $params['q'] ) }}">&nbsp;&nbsp;&nbsp;{{ $brand->name }}</option>
                     @endforeach
-                </select>
-               
-                <select name="filter" id="filter" class="border border-gray-200 rounded-md p-2 w-full" onchange="window.location.href=this.value">
-                <option value="#">Categoria</option>   
+                <option value="#" disabled><b>Categoria</b></option>   
                 @foreach ($categories as $categoryItem)
-                    <option {{ $params['category_id'] == $categoryItem->id ? 'selected' : '' }} value="{{ route('search', $params['order'] . '/' . $categoryItem->id . '/' . $params['brand_id'] . '?q='. $params['q']  ) }}">{{ $categoryItem->name }}</option>
-                    @endforeach
+                    <option {{ $params['category_id'] == $categoryItem->id ? 'selected' : '' }} value="{{ route('search', $params['order'] . '/' . $categoryItem->id . '/' . $params['brand_id'] . '?q='. $params['q']  ) }}">&nbsp;&nbsp;&nbsp;{{ $categoryItem->name }}</option>
+                @endforeach   
                 </select>
+
             </div>
         </div>   
     </div
