@@ -39,10 +39,7 @@
                                 Email
                             </th>
 
-                            <th scope="col"
-                                class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
-                                Estado
-                            </th>
+                          
                            
                             <th scope="col"
                                 class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
@@ -67,16 +64,7 @@
                                 {{$admin->email}}
                             </td>
 
-
-                            <td class="p-4 text-base text-gray-900 whitespace-nowrap">
-                                @if ($admin->status_id === 0)
-                                    <span class="px-2 py-1 text-xs font-semibold text-red-600 bg-red-100 rounded">Inactivo</span>
-                                @elseif ($admin->status_id === 1)
-                                    <span class="px-2 py-1 text-xs font-semibold text-green-600 bg-green-100 rounded">Activo</span>
-                                @elseif ($admin->status_id === 2)
-                                    <span class="px-2 py-1 text-xs font-semibold text-yellow-600 bg-yellow-100 rounded">Suspendido</span>
-                                @endif
-                            </td>
+                          
 
                             <td class="p-4 space-x-2 whitespace-nowrap text-end">
                                 <a href="{{ route('admins.edit', $admin) }}"
@@ -92,21 +80,6 @@
                                     </svg>
                                     Editar
                                 </a>
-
-
-                                <form action="{{ route('admins.destroy', $admin->id) }}" method="POST" onsubmit="return confirm('¿Estás seguro de eliminar este usuario?');" class="inline-block">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="inline-flex items-center px-3 py-2 text-sm font-medium text-center text-white rounded-lg bg-red-600 hover:bg-red-700 focus:ring-4 focus:ring-red-300">
-                                        <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20"
-                                            xmlns="http://www.w3.org/2000/svg">
-                                            <path fill-rule="evenodd"
-                                                d="M6 2a1 1 0 000 2h8a1 1 0 100-2H6zM4 5a1 1 0 00-1 1v10a2 2 0 002 2h10a2 2 0 002-2V6a1 1 0 00-1-1H4zm4 4a1 1 0 112 0v4a1 1 0 11-2 0V9zm4 0a1 1 0 112 0v4a1 1 0 11-2 0V9z"
-                                                clip-rule="evenodd"></path>
-                                        </svg>
-                                    Eliminar
-                                    </button>
-                                </form>
                               
                             </td>
                         </tr>
