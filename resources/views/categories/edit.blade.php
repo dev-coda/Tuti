@@ -17,26 +17,6 @@
                 {{ Aire::input('name', "Nombre")->groupClass('col-span-6') }}
                 {{ Aire::input('slug', "Slug")->groupClass('col-span-6') }}
 
-            <div class="col-span-6">
-                <h3 class="text-lg font-semibold">Tipo Categoría</h3>
-                <div class="flex items-center space-x-4 mt-2">
-                    <label class="inline-flex items-center">
-                        <input type="radio" name="category_type" value="parent" 
-                            class="form-radio text-blue-600" 
-                            @checked($category->category_type == 'parent')
-                            id="category_type_parent">
-                        <span class="ml-2">Padre</span>
-                    </label>
-                    <label class="inline-flex items-center">
-                        <input type="radio" name="category_type" value="child" 
-                            class="form-radio text-blue-600" 
-                            @checked($category->category_type == 'child')
-                            id="category_type_child">
-                        <span class="ml-2">Hijo</span>
-                    </label>
-                </div>
-            </div>
-
                 {{ Aire::select($categories, 'parent_id', 'Padre')->groupClass('col-span-6') }}
                 {{ Aire::textarea('description', "Descripción")->rows(5)->groupClass('col-span-6') }}
 
@@ -88,35 +68,4 @@
 <x-remove-drawer title="Categoría" route='categories.destroy' :item='$category' />
 
 
-@endsection
-
-@section('scripts')
-<script>
-    document.addEventListener("DOMContentLoaded", function () {
-        const parentRadio = document.getElementById("category_type_parent");
-        const childRadio = document.getElementById("category_type_child");
-        const parentSelect = document.querySelector("select[name='parent_id']");
-
-        if (parentRadio && childRadio && parentSelect) {
-            
-            const parentSelectContainer = parentSelect.closest('.col-span-6');
-
-            function toggleParentSelect() {
-                if (parentRadio.checked) {
-                    parentSelectContainer.classList.add('hidden');  
-                    parentSelect.value = ""; 
-                } else {
-                    parentSelectContainer.classList.remove('hidden'); 
-                }
-            }
-
-            
-            parentRadio.addEventListener("change", toggleParentSelect);
-            childRadio.addEventListener("change", toggleParentSelect);
-
-          
-            toggleParentSelect();
-        }
-    });
-</script>
 @endsection
