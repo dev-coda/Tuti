@@ -16,7 +16,7 @@
                     <li>
                         <a href="{{ route('orders.index') }}">
                             @svg('heroicon-o-shopping-cart', 'w-6 h-6 text-gray-500')
-                            <span class="ml-3" sidebar-toggle-item>Compras</span>
+                            <span class="ml-3" sidebar-toggle-item>Pedidos</span>
                         </a>
                     </li>
             
@@ -28,7 +28,7 @@
                         'vendors'=>'Vendors', 
                         'brands'=>'Marcas', 
                         'taxes'=>'Impuestos', 
-                        'vendors'=>'Vendors', 
+                        'vendors'=>'Proveedores', 
                         'categories'=>'Categorías', 
                         'labels'=>'Etiquetas', 
                         'variations'=>'Variaciones', 
