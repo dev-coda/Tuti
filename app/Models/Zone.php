@@ -14,6 +14,14 @@ class Zone extends Model
         'zone',
         'day',
         'address',
-        'code'
+        'code',
+        'user_id',
     ];
+
+    public function user()
+    {
+
+        return $this->belongsTo(User::class);
+
+    }
 }
