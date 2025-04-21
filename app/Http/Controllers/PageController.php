@@ -108,12 +108,13 @@ class PageController extends Controller
 
     public function category($slug, $slug2='0', $order='1', $category_id='0', $brand_id='0')
     {
-       $brands = Brand::whereActive(1)->orderBy('name')->get();
-       $categories = Category::with('parent')->get();
-       $params = compact('slug', 'slug2', 'order', 'category_id', 'brand_id');
-    
-        if($slug2){
 
+        $brands = Brand::whereActive(1)->orderBy('name')->get();
+        $banners = Banner::whereTypeId(1)->orderBy('id')->get();
+        $categories = Category::with('parent')->get();
+        $params = compact('slug', 'slug2', 'order', 'category_id', 'brand_id', 'banners');
+
+        if ($slug2) {
             $category = Category::with('parent')->where('slug', $slug2)->firstOrFail();
             $products = $category->products();
 
@@ -163,7 +164,7 @@ class PageController extends Controller
                 break;
         }
 
-        $context = compact('category', 'products', 'categories', 'brands', 'params');
+        $context = compact('category', 'products', 'categories', 'brands', 'params', 'banners');
 
         return view('pages.category', $context);
        
