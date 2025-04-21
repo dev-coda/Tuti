@@ -60,7 +60,7 @@
 
 <div class="grid grid-cols-1 p-4 xl:grid-cols-3 xl:gap-4 ">
     <div class="mb-4 col-span-full xl:mb-2">
-        <h1 class="text-xl font-semibold text-gray-900 sm:text-2xl">Direcciones</h1>
+        <h1 class="text-xl font-semibold text-gray-900 sm:text-2xl">Zonas</h1>
     </div>
 
         <div class="col-span-3">
@@ -111,54 +111,6 @@
 
   
 
-</div>
-
-<div class="grid grid-cols-1 p-4 xl:grid-cols-3 xl:gap-4 ">
-    <div class="mb-4 col-span-full xl:mb-2">
-        <h1 class="text-xl font-semibold text-gray-900 sm:text-2xl">Historial de Pedidos</h1>
-    </div>
-
-    <div class="col-span-3">
-        <div class="relative overflow-x-auto bg-white border border-gray-200 rounded-lg shadow-sm p-4">
-            <table class="w-full text-sm text-left rtl:text-right text-gray-500">
-                <thead class="text-xs text-gray-700 uppercase bg-gray-50">
-                    <tr>
-                        <th scope="col" class="px-6 py-3">Fecha</th>
-                        <th scope="col" class="px-6 py-3">Dirección</th>
-                        <th scope="col" class="px-6 py-3">Número de Pedido</th>
-                        <th scope="col" class="px-6 py-3">Valor</th>
-                        <th scope="col" class="px-6 py-3">Unidades</th>
-                        <th scope="col" class="px-6 py-3">Estado</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach ($orders as $order)
-                        <tr class="bg-white border-b">
-                            <td class="px-6 py-4">{{ $order['date'] }}</td>
-                            <td class="px-6 py-4">{{ $order['address'] ?? 'No disponible' }}</td>
-                            <td class="px-6 py-4">
-                                <a href="{{ route('orders.edit', $order['order_number']) }}" class="text-blue-500 hover:underline">
-                                    {{ $order['order_number'] }}
-                                </a>
-                            </td>
-                            <td class="px-6 py-4">${{ number_format($order['value'], 2, ',', '.') }}</td>
-                            <td class="px-6 py-4">{{ $order['units'] }}</td>
-                            <td class="px-6 py-4">
-                                <span class="px-2 py-1 text-xs font-semibold rounded 
-                                    {{ $order['status'] == 'Pendiente' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800' }}">
-                                    {{ $order['status'] }}
-                                </span>
-                            </td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
-
-            <div class="mt-4">
-                {{ $orders->links() }}
-            </div>
-        </div>
-    </div>
 </div>
 
 
