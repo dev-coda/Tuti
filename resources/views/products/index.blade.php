@@ -8,9 +8,9 @@
     <div class="w-full mb-1">
     <div class="mb-4 flex justify-between">
             <h1 class="text-xl font-semibold text-gray-900 sm:text-2xl ">Productos</h1>
-           <a href="/productexport">
+           {{-- <a href="/productexport">
                 @svg('heroicon-o-arrow-down-on-square', 'w-8 h-8 text-blue-500')
-            </a> 
+            </a> --}} 
         </div>
         <div class="items-center justify-between block sm:flex md:divide-x md:divide-gray-100 ">
             <div class="flex items-center mb-4 sm:mb-0">

@@ -16,7 +16,6 @@ class AdminController extends Controller
                 $query->where('name', 'ilike', "%{$q}%")
                 ->orWhere('email', 'ilike', "%{$q}%");
             })
-
             ->orderBy('name')
             ->paginate();
 
@@ -64,7 +63,6 @@ class AdminController extends Controller
         $validations =  [
             'name' => 'required|string|max:255',
             'email' => ['required', 'string', 'email', 'max:255', 'unique:' . User::class . ',email,' . $user->id],
-            'status_id' => 'nullable|boolean',
             
         ];
 
@@ -78,19 +76,10 @@ class AdminController extends Controller
             $validate['password']  = bcrypt($validate['password']);
         }
 
-        $validate['status_id'] = filter_var($request->status_id, FILTER_VALIDATE_BOOLEAN);
-
         $user->update($validate);
 
 
         return to_route('admins.index')->with('success', 'Usuario actualizado');
     }
 
-    public function destroy($id)
-    {
-        $user = User::findOrFail($id);
-        $user->delete();
-
-        return to_route('admins.index')->with('success', 'Usuario eliminado');
-    }
 }
