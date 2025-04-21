@@ -39,9 +39,7 @@
 <body class="antialdiased font-dm text-primary" >
 
     @include('elements.mobile-menu')
-
-
-   
+  <main id='main'>
     <div class="bg-amber-500 py-2">
         <div class="container mx-auto">
             <div class="flex justify-center  space-x-5 text-slate-700 font-semibold">
@@ -259,10 +257,11 @@
         <x-alert />
         @yield('content')
     </div>
-
+</main>
   
 
     @include('elements.footer')
+
     
 
     <script src="{{ asset('js/jquery.js') }}"></script>
@@ -271,13 +270,13 @@
         $('#closeMobileMenu').click(function(){
             $('#mobileMenu').hide();
         });
-
         $('#openMobileMenu').click(function(){
-            $('#mobileMenu').show();
+            $('#mobileMenu').toggle();
         });
     </script>
 
     @yield('scripts')
+
 </body>
 
 
