@@ -173,7 +173,7 @@
                         </div>
 
                     
-                        @if($alertVendors)
+                        @if($alertVendors || $alertTotal)
                             <button disabled class="bg-orange-600 opacity-50 w-full text-white rounded py-3 px-5 mt-5 block text-center">Realizar Pedido</button>
                         @else 
                             {{ Aire::open()->route('cart.process')}}
