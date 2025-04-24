@@ -11,6 +11,7 @@ use App\Models\OrderProductBonification;
 use App\Models\Product;
 use App\Models\User;
 use App\Models\Vendor;
+use App\Models\Setting;
 use App\Repositories\OrderRepository;
 use App\Settings\GeneralSettings;
 use Illuminate\Http\Request;
@@ -46,6 +47,7 @@ class CartController extends Controller
         }
 
         $products = [];
+        $total_cart = 0;
         
         foreach($cart as $item){
             
@@ -56,6 +58,7 @@ class CartController extends Controller
             $product->quantity = $item['quantity'];
             $product->vendor_id = $product->brand->vendor->id;
             $products[] = $product;
+            $total_cart += $product->quantity * $product->finalPrice['price'];
         }
         $products = collect($products);
 
@@ -77,15 +80,26 @@ class CartController extends Controller
             }
         }
 
+        $min_amount = Setting::where('key', 'min_amount')->value('value');
+        $alertTotal = [];
+
+        if($total_cart < $min_amount){
+            $alertTotal[] = true;
+        }
         
-        
-        $context = compact('products', 'alertVendors', 'zones', 'set_user', 'client'); 
+        $context = compact('products', 'alertVendors', 'zones', 'set_user', 'client', 'alertTotal', 'min_amount', 'total_cart'); 
         
         return view('pages.cart', $context);
 
 
       
     }
+
+
+
+
+
+
     #TODO crear plugin de agregar al carrito
     public function add(Request $request, Product $product){
 
