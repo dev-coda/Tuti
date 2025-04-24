@@ -92,9 +92,6 @@ class UserRepository
                 ]);
         $data = $response->body();
 
-
-        info('DATAAAA  ' . $data);
-
         $xmlString = preg_replace('/<(\/)?(s|a):/', '<$1$2', $data);
         $xml = simplexml_load_string($xmlString);
 
@@ -111,8 +108,6 @@ class UserRepository
         } catch (\Throwable $th) {
             return null;
         }
-
-        info('aListRuteros  ' . $aListRuteros);
 
         if (!array_key_exists('aDetail', $aListRuteros)) {
             return null;
