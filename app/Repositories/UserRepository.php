@@ -124,7 +124,6 @@ class UserRepository
             $r = json_decode($json, TRUE);
 
             $aListDetailsRuteros = $aListRuteros['aDetail']['aListDetailsRuteros'];
-            info('aListDetailsRuteros  ' . $aListDetailsRuteros);
 
             $data = [
                 'aDiaRecorrido' => $aListRuteros['aDiaRecorrido'],
