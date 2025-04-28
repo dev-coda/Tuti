@@ -20,10 +20,17 @@ class SellerController extends Controller
                     ->orWhere('email', 'ilike', "%{$q}%")
                     ->orWhere('zone', 'ilike', "%{$q}%");
             })
+
+            ->when(filled(request('zone')), function ($query) {
+                $query->where('zone', request('zone'));
+            })
+
             ->orderBy('name')
             ->paginate();
 
-        $context = compact('users');
+        $zones = User::whereRelation('roles', 'name', 'seller')->distinct()->pluck('zone')->sort();
+
+        $context = compact('users', 'zones');
 
         return view('sellers.index', $context);
     }

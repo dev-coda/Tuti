@@ -102,30 +102,30 @@ class Product extends  Model
     public function getFinalPriceAttribute()
     {
 
+        $userHasOrders = auth()->check() ? auth()->user()->orders()->exists() : false;
 
         $discount = $this->discount;
         $discount_on  = 'Producto';
 
-
-        if ($this->brand) {
-            if ($this->brand->discount > $discount) {
-                $discount = $this->brand->discount;
-                $discount_on  = 'Marca';
+        if($userHasOrders){
+            if ($this->bonifications->count()) {
+                $discount_on  = false;
+                $discount = 0;
             }
-        }
-
-        if ($this->brand->vendors) {
-            if ($this->brand->vendors->discount > $discount) {
-                $discount = $this->brand->vendors->discount;
-                $discount_on  = 'Vendor';
+        }else{
+            if ($this->brand) {
+                if ($this->brand->discount > $discount) {
+                    $discount = $this->brand->discount;
+                    $discount_on  = 'Marca';
+                }
             }
-        }
 
-
-
-        if ($this->bonifications->count()) {
-            $discount_on  = false;
-            $discount = 0;
+            if ($this->brand->vendors) {
+                if ($this->brand->vendors->discount > $discount) {
+                    $discount = $this->brand->vendors->discount;
+                    $discount_on  = 'Vendor';
+                }
+            }
         }
 
         $price = $this->price;

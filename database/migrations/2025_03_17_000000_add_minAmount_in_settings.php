@@ -6,12 +6,13 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration {
-    public function up() {
+    public function up()
+    {
         $exists = DB::table('settings')->where('key', 'min_amount')->exists();
 
         if (!$exists) {
             DB::table('settings')->insert([
-                'id' => 6,  
+                'id' => 6,
                 'name' => 'Monto Minimo',
                 'key' => 'min_amount',
                 'value' => '100000',
@@ -21,7 +22,8 @@ return new class extends Migration {
         }
     }
 
-    public function down() {
+    public function down()
+    {
         DB::table('settings')->where('key', 'min_amount')->delete();
     }
 };

@@ -54,16 +54,10 @@ class OrderRepository
         foreach ($products as $product) {
             $vendor_type = $product->product->brand->vendor->vendor_type;
             $unitPrice = parseCurrency($product->price);
-            info("INFO");
-            info($product);
-
-
 
             if ($bonification) {
                 $unitPrice = 0;
-                info($product);
-            }
-            ;
+            };
 
             $sku = $product->product->sku;
             if ($product->variationItem) {
@@ -126,7 +120,7 @@ class OrderRepository
             </soapenv:Body>
         </soapenv:Envelope>';
 
-        info($body);
+
 
         $token = Setting::getByKey('microsoft_token');
 
@@ -147,7 +141,6 @@ class OrderRepository
         $xmlString = preg_replace('/<(\/)?(s|a):/', '<$1$2', $data);
         $xml = simplexml_load_string($xmlString);
 
-        info($response);
         try {
 
             $response = $xml->sBody->PreSaslesProcessResponse->result->aPreSaslesProcessResult;
@@ -178,7 +171,6 @@ class OrderRepository
 
 
         //if is sunday or saturday
-        info('entro a revisar si es dia habil' . $date);
         $response = false;
 
         //check if holiday 
@@ -197,7 +189,6 @@ class OrderRepository
         if ($date->isWeekday()) {
             $response = true;
         }
-        info('respuesta de dia habil' . ($response ? 'true' : 'false'));
         return $response;
     }
 

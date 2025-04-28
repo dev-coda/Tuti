@@ -11,7 +11,7 @@ use function Laravel\Prompts\error;
 class UserRepository
 {
 
-    private  static function processData($aListDetailsRuteros, $data)
+    private static function processData($aListDetailsRuteros, $data)
     {
 
 
@@ -31,7 +31,7 @@ class UserRepository
 
 
 
-        return  [
+        return [
             'zone' => $aZona,
             'route' => $aRoute,
             'code' => $aCustRuteroID,
@@ -75,7 +75,7 @@ class UserRepository
                         <!--Optional:-->
                         <dyn:ruteroId></dyn:ruteroId>
                         <!--Optional:-->
-                        <dyn:zona></dyn:zona>
+                        <dyn:zona>' . $zone . '</dyn:zona>
                     </tem:_getRuteros>
                 </tem:getRuteros>
             </soapenv:Body>
@@ -88,11 +88,9 @@ class UserRepository
             'SOAPAction' => 'http://tempuri.org/DWSSalesForce/getRuteros',
             'Authorization' => "Bearer {$token}"
         ])->send('POST', 'https://tronex.operations.dynamics.com/soap/services/DIITDWSSalesForceGroup?=null', [
-            'body' => $body
-        ]);
-	$data = $response->body();
-
-
+                    'body' => $body
+                ]);
+        $data = $response->body();
 
         $xmlString = preg_replace('/<(\/)?(s|a):/', '<$1$2', $data);
         $xml = simplexml_load_string($xmlString);
@@ -111,9 +109,7 @@ class UserRepository
             return null;
         }
 
-
         if (!array_key_exists('aDetail', $aListRuteros)) {
-
             return null;
         }
 
@@ -127,10 +123,10 @@ class UserRepository
             $json = json_encode($rutero);
             $r = json_decode($json, TRUE);
 
-            $aListDetailsRuteros =  $aListRuteros['aDetail']['aListDetailsRuteros'];
+            $aListDetailsRuteros = $aListRuteros['aDetail']['aListDetailsRuteros'];
 
             $data = [
-                'aDiaRecorrido' =>  $aListRuteros['aDiaRecorrido'],
+                'aDiaRecorrido' => $aListRuteros['aDiaRecorrido'],
                 'aRoute' => $aListRuteros['aRoute'],
                 'aZona' => $aListRuteros['aZona'],
             ];
@@ -138,7 +134,7 @@ class UserRepository
             //check if exist key 0
             if (array_key_exists(0, $aListDetailsRuteros)) {
 
-                foreach ($aListDetailsRuteros as  $i) {
+                foreach ($aListDetailsRuteros as $i) {
                     $items[] = self::processData($i, $data);
                 }
             } else {
@@ -164,7 +160,7 @@ class UserRepository
 
             $name = $items->first()['name'] ?? 'Sin Nombre';
 
-            $data =  [
+            $data = [
                 'routes' => $items,
                 'name' => $name
             ];
