@@ -37,40 +37,8 @@
 
 
 <section class="w-full grid grid-cols-12 xl:gap-x-10 gap-x-0 xl:gap-y-0 gap-y-10">
-    <div class="col-span-3 hidden xl:block" id="accordion-collapse2" data-accordion="collapse" data-active-classes='text-gray-700'>
-
-        @foreach ($categories as $category)
-
-        <h2 id="accordion-collapse2-heading-c{{$category->id}}">
-
-            <button type="button" class="bg-blue2  @if($loop->first) rounded-t @endif @if($loop->last) rounded-b @endif flex items-center justify-between w-full py-2 px-4 font-medium rtl:text-right text-gray-500  focus:ring-0 focus:ring-gray-200  gap-3" data-accordion-target="#accordion-collapse2-body-c{{$category->id}}" aria-expanded="true" aria-controls="accordion-collapse2-body-c{{$category->id}}">
-                <div class="flex items-center space-x-2">
-                    <span class="icon-energy"></span>
-                    <span>{{$category->name}}</span>
-                </div>
-
-                <svg data-accordion-icon class="w-3 h-3 rotate-180 shrink-0" aria-hidden="false" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 10 6">
-                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5 5 1 1 5" />
-                </svg>
-            </button>
-        </h2>
-        <div id="accordion-collapse2-body-c{{$category->id}}" class="hidden bg-blue3" aria-labelledby="accordion-collapse2-heading-c{{$category->id}}">
-            <div class="px-3 py-3">
-                <ul class="pl-7 text-sm space-y-2">
-                    <li><a class="text-gray-600" href="{{route('category', $category->slug)}}">{{$category->name}}</a></li>
-                    @foreach ($category->children as $subcategory)
-                    <li><a class="text-gray-600" href="{{route('category2', $subcategory->slug)}}">{{$subcategory->name}}</a></li>
-                    @endforeach
-                </ul>
-            </div>
-        </div>
-
-        @endforeach
-
-
-
-    </div>
-    <div class="xl:col-span-6 col-span-12 ">
+    
+    <div class="xl:col-span-9 col-span-12 ">
         <div class="grid grid-cols-2 xl:grid-cols-3 gap-5 ">
             @foreach ($products as $product)
             <x-product :product="$product" />

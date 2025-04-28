@@ -1,6 +1,6 @@
-<div class="flex xl:hidden">
-    <div class="fixed bg-white w-full h-full z-50" id='mobileMenu' style="display: none">
-        <header class="border-b py-2 px-5">
+<div class="flex relative transition-linear lg:top-28 lg:left-[30vw]">
+    <div class="fixed bg-white w-full h-full z-50 lg:max-w-sm lg:max-h-96" id='mobileMenu' style="display: none">
+        <header class="border-b py-2 px-5 lg:hidden">
             <div class="flex justify-between items-center">
                 <img src="{{ asset('img/tuti.png') }}" class="h-14 mr-3" />
                 <button class="text-2xl" id="closeMobileMenu">
@@ -11,16 +11,16 @@
                 </button>
             </div>
         </header>
-        <section class="p-5">
+        <section class="p-5 lg:p-0">
             <div class="mb-5">
-                <form action="{{route('search')}}" class="relative">
+                <form action="{{route('search')}}" class="relative lg:hidden">
                     <input placeholder="Busqueda" value='{{request()->q}}' name='q' type="text" class='bg-[#e8e7e5] border-0 rounded w-full'>
                     <svg class=" absolute right-2 top-2 text-gray-500 w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
                     </svg>
                 </form>
             </div>
-            <div class="space-x-5 flex justify-between">
+            <div class="space-x-5 flex justify-between lg:hidden">
 
                 @auth
 
@@ -52,13 +52,13 @@
                 @endauth
             </div>
 
-            <div class="col-span-3 xl:block my-5" id="accordion-collapse" data-accordion="collapse" data-active-classes='text-gray-700'>
+            <div class="col-span-3 xl:block my-5 bg-white" id="accordion-collapse" data-accordion="collapse" data-active-classes='text-gray-700'>
 
                 @foreach ($categories as $category)
 
                 <h2 id="accordion-collapse-heading-c{{$category->id}}">
 
-                    <button type="button" class="bg-blue2  @if($loop->first) rounded-t @endif @if($loop->last) rounded-b @endif flex items-center justify-between w-full py-2 px-4 font-medium rtl:text-right text-gray-500  focus:ring-0 focus:ring-gray-200  gap-3" data-accordion-target="#accordion-collapse-body-c{{$category->id}}" aria-expanded="true" aria-controls="accordion-collapse-body-c{{$category->id}}">
+                    <button type="button" class=" @if($loop->first) rounded-t @endif @if($loop->last) rounded-b @endif flex items-center justify-between w-full py-2 px-4 font-medium rtl:text-right text-gray-500  focus:ring-0 focus:ring-gray-200  gap-3" data-accordion-target="#accordion-collapse-body-c{{$category->id}}" aria-expanded="true" aria-controls="accordion-collapse-body-c{{$category->id}}">
                         <div class="flex items-center space-x-2">
                             <span class="icon-energy"></span>
                             <span>{{$category->name}}</span>
@@ -69,7 +69,7 @@
                         </svg>
                     </button>
                 </h2>
-                <div id="accordion-collapse-body-c{{$category->id}}" class="hidden bg-blue3" aria-labelledby="accordion-collapse-heading-c{{$category->id}}">
+                <div id="accordion-collapse-body-c{{$category->id}}" class="hidden" aria-labelledby="accordion-collapse-heading-c{{$category->id}}">
                     <div class="px-3 py-3">
                         <ul class="pl-7 text-sm space-y-2">
                             <li><a class="text-gray-600" href="{{route('category', $category->slug)}}">{{$category->name}}</a></li>
@@ -86,7 +86,7 @@
 
             </div>
 
-            <ul class="text-xl space-y-2">
+            <ul class="text-xl space-y-2 lg:hidden">
                 <li>
                     <a href="{{route('form')}}">Quiero ser cliente</a>
                 </li>

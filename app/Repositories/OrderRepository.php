@@ -40,7 +40,7 @@ class OrderRepository
             'request' => $zone,
         ]);
         $delivery_date = $order->delivery_date;
-
+        $observations = $order->observations;
 
         $day = $zone->day;
         $route = $zone->route;
@@ -57,9 +57,7 @@ class OrderRepository
 
             if ($bonification) {
                 $unitPrice = 0;
-
-            }
-            ;
+            };
 
             $sku = $product->product->sku;
             if ($product->variationItem) {
@@ -115,6 +113,7 @@ class OrderRepository
                             <dyn:transactionDate>' . $transactionDate . '</dyn:transactionDate>
                             <dyn:vendorType>' . $vendor_type . '</dyn:vendorType>
                             <dyn:zona>' . $zone . '</dyn:zona> 
+                            <dyn:tutiObservation>' . $observations . '</dyn:tutiObservation>
                         </dyn:preSalesOrder>
                     </tem:ArrayOfPreSalesOrder>
                 </tem:PreSaslesProcess>
