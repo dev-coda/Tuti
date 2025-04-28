@@ -144,7 +144,6 @@ class PageController extends Controller
 
         if ($slug2) {
             $category = Category::with('parent')->where('slug', $slug2)->firstOrFail();
-            $products = $category->products();
 
         } else {
 
@@ -217,6 +216,8 @@ class PageController extends Controller
                 $products = $products->paginate();
                 break;
         }
+
+        $products = $products->paginate();
 
         $context = compact('category', 'products', 'categories', 'brands', 'params', 'banners');
 
