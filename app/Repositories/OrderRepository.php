@@ -21,7 +21,7 @@ class OrderRepository
                 'discount' => 0,
                 'zone_id' => $order->zone_id,
                 'seller_id' => $order->seller_id,
-                'delivery_date' =>  $order->delivery_date,
+                'delivery_date' => $order->delivery_date,
                 'observations' => 'Bonificaciones',
             ]);
             self::sendData(order: $orderBonification, products: $order->bonifications, bonification: 1);
@@ -31,7 +31,7 @@ class OrderRepository
     private static function sendData($order, $products, $bonification = 0)
     {
 
-        $user  = $order->user;
+        $user = $order->user;
         $zone = $order->zone;
 
 
@@ -40,7 +40,7 @@ class OrderRepository
             'request' => $zone,
         ]);
         $delivery_date = $order->delivery_date;
-
+        $observations = $order->observations;
 
         $day = $zone->day;
         $route = $zone->route;
@@ -53,21 +53,24 @@ class OrderRepository
 
         foreach ($products as $product) {
             $vendor_type = $product->product->brand->vendor->vendor_type;
-	    $unitPrice = parseCurrency($product->price);
-	    info("INFO");
-	    info($product);
+            $unitPrice = parseCurrency($product->price);
+            info("INFO");
+            info($product);
+
+
 
             if ($bonification) {
                 $unitPrice = 0;
                 info($product);
-            };
+            }
+            ;
 
             $sku = $product->product->sku;
             if ($product->variationItem) {
                 $sku = DB::table('product_item_variation')->where('id', $product->variation_item_id)->value('sku');
             }
             $productList .= '<dyn:listDetails>
-                            <dyn:discount>' . (int)$product->percentage . '</dyn:discount>
+                            <dyn:discount>' . (int) $product->percentage . '</dyn:discount>
                             <dyn:itemId>' . $sku . '</dyn:itemId>
                             <dyn:qty>' . $product->quantity . '</dyn:qty>
                             <dyn:qtyCust>' . $product->quantity . '</dyn:qtyCust>
@@ -113,9 +116,10 @@ class OrderRepository
                             <dyn:orderSales>' . $order_id . '</dyn:orderSales>
                             <dyn:ruta>' . $route . '</dyn:ruta> 
                             <dyn:salesCons>' . $zone . '-' . $order_id . '</dyn:salesCons> 
-                            <dyn:transactionDate>' . $transactionDate  . '</dyn:transactionDate>
+                            <dyn:transactionDate>' . $transactionDate . '</dyn:transactionDate>
                             <dyn:vendorType>' . $vendor_type . '</dyn:vendorType>
                             <dyn:zona>' . $zone . '</dyn:zona> 
+                            <dyn:tutiObservation>' . $observations . '</dyn:tutiObservation>
                         </dyn:preSalesOrder>
                     </tem:ArrayOfPreSalesOrder>
                 </tem:PreSaslesProcess>
@@ -135,8 +139,8 @@ class OrderRepository
             'SOAPAction' => 'http://tempuri.org/DWSSalesForce/PreSaslesProcess',
             'Authorization' => "Bearer {$token}"
         ])->send('POST', $resource_url . '/soap/services/DIITDWSSalesForceGroup?=null', [
-            'body' => $body
-        ]);
+                    'body' => $body
+                ]);
 
 
         $data = $response->body();
@@ -202,7 +206,7 @@ class OrderRepository
 
         $now = now();
         $hour = $now->subHours(5)->hour;
-        $closing_time = (int)Setting::getByKey('closing_time');
+        $closing_time = (int) Setting::getByKey('closing_time');
 
 
         if ($closing_time <= $hour) {
@@ -213,7 +217,7 @@ class OrderRepository
 
         //while 10 times
         $i = 0;
-        while (True) :
+        while (True):
             $now = $now->addDay();
 
             $i++;
@@ -267,7 +271,7 @@ class OrderRepository
 
 
 
-        $closing_time = (int)Setting::getByKey('closing_time');
+        $closing_time = (int) Setting::getByKey('closing_time');
 
         $next_business_day = now(); // Inicialmente, sumamos un día
 
