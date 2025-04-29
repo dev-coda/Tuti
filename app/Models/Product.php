@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 
-class Product extends  Model
+class Product extends Model
 {
     use HasFactory;
 
@@ -105,27 +105,30 @@ class Product extends  Model
         $userHasOrders = auth()->check() ? auth()->user()->orders()->exists() : false;
 
         $discount = $this->discount;
-        $discount_on  = 'Producto';
+        $discount_on = 'Producto';
 
-        if($userHasOrders){
-            if ($this->bonifications->count()) {
-                $discount_on  = false;
-                $discount = 0;
-            }
-        }else{
+        if ($userHasOrders) {
+            $discount_on = false;
+            $discount = 0;
+        } else {
             if ($this->brand) {
                 if ($this->brand->discount > $discount) {
                     $discount = $this->brand->discount;
-                    $discount_on  = 'Marca';
+                    $discount_on = 'Marca';
                 }
             }
 
             if ($this->brand->vendors) {
                 if ($this->brand->vendors->discount > $discount) {
                     $discount = $this->brand->vendors->discount;
-                    $discount_on  = 'Vendor';
+                    $discount_on = 'Vendor';
                 }
             }
+        }
+
+        if ($this->bonifications->count()) {
+            $discount_on = false;
+            $discount = 0;
         }
 
         $price = $this->price;
@@ -148,7 +151,7 @@ class Product extends  Model
 
         return [
             'old' => $pricePreDiscount,
-            'price' =>  $finalPrice,
+            'price' => $finalPrice,
             'totalDiscount' => ($price * $discount / 100),
             'discount' => $discount,
             'discount_on' => $discount_on,
