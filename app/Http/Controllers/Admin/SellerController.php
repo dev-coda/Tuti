@@ -46,7 +46,7 @@ class SellerController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:' . User::class],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
-            'zone'=>['required', 'integer'],
+            'zone' => ['required', 'integer'],
         ]);
 
         $validate['password'] = bcrypt($validate['password']);
@@ -72,7 +72,7 @@ class SellerController extends Controller
     public function update(Request $request, $id)
     {
         $user = User::findorFail($id);
-        $validations =  [
+        $validations = [
             'name' => 'required|string|max:255',
             'email' => ['required', 'string', 'email', 'max:255', 'unique:' . User::class . ',email,' . $user->id],
             'zone' => 'required|integer',
@@ -85,32 +85,33 @@ class SellerController extends Controller
         $validate = $request->validate($validations);
 
         if ($request->filled('password')) {
-            $validate['password']  = bcrypt($validate['password']);
+            $validate['password'] = bcrypt($validate['password']);
         }
 
         $user->update($validate);
 
-      
+
 
 
         return to_route('sellers.index')->with('success', 'Vendedor actualizado');
     }
 
 
-    public function setclient(Request $request){
+    public function setclient(Request $request)
+    {
         $validate = $request->validate([
             'document' => 'required|integer',
         ]);
-    
+
         $document = $validate['document'];
         $zone = $request->zone || null;
         $user = User::whereDocument($document)->first();
- 
-        if(!$user){
-    
+
+        if (!$user) {
+
             $data = UserRepository::getCustomRuteroId($document, $zone);
-         
-            if($data){
+
+            if ($data) {
                 $name = $data['name'];
 
                 $email = time() . '@tuti.com';
@@ -122,7 +123,7 @@ class SellerController extends Controller
                     'password' => $password,
                     'status_id' => User::PENDING
                 ]);
-              
+
                 foreach ($data['routes'] as $route) {
                     $user->zones()->create([
                         'route' => $route['route'],
@@ -132,27 +133,28 @@ class SellerController extends Controller
                         'code' => $route['code'],
                     ]);
                 }
-              
+
 
                 session()->put('user_id', $user->id);
                 return to_route('cart');
 
-    
-            }else{
-                return back()->with('error', 'No se encontró el rutero');    
+
+            } else {
+                return back()->with('error', 'No se encontró el rutero');
             }
-               
+
         }
 
 
         session()->put('user_id', $user->id);
         return to_route('cart');
-    
 
-         
+
+
     }
 
-    public function removeclient(){
+    public function removeclient()
+    {
         session()->forget('user_id');
         return to_route('cart')->with('success', 'Cliente desvinculado');
     }
