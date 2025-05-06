@@ -73,7 +73,7 @@ class UserRepository
                         <!--Optional:-->
                         <dyn:IdentificationNum>' . $document . '</dyn:IdentificationNum>
                         <!--Optional:-->
-                        <dyn:ruteroId>' . $zone . '</dyn:ruteroId>
+                        <dyn:ruteroId></dyn:ruteroId>
                         <!--Optional:-->
                         <dyn:zona>' . $zone . '</dyn:zona>
                     </tem:_getRuteros>
@@ -81,6 +81,7 @@ class UserRepository
             </soapenv:Body>
             </soapenv:Envelope>';
 
+        info($body);
 
 
         $response = Http::withHeaders([
@@ -90,22 +91,38 @@ class UserRepository
         ])->send('POST', env('MICROSOFT_RESOURCE_URL', 'https://uattrx.sandbox.operations.dynamixs.com/').'/soap/services/DIITDWSSalesForceGroup', [
                     'body' => $body
                 ]);
+        info($response);
         $data = $response->body();
 
         $xmlString = preg_replace('/<(\/)?(s|a):/', '<$1$2', $data);
+        // libxml_use_internal_errors(true);
         $xml = simplexml_load_string($xmlString);
+
+
+        //info('xml ' . $xml);
+
+
+
+        //convert $data into an object
+        $xml = simplexml_load_string($xmlString, 'SimpleXMLElement', LIBXML_NOCDATA);
 
 
         try {
             // $aListRuteros = $xml->sBody->getRuterosResponse->result->agetRuterosResult->aListRuteros;
-
+            info('try');
             $addresses = $xml->sBody->getRuterosResponse->result->agetRuterosResult;
 
             $json = json_encode($addresses);
 
             $array = json_decode($json, TRUE);
+
+            // info('array ' . $array);
             $aListRuteros = $array['aListRuteros'];
+            info('aListRuteros');
+            info($aListRuteros);
+            // info('Alist ' . $aListRuteros);
         } catch (\Throwable $th) {
+            info('catch' . $th->getMessage());
             return null;
         }
 
@@ -116,12 +133,14 @@ class UserRepository
 
         $items = [];
         $name = '';
+        //info($aListRuteros->length());
+        info('AlistRuteros');
+        info(count($aListRuteros));
 
         foreach ($aListRuteros as $key => $rutero) {
-            //    try {
 
-            $json = json_encode($rutero);
-            $r = json_decode($json, TRUE);
+
+            //    try {
 
             $aListDetailsRuteros = $aListRuteros['aDetail']['aListDetailsRuteros'];
 
@@ -133,11 +152,10 @@ class UserRepository
 
             //check if exist key 0
             if (array_key_exists(0, $aListDetailsRuteros)) {
-
                 foreach ($aListDetailsRuteros as $i) {
                     $items[] = self::processData($i, $data);
                 }
-            } else {
+            } else if ('aDetail' === $key) {
                 $items[] = self::processData($aListDetailsRuteros, $data);
             }
 
