@@ -104,9 +104,8 @@ class SellerController extends Controller
         ]);
 
         $document = $validate['document'];
-        $zone = $request->zone || null;
+        $zone = $request->zone ?? null;
         $user = User::whereDocument($document)->first();
-
         if (!$user) {
 
             $data = UserRepository::getCustomRuteroId($document, $zone);
