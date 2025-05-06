@@ -1,5 +1,5 @@
 @props(['product'])
-<div class="border border-gray-300 rounded flex flex-col px-6 border-y-0">
+<div class="border border-gray-300 rounded flex flex-col px-6 border-y-0 max-w-[90vw]">
     <div class="flex w-full items-center justify-center py-2 text-gray-400 flex-grow">
         @if($product->images->first())
             <a href="{{route('product', $product->slug)}}"  class=" flex-grow-1 h-40 block w-full bg-cover bg-center hover:scale-110 transition duration-500 cursor-pointer object-cover" style="background-image: url({{asset('storage/'.$product->images->first()->path)}});">
