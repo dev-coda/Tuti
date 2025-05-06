@@ -101,6 +101,7 @@ class SellerController extends Controller
     {
         $validate = $request->validate([
             'document' => 'required|integer',
+            'zone' => 'nullable|integer',
         ]);
 
         $document = $validate['document'];

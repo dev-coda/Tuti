@@ -38,7 +38,7 @@
 
 <section class="w-full grid grid-cols-12 xl:gap-x-10 gap-x-0 xl:gap-y-0 gap-y-10">
     
-    <div class="xl:col-span-9 col-span-12 ">
+    <div class="xl:col-span-12 col-span-12 ">
         <div class="grid grid-cols-2 xl:grid-cols-3 gap-5 ">
             @foreach ($products as $product)
             <x-product :product="$product" />
@@ -47,7 +47,7 @@
         </div>
     </div>
 
-    <div class="xl:col-span-3 col-span-12">
+    <div class="xl:col-span-12 col-span-12">
 
         <div id='ads' class="splide mb-10">
             <div class="splide__track">
