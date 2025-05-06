@@ -17,24 +17,24 @@
 
 
 @section('content')
-<section id='banners' class="splide mb-10 max-h-[384px]">
-    <div class="splide__track">
-        <ul class="splide__list">
-            @foreach ($banners as $banner)
-            <li class="splide__slide">
-                <a href="{{$banner->url ?? '#'}}">
-                    <img src="{{asset('storage/'.$banner->path)}}" class="w-full">
-                </a>
-            </li>
-            @endforeach
-        </ul>
+
+
+
+<section class="w-full grid xl:grid-cols-12 gap-x-10 xl:gap-y-0 gap-y-10 max-w-[100vw] overflow-hidden">
+    <div id='banners' class="splide mb-10 max-h-[384px] w-full max-w-[90vw] col-span-12">
+        <div class="splide__track">
+            <ul class="splide__list">
+                @foreach ($banners as $banner)
+                <li class="splide__slide">
+                    <a href="{{$banner->url ?? '#'}}">
+                        <img src="{{asset('storage/'.$banner->path)}}" class="w-full">
+                    </a>
+                </li>
+                @endforeach
+            </ul>
+        </div>
     </div>
-</section>
-
-
-<section class="w-full grid grid-cols-10 gap-x-10 xl:gap-y-0 gap-y-10">
-
-    <div class="col-span-10">
+    <div class="col-span-12">
         <ul class="flex  space-x-2 text-gray-500">
             <li><a href="/">Inicio</a></li>
             <li>></li>
@@ -43,7 +43,7 @@
     </div>
     
     {{-- Add sorting and filtering --}}
-    <div class="col-span-10 pt-3">
+    <div class="col-span-12 pt-3 max-w-[90vw]">
         <div class="flex md:justify-between md:items-center flex-col md:flex-row pr-3">
             <div class="flex items-start md:items-center space-x-2 flex-col md:flex-row">
                 <span class="w-full">Ordenar por:</span>
@@ -70,19 +70,19 @@
   
             </div>
         </div>   
-    </div
+    </div>
 
-    <h1 class="font-bold my-5 text-2xl col-span-10">{{$category->name}}</h1>
+    <h1 class="font-bold my-5 text-3xl col-span-12 w-full">{{$category->name}}</h1>
 
 
     @if ($products->count() === 0)
-    <div class="col-span-10">
+    <div class="col-span-12 h-screen">
         <p>No se encontraron productos con estos filtros. Intenta de nuevo.</p>
     </div>
     @endif
 
-    <div class="col-span-10 ">
-        <div class="grid grid-cols-2 xl:grid-cols-6 gap-5 ">
+    <div class="col-span-12 ">
+        <div class="grid grid-cols-1 xl:grid-cols-4 gap-0 gap-y-10 max-w-screen-sm ">
             @foreach ($products as $product)
             <x-product :product="$product" />
             @endforeach
@@ -90,7 +90,7 @@
         </div>
     </div>
 
-    <div class="col-span-10 ">
+    <div class="col-span-12 ">
         {{ $products->links() }}
 
     </div>
