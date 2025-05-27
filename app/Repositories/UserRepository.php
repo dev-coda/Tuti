@@ -88,7 +88,7 @@ class UserRepository
             'Content-Type' => 'text/xml;charset=UTF-8',
             'SOAPAction' => 'http://tempuri.org/DWSSalesForce/getRuteros',
             'Authorization' => "Bearer {$token}"
-        ])->send('POST', 'https://tronex.operations.dynamics.com/soap/services/DIITDWSSalesForceGroup?=null', [
+        ])->send('POST', env('MICROSOFT_RESOURCE_URL', 'https://uattrx.sandbox.operations.dynamixs.com/').'/soap/services/DIITDWSSalesForceGroup', [
                     'body' => $body
                 ]);
         info($response);
