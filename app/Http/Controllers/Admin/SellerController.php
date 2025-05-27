@@ -143,6 +143,25 @@ class SellerController extends Controller
                 return back()->with('error', 'No se encontró el rutero');
             }
 
+        } else {
+            // Si el usuario ya existe, actualizar las zonas
+            $data = UserRepository::getCustomRuteroId($document, $zone);
+    
+            if ($data) {
+                // Eliminar las zonas anteriores
+                $user->zones()->delete();
+    
+                // Crear nuevas zonas
+                foreach ($data['routes'] as $route) {
+                    $user->zones()->create([
+                        'route' => $route['route'],
+                        'zone' => $route['zone'],
+                        'day' => $route['day'],
+                        'address' => $route['address'],
+                        'code' => $route['code'],
+                    ]);
+                }
+            }
         }
 
 
