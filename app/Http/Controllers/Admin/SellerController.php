@@ -144,15 +144,27 @@ class SellerController extends Controller
             }
 
         } else {
-            // Si el usuario ya existe, actualizar las zonas
-            $data = UserRepository::getCustomRuteroId($document, $zone);
-    
-            if ($data) {
-                // Eliminar las zonas anteriores
-                $user->zones()->delete();
-    
-                // Crear nuevas zonas
-                foreach ($data['routes'] as $route) {
+            // Usuario ya existe, actualizar zonas
+        $data = UserRepository::getCustomRuteroId($document, $zone);
+
+        if ($data) {
+            $existingZones = $user->zones()->get();
+            $newRoutes = $data['routes'];
+
+            foreach ($newRoutes as $index => $route) {
+                $zoneToUpdate = $existingZones[$index] ?? null;
+
+                if ($zoneToUpdate) {
+                    // Si existe zona en ese índice, actualizar
+                    $zoneToUpdate->update([
+                        'route' => $route['route'],
+                        'zone' => $route['zone'],
+                        'day' => $route['day'],
+                        'address' => $route['address'],
+                        'code' => $route['code'],
+                    ]);
+                } else {
+                    // Si no existe, crear nueva
                     $user->zones()->create([
                         'route' => $route['route'],
                         'zone' => $route['zone'],
@@ -161,9 +173,11 @@ class SellerController extends Controller
                         'code' => $route['code'],
                     ]);
                 }
-            }
         }
-
+    }
+}
+        
+        
 
         session()->put('user_id', $user->id);
         return to_route('cart');
