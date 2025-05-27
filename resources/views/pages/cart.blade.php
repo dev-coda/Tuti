@@ -146,11 +146,16 @@
                                 return $product->final_price['old'] * $product->quantity;
                             });
 
-                            $discount = $products->sum(function($product){
-                                return $product->final_price['old'] * $product->discount/100 * $product->quantity;
-                            });
+                            if(!$has_orders)
+                            {
+                                $discount = $products->sum(function($product){
+                                    return $product->final_price['old'] * $product->discount/100 * $product->quantity;
+                                });
+                            }
+                            else{
+                                $discount = null;
+                            }
                         @endphp
-
             
                         <div class="flex justify-between">
                             <span>Subtotal</span>

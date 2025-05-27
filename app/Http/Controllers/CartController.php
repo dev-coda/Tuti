@@ -86,8 +86,12 @@ class CartController extends Controller
         if($total_cart < $min_amount){
             $alertTotal[] = true;
         }
+
+        $has_orders = Order::with('user')->withCount('products')->whereBelongsTo($client)->exists();
+
+
         
-        $context = compact('products', 'alertVendors', 'zones', 'set_user', 'client', 'alertTotal', 'min_amount', 'total_cart'); 
+        $context = compact('products', 'alertVendors', 'zones', 'set_user', 'client', 'alertTotal', 'min_amount', 'total_cart', 'has_orders'); 
         
         return view('pages.cart', $context);
 
@@ -282,6 +286,8 @@ class CartController extends Controller
 
             $total = $total + ($p->finalPrice['price'] * $product['quantity']);
             $discount = $discount + ($p->finalPrice['totalDiscount'] * $product['quantity']);      
+
+            
 
         }
 
