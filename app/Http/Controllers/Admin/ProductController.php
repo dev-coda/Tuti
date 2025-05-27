@@ -157,6 +157,11 @@ class ProductController extends Controller
 
         if ($request->variation_id) {
             $variations = VariationItem::whereVariationId($request->variation_id)->get();
+            $variations = $variations->map(function ($item) {
+                $item->variation_id = null;
+                return $item;
+            });         
+            info(json_encode($variations));
             $product->items()->attach($variations, [
                 'price' => $validate['price'],
                 'sku' => $validate['sku'],
