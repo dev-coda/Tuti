@@ -87,8 +87,12 @@ class CartController extends Controller
             $alertTotal[] = true;
         }
 
-        $has_orders = Order::with('user')->withCount('products')->whereBelongsTo($client)->exists();
+        $targetUser = $client ?? $user;
 
+        $has_orders = Order::with('user')
+            ->withCount('products')
+            ->whereBelongsTo($targetUser)
+            ->exists();
 
         
         $context = compact('products', 'alertVendors', 'zones', 'set_user', 'client', 'alertTotal', 'min_amount', 'total_cart', 'has_orders'); 
