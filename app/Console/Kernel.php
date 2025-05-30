@@ -4,6 +4,7 @@ namespace App\Console;
 
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
+use App\Jobs\UpdateProductPrices;
 
 class Kernel extends ConsoleKernel
 {
@@ -15,6 +16,10 @@ class Kernel extends ConsoleKernel
         $schedule->command('inspire')->hourly();
         //comand every 20 minutes
         $schedule->command('app:get-token')->cron('*/20 * * * *');
+
+        $schedule->call(function (){
+            UpdateProductPrices::dispatch();
+        })->daily();
     }
 
     /**
