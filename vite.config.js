@@ -14,7 +14,6 @@ export default defineConfig({
                 "resources/css/app.css",
                 "resources/css/seller.css",
                 "resources/js/app.js",
-                "resources/js/site.js",
             ],
             refresh: false,
         }),
