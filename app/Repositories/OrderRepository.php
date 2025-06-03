@@ -50,6 +50,7 @@ class OrderRepository
 
         $productList = '';
 
+        $user_has_orders = Order::where('user_id', $order->user_id)->exists();
 
         foreach ($products as $product) {
             $vendor_type = $product->product->brand->vendor->vendor_type;
@@ -133,8 +134,8 @@ class OrderRepository
             'SOAPAction' => 'http://tempuri.org/DWSSalesForce/PreSaslesProcess',
             'Authorization' => "Bearer {$token}"
         ])->send('POST', $resource_url . '/soap/services/DIITDWSSalesForceGroup?=null', [
-                    'body' => $body
-                ]);
+            'body' => $body
+        ]);
 
 
         $data = $response->body();

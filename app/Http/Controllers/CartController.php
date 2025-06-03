@@ -253,6 +253,8 @@ class CartController extends Controller
         $delivery_date = OrderRepository::getBusinessDay();
 
 
+        $has_orders = Order::where('user_id', $user_id)->exists();
+
         $order = Order::create([
             'user_id' => $user_id,
             'total' => $total,
@@ -274,10 +276,10 @@ class CartController extends Controller
                 'order_id' => $order->id,
                 'product_id' => $id,
                 'quantity' => $product['quantity'],
-                'price' => $p->finalPrice['originalPrice'],
-                'discount' => $p->finalPrice['totalDiscount'],
+                'price' => $has_orders ? $p->finalPrice['old'] : $p->finalPrice['originalPrice'],
+                'discount' => $has_orders ? 0 : $p->finalPrice['totalDiscount'],
                 'variation_item_id' => $product['variation_id'] ?? null,
-                'percentage' => $p->finalPrice['discount'] ?? 0,
+                'percentage' => $has_orders ? 0 : $p->finalPrice['discount'] ?? 0,
             ]);
 
 
@@ -298,7 +300,7 @@ class CartController extends Controller
                 ]);
             }
 
-
+            $discount = $has_orders ? 0 : $discount;
             $total = $total + ($p->finalPrice['price'] * $product['quantity']);
             $discount = $discount + ($p->finalPrice['totalDiscount'] * $product['quantity']);
         }
