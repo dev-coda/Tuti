@@ -14,27 +14,39 @@
 </section> --}}
 <div class="bg-slate-700 py-10 mt-10 text-white">
     <div class="container mx-auto max-w-7xl">
-        <div class="grid xl:grid-cols-5 grid-cols-1  pb-10 px-5 xl:gap-y-0 gap-y-5">
-            <div class="xl:col-span-2 col-span-1">
+        <div class="grid xl:grid-cols-4 grid-cols-1 pb-10 px-5 xl:gap-y-0 gap-y-5">
+            <div class="xl:col-span-1 col-span-1">
                 <div class="flex xl:justify-start justify-center  ">
                     <div class="flex flex-col items-center">
-                        <a href="" >
+                        <a href="">
                             <img src="{{asset('img/tuti.png')}}" class="h-28">
                         </a>
-                        <div class="flex items-center space-x-4">
-                        <a href="https://www.facebook.com/tuti.tutienda" target="_blank" class="flex h-8 w-8" >
-                            <svg height="100%" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linejoin:round;stroke-miterlimit:2;" version="1.1" viewBox="0 0 512 512" width="100%" xml:space="preserve" xmlns="http://www.w3.org/2000/svg" xmlns:serif="http://www.serif.com/" xmlns:xlink="http://www.w3.org/1999/xlink"><path d="M512,257.555c0,-141.385 -114.615,-256 -256,-256c-141.385,0 -256,114.615 -256,256c0,127.777 93.616,233.685 216,252.89l0,-178.89l-65,0l0,-74l65,0l0,-56.4c0,-64.16 38.219,-99.6 96.695,-99.6c28.009,0 57.305,5 57.305,5l0,63l-32.281,0c-31.801,0 -41.719,19.733 -41.719,39.978l0,48.022l71,0l-11.35,74l-59.65,0l0,178.89c122.385,-19.205 216,-125.113 216,-252.89Z" style="fill-rule:nonzero; fill:white;"/></svg>
-                        </a>
 
-                        <a href="https://www.instagram.com/tuti.tutienda/" target="_blank" class="flex h-10 w-10" >
-                            <svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg"><rect fill="none" height="256" width="256"/><circle style="fill-rule:nonzero; fill:white;" cx="128" cy="128" r="32"/><path d="M172,28H84A56,56,0,0,0,28,84v88a56,56,0,0,0,56,56h88a56,56,0,0,0,56-56V84A56,56,0,0,0,172,28ZM128,176a48,48,0,1,1,48-48A48,48,0,0,1,128,176Zm52-88a12,12,0,1,1,12-12A12,12,0,0,1,180,88Z" style="fill-rule:nonzero; fill:white;"/></svg>
-                        </a>
-                        </div>
                     </div>
                 </div>
             </div>
-            <div></div>
-            <div>
+            <div class="flex md:flex-start flex-col items-center gap-3 justify-center md:items-start">
+                <div class="flex flex-col items-center gap-3 justify-center">
+                    <div class="flex items-center justify-center gap-3">
+                        <a href="https://www.facebook.com/tuti.tutienda" target="_blank" class="flex h-8 w-8">
+                            <svg height="100%" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linejoin:round;stroke-miterlimit:2;" version="1.1" viewBox="0 0 512 512" width="100%" xml:space="preserve" xmlns="http://www.w3.org/2000/svg" xmlns:serif="http://www.serif.com/" xmlns:xlink="http://www.w3.org/1999/xlink">
+                                <path d="M512,257.555c0,-141.385 -114.615,-256 -256,-256c-141.385,0 -256,114.615 -256,256c0,127.777 93.616,233.685 216,252.89l0,-178.89l-65,0l0,-74l65,0l0,-56.4c0,-64.16 38.219,-99.6 96.695,-99.6c28.009,0 57.305,5 57.305,5l0,63l-32.281,0c-31.801,0 -41.719,19.733 -41.719,39.978l0,48.022l71,0l-11.35,74l-59.65,0l0,178.89c122.385,-19.205 216,-125.113 216,-252.89Z" style="fill-rule:nonzero; fill:white;" />
+                            </svg>
+                        </a>
+
+                        <a href="https://www.instagram.com/tuti.tutienda/" target="_blank" class="flex h-10 w-10">
+                            <svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+                                <rect fill="none" height="256" width="256" />
+                                <circle style="fill-rule:nonzero; fill:white;" cx="128" cy="128" r="32" />
+                                <path d="M172,28H84A56,56,0,0,0,28,84v88a56,56,0,0,0,56,56h88a56,56,0,0,0,56-56V84A56,56,0,0,0,172,28ZM128,176a48,48,0,1,1,48-48A48,48,0,0,1,128,176Zm52-88a12,12,0,1,1,12-12A12,12,0,0,1,180,88Z" style="fill-rule:nonzero; fill:white;" />
+                            </svg>
+                        </a>
+                    </div>
+                    <div>Síguenos en redes sociales</div>
+                </div>
+
+            </div>
+            <div class="flex flex-col items-center gap-3 justify-center md:items-start">
                 <h3 class="text-xl mb-3">NOSOTROS</h3>
                 <ul class="text-sm space-y-2">
                     <li><a href="">Términos y condiciones</a></li>
@@ -43,16 +55,16 @@
                 </ul>
             </div>
 
-            <div>
+            <div class="flex flex-col items-center gap-3 justify-center md:items-start">
                 <h3 class="text-xl mb-3">PÁGINAS DE INTERÉS</h3>
                 <ul class="text-sm space-y-2">
                     <li><a href="{{route('register')}}">Registro</a></li>
                     <li><a href="{{route('form')}}">Quiero ser cliente</a></li>
-                    <li><a href="">Preguntas frecuentes</a></li>  
+                    <li><a href="">Preguntas frecuentes</a></li>
                 </ul>
             </div>
 
-           
+
         </div>
 
     </div>

@@ -17,11 +17,11 @@ class PageController extends Controller
     public function home()
     {
         $productsPre = Product::active()->with('images')->orderBy('created_at', 'desc')->limit(12);
-        $products = $productsPre->paginate(3);
+        $products = $productsPre->paginate(4);
         $categories = Category::with('children')->whereNull('parent_id')->get();
         $banners = Banner::whereTypeId(1)->orderBy('id')->get();
         $lateral = Banner::whereTypeId(2)->orderBy('id')->get();
-        $featured = Category::whereId(3)->orWhere('id', 4)->orWhere('id', 17)->get();
+        $featured = Category::whereId(3)->orWhere('id', 17)->orWhere('id', 4)->get();
 
         $context = compact('products', 'categories', 'banners', 'lateral', 'featured');
         return view('pages.home', $context);
@@ -120,9 +120,10 @@ class PageController extends Controller
             if (array_key_exists($product_id, $cart)) {
                 $quantity = $cart[$product_id]['quantity'];
             }
-
         }
-        $context = compact('product', 'related', 'quantity');
+
+        $lateral = Banner::whereTypeId(2)->orderBy('id')->get();
+        $context = compact('product', 'related', 'quantity', 'lateral');
 
         return view('pages.product', $context);
     }

@@ -72,7 +72,7 @@
             <h3 class="mb-4 text-xl font-semibold ">Imagenes</h3>
       
             <div class="mb-3 text-center">
-                <img src="{{ asset($category->image) }}" alt="" class="w-48 inline-block">
+                <img src="{{ asset('storage/'.$category->image) }}" alt="" class="w-48 inline-block">
             </div>
             {{ Aire::file('image_file', 'Imagen') }}
 
