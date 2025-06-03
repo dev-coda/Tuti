@@ -8,25 +8,15 @@ export default defineConfig({
         outDir: "public/build",
     },
     plugins: [
+        vue(),
         laravel({
-            input: ["resources/css/app.css", "resources/js/app.js"],
-            refresh: true,
-        }),
-        vue({
-            template: {
-                transformAssetUrls: {
-                    base: null,
-                    includeAbsolute: false,
-                },
-            },
-            compilerOptions: {
-                isCustomElement: (tag) => tag.includes("-"),
-            },
+            input: [
+                "resources/css/app.css",
+                "resources/css/seller.css",
+                "resources/js/app.js",
+                "resources/js/site.js",
+            ],
+            refresh: false,
         }),
     ],
-    resolve: {
-        alias: {
-            vue: "vue/dist/vue.esm-bundler.js",
-        },
-    },
 });
