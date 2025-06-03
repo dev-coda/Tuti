@@ -70,25 +70,12 @@
     </div>
 
     <div class="xl:col-span-12 col-span-12">
-        <h4 class="col-span-12 text-slate-700 text-3xl font-semibold mb-3 mt-12 flex justify-center">
-            Productos Destacados
-        </h4>
-        <div class="xl:col-span-12 col-span-12 pb-6">
-            <div class="grid grid-cols-1 xl:grid-cols-4 gap-0 ">
-                @foreach ($products as $product)
-                <x-product :product="$product" />
-                @endforeach
-
-            </div>
-        </div>
-
-        {{ $products->links() }}
+        <div id="featured-products"></div>
     </div>
 
-
 </section>
-<div class="xl:col-span-12 col-span-12 mt-6 mb-0 pb-0  bg-neutral-200">
 
+<div class="xl:col-span-12 col-span-12 mt-6 mb-0 pb-0 bg-neutral-200">
     <div id='ads' class="splide mb-0 p-3 bg-neutral-200">
         <div class="splide__track">
             <ul class="splide__list">
@@ -102,8 +89,6 @@
             </ul>
         </div>
     </div>
-
-
 </div>
 
 

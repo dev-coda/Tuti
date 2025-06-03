@@ -19,35 +19,32 @@
         <li>></li>
         <li>Busqueda: {{request()->q}}</li>
     </ul>
-    <div class="md:col-span-12 pt-3 max-w-[90vw] uppercase font-semibold">
-        <div class="flex md:justify-between md:items-center flex-col md:flex-row pr-3">
-            <div class="flex md:justify-between md:items-center flex-col md:flex-row pr-3">
-                <div class="flex items-start md:items-center space-x-2 flex-col md:flex-row mr-3">
-                    <span class="w-full">Ordenar por:</span>
-                    <select name="sort" id="sort" class="border border-gray-200 rounded-md p-2 w-full" onchange="window.location.href=this.value">
-                        <option {{ $params['order'] === '1' ? 'selected' : '' }} value="{{ route('search', 1 . '/' . $params['category_id'] . '/' . $params['brand_id'] . '?q='. $params['q']) }}">Más reciente</option>
-                        <option {{ $params['order'] === '2' ? 'selected' : '' }} value="{{ route('search', 2 . '/' . $params['category_id'] . '/' . $params['brand_id'] . '?q='. $params['q']  ) }}">Precio: Menor a Mayor</option>
-                        <option {{ $params['order'] === '3' ? 'selected' : '' }} value="{{ route('search', 3 . '/' . $params['category_id'] . '/' . $params['brand_id'] . '?q='. $params['q']  ) }}">Precio: Mayor a Menor</option>
-                        <option {{ $params['order'] === '4' ? 'selected' : '' }} value="{{ route('search', 4 . '/' . $params['category_id'] . '/' . $params['brand_id'] . '?q='. $params['q']  ) }}">Nombre A-Z</option>
-                        <option {{ $params['order'] === '5' ? 'selected' : '' }} value="{{ route('search', 5 . '/' . $params['category_id'] . '/' . $params['brand_id'] . '?q='. $params['q'] ) }}">Nombre Z-A</option>
-                    </select>
-                </div>
-                <div class="flex items-center space-x-2 flex-wrap md:flex-nowrap">
-                    <span class="w-full">Filtrar por:</span>
-                    <select name="filter" id="filter" class="border border-gray-200 rounded-md p-2 w-full" onchange="window.location.href=this.value">
-                        <option value="#" disabled><b>Marca</b></option>
-                        @foreach ($brands as $brand)
-                        <option {{ $params['brand_id'] == $brand->id ? 'selected' : '' }} value="{{ route('search', $params['order'] . '/' . $params['category_id'] . '/' . $brand->id . '?q='. $params['q'] ) }}">&nbsp;&nbsp;&nbsp;{{ $brand->name }}</option>
-                        @endforeach
-                        <option value="#" disabled><b>Categoria</b></option>
-                        @foreach ($categories as $categoryItem)
-                        <option {{ $params['category_id'] == $categoryItem->id ? 'selected' : '' }} value="{{ route('search', $params['order'] . '/' . $categoryItem->id . '/' . $params['brand_id'] . '?q='. $params['q']  ) }}">&nbsp;&nbsp;&nbsp;{{ $categoryItem->name }}</option>
-                        @endforeach
-                    </select>
-
-                </div>
-            </div>
-        </div>
+    <div id="search-filters">
+        <filter-sort-dropdowns
+            :current-sort="'{{ $params['order'] }}'"
+            :current-brand-id="{{ $params['brand_id'] ?? 'null' }}"
+            :current-category-id="{{ $params['category_id'] ?? 'null' }}"
+            :sort-options="{{ json_encode([
+                ['value' => '1', 'label' => 'Más reciente', 'url' => route('search', '1/' . $params['category_id'] . '/' . $params['brand_id'] . '?q=' . $params['q'])],
+                ['value' => '2', 'label' => 'Precio: Menor a Mayor', 'url' => route('search', '2/' . $params['category_id'] . '/' . $params['brand_id'] . '?q=' . $params['q'])],
+                ['value' => '3', 'label' => 'Precio: Mayor a Menor', 'url' => route('search', '3/' . $params['category_id'] . '/' . $params['brand_id'] . '?q=' . $params['q'])],
+                ['value' => '4', 'label' => 'Nombre A-Z', 'url' => route('search', '4/' . $params['category_id'] . '/' . $params['brand_id'] . '?q=' . $params['q'])],
+                ['value' => '5', 'label' => 'Nombre Z-A', 'url' => route('search', '5/' . $params['category_id'] . '/' . $params['brand_id'] . '?q=' . $params['q'])]
+            ]) }}"
+            :brands="{{ json_encode($brands->map(function($brand) use ($params) {
+                return [
+                    'id' => $brand->id,
+                    'name' => $brand->name,
+                    'url' => route('search', $params['order'] . '/' . $params['category_id'] . '/' . $brand->id . '?q=' . $params['q'])
+                ];
+            })->values()) }}"
+            :categories="{{ json_encode($categories->map(function($category) use ($params) {
+                return [
+                    'id' => $category->id,
+                    'name' => $category->name,
+                    'url' => route('search', $params['order'] . '/' . $category->id . '/' . $params['brand_id'] . '?q=' . $params['q'])
+                ];
+            })) }}" />
     </div>
 </div>
 {{-- Add sorting and filtering --}}
@@ -166,4 +163,17 @@
     })
 </script>
 
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const {
+            createApp
+        } = Vue;
+        const searchFiltersApp = createApp({
+            components: {
+                'filter-sort-dropdowns': FilterSortDropdowns
+            }
+        });
+        searchFiltersApp.mount('#search-filters');
+    });
+</script>
 @endsection
