@@ -19,27 +19,28 @@ use Illuminate\Support\Facades\Mail;
 
 class CartController extends Controller
 {
-    public function cart(){
-       
+    public function cart()
+    {
+
         // session()->forget('cart');
         // back();
-        
+
 
         $cart = session()->get('cart');
-        
-        if(!$cart){
+
+        if (!$cart) {
             return redirect()->route('home');
         }
-        
+
         $user = auth()->user();
         $zones = $user->zones->pluck('address', 'id')->toArray();
 
         $set_user = false;
         $client = null;
-        if($user->hasRole('seller')){
+        if ($user->hasRole('seller')) {
             $user_id = session()->get('user_id');
             $set_user = true;
-            if($user_id){
+            if ($user_id) {
                 $client = User::with('zones')->find($user_id);
                 $zones = $client->zones->pluck('address', 'id')->toArray();
                 $set_user = false;
@@ -48,13 +49,13 @@ class CartController extends Controller
 
         $products = [];
         $total_cart = 0;
-        
-        foreach($cart as $item){
-            
+
+        foreach ($cart as $item) {
+
             $product = Product::with('brand', 'variation')->find($item['product_id']);
-            
+
             $product->item = $product->items->where('id', $item['variation_id'])->first();
-                
+
             $product->quantity = $item['quantity'];
             $product->vendor_id = $product->brand->vendor->id;
             $products[] = $product;
@@ -62,7 +63,7 @@ class CartController extends Controller
         }
         $products = collect($products);
 
-        
+
 
         //compra minima por vendor
         $byVendors = collect($products)->groupBy('vendor_id');
@@ -71,10 +72,10 @@ class CartController extends Controller
             $total = $vendor->sum(function ($product) {
                 return $product->quantity * $product->finalPrice['price'];
             });
-            
+
             $v = Vendor::find($key);
-                
-            if($total < $v->minimum_purchase){
+
+            if ($total < $v->minimum_purchase) {
                 $v->current = $total;
                 $alertVendors[] = $v;
             }
@@ -83,7 +84,7 @@ class CartController extends Controller
         $min_amount = Setting::where('key', 'min_amount')->value('value');
         $alertTotal = [];
 
-        if($total_cart < $min_amount){
+        if ($total_cart < $min_amount) {
             $alertTotal[] = true;
         }
 
@@ -94,13 +95,10 @@ class CartController extends Controller
             ->whereBelongsTo($targetUser)
             ->exists();
 
-        
-        $context = compact('products', 'alertVendors', 'zones', 'set_user', 'client', 'alertTotal', 'min_amount', 'total_cart', 'has_orders'); 
-        
+
+        $context = compact('products', 'alertVendors', 'zones', 'set_user', 'client', 'alertTotal', 'min_amount', 'total_cart', 'has_orders');
+
         return view('pages.cart', $context);
-
-
-      
     }
 
 
@@ -109,16 +107,17 @@ class CartController extends Controller
 
 
     #TODO crear plugin de agregar al carrito
-    public function add(Request $request, Product $product){
+    public function add(Request $request, Product $product)
+    {
 
-        
+
         $user = auth()->user();
         if (!$user) {
             return redirect()->route('login');
         }
 
         $request->validate([
-            'variation_id'=> 'nullable|numeric',
+            'variation_id' => 'nullable|numeric',
             'quantity' => 'required|numeric',
         ]);
 
@@ -126,16 +125,18 @@ class CartController extends Controller
         $variation_id = $request->variation_id;
 
         $cart = session()->get('cart');
-        
-           
-        if(!$cart){
+
+
+        if (!$cart) {
             $cart[] = [
                 "product_id" => $product->id,
                 "quantity" => $request->quantity,
                 "variation_id" => $request->variation_id,
             ];
             session()->put('cart', $cart);
-            return redirect()->back()->with('success', 'Producto agregado al carrito exitosamente!');
+            return redirect()->back()
+                ->with('success', 'Producto agregado al carrito exitosamente!')
+                ->with('cart_updated', true);
         }
 
         $found_index = null;
@@ -147,14 +148,16 @@ class CartController extends Controller
             }
         }
 
-        if($found_index === null){
+        if ($found_index === null) {
             $cart[] = [
                 "product_id" => $product_id,
                 "quantity" => $request->quantity,
                 "variation_id" => $request->variation_id,
             ];
             session()->put('cart', $cart);
-            return redirect()->back()->with('success', 'Producto agregado al carrito exitosamente!');
+            return redirect()->back()
+                ->with('success', 'Producto agregado al carrito exitosamente!')
+                ->with('cart_updated', true);
         }
 
 
@@ -162,46 +165,54 @@ class CartController extends Controller
 
 
         session()->put('cart', $cart);
-        return redirect()->back()->with('success', 'Producto agregado al carrito exitosamente!');
+        return redirect()->back()
+            ->with('success', 'Producto agregado al carrito exitosamente!')
+            ->with('cart_updated', true);
     }
 
 
-    public function remove(Request $request, $key){
-        
+    public function remove(Request $request, $key)
+    {
+
 
         $cart = session()->get('cart');
 
-    
-        if(isset($cart[$key])) {
+
+        if (isset($cart[$key])) {
             unset($cart[$key]);
             $cart = array_values($cart);
 
             session()->put('cart', $cart);
         }
-        
 
-        return redirect()->back()->with('success', 'Producto eliminado del carrito exitosamente!');
+
+        return redirect()->back()
+            ->with('success', 'Producto eliminado del carrito exitosamente!')
+            ->with('cart_updated', true);
     }
 
 
-    public function update(Request $request){
+    public function update(Request $request)
+    {
 
         // dd($request->all());
 
         $cart = session()->get('cart');
 
-        
-        
+
+
         $items = $request->items;
 
-        
 
-        foreach($items as $key => $item){
+
+        foreach ($items as $key => $item) {
             $cart[$key]['quantity'] = $item;
         }
 
         session()->put('cart', $cart);
-        return redirect()->back()->with('success', 'Carrito actualizado exitosamente!');
+        return redirect()->back()
+            ->with('success', 'Carrito actualizado exitosamente!')
+            ->with('cart_updated', true);
 
         // $request->validate([
         //     'product_id' => 'required|numeric',
@@ -209,7 +220,7 @@ class CartController extends Controller
         // ]);
 
         // $cart = session()->get('cart');
-    
+
         // if(isset($cart[$request->product_id])) {
         //     $cart[$request->product_id]['quantity'] = $request->quantity;
         //     session()->put('cart', $cart);
@@ -219,27 +230,28 @@ class CartController extends Controller
     }
 
 
-    public function processOrder(Request $request){
+    public function processOrder(Request $request)
+    {
 
-     //   dd($request->all());
+        //   dd($request->all());
         $cart = session()->get('cart');
         $observations = $request->observations;
-    
+
         $total = 0;
         $discount = 0;
 
         $user = auth()->user();
-       
+
         $seller_id = null;
         $user_id = $user->id;
-        
-        if($user->hasRole('seller')){
+
+        if ($user->hasRole('seller')) {
             $seller_id = $user->id;
             $user_id = session()->get('user_id');
         }
 
-        $delivery_date = OrderRepository::getBusinessDay(); 
-        
+        $delivery_date = OrderRepository::getBusinessDay();
+
 
         $order = Order::create([
             'user_id' => $user_id,
@@ -253,11 +265,11 @@ class CartController extends Controller
 
 
         foreach ($cart as $key => $product) {
-            
+
             $id = $product['product_id'];
 
             $p = Product::find($id);
-            
+
             $orderProduct = OrderProduct::create([
                 'order_id' => $order->id,
                 'product_id' => $id,
@@ -270,10 +282,10 @@ class CartController extends Controller
 
 
             $bonification = $p->bonifications->first();
-            if($bonification){
+            if ($bonification) {
                 //  floor($product->pivot->quantity / $product->bonifications->first()->buy)
                 $bonification_quantity = floor($product['quantity'] / $bonification->buy * $bonification->get);
-                if($bonification_quantity > $bonification->max){
+                if ($bonification_quantity > $bonification->max) {
                     $bonification_quantity = $bonification->max;
                 }
 
@@ -284,15 +296,11 @@ class CartController extends Controller
                     'quantity' => $bonification_quantity,
                     'order_id' => $order->id,
                 ]);
-                   
             }
 
 
             $total = $total + ($p->finalPrice['price'] * $product['quantity']);
-            $discount = $discount + ($p->finalPrice['totalDiscount'] * $product['quantity']);      
-
-            
-
+            $discount = $discount + ($p->finalPrice['totalDiscount'] * $product['quantity']);
         }
 
 
@@ -302,14 +310,14 @@ class CartController extends Controller
         ]);
 
         //if env production
-        if(app()->environment('production')){
+        if (app()->environment('production')) {
             session()->forget('cart');
         }
 
         session()->forget('user_id');
 
-    
-       
+
+
         try {
             OrderRepository::presalesOrder($order);
         } catch (\Throwable $th) {
@@ -319,22 +327,21 @@ class CartController extends Controller
 
 
         info('Enviando Correo');
-        $email = "julian.munoz24@hotmail.com";//$order->user->email;
-        try{
+        $email = "julian.munoz24@hotmail.com"; //$order->user->email;
+        try {
             Mail::to($email)->send(new OrderEmail($order));
-            info('intento de envio de correo a '.$email);
-        }catch(\Exception $e){
+            info('intento de envio de correo a ' . $email);
+        } catch (\Exception $e) {
             info($e->getMessage());
         }
-        
+
         return to_route('home')->with('success', 'Compra procesada con exito!');
-    
+
         // return to_route('home')->with('success', 'Es necesario tener un codigo de cliente para procesar la compra, contacta al administrador!');
 
         // dispatch(new ProcessOrder($order));
         // 
-        
+
 
     }
-
 }
