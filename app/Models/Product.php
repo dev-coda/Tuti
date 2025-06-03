@@ -119,7 +119,7 @@ class Product extends Model
                 $discount_on = 'Vendor';
             }
         }
-        
+
 
         if ($this->bonifications->count()) {
             $discount_on = false;
@@ -145,7 +145,6 @@ class Product extends Model
         $packageQuantity = $this->package_quantity ?? 1;
 
         $finalPriceWithPackage = $finalPrice * $packageQuantity;
-        $finalPerItemPrice = $finalPrice;
         $pricePreDiscount = $price + ($price * $this->taxValue() / 100);
 
 
@@ -157,7 +156,7 @@ class Product extends Model
             'discount_on' => $discount_on,
             'has_discount' => $has_discount,
             'originalPrice' => $price * $packageQuantity,
-            'perItemPrice' => $this->step > 1 ? $finalPerItemPrice * $this->step : $finalPerItemPrice,
+            'perItemPrice' => $finalPrice,
         ];
     }
 
