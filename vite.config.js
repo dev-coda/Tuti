@@ -1,23 +1,32 @@
-import { defineConfig } from 'vite';
-import laravel from 'laravel-vite-plugin';
-import vue from '@vitejs/plugin-vue'
+import { defineConfig } from "vite";
+import laravel from "laravel-vite-plugin";
+import vue from "@vitejs/plugin-vue";
 
 export default defineConfig({
     build: {
-        manifest: true,         
-        outDir: 'public/build', 
+        manifest: true,
+        outDir: "public/build",
     },
     plugins: [
-        vue(),
         laravel({
-            input: [
-                "resources/css/app.css",
-                "resources/css/seller.css",
-                "resources/js/app.js",
-                "resources/js/site.js",
-            ],
-            refresh: false,
+            input: ["resources/css/app.css", "resources/js/app.js"],
+            refresh: true,
+        }),
+        vue({
+            template: {
+                transformAssetUrls: {
+                    base: null,
+                    includeAbsolute: false,
+                },
+            },
+            compilerOptions: {
+                isCustomElement: (tag) => tag.includes("-"),
+            },
         }),
     ],
+    resolve: {
+        alias: {
+            vue: "vue/dist/vue.esm-bundler.js",
+        },
+    },
 });
-

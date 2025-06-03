@@ -7,74 +7,39 @@ window.currency = function (value) {
     return c(value, { symbol: "$", precision: 0, separator: "." }).format();
 };
 
-import Alpine from "alpinejs";
-
-window.Alpine = Alpine;
-
-Alpine.start();
-
 import { createApp } from "vue";
 import combinedProducts from "./vue/combinedProducts.vue";
 import HelloWorld from "./vue/HelloWorld.vue";
 import MobileMenu from "./vue/MobileMenu.vue";
 import CartWidget from "./vue/CartWidget.vue";
+import FeaturedProducts from "./components/FeaturedProducts.vue";
+import FilterSortDropdowns from "./components/FilterSortDropdowns.vue";
 
-// Mount combinedProducts component
-const productsApp = createApp(combinedProducts);
-productsApp.mount("#combinedProducts");
+// Only initialize Alpine if it hasn't been initialized yet
+import Alpine from "alpinejs";
+if (!window.Alpine) {
+    window.Alpine = Alpine;
+    Alpine.start();
+}
 
-// Mount HelloWorld component
-const helloApp = createApp(HelloWorld);
-helloApp.mount("#hello-world");
+// Create a single Vue app instance
+const app = createApp({});
 
-// Mount MobileMenu component
-const menuApp = createApp(MobileMenu);
-menuApp.mount("#mobile-menu");
+// Register all components globally
+app.component("combined-products", combinedProducts);
+app.component("hello-world", HelloWorld);
+app.component("mobile-menu", MobileMenu);
+app.component("cart-widget", CartWidget);
+app.component("featured-products", FeaturedProducts);
+app.component("filter-sort-dropdowns", FilterSortDropdowns);
 
-// Mount CartWidget component
-const cartApp = createApp(CartWidget);
-cartApp.mount("#cart-widget");
+// Mount the app to the root element
+if (document.getElementById("app")) {
+    app.mount("#app");
+}
 
-// app.component('test-component', testcomponent);
-
-// app.mount('#app');
-
-// import { createApp } from 'vue'
-// import combinedProducts from './vue/combinedProducts.vue'
-
-// const app = createApp(root)
-// app.component('combinedProducts', combinedProducts)
-// app.mount('#combinedProducts')
-// app
-
-// app.mount('#app')
-
-// import { createApp } from 'vue';
-
-// import Test from './vue/ExampleComponent.vue';
-// import App from './vue/App.vue';
-// const app = createApp({})
-// app.mount('#app');
-
-// app.component('app', App);
-
-//
-
-// // // const app = createApp({});
-// // // app.component('mi-componente', MiComponente);
-// // // app.mount('#app');
-
-// Object.entries(import.meta.glob('./**/*.vue', { eager: true })).forEach(([path, definition]) => {
-//     console.log(path.split('/').pop().replace(/\.\w+$/, ''))
-//     app.component(path.split('/').pop().replace(/\.\w+$/, ''), definition.default);
-// });
-
-//import { createApp } from 'vue'
-//import MyComponent from './vue/ExampleComponent.vue'
-// createApp(MyComponent).mount('#app')
-
+// Sidebar code
 const sidebar = document.getElementById("sidebar");
-
 if (sidebar) {
     const toggleSidebarMobile = (
         sidebar,

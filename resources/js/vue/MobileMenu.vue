@@ -11,8 +11,8 @@
                 viewBox="0 0 24 24"
                 stroke-width="1.5"
                 stroke="currentColor"
-                class="w-8 h-8 transition-transform duration-300"
-                :class="{ 'rotate-90': isOpen }"
+                class="w-8 h-8"
+                :class="{ 'text-orange-500': isOpen }"
             >
                 <path
                     stroke-linecap="round"
@@ -79,12 +79,10 @@
                                         <span>{{ category.name }}</span>
                                     </div>
                                     <svg
-                                        class="w-3 h-3 transition-transform duration-200"
+                                        class="w-3 h-3"
                                         :class="{
-                                            'rotate-0':
+                                            'text-orange-500':
                                                 openCategories[category.id],
-                                            'rotate-180':
-                                                !openCategories[category.id],
                                         }"
                                         xmlns="http://www.w3.org/2000/svg"
                                         fill="none"
@@ -101,48 +99,46 @@
                                 </button>
                             </h2>
                             <Transition
-                                enter-active-class="transition duration-200 ease-out"
-                                enter-from-class="transform scale-y-95 opacity-0"
-                                enter-to-class="transform scale-y-100 opacity-100"
-                                leave-active-class="transition duration-200 ease-in"
-                                leave-from-class="transform scale-y-100 opacity-100"
-                                leave-to-class="transform scale-y-95 opacity-0"
+                                @enter="startTransition"
+                                @leave="endTransition"
                             >
                                 <div
                                     v-show="openCategories[category.id]"
-                                    class="px-3 py-3 bg-gray-50"
+                                    class="overflow-hidden"
                                 >
-                                    <ul class="pl-7 text-sm space-y-2">
-                                        <li>
-                                            <a
-                                                :href="
-                                                    route(
-                                                        'category',
-                                                        category.slug
-                                                    )
-                                                "
-                                                class="text-gray-600 hover:text-gray-900 transition-colors duration-200"
+                                    <div class="px-3 py-3 bg-gray-50">
+                                        <ul class="pl-7 text-sm space-y-2">
+                                            <li>
+                                                <a
+                                                    :href="
+                                                        route(
+                                                            'category',
+                                                            category.slug
+                                                        )
+                                                    "
+                                                    class="text-gray-600 hover:text-gray-900 transition-colors duration-200"
+                                                >
+                                                    {{ category.name }}
+                                                </a>
+                                            </li>
+                                            <li
+                                                v-for="subcategory in category.children"
+                                                :key="subcategory.id"
                                             >
-                                                {{ category.name }}
-                                            </a>
-                                        </li>
-                                        <li
-                                            v-for="subcategory in category.children"
-                                            :key="subcategory.id"
-                                        >
-                                            <a
-                                                :href="
-                                                    route(
-                                                        'category2',
-                                                        subcategory.slug
-                                                    )
-                                                "
-                                                class="text-gray-600 hover:text-gray-900 transition-colors duration-200"
-                                            >
-                                                {{ subcategory.name }}
-                                            </a>
-                                        </li>
-                                    </ul>
+                                                <a
+                                                    :href="
+                                                        route(
+                                                            'category2',
+                                                            subcategory.slug
+                                                        )
+                                                    "
+                                                    class="text-gray-600 hover:text-gray-900 transition-colors duration-200"
+                                                >
+                                                    {{ subcategory.name }}
+                                                </a>
+                                            </li>
+                                        </ul>
+                                    </div>
                                 </div>
                             </Transition>
                         </div>
@@ -178,9 +174,15 @@ const closeMenu = () => {
     openCategories.value = {};
 };
 
-// Toggle category accordion
+// Toggle category accordion with single-open behavior
 const toggleCategory = (categoryId) => {
-    openCategories.value[categoryId] = !openCategories.value[categoryId];
+    const newState = !openCategories.value[categoryId];
+    // Close all categories
+    openCategories.value = {};
+    // Open only the clicked category if it wasn't open
+    if (newState) {
+        openCategories.value[categoryId] = true;
+    }
 };
 
 // Close menu when pressing escape
@@ -200,6 +202,24 @@ const route = (name, param) => {
         default:
             return "/";
     }
+};
+
+// Add these transition functions
+const startTransition = (el) => {
+    el.style.height = "0";
+    // Force browser reflow
+    void el.offsetHeight;
+    // Set the height to the element's scrollHeight to trigger the transition
+    el.style.height = el.scrollHeight + "px";
+};
+
+const endTransition = (el) => {
+    // Set the height to the current height to allow for a smooth transition to 0
+    el.style.height = el.scrollHeight + "px";
+    // Force browser reflow
+    void el.offsetHeight;
+    // Transition to height 0
+    el.style.height = "0";
 };
 
 // Fetch categories when component mounts
@@ -230,5 +250,16 @@ onUnmounted(() => {
 .menu-leave-to {
     opacity: 0;
     transform: translateY(-10px);
+}
+
+/* Add transition styles for the accordion */
+.v-enter-active,
+.v-leave-active {
+    transition: height 0.3s ease;
+}
+
+.v-enter-from,
+.v-leave-to {
+    height: 0;
 }
 </style>
