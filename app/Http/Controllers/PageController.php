@@ -242,6 +242,7 @@ class PageController extends Controller
             'phone' => 'required',
             'business_name' => 'required',
             'city' => 'required',
+            'nit' => 'required',
         ]);
 
         Contact::create($validate);

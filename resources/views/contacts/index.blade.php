@@ -7,10 +7,12 @@
 
 <div class="p-4 bg-white block sm:flex items-center justify-between border-b border-gray-200">
     <div class="w-full mb-1">
-        <div class="mb-4">
-            <h1 class="text-xl font-semibold text-gray-900 sm:text-2xl ">Contactos</h1>
-        </div>
-        
+        <div class="mb-4 flex justify-between">
+            <h1 class="text-xl font-semibold text-gray-900 sm:text-2xl ">Interesados</h1>
+            <a href="/contactexport">
+                @svg('heroicon-o-arrow-down-on-square', 'w-8 h-8 text-blue-500')
+            </a>
+        </div>     
     </div>
 </div>
 <div class="flex flex-col">
@@ -31,8 +33,16 @@
                             <th scope="col" class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
                                 Tienda / Ciudad
                             </th>
+
+                            <th scope="col" class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
+                                Nit / Cedula
+                            </th>
                           
                             <th scope="col" class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">Fecha</th>
+
+                            <th scope="col" class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
+                                Estado
+                            </th>
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200 ">
@@ -57,7 +67,13 @@
                                 </div>
                             </td>
                             <td class="p-4 text-sm font-normal text-gray-500 whitespace-nowrap">
+                                {{ $contact->nit}}
+                            </td>
+                            <td class="p-4 text-sm font-normal text-gray-500 whitespace-nowrap">
                                 {{ $contact->created_at->subHours(5)}}
+                            </td>
+                            <td class="p-4 text-sm font-normal text-gray-500 whitespace-nowrap">
+                                {{$contact->state}}
                             </td>
                             
                         

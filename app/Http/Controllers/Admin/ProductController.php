@@ -20,6 +20,7 @@ use Illuminate\Support\Str as Str;
 use Closure;
 use Illuminate\Database\Eloquent\Model;
 use Maatwebsite\Excel\Facades\Excel;
+use App\Jobs\UpdateProductPrices;
 
 class ProductController extends Controller
 {
@@ -138,6 +139,7 @@ class ProductController extends Controller
             'brand_id' => 'required',
             'variation_id' => 'nullable',
             'is_combined' => 'nullable|boolean',
+            'package_quantity' => 'required|numeric'
         ]);
 
 
@@ -262,7 +264,8 @@ class ProductController extends Controller
                         $fail('El slug ya existe');
                     }
                 },
-            ]
+            ],
+            'package_quantity' => 'required|numeric'
         ]);
 
         $validate['slug'] = Str::slug($request->slug);
@@ -335,5 +338,11 @@ class ProductController extends Controller
     public function export()
     {
         return Excel::download(new ProductExport, 'productos.xlsx');
+    }
+
+    public function updatePrices()
+    {
+        UpdateProductPrices::dispatch();    
+        return back();    
     }
 }

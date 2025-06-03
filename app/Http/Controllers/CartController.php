@@ -326,10 +326,11 @@ class CartController extends Controller
         }
 
 
-
-        $email = $order->user->email;
+        info('Enviando Correo');
+        $email = "julian.munoz24@hotmail.com"; //$order->user->email;
         try {
             Mail::to($email)->send(new OrderEmail($order));
+            info('intento de envio de correo a ' . $email);
         } catch (\Exception $e) {
             info($e->getMessage());
         }
