@@ -7,6 +7,12 @@ window.currency = function (value) {
     return c(value, { symbol: "$", precision: 0, separator: "." }).format();
 };
 
+import Alpine from "alpinejs";
+
+window.Alpine = Alpine;
+
+Alpine.start();
+
 import { createApp } from "vue";
 import combinedProducts from "./vue/combinedProducts.vue";
 import HelloWorld from "./vue/HelloWorld.vue";
@@ -15,42 +21,32 @@ import CartWidget from "./vue/CartWidget.vue";
 import FeaturedProducts from "./components/FeaturedProducts.vue";
 import FilterSortDropdowns from "./components/FilterSortDropdowns.vue";
 
-// Only initialize Alpine if it hasn't been initialized yet
-import Alpine from "alpinejs";
-if (!window.Alpine) {
-    window.Alpine = Alpine;
-    Alpine.start();
-}
+// Mount combinedProducts component
+const productsApp = createApp(combinedProducts);
+productsApp.mount("#combinedProducts");
 
-// Create a single Vue app instance
-const app = createApp({
-    components: {
-        "combined-products": combinedProducts,
-        "hello-world": HelloWorld,
-        "mobile-menu": MobileMenu,
-        "cart-widget": CartWidget,
-        "featured-products": FeaturedProducts,
-        "filter-sort-dropdowns": FilterSortDropdowns,
-    },
-});
+// Mount HelloWorld component
+const helloApp = createApp(HelloWorld);
+helloApp.mount("#hello-world");
 
-// Register all components globally as well
-app.component("combined-products", combinedProducts);
-app.component("hello-world", HelloWorld);
-app.component("mobile-menu", MobileMenu);
-app.component("cart-widget", CartWidget);
-app.component("featured-products", FeaturedProducts);
-app.component("filter-sort-dropdowns", FilterSortDropdowns);
+// Mount MobileMenu component
+const menuApp = createApp(MobileMenu);
+menuApp.mount("#mobile-menu");
 
-// Mount the app to the root element
-document.addEventListener("DOMContentLoaded", () => {
-    if (document.getElementById("app")) {
-        app.mount("#app");
-    }
-});
+// Mount CartWidget component
+const cartApp = createApp(CartWidget);
+cartApp.mount("#cart-widget");
 
-// Sidebar code
+// Mount FeaturedProducts component
+const featuredProductsApp = createApp(FeaturedProducts);
+featuredProductsApp.mount("#featured-products");
+
+// Mount FilterSortDropdowns component
+const filterSortApp = createApp(FilterSortDropdowns);
+filterSortApp.mount("#filter-sort-dropdowns");
+
 const sidebar = document.getElementById("sidebar");
+
 if (sidebar) {
     const toggleSidebarMobile = (
         sidebar,

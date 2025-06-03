@@ -30,33 +30,31 @@
             <li>></li>
             <li><a href=" {{route('category', $params['slug'])}} ">{{$category->name}}</a></li>
         </ul>
-        <div id="category-filters">
-            <filter-sort-dropdowns
-                :current-sort="'{{ $params['order'] }}'"
-                :current-brand-id="{{ $params['brand_id'] ?? 'null' }}"
-                :current-category-id="{{ $params['category_id'] ?? 'null' }}"
-                :sort-options="{{ json_encode([
-                    ['value' => '1', 'label' => 'Más reciente', 'url' => route('category', $params['slug'] . '/' . $params['slug2'] . '/1/' . $params['category_id'] . '/' . $params['brand_id'])],
-                    ['value' => '2', 'label' => 'Precio: Menor a Mayor', 'url' => route('category', $params['slug'] . '/' . $params['slug2'] . '/2/' . $params['category_id'] . '/' . $params['brand_id'])],
-                    ['value' => '3', 'label' => 'Precio: Mayor a Menor', 'url' => route('category', $params['slug'] . '/' . $params['slug2'] . '/3/' . $params['category_id'] . '/' . $params['brand_id'])],
-                    ['value' => '4', 'label' => 'Nombre A-Z', 'url' => route('category', $params['slug'] . '/' . $params['slug2'] . '/4/' . $params['category_id'] . '/' . $params['brand_id'])],
-                    ['value' => '5', 'label' => 'Nombre Z-A', 'url' => route('category', $params['slug'] . '/' . $params['slug2'] . '/5/' . $params['category_id'] . '/' . $params['brand_id'])]
-                ]) }}"
-                :brands="{{ json_encode($brands->map(function($brand) use ($params) {
-                    return [
-                        'id' => $brand->id,
-                        'name' => $brand->name,
-                        'url' => route('category', $params['slug'] . '/' . $params['slug2'] . '/' . $params['order'] . '/' . $params['category_id'] . '/' . $brand->id)
-                    ];
-                })->values()) }}"
-                :categories="{{ json_encode($categories->map(function($category) use ($params) {
-                    return [
-                        'id' => $category->id,
-                        'name' => $category->name,
-                        'url' => route('category', $params['slug'] . '/' . $params['slug2'] . '/' . $params['order'] . '/' . $category->id . '/' . $params['brand_id'])
-                    ];
-                })->values()) }}" />
-        </div>
+        <div id="filter-sort-dropdowns"
+            data-current-sort="{{ $params['order'] }}"
+            data-current-brand-id="{{ $params['brand_id'] ?? 'null' }}"
+            data-current-category-id="{{ $params['category_id'] ?? 'null' }}"
+            data-sort-options="{{ json_encode([
+                ['value' => '1', 'label' => 'Más reciente', 'url' => route('category', $params['slug'] . '/' . $params['slug2'] . '/1/' . $params['category_id'] . '/' . $params['brand_id'])],
+                ['value' => '2', 'label' => 'Precio: Menor a Mayor', 'url' => route('category', $params['slug'] . '/' . $params['slug2'] . '/2/' . $params['category_id'] . '/' . $params['brand_id'])],
+                ['value' => '3', 'label' => 'Precio: Mayor a Menor', 'url' => route('category', $params['slug'] . '/' . $params['slug2'] . '/3/' . $params['category_id'] . '/' . $params['brand_id'])],
+                ['value' => '4', 'label' => 'Nombre A-Z', 'url' => route('category', $params['slug'] . '/' . $params['slug2'] . '/4/' . $params['category_id'] . '/' . $params['brand_id'])],
+                ['value' => '5', 'label' => 'Nombre Z-A', 'url' => route('category', $params['slug'] . '/' . $params['slug2'] . '/5/' . $params['category_id'] . '/' . $params['brand_id'])]
+            ]) }}"
+            data-brands="{{ json_encode($brands->map(function($brand) use ($params) {
+                return [
+                    'id' => $brand->id,
+                    'name' => $brand->name,
+                    'url' => route('category', $params['slug'] . '/' . $params['slug2'] . '/' . $params['order'] . '/' . $params['category_id'] . '/' . $brand->id)
+                ];
+            })) }}"
+            data-categories="{{ json_encode($categories->map(function($category) use ($params) {
+                return [
+                    'id' => $category->id,
+                    'name' => $category->name,
+                    'url' => route('category', $params['slug'] . '/' . $params['slug2'] . '/' . $params['order'] . '/' . $category->id . '/' . $params['brand_id'])
+                ];
+            })) }}"></div>
     </div>
 
 
@@ -108,17 +106,4 @@
     });
 </script>
 
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const {
-            createApp
-        } = Vue;
-        const categoryFiltersApp = createApp({
-            components: {
-                'filter-sort-dropdowns': FilterSortDropdowns
-            }
-        });
-        categoryFiltersApp.mount('#category-filters');
-    });
-</script>
 @endsection
