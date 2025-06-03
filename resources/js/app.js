@@ -23,9 +23,18 @@ if (!window.Alpine) {
 }
 
 // Create a single Vue app instance
-const app = createApp({});
+const app = createApp({
+    components: {
+        "combined-products": combinedProducts,
+        "hello-world": HelloWorld,
+        "mobile-menu": MobileMenu,
+        "cart-widget": CartWidget,
+        "featured-products": FeaturedProducts,
+        "filter-sort-dropdowns": FilterSortDropdowns,
+    },
+});
 
-// Register all components globally
+// Register all components globally as well
 app.component("combined-products", combinedProducts);
 app.component("hello-world", HelloWorld);
 app.component("mobile-menu", MobileMenu);
@@ -34,9 +43,11 @@ app.component("featured-products", FeaturedProducts);
 app.component("filter-sort-dropdowns", FilterSortDropdowns);
 
 // Mount the app to the root element
-if (document.getElementById("app")) {
-    app.mount("#app");
-}
+document.addEventListener("DOMContentLoaded", () => {
+    if (document.getElementById("app")) {
+        app.mount("#app");
+    }
+});
 
 // Sidebar code
 const sidebar = document.getElementById("sidebar");
