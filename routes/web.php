@@ -7,6 +7,7 @@ use App\Http\Controllers\PageController;
 use App\Http\Controllers\Seller\PageController as SellerPageController;
 use App\Http\Controllers\Shopper\PageController as ShopperPageController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\Api\CartApiController;
 
 
 
@@ -54,7 +55,7 @@ Route::post('/carrito', [CartController::class, 'processOrder'])->name('cart.pro
 
 
 
-Route::middleware(['auth' ])->group(function () {
+Route::middleware(['auth'])->group(function () {
     Route::get('/ordenes', [OrderController::class, 'index'])->name('clients.orders.index');
     Route::get('/ordenes/{order}', [OrderController::class, 'show'])->name('clients.orders.show');
 });
@@ -81,7 +82,6 @@ Route::name('shoppers.')->prefix('tendero')->group(function () {
 
     Route::get('/contact', [ShopperPageController::class, 'contact'])->name('contact');
     Route::get('/reports', [ShopperPageController::class, 'reports'])->name('reports');
-  
 });
 
 Route::middleware(['auth'])->group(function () {
@@ -90,8 +90,11 @@ Route::middleware(['auth'])->group(function () {
 
 Route::delete('/admins/{id}', [AdminController::class, 'destroy'])->name('admins.destroy');
 
+// Cart API route
+Route::get('/api/cart', [CartApiController::class, 'index'])->name('api.cart');
 
 
 
 
-require __DIR__.'/auth.php';
+
+require __DIR__ . '/auth.php';
