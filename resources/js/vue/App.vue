@@ -1,27 +1,14 @@
 <template>
-    
-    <div>
-      app
-    </div>
-    
+    <div>app</div>
 </template>
-  
+
 <script>
-
-   
-
-  export default {
-
-    data () {
+export default {
+    data() {
         return {
-      
-        options: ['list', 'of', 'options']
-        }
+            options: ["list", "of", "options"],
+        };
     },
-    components: {
-   
-    },
-  }
-  </script>
-
-
+    components: {},
+};
+</script>

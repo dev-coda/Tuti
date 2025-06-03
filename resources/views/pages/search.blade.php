@@ -19,33 +19,31 @@
         <li>></li>
         <li>Busqueda: {{request()->q}}</li>
     </ul>
-    <div id="search-filters">
-        <filter-sort-dropdowns
-            :current-sort="'{{ $params['order'] }}'"
-            :current-brand-id="{{ $params['brand_id'] ?? 'null' }}"
-            :current-category-id="{{ $params['category_id'] ?? 'null' }}"
-            :sort-options="{{ json_encode([
-                ['value' => '1', 'label' => 'Más reciente', 'url' => route('search', '1/' . $params['category_id'] . '/' . $params['brand_id'] . '?q=' . $params['q'])],
-                ['value' => '2', 'label' => 'Precio: Menor a Mayor', 'url' => route('search', '2/' . $params['category_id'] . '/' . $params['brand_id'] . '?q=' . $params['q'])],
-                ['value' => '3', 'label' => 'Precio: Mayor a Menor', 'url' => route('search', '3/' . $params['category_id'] . '/' . $params['brand_id'] . '?q=' . $params['q'])],
-                ['value' => '4', 'label' => 'Nombre A-Z', 'url' => route('search', '4/' . $params['category_id'] . '/' . $params['brand_id'] . '?q=' . $params['q'])],
-                ['value' => '5', 'label' => 'Nombre Z-A', 'url' => route('search', '5/' . $params['category_id'] . '/' . $params['brand_id'] . '?q=' . $params['q'])]
-            ]) }}"
-            :brands="{{ json_encode($brands->map(function($brand) use ($params) {
-                return [
-                    'id' => $brand->id,
-                    'name' => $brand->name,
-                    'url' => route('search', $params['order'] . '/' . $params['category_id'] . '/' . $brand->id . '?q=' . $params['q'])
-                ];
-            })->values()) }}"
-            :categories="{{ json_encode($categories->map(function($category) use ($params) {
-                return [
-                    'id' => $category->id,
-                    'name' => $category->name,
-                    'url' => route('search', $params['order'] . '/' . $category->id . '/' . $params['brand_id'] . '?q=' . $params['q'])
-                ];
-            })) }}" />
-    </div>
+    <div id="filter-sort-dropdowns"
+        data-current-sort="{{ $params['order'] }}"
+        data-current-brand-id="{{ $params['brand_id'] ?? 'null' }}"
+        data-current-category-id="{{ $params['category_id'] ?? 'null' }}"
+        data-sort-options="{{ json_encode([
+            ['value' => '1', 'label' => 'Más reciente', 'url' => route('search', '1/' . $params['category_id'] . '/' . $params['brand_id'] . '?q=' . $params['q'])],
+            ['value' => '2', 'label' => 'Precio: Menor a Mayor', 'url' => route('search', '2/' . $params['category_id'] . '/' . $params['brand_id'] . '?q=' . $params['q'])],
+            ['value' => '3', 'label' => 'Precio: Mayor a Menor', 'url' => route('search', '3/' . $params['category_id'] . '/' . $params['brand_id'] . '?q=' . $params['q'])],
+            ['value' => '4', 'label' => 'Nombre A-Z', 'url' => route('search', '4/' . $params['category_id'] . '/' . $params['brand_id'] . '?q=' . $params['q'])],
+            ['value' => '5', 'label' => 'Nombre Z-A', 'url' => route('search', '5/' . $params['category_id'] . '/' . $params['brand_id'] . '?q=' . $params['q'])]
+        ]) }}"
+        data-brands="{{ json_encode($brands->map(function($brand) use ($params) {
+            return [
+                'id' => $brand->id,
+                'name' => $brand->name,
+                'url' => route('search', $params['order'] . '/' . $params['category_id'] . '/' . $brand->id . '?q=' . $params['q'])
+            ];
+        })) }}"
+        data-categories="{{ json_encode($categories->map(function($category) use ($params) {
+            return [
+                'id' => $category->id,
+                'name' => $category->name,
+                'url' => route('search', $params['order'] . '/' . $category->id . '/' . $params['brand_id'] . '?q=' . $params['q'])
+            ];
+        })) }}"></div>
 </div>
 {{-- Add sorting and filtering --}}
 
@@ -163,17 +161,4 @@
     })
 </script>
 
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const {
-            createApp
-        } = Vue;
-        const searchFiltersApp = createApp({
-            components: {
-                'filter-sort-dropdowns': FilterSortDropdowns
-            }
-        });
-        searchFiltersApp.mount('#search-filters');
-    });
-</script>
 @endsection

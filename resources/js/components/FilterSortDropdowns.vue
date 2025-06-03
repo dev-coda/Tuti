@@ -136,32 +136,22 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from "vue";
 
-const props = defineProps({
-    currentSort: {
-        type: String,
-        required: true,
-    },
-    currentBrandId: {
-        type: [String, Number],
-        default: null,
-    },
-    currentCategoryId: {
-        type: [String, Number],
-        default: null,
-    },
-    sortOptions: {
-        type: Array,
-        required: true,
-    },
-    brands: {
-        type: Array,
-        required: true,
-    },
-    categories: {
-        type: Array,
-        required: true,
-    },
-});
+// Get the root element
+const el = document.getElementById("filter-sort-dropdowns");
+
+// Parse data attributes
+const currentSort = el.dataset.currentSort;
+const currentBrandId =
+    el.dataset.currentBrandId === "null"
+        ? null
+        : Number(el.dataset.currentBrandId);
+const currentCategoryId =
+    el.dataset.currentCategoryId === "null"
+        ? null
+        : Number(el.dataset.currentCategoryId);
+const sortOptions = JSON.parse(el.dataset.sortOptions);
+const brands = JSON.parse(el.dataset.brands);
+const categories = JSON.parse(el.dataset.categories);
 
 const isSortOpen = ref(false);
 const isFilterOpen = ref(false);
@@ -176,27 +166,6 @@ const toggleFilter = () => {
     if (isFilterOpen.value) isSortOpen.value = false;
 };
 
-const currentSortLabel = computed(() => {
-    const option = props.sortOptions.find(
-        (opt) => opt.value === props.currentSort
-    );
-    return option ? option.label : "Seleccionar";
-});
-
-const currentFilterLabel = computed(() => {
-    if (props.currentBrandId) {
-        const brand = props.brands.find((b) => b.id === props.currentBrandId);
-        if (brand) return brand.name;
-    }
-    if (props.currentCategoryId) {
-        const category = props.categories.find(
-            (c) => c.id === props.currentCategoryId
-        );
-        if (category) return category.name;
-    }
-    return "Seleccionar";
-});
-
 // Close dropdowns when clicking outside
 const handleClickOutside = (event) => {
     const target = event.target;
@@ -208,14 +177,6 @@ const handleClickOutside = (event) => {
 
 onMounted(() => {
     document.addEventListener("click", handleClickOutside);
-    console.log("Component mounted with props:", {
-        currentSort: props.currentSort,
-        currentBrandId: props.currentBrandId,
-        currentCategoryId: props.currentCategoryId,
-        sortOptions: props.sortOptions,
-        brands: props.brands,
-        categories: props.categories,
-    });
 });
 
 onUnmounted(() => {
