@@ -51,6 +51,8 @@ Route::middleware(['auth', 'role:seller'])->group( function () {
     Route::get('/sellerexport', [SellerController::class, 'export']);
     Route::get('/productexport', [ProductController::class, 'export']);
     Route::get('/orderexport', [OrderController::class, 'export']);
+    Route::get('/contactexport', [ContactController::class, 'export']);
+    
     Route::resource('users', UserController::class);
     Route::resource('brands', BrandController::class);
     Route::resource('taxes', TaxController::class);
@@ -78,6 +80,6 @@ Route::middleware(['auth', 'role:seller'])->group( function () {
 
 
     Route::get('/profile', [VendorController::class, 'index'])->name('profile.update');
-
+    Route::get('/updateproductprices', [ProductController::class, 'updatePrices']);
 });
 

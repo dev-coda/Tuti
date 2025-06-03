@@ -12,6 +12,9 @@
         <div class="items-center justify-between block sm:flex md:divide-x md:divide-gray-100 ">
             <div class="flex items-center mb-4 sm:mb-0">
                <x-search :home="route('settings.index')" />
+               <a href="/updateproductprices">
+                    @svg('heroicon-o-arrow-down-on-square', 'w-8 h-8 text-blue-500')
+               </a>
             </div>
           
         </div>

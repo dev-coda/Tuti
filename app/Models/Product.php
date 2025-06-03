@@ -28,6 +28,7 @@ class Product extends Model
         'variation_id',
         'is_combined',
         'parent_id',
+        'package_quantity',
 
     ];
 
@@ -140,18 +141,23 @@ class Product extends Model
 
         $discountedPrice = $price - ($price * $discount / 100);
         $finalPrice = $this->taxValue() > 0 ? ($discountedPrice + ($discountedPrice * $this->taxValue() / 100)) : $discountedPrice;
+
+        $packageQuantity = $this->package_quantity ?? 1;
+
+        $finalPriceWithPackage = $finalPrice * $packageQuantity;
+        $finalPerItemPrice = $finalPrice;
         $pricePreDiscount = $price + ($price * $this->taxValue() / 100);
 
 
         return [
-            'old' => $pricePreDiscount,
-            'price' => $finalPrice,
-            'totalDiscount' => ($price * $discount / 100),
+            'old' => $pricePreDiscount * $packageQuantity,
+            'price' => $finalPriceWithPackage,
+            'totalDiscount' => ($price * $discount / 100) * $packageQuantity,
             'discount' => $discount,
             'discount_on' => $discount_on,
             'has_discount' => $has_discount,
-            'originalPrice' => $price,
-            'perItemPrice' => $this->step > 1 ? $finalPrice * $this->step : $finalPrice,
+            'originalPrice' => $price * $packageQuantity,
+            'perItemPrice' => $this->step > 1 ? $finalPerItemPrice * $this->step : $finalPerItemPrice,
         ];
     }
 

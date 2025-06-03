@@ -74,9 +74,9 @@
                             </th>
                             <th scope="col"
                                 class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
-                                <a href="{{ route('products.index', ['sort_by' => 'price', 'order' => request('order') == 'asc' ? 'desc' : 'asc'] + request()->except('page')) }}">
+                                <a href="{{ route('products.index', ['sort_by' => 'finalPrice', 'order' => request('order') == 'asc' ? 'desc' : 'asc'] + request()->except('page')) }}">
                                     Precio
-                                    @if (request('sort_by') == 'price')
+                                    @if (request('sort_by') == 'finalPrice')
                                         <span class="ml-2">{{ request('order') == 'asc' ? '↑' : '↓' }}</span>
                                     @endif
                                 </a>
@@ -130,14 +130,14 @@
                                 @if ($product->discount)
                                     <div class="flex flex-col">
                                         <span>
-                                            ${{ number_format($product->price * (1 - $product->discount/100),2) }}
+                                            ${{ number_format($product->finalPrice['price'] * (1 - $product->discount/100),2) }}
                                             <small class="text-gray-500">({{ $product->discount }}%)</small>
                                         </span>
-                                        <small class="line-through">${{ number_format($product->price,2) }}</small>
+                                        <small class="line-through">${{ number_format($product->finalPrice['price'],2) }}</small>
                                     </div>
                                     
                                 @else
-                                ${{ number_format($product->price,2) }}
+                                ${{ number_format($product->finalPrice['price'],2) }}
                                 @endif
                             </td>
 
