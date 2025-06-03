@@ -27,8 +27,8 @@
                 {{ Aire::email('email', 'Correo electrónico')->groupClass('mb-5')->required() }}
                 {{ Aire::input('phone', 'Celular')->groupClass('mb-5')->required() }}
                 {{ Aire::input('city', 'Ciudad')->groupClass('mb-5')->required() }}
-                {{ Aire::input('business_name', 'Nombre de tu tienda')->groupClass('mb-5')->required() }}
-                
+                {{ Aire::input('nit', 'Nit o Cédula')->groupClass('mb-5')->required() }}
+                {{ Aire::input('business_name', 'Nombre de tu tienda')->groupClass('mb-5')->required() }}                
 
                 {{ Aire::submit('Quiero ser cliente')->variant()->primary() }}
             {{ Aire::close() }}

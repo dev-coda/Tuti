@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use App\Models\Product;
+use App\Jobs\UpdateProductPrices;
 
 class UpdateProductPrices implements ShouldQueue
 {

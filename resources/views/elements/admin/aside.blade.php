@@ -67,7 +67,7 @@
                          <li>
                             <a href="{{ route('contacts.index') }}">
                                 @svg('heroicon-o-inbox-arrow-down', 'w-6 h-6 text-gray-500')
-                                <span class="ml-3" >Mensajes </span>
+                                <span class="ml-3" >Interesados </span>
                                 {{-- @php
                                     $contacts  = App\Models\Contact::where('read', 0)->get();
                                 @endphp
