@@ -204,4 +204,22 @@
 </script>
 
 
+<script src="{{asset('js/splide.min.js')}}"></script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        new Splide('#banners', {
+            type: 'loop',
+            autoplay: true,
+        }).mount();
+
+        new Splide('#ads', {
+            type: 'loop',
+            autoplay: true,
+        }).mount();
+    });
+</script>
+
+
+
 @endsection
