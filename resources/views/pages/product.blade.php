@@ -5,6 +5,7 @@
 'title'=>$product->name,
 'description'=> $product->sort_description
 ])
+<link rel="stylesheet" href="{{ asset('css/splide.min.css') }}">
 @endsection
 
 @section('content')
@@ -26,26 +27,27 @@
     </div>
 
     <div class="xl:col-span-6 col-span-12">
-        <div class="grid grid-cols-12 gap-5">
-            <div class=" col-span-12 order-2">
-                <ul class="grid  grid-cols-4 gap-2">
-                    @foreach ($product->images as $image)
-                    <li class="border p-2">
-                        <a href="">
-                            <img src="{{asset('storage/'.$image->path)}}" alt="">
-                        </a>
-                    </li>
-                    @endforeach
-
-                </ul>
-            </div>
-            <div class=" col-span-12  order-1">
-                <div class=" p-2">
+        <div class="flex justify-center">
+            <div class="w-full max-w-md">
+                <!-- Main Image -->
+                <div class="w-full mb-4">
                     @if($product->images->first())
-                    <img src="{{asset('storage/'.$product->images->first()->path)}}" alt="">
+                    <img id="mainProductImage" src="{{asset('storage/'.$product->images->first()->path)}}" alt="{{ $product->name }}" class="w-full h-full object-contain aspect-square rounded-lg">
                     @endif
                 </div>
 
+                <!-- Thumbnails -->
+                <div class="w-full">
+                    <ul class="grid grid-cols-5 gap-2">
+                        @foreach ($product->images as $image)
+                        <li class="border border-gray-200 rounded-lg p-1 hover:border-orange-500 transition-colors cursor-pointer">
+                            <a href="#" class="thumbnail-link" data-image="{{asset('storage/'.$image->path)}}">
+                                <img src="{{asset('storage/'.$image->path)}}" alt="{{ $product->name }}" class="w-full h-full object-contain aspect-square">
+                            </a>
+                        </li>
+                        @endforeach
+                    </ul>
+                </div>
             </div>
         </div>
     </div>
@@ -62,9 +64,9 @@
             @endif
             <span class="text-slate-400 text-xl"><small class=" text-xl text-orange-500 font-semibold">${{currency($product->final_price['price'])}} Ahora </small></span>
 
-            @if($product->final_price['perItemPrice'])
+            {{-- @if($product->final_price['perItemPrice'])
             <p class="text-lg">(Und. x) ${{ currency($product->final_price['perItemPrice']) }}</p>
-            @endif
+            @endif --}}
             @if($product->brand)
             <p class=" text-slate-500 text-lg">{{$product->brand->name}}</p>
 
@@ -157,6 +159,13 @@
 
 <script>
     $(function() {
+        // Thumbnail image click handler
+        $('.thumbnail-link').on('click', function(e) {
+            e.preventDefault();
+            var newImageSrc = $(this).data('image');
+            $('#mainProductImage').attr('src', newImageSrc);
+        });
+
         const step = parseInt('{{$product->step}}');
 
         $('#increment').on('click', function() {
@@ -208,15 +217,16 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        new Splide('#banners', {
-            type: 'loop',
-            autoplay: true,
-        }).mount();
-
-        new Splide('#ads', {
-            type: 'loop',
-            autoplay: true,
-        }).mount();
+        if (document.getElementById('ads')) {
+            new Splide('#ads', {
+                type: 'loop',
+                autoplay: true,
+                perPage: 1,
+                arrows: true,
+                pagination: true,
+                gap: '1rem',
+            }).mount();
+        }
     });
 </script>
 
