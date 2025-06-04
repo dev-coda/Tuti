@@ -221,7 +221,7 @@
             new Splide('#ads', {
                 type: 'loop',
                 autoplay: true,
-                perPage: 1,
+                perPage: 6,
                 arrows: true,
                 pagination: true,
                 gap: '1rem',
