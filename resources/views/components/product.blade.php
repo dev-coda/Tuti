@@ -25,9 +25,9 @@
         @endif
         <span class="text-slate-400 text-lg"><small class=" text-lg text-orange-500 font-semibold">${{currency($product->final_price['price'])}} Ahora </small></span>
 
-        @if($product->final_price['perItemPrice'])
+        {{-- @if($product->final_price['perItemPrice'])
         <p>(Und. x) ${{ currency($product->final_price['perItemPrice']) }}</p>
-        @endif
+        @endif --}}
         @if($product->brand)
         <p class=" text-slate-500 text-md">{{$product->brand->name}}</p>
 

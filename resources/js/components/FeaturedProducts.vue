@@ -75,11 +75,11 @@
                                         product.final_price.perItemPrice
                                     "
                                 >
-                                    (Und. x) ${{
+                                    <!-- (Und. x) ${{
                                         formatPrice(
                                             product.final_price.perItemPrice
                                         )
-                                    }}
+                                    }} -->
                                 </p>
                                 <p
                                     v-if="product.brand"
