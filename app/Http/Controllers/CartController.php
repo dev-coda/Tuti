@@ -265,6 +265,18 @@ class CartController extends Controller
             'observations' => $observations,
         ]);
 
+        // Pre-calculate total quantities per product across all variations
+        $productQuantities = [];
+        foreach ($cart as $item) {
+            $productId = $item['product_id'];
+            if (!isset($productQuantities[$productId])) {
+                $productQuantities[$productId] = 0;
+            }
+            $productQuantities[$productId] += $item['quantity'];
+        }
+
+        // Track which products have already had bonifications processed
+        $processedBonifications = [];
 
         foreach ($cart as $key => $product) {
 
@@ -282,22 +294,31 @@ class CartController extends Controller
                 'percentage' => $has_orders ? 0 : $p->finalPrice['discount'] ?? 0,
             ]);
 
+            // Process bonification only once per product (not per variation)
+            if (!isset($processedBonifications[$id])) {
+                $bonification = $p->bonifications->first();
+                if ($bonification) {
+                    // Use the pre-calculated total quantity for this product
+                    $totalProductQuantity = $productQuantities[$id];
 
-            $bonification = $p->bonifications->first();
-            if ($bonification) {
-                //  floor($product->pivot->quantity / $product->bonifications->first()->buy)
-                $bonification_quantity = floor($product['quantity'] / $bonification->buy * $bonification->get);
-                if ($bonification_quantity > $bonification->max) {
-                    $bonification_quantity = $bonification->max;
+                    $bonification_quantity = floor($totalProductQuantity / $bonification->buy * $bonification->get);
+                    if ($bonification_quantity > $bonification->max) {
+                        $bonification_quantity = $bonification->max;
+                    }
+
+                    if ($bonification_quantity > 0) {
+                        OrderProductBonification::create([
+                            'bonification_id' => $bonification->id,
+                            'order_product_id' => $orderProduct->id,
+                            'product_id' => $bonification->product_id,
+                            'quantity' => $bonification_quantity,
+                            'order_id' => $order->id,
+                        ]);
+                    }
+
+                    // Mark this product as having processed bonifications
+                    $processedBonifications[$id] = true;
                 }
-
-                OrderProductBonification::create([
-                    'bonification_id' => $bonification->id,
-                    'order_product_id' => $orderProduct->id,
-                    'product_id' => $bonification->product_id,
-                    'quantity' => $bonification_quantity,
-                    'order_id' => $order->id,
-                ]);
             }
 
             $discount = $has_orders ? 0 : $discount;
