@@ -276,7 +276,7 @@ class CartController extends Controller
                 'order_id' => $order->id,
                 'product_id' => $id,
                 'quantity' => $product['quantity'],
-                'price' => $has_orders ? $p->finalPrice['old'] : $p->finalPrice['originalPrice'],
+                'price' => $p->finalPrice['originalPrice'],
                 'discount' => $has_orders ? 0 : $p->finalPrice['totalDiscount'],
                 'variation_item_id' => $product['variation_id'] ?? null,
                 'percentage' => $has_orders ? 0 : $p->finalPrice['discount'] ?? 0,
@@ -329,8 +329,9 @@ class CartController extends Controller
 
 
         info('Enviando Correo');
-        $email = "julian.munoz24@hotmail.com"; //$order->user->email;
+        $email = "david.correav@gmail.com"; //$order->user->email;
         try {
+            info('enviando correo a ' . $email);
             Mail::to($email)->send(new OrderEmail($order));
             info('intento de envio de correo a ' . $email);
         } catch (\Exception $e) {
