@@ -1,6 +1,6 @@
 <div class="flex relative transition-linear lg:top-28 lg:left-[30vw]">
-    <div class="fixed bg-white w-full h-full z-50 lg:max-w-sm lg:max-h-96" id='mobileMenu' style="display: none">
-        <header class="border-b py-2 px-5 lg:hidden">
+    <div class="fixed bg-white w-full h-full z-50 lg:max-w-sm lg:max-h-96 overflow-y-auto" id='mobileMenu' style="display: none; -webkit-overflow-scrolling: touch;">
+        <header class="border-b py-2 px-5 lg:hidden sticky top-0 bg-white z-10">
             <div class="flex justify-between items-center">
                 <img src="{{ asset('img/tuti.png') }}" class="h-14 mr-3" />
                 <button class="text-2xl" id="closeMobileMenu">
@@ -11,7 +11,7 @@
                 </button>
             </div>
         </header>
-        <section class="p-5 lg:p-0">
+        <section class="p-5 lg:p-0 pb-20">
             <div class="mb-5">
                 <form action="{{route('search')}}" class="relative lg:hidden">
                     <input placeholder="Busqueda" value='{{request()->q}}' name='q' type="text" class='bg-[#e8e7e5] border-0 rounded w-full'>

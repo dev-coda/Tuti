@@ -6,6 +6,10 @@
 'title'=>'¿Quieres ser cliente de TUTI?',
 'description'=> '¿Quieres ser cliente de TUTI?'
 ])
+@include('elements.seo', [
+'title'=>'¿Quieres ser cliente de TUTI?',
+'description'=> '¿Quieres ser cliente de TUTI?'
+])
 @endsection
 
 
