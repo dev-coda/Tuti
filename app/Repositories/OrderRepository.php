@@ -112,9 +112,9 @@ class OrderRepository
                             <dyn:ruta>' . $route . '</dyn:ruta> 
                             <dyn:salesCons>' . $zone . '-' . $order_id . '</dyn:salesCons> 
                             <dyn:transactionDate>' . $transactionDate . '</dyn:transactionDate>
-                            <dyn:vendorType>' . $vendor_type . '</dyn:vendorType>
-                            <dyn:zona>' . $zone . '</dyn:zona> 
                             <dyn:tutiObservation>' . $observations . '</dyn:tutiObservation>
+                            <dyn:vendorType>' . $vendor_type . '</dyn:vendorType>
+                            <dyn:zona>' . $zone . '</dyn:zona>                    
                         </dyn:preSalesOrder>
                     </tem:ArrayOfPreSalesOrder>
                 </tem:PreSaslesProcess>
