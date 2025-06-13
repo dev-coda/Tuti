@@ -370,6 +370,8 @@ class CartController extends Controller
 
 
         $email = $order->user->email;
+        // Commenting out email functionality
+        /*
         try {
             Mail::to($email)->send(new OrderEmail($order));
             Log::info('Order confirmation email sent', [
@@ -384,6 +386,7 @@ class CartController extends Controller
             ]);
             info($e->getMessage());
         }
+        */
 
         return to_route('home')->with('success', 'Compra procesada con exito!');
 
