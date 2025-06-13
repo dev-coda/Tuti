@@ -229,11 +229,6 @@ class CartController extends Controller
 
         //   dd($request->all());
         $cart = session()->get('cart');
-
-        if (!$cart || empty($cart)) {
-            return redirect()->route('home')->with('error', 'El carrito está vacío');
-        }
-
         $observations = $request->observations;
 
         $total = 0;
@@ -251,155 +246,146 @@ class CartController extends Controller
 
         $delivery_date = OrderRepository::getBusinessDay();
 
-        // Check for duplicate orders in the last 3 minutes
-        $threeMinutesAgo = now()->subMinutes(3);
+        Log::info('Processing new order', [
+            'user_id' => $user_id,
+            'seller_id' => $seller_id,
+            'zone_id' => $request->zone_id,
+            'cart_items' => count($cart),
+            'delivery_date' => $delivery_date
+        ]);
 
-        // First, get potential duplicate orders
-        $potentialDuplicates = Order::where('user_id', $user_id)
-            ->where('zone_id', $request->zone_id)
-            ->where('created_at', '>=', $threeMinutesAgo)
-            ->with('products')
-            ->get();
+        $order = Order::create([
+            'user_id' => $user_id,
+            'total' => $total,
+            'discount' => $discount,
+            'zone_id' => $request->zone_id,
+            'seller_id' => $seller_id,
+            'delivery_date' => $delivery_date,
+            'observations' => $observations,
+        ]);
 
-        $duplicateOrder = null;
+        Log::info('Order created successfully', [
+            'order_id' => $order->id,
+            'user_id' => $user_id
+        ]);
 
-        // Check each potential duplicate
-        foreach ($potentialDuplicates as $order) {
-            // Check if the order has the same number of products
-            if ($order->products->count() !== count($cart)) {
+        // Collect all product IDs to load them in one query
+        $productIds = array_column($cart, 'product_id');
+
+        // Load all products with their relationships in one query
+        $products = Product::whereIn('id', $productIds)
+            ->with(['bonifications', 'finalPrice'])
+            ->get()
+            ->keyBy('id');
+
+        foreach ($cart as $key => $cartItem) {
+
+            $id = $cartItem['product_id'];
+            $p = $products[$id] ?? null;
+
+            if (!$p) {
+                Log::warning('Product not found in cart', ['product_id' => $id]);
                 continue;
             }
 
-            // Check if all products match
-            $isDuplicate = true;
-            $orderProducts = $order->products->keyBy('product_id');
+            $orderProduct = OrderProduct::create([
+                'order_id' => $order->id,
+                'product_id' => $id,
+                'quantity' => $cartItem['quantity'],
+                'price' => $p->finalPrice['originalPrice'],
+                'discount' => $p->finalPrice['totalDiscount'],
+                'variation_item_id' => $cartItem['variation_id'] ?? null,
+                'percentage' => $p->finalPrice['discount'] ?? 0,
+            ]);
 
-            foreach ($cart as $cartItem) {
-                $productId = $cartItem['product_id'];
-                $quantity = $cartItem['quantity'];
-                $variationId = $cartItem['variation_id'] ?? null;
 
-                if (
-                    !isset($orderProducts[$productId]) ||
-                    $orderProducts[$productId]->quantity != $quantity ||
-                    $orderProducts[$productId]->variation_item_id != $variationId
-                ) {
-                    $isDuplicate = false;
-                    break;
+            $bonification = $p->bonifications->first();
+            if ($bonification) {
+                //  floor($product->pivot->quantity / $product->bonifications->first()->buy)
+                $bonification_quantity = floor($cartItem['quantity'] / $bonification->buy * $bonification->get);
+                if ($bonification_quantity > $bonification->max) {
+                    $bonification_quantity = $bonification->max;
                 }
+
+                OrderProductBonification::create([
+                    'bonification_id' => $bonification->id,
+                    'order_product_id' => $orderProduct->id,
+                    'product_id' => $bonification->product_id,
+                    'quantity' => $bonification_quantity,
+                    'order_id' => $order->id,
+                ]);
             }
 
-            if ($isDuplicate) {
-                $duplicateOrder = $order;
-                break;
-            }
+
+            $total = $total + ($p->finalPrice['price'] * $cartItem['quantity']);
+            $discount = $discount + ($p->finalPrice['totalDiscount'] * $cartItem['quantity']);
         }
 
-        if ($duplicateOrder) {
-            // Clear cart and redirect with success message
-            if (app()->environment('production')) {
-                session()->forget('cart');
-            }
-            session()->forget('user_id');
 
-            return to_route('home')->with('success', 'Su pedido ya fue procesado exitosamente!');
+        $order->update([
+            'total' => $total,
+            'discount' => $discount,
+        ]);
+
+        Log::info('Order products added and totals updated', [
+            'order_id' => $order->id,
+            'total' => $total,
+            'discount' => $discount,
+            'products_count' => count($cart)
+        ]);
+
+        //if env production
+        if (app()->environment('production')) {
+            session()->forget('cart');
         }
 
-        // Use database transaction to ensure atomicity
-        DB::beginTransaction();
+        session()->forget('user_id');
+
+        // Load necessary relationships for SOAP request
+        $order->load(['user', 'zone', 'products', 'bonifications']);
 
         try {
-            $order = Order::create([
-                'user_id' => $user_id,
-                'total' => $total,
-                'discount' => $discount,
-                'zone_id' => $request->zone_id,
-                'seller_id' => $seller_id,
-                'delivery_date' => $delivery_date,
-                'observations' => $observations,
+            Log::info('Initiating SOAP request for order', [
+                'order_id' => $order->id,
+                'timestamp' => now()->toDateTimeString()
             ]);
 
+            OrderRepository::presalesOrder($order);
 
-            foreach ($cart as $key => $product) {
-
-                $id = $product['product_id'];
-
-                $p = Product::find($id);
-
-                $orderProduct = OrderProduct::create([
-                    'order_id' => $order->id,
-                    'product_id' => $id,
-                    'quantity' => $product['quantity'],
-                    'price' => $p->finalPrice['originalPrice'],
-                    'discount' => $p->finalPrice['totalDiscount'],
-                    'variation_item_id' => $product['variation_id'] ?? null,
-                    'percentage' => $p->finalPrice['discount'] ?? 0,
-                ]);
-
-
-                $bonification = $p->bonifications->first();
-                if ($bonification) {
-                    //  floor($product->pivot->quantity / $product->bonifications->first()->buy)
-                    $bonification_quantity = floor($product['quantity'] / $bonification->buy * $bonification->get);
-                    if ($bonification_quantity > $bonification->max) {
-                        $bonification_quantity = $bonification->max;
-                    }
-
-                    OrderProductBonification::create([
-                        'bonification_id' => $bonification->id,
-                        'order_product_id' => $orderProduct->id,
-                        'product_id' => $bonification->product_id,
-                        'quantity' => $bonification_quantity,
-                        'order_id' => $order->id,
-                    ]);
-                }
-
-
-                $total = $total + ($p->finalPrice['price'] * $product['quantity']);
-                $discount = $discount + ($p->finalPrice['totalDiscount'] * $product['quantity']);
-            }
-
-
-            $order->update([
-                'total' => $total,
-                'discount' => $discount,
+            Log::info('SOAP request completed successfully for order', [
+                'order_id' => $order->id,
+                'timestamp' => now()->toDateTimeString()
+            ]);
+        } catch (\Throwable $th) {
+            Log::error('Failed to process order through SOAP', [
+                'order_id' => $order->id,
+                'error' => $th->getMessage(),
+                'trace' => $th->getTraceAsString()
             ]);
 
-            DB::commit();
-
-            //if env production
-            if (app()->environment('production')) {
-                session()->forget('cart');
-            }
-
-            session()->forget('user_id');
-
-
-
-            try {
-                OrderRepository::presalesOrder($order);
-            } catch (\Throwable $th) {
-                Log::error('Error in presalesOrder: ' . $th->getMessage());
-                info($th->getMessage());
-                // Don't return error here as the order is already created
-            }
-
-
-
-            $email = $order->user->email;
-            try {
-                Mail::to($email)->send(new OrderEmail($order));
-            } catch (\Exception $e) {
-                Log::error('Error sending order email: ' . $e->getMessage());
-                info($e->getMessage());
-            }
-
-            return to_route('home')->with('success', 'Compra procesada con exito!');
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Error creating order: ' . $e->getMessage());
-            return to_route('cart')->with('error', 'Error al procesar la orden. Por favor intente nuevamente.');
+            info($th->getMessage());
+            return to_route('home')->with('error', 'Error al procesar la compra!');
         }
+
+
+
+        $email = $order->user->email;
+        try {
+            Mail::to($email)->send(new OrderEmail($order));
+            Log::info('Order confirmation email sent', [
+                'order_id' => $order->id,
+                'email' => $email
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to send order confirmation email', [
+                'order_id' => $order->id,
+                'email' => $email,
+                'error' => $e->getMessage()
+            ]);
+            info($e->getMessage());
+        }
+
+        return to_route('home')->with('success', 'Compra procesada con exito!');
 
         // return to_route('home')->with('success', 'Es necesario tener un codigo de cliente para procesar la compra, contacta al administrador!');
 
