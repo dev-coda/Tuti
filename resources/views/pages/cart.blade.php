@@ -174,7 +174,9 @@
 
                     
                         @if($alertVendors || $alertTotal)
-                            <button disabled class="bg-orange-600 opacity-50 w-full text-white rounded py-3 px-5 mt-5 block text-center">Realizar Pedido</button>
+                            <div id="submit-order-button">
+                                <submit-order-button :disabled="true"></submit-order-button>
+                            </div>
                         @else 
                             {{ Aire::open()->route('cart.process')}}
 
@@ -184,9 +186,9 @@
                                     {{Aire::textarea('observations', 'Observaciones')->placeholder('Información adicional')->rows(3)}}
                                 </div>
 
-
-
-                                <button type="submit" class="bg-orange-600 w-full text-white rounded py-3 px-5 mt-5 block text-center hover:bg-orange-900">Realizar Pedido</button> 
+                                <div id="submit-order-button">
+                                    <submit-order-button></submit-order-button>
+                                </div>
                             {{ Aire::close() }}
                             
                         @endif

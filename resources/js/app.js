@@ -20,6 +20,7 @@ import MobileMenu from "./vue/MobileMenu.vue";
 import CartWidget from "./vue/CartWidget.vue";
 import FeaturedProducts from "./components/FeaturedProducts.vue";
 import FilterSortDropdowns from "./components/FilterSortDropdowns.vue";
+import SubmitOrderButton from "./components/SubmitOrderButton.vue";
 
 // Mount combinedProducts component
 const productsApp = createApp(combinedProducts);
@@ -44,6 +45,13 @@ featuredProductsApp.mount("#featured-products");
 // Mount FilterSortDropdowns component
 const filterSortApp = createApp(FilterSortDropdowns);
 filterSortApp.mount("#filter-sort-dropdowns");
+
+// Mount SubmitOrderButton component
+const submitOrderButtonApp = createApp(SubmitOrderButton);
+const submitOrderButtonEl = document.getElementById("submit-order-button");
+if (submitOrderButtonEl) {
+    submitOrderButtonApp.mount("#submit-order-button");
+}
 
 const sidebar = document.getElementById("sidebar");
 
