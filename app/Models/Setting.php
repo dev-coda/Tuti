@@ -14,7 +14,7 @@ class Setting extends Model
 
     public static function getByKey($key)
     {
-        return Cache::remember("setting_{$key}", 3600, function () use ($key) {
+        return Cache::remember("setting_{$key}", 1800, function () use ($key) {
             $setting = self::where('key', $key)->first();
             return $setting ? $setting->value : null;
         });
