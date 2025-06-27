@@ -17,17 +17,20 @@ class OrderProduct extends Model
         'discount',
         'variation_item_id',
         'is_bonification',
-        'percentage'
+        'percentage',
+        'package_quantity',
     ];
 
 
 
-    public function product(){
+    public function product()
+    {
         return $this->belongsTo(Product::class);
     }
 
-    public function variationItem(){
-        
+    public function variationItem()
+    {
+
         return $this->belongsTo(VariationItem::class, 'variation_item_id');
     }
 }

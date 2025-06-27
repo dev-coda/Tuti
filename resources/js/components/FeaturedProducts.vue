@@ -159,7 +159,10 @@ export default {
     },
     methods: {
         formatPrice(price) {
-            return new Intl.NumberFormat("es-CO").format(price);
+            return new Intl.NumberFormat("es-CO", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+            }).format(price);
         },
         async fetchProducts() {
             this.loading = true;

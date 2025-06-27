@@ -292,6 +292,7 @@ class CartController extends Controller
                 'discount' => $has_orders ? 0 : $p->finalPrice['totalDiscount'],
                 'variation_item_id' => $product['variation_id'] ?? null,
                 'percentage' => $has_orders ? 0 : $p->finalPrice['discount'] ?? 0,
+                'package_quantity' => $p->package_quantity ?? 1,
             ]);
 
             // Process bonification only once per product (not per variation)
@@ -321,9 +322,10 @@ class CartController extends Controller
                 }
             }
 
-            $discount = $has_orders ? 0 : $discount;
+
             $total = $total + ($p->finalPrice['price'] * $product['quantity']);
             $discount = $discount + ($p->finalPrice['totalDiscount'] * $product['quantity']);
+            $discount = $has_orders ? 0 : $discount;
         }
 
 

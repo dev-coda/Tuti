@@ -8,6 +8,7 @@ use App\Http\Controllers\Seller\PageController as SellerPageController;
 use App\Http\Controllers\Shopper\PageController as ShopperPageController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\Api\CartApiController;
+use App\Http\Controllers\Admin\AdminController;
 
 
 
@@ -92,6 +93,72 @@ Route::delete('/admins/{id}', [AdminController::class, 'destroy'])->name('admins
 
 // Cart API route
 Route::get('/api/cart', [CartApiController::class, 'index'])->name('api.cart');
+
+// Temporary debug route for variation investigation
+Route::get('/debug-variations/{id}', function ($id) {
+    $product = App\Models\Product::with(['variation', 'items.variation'])->find($id);
+
+    if (!$product) {
+        return "Product not found";
+    }
+
+    return [
+        'product_id' => $product->id,
+        'product_name' => $product->name,
+        'has_variation' => $product->variation ? true : false,
+        'variation' => $product->variation ? [
+            'id' => $product->variation->id,
+            'name' => $product->variation->name
+        ] : null,
+        'variation_id' => $product->variation_id,
+        'items_count' => $product->items->count(),
+        'items' => $product->items->map(function ($item) {
+            return [
+                'id' => $item->id,
+                'name' => $item->name,
+                'variation_name' => $item->variation ? $item->variation->name : null,
+                'pivot' => [
+                    'price' => $item->pivot->price,
+                    'enabled' => $item->pivot->enabled,
+                    'sku' => $item->pivot->sku
+                ]
+            ];
+        })
+    ];
+});
+
+// Temporary fix route for product variation items
+Route::get('/fix-product-variations/{id}', function ($id) {
+    $product = App\Models\Product::find($id);
+
+    if (!$product) {
+        return "Product not found";
+    }
+
+    if (!$product->variation_id) {
+        return "Product has no variation assigned";
+    }
+
+    if ($product->items->count() > 0) {
+        return "Product already has variation items";
+    }
+
+    $variationItems = App\Models\VariationItem::where('variation_id', $product->variation_id)->get();
+
+    foreach ($variationItems as $item) {
+        $product->items()->attach($item->id, [
+            'price' => $product->price,
+            'sku' => $product->sku . '-' . $item->name,
+            'enabled' => true
+        ]);
+    }
+
+    return [
+        'message' => 'Variation items attached successfully',
+        'product' => $product->name,
+        'items_attached' => $variationItems->count()
+    ];
+});
 
 
 
