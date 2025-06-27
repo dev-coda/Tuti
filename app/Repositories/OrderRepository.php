@@ -72,7 +72,6 @@ class OrderRepository
                             <dyn:umCust>None</dyn:umCust>
                             <dyn:unitPrice>' . $unitPrice . '</dyn:unitPrice>
                             <dyn:vendorType>' . $vendor_type . '</dyn:vendorType>
-                            <dyn:observations>' . $product->package_quantity . '</dyn:observations>
                         </dyn:listDetails>';
         }
 
