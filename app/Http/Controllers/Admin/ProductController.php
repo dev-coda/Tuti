@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Http\Controllers\Admin;
+
 use App\Exports\ProductExport;
 use App\Http\Controllers\Controller;
 
@@ -154,7 +155,7 @@ class ProductController extends Controller
         $product = Product::create($validate);
 
         $product->labels()->attach($labels);
-        $product->categories()->attach($categories, );
+        $product->categories()->attach($categories,);
 
 
         if ($request->variation_id) {
@@ -162,7 +163,7 @@ class ProductController extends Controller
             $variations = $variations->map(function ($item) {
                 $item->variation_id = null;
                 return $item;
-            });         
+            });
             info(json_encode($variations));
             $product->items()->attach($variations, [
                 'price' => $validate['price'],
@@ -178,9 +179,7 @@ class ProductController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(Product $product)
-    {
-    }
+    public function show(Product $product) {}
 
     /**
      * Show the form for editing the specified resource.
@@ -273,9 +272,49 @@ class ProductController extends Controller
         $product->labels()->sync($request->labels);
         $product->categories()->sync($request->categories);
 
-        $product->items()->sync($request->variations);
+        // Check if variation has changed
+        $variationChanged = $request->variation_id && $request->variation_id != $product->variation_id;
 
+        // Update the product first to save the new variation_id
         $product->update($validate);
+
+        // Handle variations
+        if ($variationChanged) {
+            // Variation has changed, attach all items from the new variation
+            $variationItems = VariationItem::where('variation_id', $request->variation_id)->get();
+
+            // Clear all existing items first
+            $product->items()->sync([]);
+
+            // Prepare items to sync
+            $itemsToSync = [];
+            foreach ($variationItems as $item) {
+                $itemsToSync[$item->id] = [
+                    'price' => $product->price,
+                    'sku' => $product->sku . '-' . $item->name,
+                    'enabled' => true
+                ];
+            }
+
+            // Sync the new items
+            $product->items()->sync($itemsToSync);
+        } else if ($request->has('variations') && is_array($request->variations)) {
+            // No variation change, just update existing variation items
+            $variationsToSync = [];
+            foreach ($request->variations as $variationItemId => $data) {
+                // Include all variations from the form, whether enabled or not
+                $variationsToSync[$variationItemId] = [
+                    'price' => $data['price'] ?? 0,
+                    'sku' => $data['sku'] ?? '',
+                    'enabled' => isset($data['enabled']) && $data['enabled'] ? true : false
+                ];
+            }
+            $product->items()->sync($variationsToSync);
+        } else if (!$request->variation_id) {
+            // No variation selected, clear all items
+            $product->items()->sync([]);
+        }
+
         # return back()->with('success', 'Producto actualizado');
         if ($request->bonification_id) {
             $bonification = Bonification::find($request->bonification_id);
@@ -323,7 +362,6 @@ class ProductController extends Controller
         ]);
 
         return back()->with('success', 'Imagen cargada');
-
     }
 
     public function images_delete(Request $request, Product $product, ProductImage $image)
@@ -332,7 +370,6 @@ class ProductController extends Controller
         $image->delete();
 
         return back()->with('success', 'Imagen eliminada');
-
     }
 
     public function export()
@@ -342,7 +379,7 @@ class ProductController extends Controller
 
     public function updatePrices()
     {
-        UpdateProductPrices::dispatch();    
-        return back();    
+        UpdateProductPrices::dispatch();
+        return back();
     }
 }
