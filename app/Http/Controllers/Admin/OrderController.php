@@ -10,6 +10,8 @@ use App\Repositories\OrderRepository;
 use Illuminate\Http\Request;
 use Maatwebsite\Excel\Facades\Excel;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Http;
+use App\Models\Setting;
 
 class OrderController extends Controller
 {
@@ -97,6 +99,55 @@ class OrderController extends Controller
         } {
             return Excel::download(new OrdersExport($from_date->toDateString(), $to_date->toDateString()), 'orders.xlsx');
         }
+    }
 
+    public function resend(Order $order)
+    {
+        // Check if the order has webservice error status
+        if ($order->status_id !== Order::STATUS_ERROR_WEBSERVICE) {
+            return redirect()->back()->with('error', 'Esta orden no puede ser reenviada.');
+        }
+
+        try {
+            // Forcefully refresh the Microsoft token before resending
+            $this->refreshMicrosoftToken();
+
+            // Resend the order using the same method from OrderRepository
+            OrderRepository::presalesOrder($order);
+
+            return redirect()->back()->with('success', 'Orden reenviada exitosamente.');
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'Error al reenviar la orden: ' . $e->getMessage());
+        }
+    }
+
+    private function refreshMicrosoftToken()
+    {
+        $client_id = config('microsoft.client_id');
+        $client_secret = config('microsoft.client_secret');
+        $resource = config('microsoft.resource');
+        $url = config('microsoft.url_token');
+
+        $data = [
+            'grant_type' => 'client_credentials',
+            'client_id' => $client_id,
+            'client_secret' => $client_secret,
+            'resource' => $resource,
+        ];
+
+        $response = Http::asForm()->post($url, $data);
+
+        if (!$response->successful()) {
+            throw new \Exception('No se pudo actualizar el token de autenticación');
+        }
+
+        $json = $response->json();
+        $token = $json['access_token'] ?? null;
+
+        if (!$token) {
+            throw new \Exception('Token de autenticación no válido');
+        }
+
+        Setting::where('key', 'microsoft_token')->update(['value' => $token]);
     }
 }

@@ -21,13 +21,12 @@ use App\Http\Controllers\Admin\SellerController;
 use Illuminate\Support\Facades\Route;
 
 
-Route::middleware(['auth', 'role:seller'])->group( function () {
+Route::middleware(['auth', 'role:seller'])->group(function () {
     Route::post('/setclient', [SellerController::class, 'setclient'])->name('seller.setclient');
     Route::post('/removeclient', [SellerController::class, 'removeclient'])->name('seller.removeclient');
-    
 });
 
- Route::middleware(['auth', 'role:admin'])->group(function () {
+Route::middleware(['auth', 'role:admin'])->group(function () {
 
 
     Route::get('/dashboard', function () {
@@ -58,7 +57,7 @@ Route::middleware(['auth', 'role:seller'])->group( function () {
     Route::resource('taxes', TaxController::class);
     Route::resource('holidays', HolidayController::class);
     Route::resource('products', ProductController::class);
-    Route::resource('products.combinations', ProductCombinationsController::class)->only([ 'store', 'update']);
+    Route::resource('products.combinations', ProductCombinationsController::class)->only(['store', 'update']);
     Route::resource('categories', CategoryController::class);
     Route::resource('labels', LabelController::class);
     Route::resource('vendors', VendorController::class);
@@ -74,6 +73,7 @@ Route::middleware(['auth', 'role:seller'])->group( function () {
 
 
     Route::resource('orders', OrderController::class);
+    Route::post('/orders/{order}/resend', [OrderController::class, 'resend'])->name('orders.resend');
     Route::resource('contacts', ContactController::class);
 
 
@@ -82,4 +82,3 @@ Route::middleware(['auth', 'role:seller'])->group( function () {
     Route::get('/profile', [VendorController::class, 'index'])->name('profile.update');
     Route::get('/updateproductprices', [ProductController::class, 'updatePrices']);
 });
-
