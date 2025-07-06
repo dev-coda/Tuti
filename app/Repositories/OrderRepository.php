@@ -102,7 +102,7 @@ class OrderRepository
             }
 
             $vendor_type = $productData->brand->vendor->vendor_type;
-            $unitPrice = parseCurrency($product->price);
+            $unitPrice = $product->package_quantity ? parseCurrency($product->price / $product->package_quantity) : parseCurrency($product->price);
 
             if ($bonification) {
                 $unitPrice = 0;
@@ -114,7 +114,7 @@ class OrderRepository
                 $sku = $variationSkus[$product->variation_item_id];
             }
 
-            $qty = $product->quantity;
+            $qty = $product->package_quantity ? $product->quantity * $product->package_quantity : $product->quantity;
             $productList .= '<dyn:listDetails>
                             <dyn:discount>' . (int) $product->percentage . '</dyn:discount>
                             <dyn:itemId>' . $sku . '</dyn:itemId>
