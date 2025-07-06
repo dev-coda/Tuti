@@ -128,6 +128,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | First Order Discount
+    |--------------------------------------------------------------------------
+    |
+    | This setting controls whether discounts are only applied to first-time
+    | customers. When enabled (true), only customers without previous orders
+    | will receive discounts. When disabled (false), all customers receive
+    | discounts regardless of their order history.
+    |
+    */
+
+    'first_order_discount_enabled' => env('FIRST_ORDER_DISCOUNT_ENABLED', true),
+
+    /*
+    |--------------------------------------------------------------------------
     | Maintenance Mode Driver
     |--------------------------------------------------------------------------
     |

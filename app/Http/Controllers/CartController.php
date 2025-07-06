@@ -92,10 +92,16 @@ class CartController extends Controller
 
         $targetUser = $client ?? $user;
 
-        $has_orders = Order::with('user')
-            ->withCount('products')
-            ->whereBelongsTo($targetUser)
-            ->exists();
+        // Check if first order discount is enabled
+        $firstOrderDiscountEnabled = config('app.first_order_discount_enabled', true);
+        
+        // Only check for existing orders if the feature is enabled
+        $has_orders = $firstOrderDiscountEnabled 
+            ? Order::with('user')
+                ->withCount('products')
+                ->whereBelongsTo($targetUser)
+                ->exists()
+            : false; // If disabled, treat as if user has no orders (always apply discount)
 
 
         $context = compact('products', 'alertVendors', 'zones', 'set_user', 'client', 'alertTotal', 'min_amount', 'total_cart', 'has_orders');
@@ -313,8 +319,9 @@ class CartController extends Controller
             return to_route('home')->with('success', 'Su pedido ya fue procesado exitosamente!');
         }
 
-        // Check if user has previous orders
-        $has_orders = Order::where('user_id', $user_id)->exists();
+        // Check if user has previous orders (only if first order discount is enabled)
+        $firstOrderDiscountEnabled = config('app.first_order_discount_enabled', true);
+        $has_orders = $firstOrderDiscountEnabled ? Order::where('user_id', $user_id)->exists() : false;
 
         // Use database transaction to ensure atomicity
         DB::beginTransaction();
