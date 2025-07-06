@@ -313,6 +313,9 @@ class CartController extends Controller
             return to_route('home')->with('success', 'Su pedido ya fue procesado exitosamente!');
         }
 
+        // Check if user has previous orders
+        $has_orders = Order::where('user_id', $user_id)->exists();
+
         // Use database transaction to ensure atomicity
         DB::beginTransaction();
 
@@ -338,9 +341,10 @@ class CartController extends Controller
                     'product_id' => $id,
                     'quantity' => $product['quantity'],
                     'price' => $p->finalPrice['originalPrice'],
-                    'discount' => $p->finalPrice['totalDiscount'],
+                    'discount' => $has_orders ? 0 : $p->finalPrice['totalDiscount'],
                     'variation_item_id' => $product['variation_id'] ?? null,
-                    'percentage' => $p->finalPrice['discount'] ?? 0,
+                    'percentage' => $has_orders ? 0 : $p->finalPrice['discount'] ?? 0,
+                    'package_quantity' => $p->package_quantity ?? 1,
                 ]);
 
 
@@ -366,6 +370,8 @@ class CartController extends Controller
                 $discount = $discount + ($p->finalPrice['totalDiscount'] * $product['quantity']);
             }
 
+            // Apply discount only if user doesn't have previous orders
+            $discount = $has_orders ? 0 : $discount;
 
             $order->update([
                 'total' => $total,
