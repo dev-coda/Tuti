@@ -50,11 +50,9 @@ class OrderRepository
 
         $productList = '';
 
-        $user_has_orders = Order::where('user_id', $order->user_id)->exists();
-
         foreach ($products as $product) {
             $vendor_type = $product->product->brand->vendor->vendor_type;
-            $unitPrice = parseCurrency($product->price);
+            $unitPrice = $product->package_quantity ? parseCurrency($product->price / $product->package_quantity)  : parseCurrency($product->price);
 
             if ($bonification) {
                 $unitPrice = 0;
@@ -64,11 +62,12 @@ class OrderRepository
             if ($product->variationItem) {
                 $sku = DB::table('product_item_variation')->where('id', $product->variation_item_id)->value('sku');
             }
+            $qty = $product->package_quantity ? $product->quantity * $product->package_quantity : $product->quantity;
             $productList .= '<dyn:listDetails>
                             <dyn:discount>' . (int) $product->percentage . '</dyn:discount>
                             <dyn:itemId>' . $sku . '</dyn:itemId>
-                            <dyn:qty>' . $product->quantity . '</dyn:qty>
-                            <dyn:qtyCust>' . $product->quantity . '</dyn:qtyCust>
+                            <dyn:qty>' . $qty . '</dyn:qty>
+                            <dyn:qtyCust>' . $qty . '</dyn:qtyCust>
                             <dyn:um>Unidad</dyn:um>
                             <dyn:umCust>None</dyn:umCust>
                             <dyn:unitPrice>' . $unitPrice . '</dyn:unitPrice>
