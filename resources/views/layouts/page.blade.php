@@ -16,8 +16,10 @@
 
     @php
     $categories = App\Models\Category::active()->whereNull('parent_id')->with('children')->orderBy('name')->get();
-    $phone = App\Models\Setting::where('key', 'phone')->first()->value;
-    $email = App\Models\Setting::where('key', 'email')->first()->value;
+    $phone = App\Models\Setting::where('key', 'phone')->first();
+    $phone = $phone ? $phone->value : '';
+    $email = App\Models\Setting::where('key', 'email')->first();
+    $email = $email ? $email->value : '';
     $google_tag = App\Models\Setting::where('key', 'google_tag')->first()->value;
     @endphp
 
