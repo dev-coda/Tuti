@@ -20,7 +20,8 @@
     $phone = $phone ? $phone->value : '';
     $email = App\Models\Setting::where('key', 'email')->first();
     $email = $email ? $email->value : '';
-    $google_tag = App\Models\Setting::where('key', 'google_tag')->first()->value;
+    $google_tag = App\Models\Setting::where('key', 'google_tag')->first();
+    $google_tag = $google_tag ? $google_tag->value : '';
     @endphp
 
     {!! $google_tag !!}
