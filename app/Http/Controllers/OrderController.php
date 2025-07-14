@@ -11,10 +11,17 @@ class OrderController extends Controller
     {
 
 
-	    $user = auth()->user();
-	    
+        $user = auth()->user();
 
-        $orders = Order::with('user')->withCount('products')->whereBelongsTo($user)->orwhere('seller_id', $user->id)->whereNot('total','0')->orderByDesc('id')->paginate();
+
+        $orders = Order::with('user')
+            ->withCount('products')
+            ->withSum('products', 'quantity')
+            ->whereBelongsTo($user)
+            ->orwhere('seller_id', $user->id)
+            ->whereNot('total', '0')
+            ->orderByDesc('id')
+            ->paginate();
         $context = compact('orders');
 
         return view('clients.orders.index', $context);
@@ -57,7 +64,7 @@ class OrderController extends Controller
             return redirect()->route('clients.orders.index');
         }
 
-	$order->load(['user', 'bonifications' => ['product', 'bonification'], 'products' => ['product'=> ['variation', 'bonifications.product']]]);
+        $order->load(['user', 'bonifications' => ['product', 'bonification'], 'products' => ['product' => ['variation', 'bonifications.product']]]);
         $context = compact('order');
 
         return view('clients.orders.show', $context);

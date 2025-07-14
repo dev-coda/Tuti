@@ -29,7 +29,7 @@ class Product extends Model
         'is_combined',
         'parent_id',
         'package_quantity',
-
+        'calculate_package_price',
     ];
 
 

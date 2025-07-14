@@ -23,11 +23,17 @@
                 <th scope="col" class="px-6 py-3 text-center">
                     Productos
                 </th>
+                <th scope="col" class="px-6 py-3 text-center">
+                    Unidades
+                </th>
                 @role('seller')
                     <th class="px-6 py-4">
                         Cliente
                     </th>
                 @endrole
+                <th scope="col" class="px-6 py-3">
+                    Estado
+                </th>
                 <th scope="col" class="px-6 py-3">
                     Total
                 </th>
@@ -45,11 +51,17 @@
                     <td class="px-6 py-4 text-center">
                         {{$order->products_count}}
                     </td>
+                    <td class="px-6 py-4 text-center">
+                        {{$order->products_sum_quantity ?? 0}}
+                    </td>
                     @role('seller')
                         <td class="px-6 py-4">
                             {{$order->user->name}}
                         </td>
                     @endrole
+                    <td class="px-6 py-4">
+                        <x-order-status :status="$order->status_id" />
+                    </td>
                     <td class="px-6 py-4">
                         ${{number_format(($order->total+$order->discount) - $order->discount)}}
                     </td>

@@ -52,7 +52,8 @@ class OrderRepository
 
         foreach ($products as $product) {
             $vendor_type = $product->product->brand->vendor->vendor_type;
-            $unitPrice = $product->package_quantity ? parseCurrency($product->price / $product->package_quantity)  : parseCurrency($product->price);
+            $effectivePackageQuantity = $product->product->calculate_package_price ? $product->package_quantity : 1;
+            $unitPrice = $effectivePackageQuantity ? parseCurrency($product->price / $effectivePackageQuantity)  : parseCurrency($product->price);
 
             if ($bonification) {
                 $unitPrice = 0;
@@ -62,7 +63,7 @@ class OrderRepository
             if ($product->variationItem) {
                 $sku = DB::table('product_item_variation')->where('id', $product->variation_item_id)->value('sku');
             }
-            $qty = $product->package_quantity ? $product->quantity * $product->package_quantity : $product->quantity;
+            $qty = $effectivePackageQuantity ? $product->quantity * $effectivePackageQuantity : $product->quantity;
             $productList .= '<dyn:listDetails>
                             <dyn:discount>' . (int) $product->percentage . '</dyn:discount>
                             <dyn:itemId>' . $sku . '</dyn:itemId>

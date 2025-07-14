@@ -66,3 +66,9 @@ Route::middleware('api')->group(function () {
 Route::get('/cities', [CityController::class, 'index'])->name('cities.index');
 
 Route::get('/products/latest', [App\Http\Controllers\Api\ProductsApiController::class, 'latest']);
+Route::get('/products/most-sold', [App\Http\Controllers\Api\ProductsApiController::class, 'mostSold']);
+Route::get('/products/section-title', [App\Http\Controllers\Api\ProductsApiController::class, 'getSectionTitle']);
+
+Route::get('/categories/featured', [App\Http\Controllers\Api\CategoriesApiController::class, 'featured']);
+Route::get('/categories/most-popular', [App\Http\Controllers\Api\CategoriesApiController::class, 'mostPopular']);
+Route::get('/categories/section-title', [App\Http\Controllers\Api\CategoriesApiController::class, 'getSectionTitle']);
