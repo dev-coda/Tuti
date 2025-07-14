@@ -14,16 +14,17 @@ class ProductsApiController extends Controller
     public function latest()
     {
         // Check if we should use most sold products
-        $useMostSoldSetting = Setting::where('key', 'use_most_sold_products')->first();
-        if (!$useMostSoldSetting) {
-            $useMostSoldSetting = Setting::create([
-                'key' => 'use_most_sold_products',
+        $useMostSoldSetting = Setting::firstOrCreate(
+            ['key' => 'use_most_sold_products'],
+            [
                 'name' => 'Usar productos más vendidos',
                 'value' => '0',
                 'show' => false
-            ]);
-        } else if (is_null($useMostSoldSetting->name)) {
-            // Fix any existing record with null name
+            ]
+        );
+
+        // Update the name and show fields if they're null
+        if (is_null($useMostSoldSetting->name)) {
             $useMostSoldSetting->update([
                 'name' => 'Usar productos más vendidos',
                 'show' => false
@@ -199,16 +200,17 @@ class ProductsApiController extends Controller
      */
     public function getSectionTitle()
     {
-        $sectionTitleSetting = Setting::where('key', 'featured_products_section_title')->first();
-        if (!$sectionTitleSetting) {
-            $sectionTitleSetting = Setting::create([
-                'key' => 'featured_products_section_title',
+        $sectionTitleSetting = Setting::firstOrCreate(
+            ['key' => 'featured_products_section_title'],
+            [
                 'name' => 'Título de la sección de productos destacados',
                 'value' => 'Productos Destacados',
                 'show' => false
-            ]);
-        } else if (is_null($sectionTitleSetting->name)) {
-            // Fix any existing record with null name
+            ]
+        );
+
+        // Update the name and show fields if they're null
+        if (is_null($sectionTitleSetting->name)) {
             $sectionTitleSetting->update([
                 'name' => 'Título de la sección de productos destacados',
                 'show' => false
