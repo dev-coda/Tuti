@@ -50,16 +50,28 @@ class CartController extends Controller
         $products = [];
         $total_cart = 0;
 
+        // Check if the target user has orders - needed for discount calculations
+        $targetUser = $client ?? $user;
+        $has_orders = Order::with('user')
+            ->withCount('products')
+            ->whereBelongsTo($targetUser)
+            ->exists();
+
         foreach ($cart as $item) {
 
-            $product = Product::with('brand', 'variation')->find($item['product_id']);
+            $product = Product::with('brand.vendor', 'variation')->find($item['product_id']);
 
             $product->item = $product->items->where('id', $item['variation_id'])->first();
 
             $product->quantity = $item['quantity'];
             $product->vendor_id = $product->brand->vendor->id;
+
+            // Calculate price with user order status
+            $finalPrice = $product->getFinalPriceForUser($has_orders);
+            $product->calculatedFinalPrice = $finalPrice;
+
             $products[] = $product;
-            $total_cart += $product->quantity * $product->finalPrice['price'];
+            $total_cart += $product->quantity * $finalPrice['price'];
         }
         $products = collect($products);
 
@@ -70,7 +82,7 @@ class CartController extends Controller
         $alertVendors = [];
         foreach ($byVendors as $key => $vendor) {
             $total = $vendor->sum(function ($product) {
-                return $product->quantity * $product->finalPrice['price'];
+                return $product->quantity * $product->calculatedFinalPrice['price'];
             });
 
             $v = Vendor::find($key);
@@ -87,14 +99,6 @@ class CartController extends Controller
         if ($total_cart < $min_amount) {
             $alertTotal[] = true;
         }
-
-        $targetUser = $client ?? $user;
-
-        $has_orders = Order::with('user')
-            ->withCount('products')
-            ->whereBelongsTo($targetUser)
-            ->exists();
-
 
         $context = compact('products', 'alertVendors', 'zones', 'set_user', 'client', 'alertTotal', 'min_amount', 'total_cart', 'has_orders');
 
@@ -284,15 +288,18 @@ class CartController extends Controller
 
             $p = Product::find($id);
 
+            // Calculate price with user order status
+            $finalPrice = $p->getFinalPriceForUser($has_orders);
+
             $orderProduct = OrderProduct::create([
                 'order_id' => $order->id,
                 'product_id' => $id,
                 'quantity' => $product['quantity'],
-                'price' => $p->finalPrice['originalPrice'],
-                'discount' => $has_orders ? 0 : $p->finalPrice['totalDiscount'],
+                'price' => $finalPrice['originalPrice'],
+                'discount' => $has_orders ? 0 : $finalPrice['totalDiscount'],
                 'variation_item_id' => $product['variation_id'] ?? null,
-                'percentage' => $has_orders ? 0 : $p->finalPrice['discount'] ?? 0,
-                'package_quantity' => $p->package_quantity ?? 1,
+                'percentage' => $has_orders ? 0 : $finalPrice['discount'] ?? 0,
+                'package_quantity' => $p->calculate_package_price ? ($p->package_quantity ?? 1) : 1,
             ]);
 
             // Process bonification only once per product (not per variation)
@@ -323,8 +330,8 @@ class CartController extends Controller
             }
 
 
-            $total = $total + ($p->finalPrice['price'] * $product['quantity']);
-            $discount = $discount + ($p->finalPrice['totalDiscount'] * $product['quantity']);
+            $total = $total + ($finalPrice['price'] * $product['quantity']);
+            $discount = $discount + ($finalPrice['totalDiscount'] * $product['quantity']);
             $discount = $has_orders ? 0 : $discount;
         }
 

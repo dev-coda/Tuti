@@ -101,6 +101,9 @@
                                 <th scope="col" class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
                                     Productos
                                 </th>
+                                <th scope="col" class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
+                                    Unidades
+                                </th>
 
                             </tr>
                         </thead>
@@ -148,6 +151,10 @@
 
                                         <td class="p-4  text-gray-900 whitespace-nowra">
                                             {{ $order->products->count() }}
+                                        </td>
+
+                                        <td class="p-4  text-gray-900 whitespace-nowra">
+                                            {{ $order->products_sum_quantity ?? 0 }}
                                         </td>
 
 

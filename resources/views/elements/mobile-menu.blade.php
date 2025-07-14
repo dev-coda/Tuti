@@ -49,7 +49,7 @@
                     <span>Salir</span>
                 </a>
                 @else
-                <a class="rounded py-1 px-2 text-white bg-secondary" href="{{route('login')}}">Login</a>
+                <a class="rounded py-1 px-2 text-white bg-secondary" href="{{route('form')}}">Login</a>
                 <a class="rounded py-1 px-2 text-white bg-secondary" href="{{route('register')}}">Acceder</a>
                 <a class="rounded py-1 px-2 text-white bg-secondary" href="{{route('form')}}">Quiero ser cliente</a>
                 @endauth

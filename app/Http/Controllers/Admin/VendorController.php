@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Http\Controllers\Admin;
+
 use App\Http\Controllers\Controller;
 
 use App\Models\Brand;
@@ -16,15 +17,15 @@ class VendorController extends Controller
     public function index(Request $request)
     {
         $vendors = Vendor::query()
-            ->when($request->q, function($query, $q){
+            ->when($request->q, function ($query, $q) {
                 $query->where('name', 'like', "%{$q}%");
             })
             ->withCount('brands')
             ->orderBy('name')
             ->paginate();
-            
-        $context = compact('vendors'); 
-        
+
+        $context = compact('vendors');
+
         return view('vendors.index', $context);
     }
 
@@ -43,24 +44,25 @@ class VendorController extends Controller
     {
         $validate = $request->validate([
             'name' => 'required|string|max:255',
-            'minimum_purchase'=> 'required|numeric',
+            'minimum_purchase' => 'required|numeric',
             'discount' => 'numeric|min:0|max:100',
-            'active'=>'nullable',
-            'vendor_type'=> 'required|string|max:1',
+            'first_purchase_only' => 'nullable|boolean',
+            'active' => 'nullable',
+            'vendor_type' => 'required|string|max:1',
         ]);
 
-        
+
 
         $validate['slug'] =  Str::slug($request->name);
 
-        if($request->hasFile('image_file')){
+        if ($request->hasFile('image_file')) {
             $validate['image'] = $request->image_file->store('/vendors', 'public');
         }
 
-        if($request->hasFile('banner_file')){
+        if ($request->hasFile('banner_file')) {
             $validate['banner'] = $request->banner_file->store('/vendors', 'public');
         }
-        
+
         Vendor::create($validate);
 
         return to_route('vendors.index')->with('success', 'Vendor creado correctamente');
@@ -79,9 +81,9 @@ class VendorController extends Controller
      */
     public function edit(Vendor $vendor)
     {
-     
-        $context = compact('vendor'); 
-        
+
+        $context = compact('vendor');
+
         return view('vendors.edit', $context);
     }
 
@@ -90,29 +92,30 @@ class VendorController extends Controller
      */
     public function update(Request $request, Vendor $vendor)
     {
-        
+
         $validate = $request->validate([
             'name' => 'required|string|max:255',
-            'minimum_purchase'=> 'required|numeric',
-            'discount'=>'numeric|min:0|max:100',
-            'slug'=>'required|unique:brands,slug,'.$vendor->id,
-            'active'=>'nullable',
+            'minimum_purchase' => 'required|numeric',
+            'discount' => 'numeric|min:0|max:100',
+            'first_purchase_only' => 'nullable|boolean',
+            'slug' => 'required|unique:brands,slug,' . $vendor->id,
+            'active' => 'nullable',
             'vendor_type' => 'required|string|max:1',
         ]);
-        
+
         //save file
-        if($request->hasFile('image_file')){
+        if ($request->hasFile('image_file')) {
             $validate['image'] = $request->image_file->store('/vendors', 'public');
         }
 
-        if($request->hasFile('banner_file')){
+        if ($request->hasFile('banner_file')) {
             $validate['banner'] = $request->banner_file->store('/vendors', 'public');
         }
 
-      #  $vendor->brands()->sync($request->brands);
+        #  $vendor->brands()->sync($request->brands);
 
         $validate['slug'] =  Str::slug($request->slug);
-        
+
         $vendor->update($validate);
 
         return to_route('vendors.index')->with('success', 'Vendor actualizado');
@@ -123,14 +126,11 @@ class VendorController extends Controller
      */
     public function destroy(Vendor $vendor)
     {
-        if(!$vendor->brands->count()){
+        if (!$vendor->brands->count()) {
             $vendor->delete();
             return to_route('vendors.index')->with('success', 'Vendor eliminado');
         }
 
         return to_route('vendors.edit', $vendor)->with('error', 'No es posible eliminar el vendor por que tiene marcas asociadas');
-        
     }
-
-
 }

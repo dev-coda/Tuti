@@ -45,6 +45,7 @@ class OrderController extends Controller
 
             ->with(['user', 'seller'])
             ->withCount('products')
+            ->withSum('products', 'quantity')
             ->orderByDesc('id')
             ->paginate()
             ->withQueryString();
@@ -97,6 +98,5 @@ class OrderController extends Controller
         } {
             return Excel::download(new OrdersExport($from_date->toDateString(), $to_date->toDateString()), 'orders.xlsx');
         }
-
     }
 }

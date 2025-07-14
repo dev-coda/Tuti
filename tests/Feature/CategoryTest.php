@@ -20,98 +20,89 @@ beforeEach(function () {
 });
 
 
-it('user not logged cannot access to category page', function(){
-    get('/categories')
-        ->assertRedirect('/login');
+it('user not logged cannot access to category page', function () {
+    get('/admin/categories')
+        ->assertRedirect('/formulario');
 });
 
 
 
 
-it('user logged can access to category page', function(){
-   
+it('user logged can access to category page', function () {
+
     actingAs(User::first())
         ->get('/categories')
         ->assertStatus(200);
-
 });
 
 
-it('user logged can access to create category page', function(){
-   
+it('user logged can access to create category page', function () {
+
     actingAs(User::first())
         ->get('/categories/create')
         ->assertStatus(200);
-
 });
 
 
-it('user logged can create category', function(){
-   
+it('user logged can create category', function () {
+
     actingAs(User::first())
-       ->post('/categories',[ 
-        'name'=> 'Categoría 1',
-       ])
-       ->assertRedirect('/categories')
-       ->assertSessionHas('success', 'La categoría se ha creado correctamente');
-  
+        ->post('/categories', [
+            'name' => 'Categoría 1',
+        ])
+        ->assertRedirect('/categories')
+        ->assertSessionHas('success', 'La categoría se ha creado correctamente');
 });
 
 
-it('user logged can access to edit category page', function(){
+it('user logged can access to edit category page', function () {
 
     $user = User::first();
 
     $category = Category::create([
-        'name'=> 'Categoría 1',
-        'slug'=> 'Categoria-1',
+        'name' => 'Categoría 1',
+        'slug' => 'Categoria-1',
     ]);
 
     actingAs($user)
         ->get("/categories/{$category->id}/edit")
         ->assertStatus(200);
-
 });
 
 
-it('user logged can access to edit category', function(){
+it('user logged can access to edit category', function () {
 
     $user = User::first();
 
     $category = Category::create([
-        'name'=> 'Categoría 1',
-        'slug'=> 'Categoria-1',
+        'name' => 'Categoría 1',
+        'slug' => 'Categoria-1',
     ]);
 
 
     actingAs($user)
         ->put("/categories/{$category->id}", [
-            'name'=> 'Categoría 2',
-            'slug'=>'categoria-2'
-            ])
+            'name' => 'Categoría 2',
+            'slug' => 'categoria-2'
+        ])
         ->assertRedirect('/categories')
         ->assertSessionHas('success', 'La categoría se ha actualizado correctamente');
-
 });
 
 
 
 
-it('user logged can delete category', function(){
+it('user logged can delete category', function () {
 
     $user = User::first();
 
     $category = Category::create([
-        'name'=> 'Categoria 1',
-        'slug'=> 'Categoria-1',
+        'name' => 'Categoria 1',
+        'slug' => 'Categoria-1',
     ]);
 
     actingAs($user)
         ->delete("/categories/{$category->id}")
         ->assertRedirect('/categories')
         ->assertSessionHas('success', 'La categoría se ha eliminado correctamente');
-
 });
-
-
-

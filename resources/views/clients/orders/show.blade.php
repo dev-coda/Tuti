@@ -14,6 +14,28 @@
 
     <h2 class="text-2xl font-bold mb-5">Orden #{{$order->id}}</h2>
 
+    <!-- Order Information Section -->
+    <div class="bg-gray-50 p-4 rounded-lg mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div>
+                <span class="text-sm font-medium text-gray-500">Fecha:</span>
+                <span class="text-sm text-gray-900 ml-2">{{$order->created_at->subHour(5)->format('Y-m-d H:i')}}</span>
+            </div>
+            <div>
+                <span class="text-sm font-medium text-gray-500">Estado:</span>
+                <span class="ml-2"><x-order-status :status="$order->status_id" /></span>
+            </div>
+            <div>
+                <span class="text-sm font-medium text-gray-500">Productos:</span>
+                <span class="text-sm text-gray-900 ml-2">{{$order->products->count()}}</span>
+            </div>
+            <div>
+                <span class="text-sm font-medium text-gray-500">Unidades:</span>
+                <span class="text-sm text-gray-900 ml-2">{{$order->products->sum('quantity')}}</span>
+            </div>
+        </div>
+    </div>
+
     <div class="flex flex-col">
         <div class="overflow-x-auto">
             <div class="inline-block min-w-full align-middle">

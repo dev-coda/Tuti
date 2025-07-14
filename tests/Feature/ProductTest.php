@@ -18,79 +18,78 @@ beforeEach(function () {
         'name' => 'admin',
         'guard_name' => 'web'
     ]);
-    
+
     $user->assignRole('admin');
 });
 
 
-it('user not logged cannot access to product page', function(){
-    get('/products')
-        ->assertRedirect('/login');
+it('user not logged cannot access to product page', function () {
+    $response = $this->get('/admin/products');
+
+    $response->assertStatus(302)
+        ->assertRedirect('/formulario');
 });
 
 
 
-it('user logged can  access to products page', function(){
-   
+it('user logged can  access to products page', function () {
+
     actingAs(User::first())
         ->get('/products')
         ->assertStatus(200);
-
 });
 
 
-it('user logged can access to create product page', function(){
-   
+it('user logged can access to create product page', function () {
+
     actingAs(User::first())
         ->get('/products/create')
         ->assertStatus(200);
-
 });
 
 
-it('user logged can create product', function(){
-   
+it('user logged can create product', function () {
+
 
     $tax = Tax::create([
-        'name'=>'IVA',
-        'tax'=>20
+        'name' => 'IVA',
+        'tax' => 20
     ]);
 
     actingAs(User::first())
-       ->post('/products',[ 
-        'name' => 'name',
-        'description' => 'name',
-        'short_description' => 'name',
-        'sku' => 'name',
-        'slug' => 'name',
-        'active' => 1,
-        'price' => 30000,
-        'delivery_days' => 1,
-        'discount' => 0,
-        'quantity_min' => 1,
-        'quantity_max' =>1,
-        'step' => 1,
-        'tax_id' => $tax->id,
-        'brand_id' => 1,
-        'variation_id' => null,
-        'is_combined' => 0,
-    
-    
-        
-       ])
-       ->assertRedirect('/products/1/edit')
-       ->assertSessionHas('success', 'Producto creado');
+        ->post('/products', [
+            'name' => 'name',
+            'description' => 'name',
+            'short_description' => 'name',
+            'sku' => 'name',
+            'slug' => 'name',
+            'active' => 1,
+            'price' => 30000,
+            'delivery_days' => 1,
+            'discount' => 0,
+            'quantity_min' => 1,
+            'quantity_max' => 1,
+            'step' => 1,
+            'tax_id' => $tax->id,
+            'brand_id' => 1,
+            'variation_id' => null,
+            'is_combined' => 0,
 
+
+
+        ])
+        ->assertRedirect('/products/1/edit')
+        ->assertSessionHas('success', 'Producto creado');
 });
 
 
-it('user logged can access to edit product page', function(){
+it('user logged can access to edit product page', function () {
 
     $user = User::first();
 
     $tax = Tax::create([
-        'name'=>'IVA',
-        'tax'=>20
+        'name' => 'IVA',
+        'tax' => 20
     ]);
 
     $product = Product::create([
@@ -104,28 +103,27 @@ it('user logged can access to edit product page', function(){
         'delivery_days' => 1,
         'discount' => 0,
         'quantity_min' => 1,
-        'quantity_max' =>1,
+        'quantity_max' => 1,
         'step' => 1,
         'tax_id' => $tax->id,
         'brand_id' => 1,
         'variation_id' => null,
-        'is_combined' => 0  
+        'is_combined' => 0
     ]);
 
     actingAs($user)
         ->get("/products/{$product->id}/edit")
         ->assertStatus(200);
-
 });
 
 
-it('user logged can access to edit product', function(){
+it('user logged can access to edit product', function () {
 
     $user = User::first();
 
     $tax = Tax::create([
-        'name'=>'IVA',
-        'tax'=>20
+        'name' => 'IVA',
+        'tax' => 20
     ]);
 
     $product = Product::create([
@@ -139,12 +137,12 @@ it('user logged can access to edit product', function(){
         'delivery_days' => 1,
         'discount' => 0,
         'quantity_min' => 1,
-        'quantity_max' =>1,
+        'quantity_max' => 1,
         'step' => 1,
         'tax_id' => $tax->id,
         'brand_id' => 1,
         'variation_id' => null,
-        'is_combined' => 0  
+        'is_combined' => 0
     ]);
 
     actingAs($user)
@@ -159,16 +157,15 @@ it('user logged can access to edit product', function(){
             'delivery_days' => 1,
             'discount' => 0,
             'quantity_min' => 1,
-            'quantity_max' =>1,
+            'quantity_max' => 1,
             'step' => 1,
             'tax_id' => $tax->id,
             'brand_id' => 1,
             'variation_id' => null,
-            'is_combined' => 0  
-            ])
+            'is_combined' => 0
+        ])
         ->assertRedirect('/products')
         ->assertSessionHas('success', 'Producto actualizado');
-
 });
 
 
@@ -235,5 +232,3 @@ it('user logged can access to edit product', function(){
 //         ->assertSessionHas('error', 'No es posible eliminar el vendor por que tiene marcas asociadas');
 
 // });
-
-

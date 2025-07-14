@@ -41,32 +41,7 @@
 
 
     <div class="xl:col-span-12 col-span-12 bg-neutral-200 p-6">
-
-        <h4 class="col-span-12 text-slate-700 text-3xl font-semibold mb-3 flex justify-center">
-            Categorías
-        </h4>
-        <div class="grid grid-cols-12 grid-flow-row xl:grid-cols-12 gap-5 ">
-            @foreach ($featured as $category)
-
-            <div class="border border-gray-100 rounded md:col-span-4 col-span-12 bg-cover bg-center hover:scale-110 transition duration-500 cursor-pointer object-cover" style="background-image: url({{asset('storage/'.$category->image)}});">
-                <div class=" text-gray-400">
-                    <a href="{{route('category', $category->slug)}}" class="h-40 block w-full bg-cover bg-center hover:scale-110 transition duration-500 cursor-pointer object-cover mt-0">
-                        <div class="bg-orange-500 text-white font-semibold text-lg p-4  flex flex-col relative h-12 w-64 bottom-6 mx-auto justify-center items-center rounded-3xl mt-0">
-                            <a href="{{route('category', $category->slug)}}" class="mx-auto mt-0 pt-0">{{$category->name}}</a>
-                        </div>
-
-                    </a>
-
-                </div>
-
-            </div>
-
-            @endforeach
-        </div>
-
-
-
-
+        <div id="featured-categories"></div>
     </div>
 
     <div class="xl:col-span-12 col-span-12">

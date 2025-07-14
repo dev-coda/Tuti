@@ -18,17 +18,20 @@ class Brand extends Model
         'delivery_days',
         'active',
         'discount',
+        'first_purchase_only',
         'vendor_id'
-        
+
     ];
 
-    public function vendor(){
+    public function vendor()
+    {
         return $this->belongsTo(Vendor::class);
     }
 
 
 
-    public function products(){
+    public function products()
+    {
         return $this->hasMany(Product::class);
     }
 }

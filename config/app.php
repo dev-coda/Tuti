@@ -113,6 +113,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | First Purchase Discount Enforcement
+    |--------------------------------------------------------------------------
+    |
+    | When enabled, discounts marked as "first purchase only" will only be
+    | applied to users who have never placed an order before. When disabled,
+    | all discounts will be applied regardless of the user's order history.
+    |
+    */
+
+    'enforce_first_purchase_discounts' => env('ENFORCE_FIRST_PURCHASE_DISCOUNTS', true),
+
+    /*
+    |--------------------------------------------------------------------------
     | Encryption Key
     |--------------------------------------------------------------------------
     |

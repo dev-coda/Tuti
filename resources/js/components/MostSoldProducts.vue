@@ -142,7 +142,7 @@ export default {
             productsPerPage: 4,
             loading: true,
             error: null,
-            sectionTitle: "Productos Destacados", // Default title
+            sectionTitle: "Productos Más Vendidos", // Default title
         };
     },
     computed: {
@@ -177,7 +177,7 @@ export default {
             this.loading = true;
             this.error = null;
             try {
-                const response = await fetch("/api/products/latest");
+                const response = await fetch("/api/products/most-sold");
                 if (!response.ok) {
                     throw new Error("Error al cargar los productos");
                 }

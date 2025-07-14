@@ -110,7 +110,7 @@
                         <div class="col-span-4 xl:px-3 px-0 flex flex-col">
                             <a href='{{route('product', $product->slug)}}'>{{$product->name}} </a>
                             <div>
-                                <small class="text-slate-700">${{currency($product->final_price['old'])}}</small>
+                                <small class="text-slate-700">${{currency($product->calculatedFinalPrice['old'])}}</small>
                                 @if($product->variation)
                                 <small class="text-slate-700">{{$product->variation->name}} {{$product->item->name}}</small>
                                 @endif
@@ -129,12 +129,12 @@
                         </div>
                         <div class="col-span-2 text-right">
                             @if($has_orders)
-                            <strong class="">${{currency($product->final_price['old'] * $product->quantity)}}</strong>
+                            <strong class="">${{currency($product->calculatedFinalPrice['old'] * $product->quantity)}}</strong>
                             @else
-                            <strong class="">${{currency($product->final_price['price'] * $product->quantity)}}</strong>
+                            <strong class="">${{currency($product->calculatedFinalPrice['price'] * $product->quantity)}}</strong>
                             @endif
-                            @if($product->final_price['has_discount'] && !$has_orders)
-                            <small class="line-through">${{currency($product->final_price['old'] * $product->quantity)}}</small>
+                            @if($product->calculatedFinalPrice['has_discount'] && !$has_orders)
+                            <small class="line-through">${{currency($product->calculatedFinalPrice['old'] * $product->quantity)}}</small>
                             @endif
                         </div>
                         <div class="items-start justify-center flex">
@@ -158,14 +158,14 @@
 
                     @php
                     $subtotal = $products->sum(function($product){
-                    return $product->final_price['old'] * $product->quantity;
+                    return $product->calculatedFinalPrice['old'] * $product->quantity;
                     });
 
 
                     if(!$has_orders)
                     {
                     $discount = $products->sum(function($product){
-                    return $product->final_price['old'] * $product->discount/100 * $product->quantity;
+                    return $product->calculatedFinalPrice['old'] * $product->discount/100 * $product->quantity;
                     });
                     }
                     else{
