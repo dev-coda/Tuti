@@ -14,16 +14,17 @@ class CategoriesApiController extends Controller
     public function featured()
     {
         // Check if we should use most popular categories
-        $useMostPopularSetting = Setting::where('key', 'use_most_popular_categories')->first();
-        if (!$useMostPopularSetting) {
-            $useMostPopularSetting = Setting::create([
-                'key' => 'use_most_popular_categories',
+        $useMostPopularSetting = Setting::firstOrCreate(
+            ['key' => 'use_most_popular_categories'],
+            [
                 'name' => 'Usar categorías más populares',
                 'value' => '0',
                 'show' => false
-            ]);
-        } else if (is_null($useMostPopularSetting->name)) {
-            // Fix any existing record with null name
+            ]
+        );
+
+        // Update the name and show fields if they're null
+        if (is_null($useMostPopularSetting->name)) {
             $useMostPopularSetting->update([
                 'name' => 'Usar categorías más populares',
                 'show' => false
@@ -166,16 +167,17 @@ class CategoriesApiController extends Controller
      */
     public function getSectionTitle()
     {
-        $sectionTitleSetting = Setting::where('key', 'featured_categories_section_title')->first();
-        if (!$sectionTitleSetting) {
-            $sectionTitleSetting = Setting::create([
-                'key' => 'featured_categories_section_title',
+        $sectionTitleSetting = Setting::firstOrCreate(
+            ['key' => 'featured_categories_section_title'],
+            [
                 'name' => 'Título de la sección de categorías destacadas',
                 'value' => 'Categorías',
                 'show' => false
-            ]);
-        } else if (is_null($sectionTitleSetting->name)) {
-            // Fix any existing record with null name
+            ]
+        );
+
+        // Update the name and show fields if they're null
+        if (is_null($sectionTitleSetting->name)) {
             $sectionTitleSetting->update([
                 'name' => 'Título de la sección de categorías destacadas',
                 'show' => false

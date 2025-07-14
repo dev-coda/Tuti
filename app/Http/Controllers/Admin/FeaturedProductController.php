@@ -22,34 +22,36 @@ class FeaturedProductController extends Controller
             ->orderBy('position')
             ->get();
 
-        // Get or create the setting for most sold products toggle
-        $useMostSoldSetting = Setting::where('key', 'use_most_sold_products')->first();
-        if (!$useMostSoldSetting) {
-            $useMostSoldSetting = Setting::create([
-                'key' => 'use_most_sold_products',
+        // Get or create the setting for most sold products toggle using firstOrCreate
+        $useMostSoldSetting = Setting::firstOrCreate(
+            ['key' => 'use_most_sold_products'],
+            [
                 'name' => 'Usar productos más vendidos',
                 'value' => '0',
                 'show' => false
-            ]);
-        } else if (is_null($useMostSoldSetting->name)) {
-            // Fix any existing record with null name
+            ]
+        );
+
+        // Update the name and show fields if they're null
+        if (is_null($useMostSoldSetting->name)) {
             $useMostSoldSetting->update([
                 'name' => 'Usar productos más vendidos',
                 'show' => false
             ]);
         }
 
-        // Get or create the setting for section title
-        $sectionTitleSetting = Setting::where('key', 'featured_products_section_title')->first();
-        if (!$sectionTitleSetting) {
-            $sectionTitleSetting = Setting::create([
-                'key' => 'featured_products_section_title',
+        // Get or create the setting for section title using firstOrCreate
+        $sectionTitleSetting = Setting::firstOrCreate(
+            ['key' => 'featured_products_section_title'],
+            [
                 'name' => 'Título de la sección de productos destacados',
                 'value' => 'Productos Destacados',
                 'show' => false
-            ]);
-        } else if (is_null($sectionTitleSetting->name)) {
-            // Fix any existing record with null name
+            ]
+        );
+
+        // Update the name and show fields if they're null
+        if (is_null($sectionTitleSetting->name)) {
             $sectionTitleSetting->update([
                 'name' => 'Título de la sección de productos destacados',
                 'show' => false
@@ -145,21 +147,21 @@ class FeaturedProductController extends Controller
 
         Log::info('Setting value to: ' . $value);
 
-        $setting = Setting::where('key', 'use_most_sold_products')->first();
-        if (!$setting) {
-            $setting = Setting::create([
-                'key' => 'use_most_sold_products',
+        $setting = Setting::firstOrCreate(
+            ['key' => 'use_most_sold_products'],
+            [
                 'name' => 'Usar productos más vendidos',
                 'value' => $value,
                 'show' => false
-            ]);
-        } else {
-            $setting->update([
-                'name' => 'Usar productos más vendidos',
-                'value' => $value,
-                'show' => false
-            ]);
-        }
+            ]
+        );
+
+        // Update the value and ensure other fields are set
+        $setting->update([
+            'name' => 'Usar productos más vendidos',
+            'value' => $value,
+            'show' => false
+        ]);
 
         Log::info('Setting saved', ['setting' => $setting->toArray()]);
 
@@ -175,21 +177,21 @@ class FeaturedProductController extends Controller
             'title' => 'required|string|max:255'
         ]);
 
-        $setting = Setting::where('key', 'featured_products_section_title')->first();
-        if (!$setting) {
-            $setting = Setting::create([
-                'key' => 'featured_products_section_title',
+        $setting = Setting::firstOrCreate(
+            ['key' => 'featured_products_section_title'],
+            [
                 'name' => 'Título de la sección de productos destacados',
                 'value' => $request->title,
                 'show' => false
-            ]);
-        } else {
-            $setting->update([
-                'name' => 'Título de la sección de productos destacados',
-                'value' => $request->title,
-                'show' => false
-            ]);
-        }
+            ]
+        );
+
+        // Update the value and ensure other fields are set
+        $setting->update([
+            'name' => 'Título de la sección de productos destacados',
+            'value' => $request->title,
+            'show' => false
+        ]);
 
         return response()->json(['success' => true, 'title' => $setting->value]);
     }

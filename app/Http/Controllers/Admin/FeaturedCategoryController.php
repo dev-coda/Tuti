@@ -20,34 +20,36 @@ class FeaturedCategoryController extends Controller
             ->orderBy('position')
             ->get();
 
-        // Get or create the setting for most popular categories toggle
-        $useMostPopularSetting = Setting::where('key', 'use_most_popular_categories')->first();
-        if (!$useMostPopularSetting) {
-            $useMostPopularSetting = Setting::create([
-                'key' => 'use_most_popular_categories',
+        // Get or create the setting for most popular categories toggle using firstOrCreate
+        $useMostPopularSetting = Setting::firstOrCreate(
+            ['key' => 'use_most_popular_categories'],
+            [
                 'name' => 'Usar categorías más populares',
                 'value' => '0',
                 'show' => false
-            ]);
-        } else if (is_null($useMostPopularSetting->name)) {
-            // Fix any existing record with null name
+            ]
+        );
+
+        // Update the name and show fields if they're null
+        if (is_null($useMostPopularSetting->name)) {
             $useMostPopularSetting->update([
                 'name' => 'Usar categorías más populares',
                 'show' => false
             ]);
         }
 
-        // Get or create the setting for section title
-        $sectionTitleSetting = Setting::where('key', 'featured_categories_section_title')->first();
-        if (!$sectionTitleSetting) {
-            $sectionTitleSetting = Setting::create([
-                'key' => 'featured_categories_section_title',
+        // Get or create the setting for section title using firstOrCreate
+        $sectionTitleSetting = Setting::firstOrCreate(
+            ['key' => 'featured_categories_section_title'],
+            [
                 'name' => 'Título de la sección de categorías destacadas',
                 'value' => 'Categorías',
                 'show' => false
-            ]);
-        } else if (is_null($sectionTitleSetting->name)) {
-            // Fix any existing record with null name
+            ]
+        );
+
+        // Update the name and show fields if they're null
+        if (is_null($sectionTitleSetting->name)) {
             $sectionTitleSetting->update([
                 'name' => 'Título de la sección de categorías destacadas',
                 'show' => false
@@ -171,21 +173,21 @@ class FeaturedCategoryController extends Controller
 
         Log::info('Setting categories value to: ' . $value);
 
-        $setting = Setting::where('key', 'use_most_popular_categories')->first();
-        if (!$setting) {
-            $setting = Setting::create([
-                'key' => 'use_most_popular_categories',
+        $setting = Setting::firstOrCreate(
+            ['key' => 'use_most_popular_categories'],
+            [
                 'name' => 'Usar categorías más populares',
                 'value' => $value,
                 'show' => false
-            ]);
-        } else {
-            $setting->update([
-                'name' => 'Usar categorías más populares',
-                'value' => $value,
-                'show' => false
-            ]);
-        }
+            ]
+        );
+
+        // Update the value and ensure other fields are set
+        $setting->update([
+            'name' => 'Usar categorías más populares',
+            'value' => $value,
+            'show' => false
+        ]);
 
         Log::info('Categories Setting saved', ['setting' => $setting->toArray()]);
 
@@ -201,21 +203,21 @@ class FeaturedCategoryController extends Controller
             'title' => 'required|string|max:255'
         ]);
 
-        $setting = Setting::where('key', 'featured_categories_section_title')->first();
-        if (!$setting) {
-            $setting = Setting::create([
-                'key' => 'featured_categories_section_title',
+        $setting = Setting::firstOrCreate(
+            ['key' => 'featured_categories_section_title'],
+            [
                 'name' => 'Título de la sección de categorías destacadas',
                 'value' => $request->title,
                 'show' => false
-            ]);
-        } else {
-            $setting->update([
-                'name' => 'Título de la sección de categorías destacadas',
-                'value' => $request->title,
-                'show' => false
-            ]);
-        }
+            ]
+        );
+
+        // Update the value and ensure other fields are set
+        $setting->update([
+            'name' => 'Título de la sección de categorías destacadas',
+            'value' => $request->title,
+            'show' => false
+        ]);
 
         return response()->json(['success' => true, 'title' => $setting->value]);
     }
