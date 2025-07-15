@@ -84,10 +84,38 @@ class OrderRepository
         // Load all variation SKUs in one query if needed
         $variationSkus = [];
         if (!empty($variationIds)) {
-            $variationSkus = DB::table('product_item_variation')
-                ->whereIn('id', $variationIds)
-                ->pluck('sku', 'id')
-                ->toArray();
+            // Create a collection of product-variation combinations from the order
+            $productVariationCombinations = $products->filter(function ($product) {
+                return !is_null($product->variation_item_id);
+            })->map(function ($product) {
+                return [
+                    'product_id' => $product->product_id,
+                    'variation_item_id' => $product->variation_item_id
+                ];
+            });
+
+            // Get all unique product IDs that have variations
+            $productIdsWithVariations = $productVariationCombinations->pluck('product_id')->unique()->toArray();
+
+            // Load variation SKUs for all product-variation combinations
+            $variationSkuData = DB::table('product_item_variation')
+                ->whereIn('variation_item_id', $variationIds)
+                ->whereIn('product_id', $productIdsWithVariations)
+                ->select('product_id', 'variation_item_id', 'sku')
+                ->get();
+
+            // Create a lookup array using composite key: product_id-variation_item_id
+            foreach ($variationSkuData as $item) {
+                $compositeKey = $item->product_id . '-' . $item->variation_item_id;
+                $variationSkus[$compositeKey] = $item->sku;
+            }
+
+            Log::channel('soap')->info('Loaded variation SKUs', [
+                'variation_ids' => $variationIds,
+                'product_ids_with_variations' => $productIdsWithVariations,
+                'variation_skus' => $variationSkus,
+                'count' => count($variationSkus)
+            ]);
         }
 
         foreach ($products as $product) {
@@ -110,8 +138,22 @@ class OrderRepository
 
             // Use cached data instead of making individual queries
             $sku = $productData->sku;
-            if ($product->variation_item_id && isset($variationSkus[$product->variation_item_id])) {
-                $sku = $variationSkus[$product->variation_item_id];
+            if ($product->variation_item_id && isset($variationSkus[$product->product_id . '-' . $product->variation_item_id])) {
+                $sku = $variationSkus[$product->product_id . '-' . $product->variation_item_id];
+                Log::channel('soap')->info('Using variation SKU', [
+                    'product_id' => $product->product_id,
+                    'variation_item_id' => $product->variation_item_id,
+                    'variation_sku' => $sku,
+                    'original_product_sku' => $productData->sku
+                ]);
+            } else {
+                Log::channel('soap')->info('Using product SKU', [
+                    'product_id' => $product->product_id,
+                    'variation_item_id' => $product->variation_item_id,
+                    'product_sku' => $sku,
+                    'has_variation_id' => !empty($product->variation_item_id),
+                    'variation_sku_exists' => $product->variation_item_id ? isset($variationSkus[$product->product_id . '-' . $product->variation_item_id]) : false
+                ]);
             }
 
             $productList .= '<dyn:listDetails>
