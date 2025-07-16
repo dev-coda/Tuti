@@ -41,6 +41,7 @@
                             'settings'=>'Configuraciones',
                             'holidays'=>'Festivos y Sabados',
                             'banners'=>'Banners',
+                            'featured-products'=>'Productos Destacados',
                             ]" />
                         
                         

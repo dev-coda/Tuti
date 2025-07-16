@@ -66,4 +66,5 @@ Route::middleware('api')->group(function () {
 Route::get('/cities', [CityController::class, 'index'])->name('cities.index');
 
 Route::get('/products/latest', [App\Http\Controllers\Api\ProductsApiController::class, 'latest']);
+Route::get('/products/most-sold', [App\Http\Controllers\Api\ProductsApiController::class, 'mostSold']);
 Route::get('/products/section-title', [App\Http\Controllers\Api\ProductsApiController::class, 'getSectionTitle']);

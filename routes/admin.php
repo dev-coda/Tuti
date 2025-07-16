@@ -18,6 +18,7 @@ use App\Http\Controllers\Admin\VendorController;
 use App\Http\Controllers\Admin\BannerController;
 use App\Http\Controllers\Admin\ContactController;
 use App\Http\Controllers\Admin\SellerController;
+use App\Http\Controllers\Admin\FeaturedProductController;
 use Illuminate\Support\Facades\Route;
 
 
@@ -51,7 +52,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('/productexport', [ProductController::class, 'export']);
     Route::get('/orderexport', [OrderController::class, 'export']);
     Route::get('/contactexport', [ContactController::class, 'export']);
-    
+
     Route::resource('users', UserController::class);
     Route::resource('brands', BrandController::class);
     Route::resource('taxes', TaxController::class);
@@ -68,6 +69,10 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
 
     Route::resource('settings', SettingController::class);
     Route::resource('banners', BannerController::class);
+    Route::resource('featured-products', FeaturedProductController::class)->only(['index', 'store', 'destroy']);
+    Route::get('featured-products/search', [FeaturedProductController::class, 'search'])->name('featured-products.search');
+    Route::post('featured-products/toggle-most-sold', [FeaturedProductController::class, 'toggleMostSold'])->name('featured-products.toggle-most-sold');
+    Route::post('featured-products/update-title', [FeaturedProductController::class, 'updateTitle'])->name('featured-products.update-title');
     Route::resource('admins', AdminController::class);
     Route::resource('sellers', SellerController::class);
 
