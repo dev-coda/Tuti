@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Product;
+use App\Models\Setting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -70,5 +71,29 @@ class ProductsApiController extends Controller
         Log::info('API Response:', $response);
 
         return response()->json($response);
+    }
+
+    public function getSectionTitle()
+    {
+        $sectionTitleSetting = Setting::firstOrCreate(
+            ['key' => 'featured_products_section_title'],
+            [
+                'name' => 'Título de la sección de productos destacados',
+                'value' => 'Productos Destacados',
+                'show' => false
+            ]
+        );
+
+        // Update the name and show fields if they're null
+        if (is_null($sectionTitleSetting->name)) {
+            $sectionTitleSetting->update([
+                'name' => 'Título de la sección de productos destacados',
+                'show' => false
+            ]);
+        }
+
+        return response()->json([
+            'title' => $sectionTitleSetting->value
+        ]);
     }
 }
