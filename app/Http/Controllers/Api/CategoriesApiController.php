@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Category;
+use App\Models\FeaturedCategory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
@@ -49,59 +50,77 @@ class CategoriesApiController extends Controller
         $totalCategories = Category::count();
         Log::info('Total categories in database: ' . $totalCategories);
 
-        // Get featured categories instead of hardcoded ones
-        $featuredCategoryIds = DB::table('featured_categories')
+        // Get featured categories with their customizations
+        $featuredCategories = FeaturedCategory::with(['category'])
             ->orderBy('position')
-            ->pluck('category_id');
+            ->take(3)
+            ->get();
 
-        if ($featuredCategoryIds->isEmpty()) {
+        Log::info('Featured categories found: ' . $featuredCategories->count());
+
+        if ($featuredCategories->isEmpty()) {
             // If no featured categories, fallback to hardcoded ones (for backward compatibility)
-            $query = Category::where('active', 1)
+            $categories = Category::where('active', 1)
                 ->whereIn('id', [3, 17, 4])
-                ->take(3);
+                ->take(3)
+                ->get();
+
+            $mappedCategories = $categories->map(function ($category) {
+                return [
+                    'id' => $category->id,
+                    'name' => $category->name,
+                    'slug' => $category->slug,
+                    'description' => $category->description,
+                    'image' => $category->image ? asset('storage/' . $category->image) : null,
+                    'url' => route('category', [
+                        'slug' => $category->slug,
+                        'slug2' => 'productos',
+                        'order' => '1',
+                        'category_id' => $category->id,
+                        'brand_id' => '0'
+                    ]),
+                ];
+            });
         } else {
-            // Get featured categories maintaining the order
-            $query = Category::whereIn('id', $featuredCategoryIds)
-                ->where('active', 1)
-                ->take(3);
+            // Map featured categories with custom fields
+            $mappedCategories = $featuredCategories->map(function ($featured) {
+                $category = $featured->category;
+
+                // Use custom values when available, otherwise fallback to category values
+                $displayTitle = $featured->custom_title ?: $category->name;
+
+                // Fix image URL construction to avoid 404s
+                $displayImage = null;
+                if ($featured->custom_image) {
+                    $displayImage = asset('storage/' . $featured->custom_image);
+                } elseif ($category->image) {
+                    $displayImage = asset('storage/' . $category->image);
+                }
+
+                $displayUrl = $featured->custom_url ?: route('category', [
+                    'slug' => $category->slug,
+                    'slug2' => 'productos',
+                    'order' => '1',
+                    'category_id' => $category->id,
+                    'brand_id' => '0'
+                ]);
+
+                return [
+                    'id' => $category->id,
+                    'name' => $displayTitle,
+                    'slug' => $category->slug,
+                    'description' => $category->description,
+                    'image' => $displayImage,
+                    'url' => $displayUrl,
+                    // Include original category data for reference if needed
+                    'original_name' => $category->name,
+                    'is_customized' => !empty($featured->custom_title) || !empty($featured->custom_image) || !empty($featured->custom_url),
+                ];
+            });
         }
-
-        // Debug the SQL query
-        Log::info('Categories SQL Query: ' . $query->toSql());
-
-        $categories = $query->get();
-
-        // If we have featured categories, sort them by position
-        if (!$featuredCategoryIds->isEmpty()) {
-            $categories = $categories->sortBy(function ($category) use ($featuredCategoryIds) {
-                return $featuredCategoryIds->search($category->id);
-            })->values();
-        }
-
-        // Debug categories count
-        Log::info('Categories fetched: ' . $categories->count());
-
-        if ($categories->isEmpty()) {
-            Log::info('No categories found');
-            return response()->json([
-                'message' => 'No categories found',
-                'categories' => []
-            ]);
-        }
-
-        $mappedCategories = $categories->map(function ($category) {
-            return [
-                'id' => $category->id,
-                'name' => $category->name,
-                'slug' => $category->slug,
-                'description' => $category->description,
-                'image' => $category->image ? asset('storage/' . $category->image) : null,
-                'url' => route('category', $category->slug),
-            ];
-        });
 
         $response = [
-            'count' => $categories->count(),
+            'count' => $mappedCategories->count(),
             'categories' => $mappedCategories
         ];
 

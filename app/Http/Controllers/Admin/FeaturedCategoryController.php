@@ -8,6 +8,7 @@ use App\Models\Category;
 use App\Models\Setting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class FeaturedCategoryController extends Controller
 {
@@ -60,6 +61,23 @@ class FeaturedCategoryController extends Controller
         $useMostPopular = $useMostPopularSetting->value === '1' || $useMostPopularSetting->value === 1 || $useMostPopularSetting->value === true;
         $sectionTitle = $sectionTitleSetting->value;
 
+        // Prepare data for JavaScript
+        $featuredCategoriesData = $featuredCategories->map(function ($featured) {
+            return [
+                'id' => $featured->id,
+                'category' => [
+                    'id' => $featured->category->id,
+                    'name' => $featured->category->name,
+                    'slug' => $featured->category->slug,
+                    'image' => $featured->category->image, // Keep raw path for JavaScript null checking
+                    'description' => $featured->category->description
+                ],
+                'custom_title' => $featured->custom_title,
+                'custom_url' => $featured->custom_url,
+                'custom_image' => $featured->custom_image
+            ];
+        });
+
         Log::info('Featured Categories Index method - setting value', [
             'raw_value' => $useMostPopularSetting->value,
             'type' => gettype($useMostPopularSetting->value),
@@ -67,7 +85,7 @@ class FeaturedCategoryController extends Controller
             'section_title' => $sectionTitle
         ]);
 
-        $context = compact('featuredCategories', 'useMostPopular', 'sectionTitle');
+        $context = compact('featuredCategories', 'useMostPopular', 'sectionTitle', 'featuredCategoriesData');
         return view('featured-categories.index', $context);
     }
 
@@ -220,5 +238,94 @@ class FeaturedCategoryController extends Controller
         ]);
 
         return response()->json(['success' => true, 'title' => $setting->value]);
+    }
+
+    /**
+     * Update custom fields for featured category
+     */
+    public function updateCustomization(Request $request, FeaturedCategory $featuredCategory)
+    {
+        Log::info('Customization update started', [
+            'featured_category_id' => $featuredCategory->id,
+            'request_data' => $request->all(),
+            'files' => $request->hasFile('custom_image') ? 'has_file' : 'no_file'
+        ]);
+
+        try {
+            $request->validate([
+                'custom_title' => 'nullable|string|max:255',
+                'custom_url' => 'nullable|url|max:255',
+                'custom_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
+            ]);
+
+            Log::info('Validation passed');
+
+            $data = $request->only(['custom_title', 'custom_url']);
+
+            // Handle custom image upload
+            if ($request->hasFile('custom_image')) {
+                Log::info('Processing image upload');
+
+                // Delete old custom image if exists
+                if ($featuredCategory->custom_image) {
+                    Storage::disk('public')->delete($featuredCategory->custom_image);
+                    Log::info('Deleted old image: ' . $featuredCategory->custom_image);
+                }
+
+                $image = $request->file('custom_image');
+                $path = $image->store('featured-categories', 'public');
+                $data['custom_image'] = $path;
+
+                Log::info('New image stored at: ' . $path);
+            }
+
+            Log::info('Updating featured category with data:', $data);
+
+            $featuredCategory->update($data);
+
+            Log::info('Update successful');
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Personalización actualizada correctamente',
+                'data' => [
+                    'custom_title' => $featuredCategory->custom_title,
+                    'custom_url' => $featuredCategory->custom_url,
+                    'custom_image' => $featuredCategory->custom_image ? asset('storage/' . $featuredCategory->custom_image) : null
+                ]
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            Log::error('Validation failed', ['errors' => $e->errors()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Error de validación: ' . implode(', ', $e->validator->getMessageBag()->all()),
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            Log::error('Exception in updateCustomization', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Error interno: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Remove custom image
+     */
+    public function removeCustomImage(FeaturedCategory $featuredCategory)
+    {
+        if ($featuredCategory->custom_image) {
+            Storage::disk('public')->delete($featuredCategory->custom_image);
+            $featuredCategory->update(['custom_image' => null]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Imagen personalizada eliminada'
+        ]);
     }
 }

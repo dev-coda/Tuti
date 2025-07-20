@@ -93,7 +93,7 @@
                                 Categoría
                             </th>
                             <th scope="col" class="p-4 text-xs font-medium text-left text-gray-500 uppercase">
-                                Slug
+                                Personalización
                             </th>
                             <th scope="col" class="p-4 text-xs font-medium text-left text-gray-500 uppercase">
                                 Descripción
@@ -107,8 +107,13 @@
                         @forelse($featuredCategories as $featured)
                         <tr class="hover:bg-gray-100 @if($useMostPopular) opacity-50 @endif">
                             <td class="flex items-center p-4 mr-12 space-x-4 max-w-sm lg:mr-0">
-                                @if($featured->category->image)
-                                    <img class="w-10 h-10 rounded-lg object-cover" src="{{ asset('storage/'.$featured->category->image) }}" alt="{{ $featured->category->name }}">
+                                @if($featured->display_image)
+                                    <img class="w-10 h-10 rounded-lg object-cover" src="{{ $featured->display_image }}" alt="{{ $featured->display_title }}">
+                                    @if($featured->custom_image)
+                                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                            Personalizada
+                                        </span>
+                                    @endif
                                 @else
                                     <div class="w-10 h-10 rounded-lg bg-gray-200 flex items-center justify-center">
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-gray-400">
@@ -117,11 +122,27 @@
                                     </div>
                                 @endif
                                 <div class="font-medium text-gray-900 truncate">
-                                    {{ $featured->category->name }}
+                                    <div>{{ $featured->category->name }}</div>
+                                    @if($featured->custom_title)
+                                        <div class="text-sm text-blue-600">Mostrar como: "{{ $featured->custom_title }}"</div>
+                                    @endif
                                 </div>
                             </td>
-                            <td class="p-4 text-base font-medium text-gray-900">
-                                {{ $featured->category->slug }}
+                            <td class="p-4">
+                                <button 
+                                    onclick="openCustomizationModal({{ $featured->id }})"
+                                    @if($useMostPopular) disabled @endif
+                                    class="inline-flex items-center px-3 py-2 text-sm font-medium text-center text-white bg-blue-600 rounded-lg hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 disabled:opacity-50 disabled:cursor-not-allowed">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 mr-1">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" />
+                                    </svg>
+                                    Personalizar
+                                </button>
+                                @if($featured->custom_title || $featured->custom_image || $featured->custom_url)
+                                    <div class="mt-2 text-xs text-green-600">
+                                        Personalizado
+                                    </div>
+                                @endif
                             </td>
                             <td class="p-4 text-base font-medium text-gray-900 max-w-xs truncate">
                                 {{ $featured->category->description ?: '-' }}
@@ -197,6 +218,102 @@
                 <button
                     type="button"
                     onclick="closeModal()"
+                    class="inline-flex justify-center w-full px-4 py-2 mt-3 text-base font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                >
+                    Cancelar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Customization Modal -->
+<div id="customizationModal" class="fixed inset-0 z-50 hidden overflow-y-auto">
+    <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+        <!-- Background overlay -->
+        <div class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" onclick="closeCustomizationModal()"></div>
+
+        <!-- Modal panel -->
+        <div class="inline-block overflow-hidden text-left align-bottom transition-all transform bg-white rounded-lg shadow-xl sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
+            <div class="px-4 pt-5 pb-4 bg-white sm:p-6 sm:pb-4">
+                <h3 class="text-lg font-medium leading-6 text-gray-900 mb-4">
+                    Personalizar categoría destacada
+                </h3>
+                
+                <form id="customizationForm" enctype="multipart/form-data">
+                    <input type="hidden" id="featuredCategoryId" value="">
+                    
+                    <!-- Custom Image Section -->
+                    <div class="mb-6">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            Imagen personalizada
+                        </label>
+                        <div class="flex items-center space-x-4">
+                            <div id="currentImagePreview" class="hidden">
+                                <img id="currentImage" src="" alt="Imagen actual" class="w-20 h-20 object-cover rounded-lg">
+                                <button type="button" onclick="removeCustomImage()" class="mt-1 text-xs text-red-600 hover:text-red-800">
+                                    Eliminar imagen personalizada
+                                </button>
+                            </div>
+                            <div>
+                                <input type="file" id="customImageInput" name="custom_image" accept="image/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                                <p class="text-xs text-gray-500 mt-1">JPG, PNG, GIF hasta 2MB. Deja vacío para usar la imagen original de la categoría.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Custom Title Section -->
+                    <div class="mb-6">
+                        <label for="customTitle" class="block text-sm font-medium text-gray-700 mb-2">
+                            Título personalizado
+                        </label>
+                        <input 
+                            type="text" 
+                            id="customTitle" 
+                            name="custom_title"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="Deja vacío para usar el nombre original de la categoría"
+                            maxlength="255"
+                        >
+                        <p class="text-xs text-gray-500 mt-1">Este título aparecerá en lugar del nombre original de la categoría.</p>
+                    </div>
+
+                    <!-- Custom URL Section -->
+                    <div class="mb-6">
+                        <label for="customUrl" class="block text-sm font-medium text-gray-700 mb-2">
+                            URL personalizada
+                        </label>
+                        <input 
+                            type="url" 
+                            id="customUrl" 
+                            name="custom_url"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="Deja vacío para usar la URL original de la categoría"
+                        >
+                        <p class="text-xs text-gray-500 mt-1">Esta URL se usará cuando se haga clic en la categoría. Debe ser una URL completa (ej: https://ejemplo.com/pagina).</p>
+                    </div>
+
+                    <!-- Original Category Info -->
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h4 class="text-sm font-medium text-gray-700 mb-2">Información original de la categoría:</h4>
+                        <div id="originalCategoryInfo">
+                            <!-- Will be populated by JavaScript -->
+                        </div>
+                    </div>
+                </form>
+            </div>
+            
+            <div class="px-4 py-3 bg-gray-50 sm:px-6 sm:flex sm:flex-row-reverse">
+                <button
+                    type="button"
+                    onclick="saveCustomization()"
+                    class="inline-flex justify-center w-full px-4 py-2 text-base font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm"
+                >
+                    Guardar personalización
+                </button>
+                <button
+                    type="button"
+                    onclick="closeCustomizationModal()"
                     class="inline-flex justify-center w-full px-4 py-2 mt-3 text-base font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
                 >
                     Cancelar
@@ -417,6 +534,148 @@ function updateSectionTitle() {
     .catch(error => {
         console.error('Fetch error:', error);
         alert('Error al actualizar el título');
+    });
+}
+
+// Featured categories data for JavaScript
+const featuredCategories = @json($featuredCategoriesData);
+
+// Customization Modal Functions
+function openCustomizationModal(featuredCategoryId) {
+    const featured = featuredCategories.find(f => f.id === featuredCategoryId);
+    if (!featured) return;
+
+    // Set the featured category ID
+    document.getElementById('featuredCategoryId').value = featuredCategoryId;
+    
+    // Populate form with current values
+    document.getElementById('customTitle').value = featured.custom_title || '';
+    document.getElementById('customUrl').value = featured.custom_url || '';
+    
+    // Show current custom image if exists
+    const currentImagePreview = document.getElementById('currentImagePreview');
+    const currentImage = document.getElementById('currentImage');
+    
+    if (featured.custom_image) {
+        currentImage.src = `/storage/${featured.custom_image}`;
+        currentImagePreview.classList.remove('hidden');
+    } else {
+        currentImagePreview.classList.add('hidden');
+    }
+    
+    // Populate original category info
+    const originalInfo = document.getElementById('originalCategoryInfo');
+    const originalImageHtml = featured.category.image ? 
+        `<img src="/storage/${featured.category.image}" alt="${featured.category.name}" class="w-12 h-12 object-cover rounded inline-block mr-2">` : 
+        '<span class="text-gray-400 mr-2">Sin imagen</span>';
+    
+    originalInfo.innerHTML = `
+        <div class="flex items-center mb-2">
+            ${originalImageHtml}
+            <div>
+                <div class="font-medium">${featured.category.name}</div>
+                <div class="text-sm text-gray-500">${featured.category.slug}</div>
+            </div>
+        </div>
+        <div class="text-sm text-gray-600">${featured.category.description || 'Sin descripción'}</div>
+    `;
+    
+    // Show modal
+    document.getElementById('customizationModal').classList.remove('hidden');
+}
+
+function closeCustomizationModal() {
+    document.getElementById('customizationModal').classList.add('hidden');
+    document.getElementById('customizationForm').reset();
+    document.getElementById('currentImagePreview').classList.add('hidden');
+}
+
+function saveCustomization() {
+    const featuredCategoryId = document.getElementById('featuredCategoryId').value;
+    const form = document.getElementById('customizationForm');
+    const formData = new FormData(form);
+    
+    console.log('Saving customization for featured category ID:', featuredCategoryId);
+    console.log('Form data entries:');
+    for (let [key, value] of formData.entries()) {
+        console.log(key, value);
+    }
+    
+    // Show loading state
+    const saveBtn = document.querySelector('#customizationModal button[onclick="saveCustomization()"]');
+    const originalText = saveBtn.textContent;
+    saveBtn.textContent = 'Guardando...';
+    saveBtn.disabled = true;
+    
+    const url = `/featured-categories/${featuredCategoryId}/update-customization`;
+    console.log('Request URL:', url);
+    
+    fetch(url, {
+        method: 'POST',
+        headers: {
+            'X-CSRF-TOKEN': '{{ csrf_token() }}'
+        },
+        body: formData
+    })
+    .then(response => {
+        console.log('Response status:', response.status);
+        console.log('Response headers:', response.headers);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        return response.json();
+    })
+    .then(data => {
+        console.log('Response data:', data);
+        if (data.success) {
+            // Show success message
+            alert(data.message);
+            // Reload page to see changes
+            window.location.reload();
+        } else {
+            alert('Error al guardar la personalización: ' + (data.message || 'Error desconocido'));
+        }
+    })
+    .catch(error => {
+        console.error('Fetch error:', error);
+        alert('Error al guardar la personalización: ' + error.message);
+    })
+    .finally(() => {
+        saveBtn.textContent = originalText;
+        saveBtn.disabled = false;
+    });
+}
+
+function removeCustomImage() {
+    const featuredCategoryId = document.getElementById('featuredCategoryId').value;
+    
+    if (!confirm('¿Está seguro de eliminar la imagen personalizada?')) {
+        return;
+    }
+    
+    fetch(`/featured-categories/${featuredCategoryId}/remove-custom-image`, {
+        method: 'DELETE',
+        headers: {
+            'X-CSRF-TOKEN': '{{ csrf_token() }}'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Hide image preview
+            document.getElementById('currentImagePreview').classList.add('hidden');
+            // Clear file input
+            document.getElementById('customImageInput').value = '';
+            alert(data.message);
+        } else {
+            alert('Error al eliminar la imagen');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error al eliminar la imagen');
     });
 }
 
