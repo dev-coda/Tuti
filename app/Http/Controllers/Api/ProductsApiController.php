@@ -133,7 +133,7 @@ class ProductsApiController extends Controller
         Log::info('Fetching most sold products');
 
         // Get product IDs sorted by total quantity sold
-        $mostSoldProductIds = DB::table('order_product')
+        $mostSoldProductIds = DB::table('order_products')
             ->select('product_id', DB::raw('SUM(quantity) as total_sold'))
             ->groupBy('product_id')
             ->orderBy('total_sold', 'desc')
