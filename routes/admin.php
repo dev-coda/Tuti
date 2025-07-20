@@ -78,6 +78,8 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('featured-categories/search', [FeaturedCategoryController::class, 'search'])->name('featured-categories.search');
     Route::post('featured-categories/toggle-most-popular', [FeaturedCategoryController::class, 'toggleMostPopular'])->name('featured-categories.toggle-most-popular');
     Route::post('featured-categories/update-title', [FeaturedCategoryController::class, 'updateTitle'])->name('featured-categories.update-title');
+    Route::post('featured-categories/{featuredCategory}/update-customization', [FeaturedCategoryController::class, 'updateCustomization'])->name('featured-categories.update-customization');
+    Route::delete('featured-categories/{featuredCategory}/remove-custom-image', [FeaturedCategoryController::class, 'removeCustomImage'])->name('featured-categories.remove-custom-image');
     Route::resource('admins', AdminController::class);
     Route::resource('sellers', SellerController::class);
 
