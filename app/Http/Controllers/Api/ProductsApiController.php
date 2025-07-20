@@ -63,7 +63,8 @@ class ProductsApiController extends Controller
             // Get featured products maintaining the order
             $query = Product::with(['brand', 'categories', 'images'])
                 ->whereIn('id', $featuredProductIds)
-                ->where('active', 1);
+                ->where('active', 1)
+                ->take(12);
         }
 
         // Debug the SQL query
@@ -132,7 +133,7 @@ class ProductsApiController extends Controller
         Log::info('Fetching most sold products');
 
         // Get product IDs sorted by total quantity sold
-        $mostSoldProductIds = DB::table('order_products')
+        $mostSoldProductIds = DB::table('order_product')
             ->select('product_id', DB::raw('SUM(quantity) as total_sold'))
             ->groupBy('product_id')
             ->orderBy('total_sold', 'desc')
@@ -143,9 +144,10 @@ class ProductsApiController extends Controller
         if ($mostSoldProductIds->isEmpty()) {
             Log::info('No sales found, returning latest products instead');
             // Fallback to latest without the featured products logic to avoid infinite loop
-            $query = Product::with(['brand', 'categories', 'images'])
+            $products = Product::with(['brand', 'categories', 'images'])
                 ->latest()->where('active', 1)
-                ->take(12);
+                ->take(12)
+                ->get();
         } else {
             // Get products maintaining the order of most sold
             $products = Product::with(['brand', 'categories', 'images'])
@@ -156,49 +158,10 @@ class ProductsApiController extends Controller
                     return array_search($product->id, $mostSoldProductIds->toArray());
                 })
                 ->values();
-
-            // Debug products count
-            Log::info('Most sold products fetched: ' . $products->count());
-
-            $mappedProducts = $products->map(function ($product) {
-                $finalPrice = $product->finalPrice;
-                return [
-                    'id' => $product->id,
-                    'name' => $product->name,
-                    'sku' => $product->sku,
-                    'price' => $finalPrice['price'],
-                    'image' => $product->images->first()
-                        ? asset('storage/' . $product->images->first()->path)
-                        : null,
-                    'url' => route('product', $product->slug),
-                    'brand' => $product->brand ? [
-                        'name' => $product->brand->name
-                    ] : null,
-                    'category' => $product->category ? [
-                        'name' => $product->category->name
-                    ] : null,
-                    'final_price' => [
-                        'price' => $finalPrice['price'],
-                        'old' => $finalPrice['old'],
-                        'has_discount' => $finalPrice['discount'] > 0,
-                        'discount' => $finalPrice['discount'],
-                        'perItemPrice' => $finalPrice['perItemPrice'] ?? null
-                    ]
-                ];
-            });
-
-            $response = [
-                'count' => $products->count(),
-                'products' => $mappedProducts
-            ];
-
-            Log::info('Most sold API Response:', $response);
-
-            return response()->json($response);
         }
 
-        // Handle fallback case properly
-        $products = $query->get();
+        // Debug products count
+        Log::info('Most sold products fetched: ' . $products->count());
 
         if ($products->isEmpty()) {
             return response()->json([
@@ -234,10 +197,14 @@ class ProductsApiController extends Controller
             ];
         });
 
-        return response()->json([
+        $response = [
             'count' => $products->count(),
             'products' => $mappedProducts
-        ]);
+        ];
+
+        Log::info('Most sold API Response:', $response);
+
+        return response()->json($response);
     }
 
     public function getSectionTitle()

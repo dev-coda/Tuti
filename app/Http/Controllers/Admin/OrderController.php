@@ -47,6 +47,7 @@ class OrderController extends Controller
 
             ->with(['user', 'seller'])
             ->withCount('products')
+            ->withSum('products', 'quantity')
             ->orderByDesc('id')
             ->paginate()
             ->withQueryString();
@@ -91,13 +92,13 @@ class OrderController extends Controller
         if (!$to_date) {
             $to_date = Carbon::now();
         }
+
         if ($from_date && $to_date) {
             $from_date = Carbon::parse($from_date)->startOfDay();
             $to_date = Carbon::parse($to_date)->endOfDay();
+            return Excel::download(new OrdersExport($from_date->toDateString(), $to_date->toDateString()), 'orders.xlsx');
         } else {
             return redirect()->back()->withErrors(['error' => 'Por favor ingresa un rango de fechas.']);
-        } {
-            return Excel::download(new OrdersExport($from_date->toDateString(), $to_date->toDateString()), 'orders.xlsx');
         }
     }
 
