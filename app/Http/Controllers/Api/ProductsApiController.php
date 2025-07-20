@@ -143,22 +143,18 @@ class ProductsApiController extends Controller
         // If no sales yet, fallback to latest products
         if ($mostSoldProductIds->isEmpty()) {
             Log::info('No sales found, returning latest products instead');
-            // Fallback to latest without the featured products logic to avoid infinite loop
-            $products = Product::with(['brand', 'categories', 'images'])
-                ->latest()->where('active', 1)
-                ->take(12)
-                ->get();
-        } else {
-            // Get products maintaining the order of most sold
-            $products = Product::with(['brand', 'categories', 'images'])
-                ->whereIn('id', $mostSoldProductIds)
-                ->where('active', 1)
-                ->get()
-                ->sortBy(function ($product) use ($mostSoldProductIds) {
-                    return array_search($product->id, $mostSoldProductIds->toArray());
-                })
-                ->values();
+            return $this->latest();
         }
+
+        // Get products maintaining the order of most sold
+        $products = Product::with(['brand', 'categories', 'images'])
+            ->whereIn('id', $mostSoldProductIds)
+            ->where('active', 1)
+            ->get()
+            ->sortBy(function ($product) use ($mostSoldProductIds) {
+                return array_search($product->id, $mostSoldProductIds->toArray());
+            })
+            ->values();
 
         // Debug products count
         Log::info('Most sold products fetched: ' . $products->count());
@@ -207,6 +203,9 @@ class ProductsApiController extends Controller
         return response()->json($response);
     }
 
+    /**
+     * Get the section title setting
+     */
     public function getSectionTitle()
     {
         $sectionTitleSetting = Setting::firstOrCreate(

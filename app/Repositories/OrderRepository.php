@@ -130,7 +130,10 @@ class OrderRepository
             }
 
             $vendor_type = $productData->brand->vendor->vendor_type;
-            $unitPrice = $product->package_quantity ? parseCurrency($product->price / $product->package_quantity) : parseCurrency($product->price);
+
+            // Add stage's package calculation logic while keeping master's caching approach
+            $effectivePackageQuantity = $productData->calculate_package_price ? $product->package_quantity : 1;
+            $unitPrice = $effectivePackageQuantity ? parseCurrency($product->price / $effectivePackageQuantity) : parseCurrency($product->price);
 
             if ($bonification) {
                 $unitPrice = 0;
@@ -156,7 +159,7 @@ class OrderRepository
                 ]);
             }
 
-            $qty = $product->package_quantity ? $product->quantity * $product->package_quantity : $product->quantity;
+            $qty = $effectivePackageQuantity ? $product->quantity * $effectivePackageQuantity : $product->quantity;
             $productList .= '<dyn:listDetails>
                             <dyn:discount>' . (int) $product->percentage . '</dyn:discount>
                             <dyn:itemId>' . $sku . '</dyn:itemId>

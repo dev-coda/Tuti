@@ -51,7 +51,7 @@
 
 
             <div class="mt-5 p-5 w-full">
-                {{ Aire::open()->route('form')->post()->addClass('space-y-5')}}
+                {{ Aire::open()->route('form')->post()->addClass('space-y-5') }}
                 {{ Aire::input('name', 'Nombres y Apellidos')->groupClass('mb-0')->required() }}
                 {{ Aire::email('email', 'Correo electrónico')->groupClass('mb-5')->required() }}
                 {{ Aire::input('phone', 'Celular')->groupClass('mb-5')->required() }}

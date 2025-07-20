@@ -19,6 +19,7 @@ use App\Http\Controllers\Admin\BannerController;
 use App\Http\Controllers\Admin\ContactController;
 use App\Http\Controllers\Admin\SellerController;
 use App\Http\Controllers\Admin\FeaturedProductController;
+use App\Http\Controllers\Admin\FeaturedCategoryController;
 use Illuminate\Support\Facades\Route;
 
 
@@ -73,6 +74,12 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('featured-products/search', [FeaturedProductController::class, 'search'])->name('featured-products.search');
     Route::post('featured-products/toggle-most-sold', [FeaturedProductController::class, 'toggleMostSold'])->name('featured-products.toggle-most-sold');
     Route::post('featured-products/update-title', [FeaturedProductController::class, 'updateTitle'])->name('featured-products.update-title');
+    Route::resource('featured-categories', FeaturedCategoryController::class)->only(['index', 'store', 'destroy']);
+    Route::get('featured-categories/search', [FeaturedCategoryController::class, 'search'])->name('featured-categories.search');
+    Route::post('featured-categories/toggle-most-popular', [FeaturedCategoryController::class, 'toggleMostPopular'])->name('featured-categories.toggle-most-popular');
+    Route::post('featured-categories/update-title', [FeaturedCategoryController::class, 'updateTitle'])->name('featured-categories.update-title');
+    Route::post('featured-categories/{featuredCategory}/update-customization', [FeaturedCategoryController::class, 'updateCustomization'])->name('featured-categories.update-customization');
+    Route::delete('featured-categories/{featuredCategory}/remove-custom-image', [FeaturedCategoryController::class, 'removeCustomImage'])->name('featured-categories.remove-custom-image');
     Route::resource('admins', AdminController::class);
     Route::resource('sellers', SellerController::class);
 

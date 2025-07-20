@@ -42,6 +42,7 @@
                             'holidays'=>'Festivos y Sabados',
                             'banners'=>'Banners',
                             'featured-products'=>'Productos Destacados',
+                            'featured-categories'=>'Categorías Destacadas',
                             ]" />
                         
                         

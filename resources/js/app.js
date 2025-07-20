@@ -19,6 +19,9 @@ import HelloWorld from "./vue/HelloWorld.vue";
 import MobileMenu from "./vue/MobileMenu.vue";
 import CartWidget from "./vue/CartWidget.vue";
 import FeaturedProducts from "./components/FeaturedProducts.vue";
+import MostSoldProducts from "./components/MostSoldProducts.vue";
+import FeaturedCategories from "./components/FeaturedCategories.vue";
+import MostPopularCategories from "./components/MostPopularCategories.vue";
 import FilterSortDropdowns from "./components/FilterSortDropdowns.vue";
 import SubmitOrderButton from "./components/SubmitOrderButton.vue";
 
@@ -41,6 +44,18 @@ cartApp.mount("#cart-widget");
 // Mount FeaturedProducts component
 const featuredProductsApp = createApp(FeaturedProducts);
 featuredProductsApp.mount("#featured-products");
+
+// Mount MostSoldProducts component
+const mostSoldProductsApp = createApp(MostSoldProducts);
+mostSoldProductsApp.mount("#most-sold-products");
+
+// Mount FeaturedCategories component
+const featuredCategoriesApp = createApp(FeaturedCategories);
+featuredCategoriesApp.mount("#featured-categories");
+
+// Mount MostPopularCategories component
+const mostPopularCategoriesApp = createApp(MostPopularCategories);
+mostPopularCategoriesApp.mount("#most-popular-categories");
 
 // Mount FilterSortDropdowns component
 const filterSortApp = createApp(FilterSortDropdowns);

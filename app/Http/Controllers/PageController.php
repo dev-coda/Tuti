@@ -21,9 +21,9 @@ class PageController extends Controller
         $categories = Category::with('children')->whereNull('parent_id')->get();
         $banners = Banner::whereTypeId(1)->orderBy('id')->get();
         $lateral = Banner::whereTypeId(2)->orderBy('id')->get();
-        $featured = Category::whereId(3)->orWhere('id', 17)->orWhere('id', 4)->get();
+        // Removed hardcoded featured categories - now using API
 
-        $context = compact('products', 'categories', 'banners', 'lateral', 'featured');
+        $context = compact('products', 'categories', 'banners', 'lateral');
         return view('pages.home', $context);
     }
 

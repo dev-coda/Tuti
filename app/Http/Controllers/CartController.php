@@ -52,16 +52,28 @@ class CartController extends Controller
         $products = [];
         $total_cart = 0;
 
+        // Check if the target user has orders - needed for discount calculations
+        $targetUser = $client ?? $user;
+        $has_orders = Order::with('user')
+            ->withCount('products')
+            ->whereBelongsTo($targetUser)
+            ->exists();
+
         foreach ($cart as $item) {
 
-            $product = Product::with('brand', 'variation')->find($item['product_id']);
+            $product = Product::with('brand.vendor', 'variation')->find($item['product_id']);
 
             $product->item = $product->items->where('id', $item['variation_id'])->first();
 
             $product->quantity = $item['quantity'];
             $product->vendor_id = $product->brand->vendor->id;
+
+            // Calculate price with user order status
+            $finalPrice = $product->getFinalPriceForUser($has_orders);
+            $product->calculatedFinalPrice = $finalPrice;
+
             $products[] = $product;
-            $total_cart += $product->quantity * $product->finalPrice['price'];
+            $total_cart += $product->quantity * $finalPrice['price'];
         }
         $products = collect($products);
 
@@ -72,7 +84,7 @@ class CartController extends Controller
         $alertVendors = [];
         foreach ($byVendors as $key => $vendor) {
             $total = $vendor->sum(function ($product) {
-                return $product->quantity * $product->finalPrice['price'];
+                return $product->quantity * $product->calculatedFinalPrice['price'];
             });
 
             $v = Vendor::find($key);
@@ -94,15 +106,14 @@ class CartController extends Controller
 
         // Check if first order discount is enabled
         $firstOrderDiscountEnabled = config('app.first_order_discount_enabled', true);
-        
-        // Only check for existing orders if the feature is enabled
-        $has_orders = $firstOrderDiscountEnabled 
-            ? Order::with('user')
-                ->withCount('products')
-                ->whereBelongsTo($targetUser)
-                ->exists()
-            : false; // If disabled, treat as if user has no orders (always apply discount)
 
+        // Only check for existing orders if the feature is enabled
+        $has_orders = $firstOrderDiscountEnabled
+            ? Order::with('user')
+            ->withCount('products')
+            ->whereBelongsTo($targetUser)
+            ->exists()
+            : false; // If disabled, treat as if user has no orders (always apply discount)
 
         $context = compact('products', 'alertVendors', 'zones', 'set_user', 'client', 'alertTotal', 'min_amount', 'total_cart', 'has_orders');
 
@@ -377,7 +388,6 @@ class CartController extends Controller
                 $discount = $discount + ($p->finalPrice['totalDiscount'] * $product['quantity']);
             }
 
-            // Apply discount only if user doesn't have previous orders
             $discount = $has_orders ? 0 : $discount;
 
             $order->update([

@@ -17,13 +17,12 @@ class Vendor extends Model
         'minimum_purchase',
         'active',
         'discount',
+        'first_purchase_only',
         'vendor_type',
     ];
 
-    public function brands(){
+    public function brands()
+    {
         return $this->hasMany(Brand::class);
     }
-
-
-    
 }

@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Http\Controllers\Admin;
+
 use App\Http\Controllers\Controller;
 use App\Models\Brand;
 use App\Models\Vendor;
@@ -17,15 +18,15 @@ class BrandController extends Controller
     {
 
         $brands = Brand::query()
-        ->with('vendor')
-        ->when($request->q, function($query, $q){
-            $query->where('name', 'like', "%{$q}%");
-        })
-        ->orderBy('name')
-        ->paginate();
-       
-        $context = compact('brands'); 
-        
+            ->with('vendor')
+            ->when($request->q, function ($query, $q) {
+                $query->where('name', 'like', "%{$q}%");
+            })
+            ->orderBy('name')
+            ->paginate();
+
+        $context = compact('brands');
+
         return view('brands.index', $context);
     }
 
@@ -45,29 +46,29 @@ class BrandController extends Controller
     public function store(Request $request)
     {
         $validate = $request->validate([
-            'name'=>'required|max:255',
-            'delivery_days'=>'numeric',
+            'name' => 'required|max:255',
+            'delivery_days' => 'numeric',
             'discount' => 'numeric|min:0|max:100',
-            'description'=>'nullable',
-            'active'=>'nullable',
-            'vendor_id'=>'required|numeric',
+            'first_purchase_only' => 'nullable|boolean',
+            'description' => 'nullable',
+            'active' => 'nullable',
+            'vendor_id' => 'required|numeric',
         ]);
 
 
         $slug =  Str::slug($request->name);
 
-        if($request->hasFile('image_file')){
+        if ($request->hasFile('image_file')) {
             $validate['image'] = $request->image_file->store('/brands', 'public');
         }
 
-        if($request->hasFile('banner_file')){
+        if ($request->hasFile('banner_file')) {
             $validate['banner'] = $request->banner_file->store('/brands', 'public');
         }
-        
-        Brand::create($validate + ['slug' => $slug] );
+
+        Brand::create($validate + ['slug' => $slug]);
 
         return to_route('brands.index')->with('success', 'Marca creada');
-
     }
 
     /**
@@ -84,8 +85,8 @@ class BrandController extends Controller
     public function edit(Brand $brand)
     {
         $vendors = Vendor::pluck('name', 'id');
-        $context = compact('brand', 'vendors'); 
-        
+        $context = compact('brand', 'vendors');
+
         return view('brands.edit', $context);
     }
 
@@ -95,30 +96,31 @@ class BrandController extends Controller
     public function update(Request $request, Brand $brand)
     {
         $validate = $request->validate([
-            'name'=>'required|max:255',
-            'delivery_days'=>'numeric',
+            'name' => 'required|max:255',
+            'delivery_days' => 'numeric',
             'discount' => 'numeric|min:0|max:100',
-            'description'=>'nullable',
-            'slug'=>'required|unique:brands,slug,'.$brand->id,
-            'active'=>'nullable',
-            'vendor_id'=>'required|numeric',
+            'first_purchase_only' => 'nullable|boolean',
+            'description' => 'nullable',
+            'slug' => 'required|unique:brands,slug,' . $brand->id,
+            'active' => 'nullable',
+            'vendor_id' => 'required|numeric',
         ]);
-        
+
         //save file
-        if($request->hasFile('image_file')){
+        if ($request->hasFile('image_file')) {
             $validate['image'] = $request->image_file->store('/brands', 'public');
         }
 
-        if($request->hasFile('banner_file')){
+        if ($request->hasFile('banner_file')) {
             $validate['banner'] = $request->banner_file->store('/brands', 'public');
         }
 
-   
+
 
 
 
         $validate['slug'] =  Str::slug($request->slug);
-        
+
         $brand->update($validate);
 
         return to_route('brands.index')->with('success', 'Marca actualizada');
@@ -129,8 +131,8 @@ class BrandController extends Controller
      */
     public function destroy(Brand $brand)
     {
-        
-        if(!$brand->vendors->count()){
+
+        if (!$brand->vendors->count()) {
             $brand->delete();
             return to_route('brands.index')->with('success', 'Vendor eliminado');
         }

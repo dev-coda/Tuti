@@ -20,6 +20,7 @@ class Product extends Model
         'price',
         'delivery_days',
         'discount',
+        'first_purchase_only',
         'quantity_min',
         'quantity_max',
         'step',
@@ -29,7 +30,7 @@ class Product extends Model
         'is_combined',
         'parent_id',
         'package_quantity',
-
+        'calculate_package_price',
     ];
 
 
@@ -100,27 +101,43 @@ class Product extends Model
         return $this->images->first()?->path;
     }
 
-    public function getFinalPriceAttribute()
+    public function getFinalPriceForUser($has_orders = false)
     {
+        $discount = 0;
+        $discount_on = false;
 
-        $discount = $this->discount;
-        $discount_on = 'Producto';
+        // Check if first purchase discount restrictions are enabled via .env
+        $enforce_first_purchase = config('app.enforce_first_purchase_discounts', true);
 
-        if ($this->brand) {
-            if ($this->brand->discount > $discount) {
+        // Product discount
+        if ($this->discount > 0) {
+            // Apply product discount if:
+            // 1. Enforce is disabled, OR
+            // 2. User has no orders, OR  
+            // 3. User has orders but first_purchase_only is false
+            if (!$enforce_first_purchase || !$has_orders || !$this->first_purchase_only) {
+                $discount = $this->discount;
+                $discount_on = 'Producto';
+            }
+        }
+
+        // Brand discount (higher priority than product)
+        if ($this->brand && $this->brand->discount > $discount) {
+            if (!$enforce_first_purchase || !$has_orders || !$this->brand->first_purchase_only) {
                 $discount = $this->brand->discount;
                 $discount_on = 'Marca';
             }
         }
 
-        if ($this->brand->vendors) {
-            if ($this->brand->vendors->discount > $discount) {
-                $discount = $this->brand->vendors->discount;
+        // Vendor discount (highest priority)
+        if ($this->brand && $this->brand->vendor && $this->brand->vendor->discount > $discount) {
+            if (!$enforce_first_purchase || !$has_orders || !$this->brand->vendor->first_purchase_only) {
+                $discount = $this->brand->vendor->discount;
                 $discount_on = 'Vendor';
             }
         }
 
-
+        // Bonifications override all discounts
         if ($this->bonifications->count()) {
             $discount_on = false;
             $discount = 0;
@@ -138,7 +155,6 @@ class Product extends Model
             $has_discount = true;
         }
 
-
         $discountedPrice = $price - ($price * $discount / 100);
         $finalPrice = $this->taxValue() > 0 ? ($discountedPrice + ($discountedPrice * $this->taxValue() / 100)) : $discountedPrice;
 
@@ -146,7 +162,6 @@ class Product extends Model
 
         $finalPriceWithPackage = $finalPrice * $packageQuantity;
         $pricePreDiscount = $price + ($price * $this->taxValue() / 100);
-
 
         return [
             'old' => $pricePreDiscount * $packageQuantity,
@@ -158,6 +173,13 @@ class Product extends Model
             'originalPrice' => $price * $packageQuantity,
             'perItemPrice' => $finalPrice,
         ];
+    }
+
+    public function getFinalPriceAttribute()
+    {
+        // For backward compatibility, call the new method with has_orders = false
+        // This means all discounts are applied by default when using the attribute directly
+        return $this->getFinalPriceForUser(false);
     }
 
     public function scopeActive($query)
