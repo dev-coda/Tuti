@@ -91,7 +91,7 @@
                         </div>
                         <div class="ml-3">
                             <p class="text-xs text-orange-700">
-                                Recuerda que será necesario comunicarse con un miembro de la familia de <strong>Tuti</strong>, un asesor comercial para activar tu usuario.
+                                Hemos enviado tu solicitud para hacer parte de la familia de <strong>Tuti</strong>, un asesor te contactará para activar tu usuario.
                             </p>
                         </div>
                     </div>
