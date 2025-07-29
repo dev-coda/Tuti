@@ -60,24 +60,6 @@
 
     <h1 class="font-bold my-5 text-3xl col-span-12 w-full">{{$category->name}}</h1>
 
-    @if(count($intermedio) > 0)
-    <div class="xl:col-span-12 col-span-12 my-6">
-        <div id='intermedio-banners-category' class="splide">
-            <div class="splide__track">
-                <ul class="splide__list">
-                    @foreach ($intermedio as $banner)
-                    <li class="splide__slide">
-                        <a href="{{$banner->url ?? '#'}}">
-                            <img src="{{asset('storage/'.$banner->path)}}" class="w-full rounded-lg">
-                        </a>
-                    </li>
-                    @endforeach
-                </ul>
-            </div>
-        </div>
-    </div>
-    @endif
-
     @if ($products->count() === 0)
     <div class="col-span-12 h-screen">
         <p>No se encontraron productos con estos filtros. Intenta de nuevo.</p>
@@ -115,22 +97,6 @@
             type: 'loop',
             autoplay: true,
         }).mount();
-
-        new Splide('#ads', {
-            type: 'loop',
-            autoplay: true,
-        }).mount();
-
-        // Initialize intermedio banners carousel if it exists
-        if (document.getElementById('intermedio-banners-category')) {
-            new Splide('#intermedio-banners-category', {
-                type: 'loop',
-                autoplay: true,
-                perPage: 1,
-                arrows: true,
-                pagination: true,
-            }).mount();
-        }
     });
 </script>
 

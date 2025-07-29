@@ -21,10 +21,9 @@ class PageController extends Controller
         $categories = Category::with('children')->whereNull('parent_id')->get();
         $banners = Banner::whereTypeId(1)->orderBy('id')->get();
         $lateral = Banner::whereTypeId(2)->orderBy('id')->get();
-        $intermedio = Banner::whereTypeId(3)->orderBy('id')->get();
         // Removed hardcoded featured categories - now using API
 
-        $context = compact('products', 'categories', 'banners', 'lateral', 'intermedio');
+        $context = compact('products', 'categories', 'banners', 'lateral');
         return view('pages.home', $context);
     }
 
@@ -134,7 +133,6 @@ class PageController extends Controller
     {
         $brands = Brand::whereActive(1)->orderBy('name')->get();
         $banners = Banner::whereTypeId(1)->orderBy('id')->get();
-        $intermedio = Banner::whereTypeId(3)->orderBy('id')->get();
         $categories = Category::with('parent')->get();
         $params = compact('slug', 'slug2', 'order', 'category_id', 'brand_id', 'banners');
 
@@ -199,7 +197,7 @@ class PageController extends Controller
 
         $categories = $categories->filter(fn($cat) => in_array($cat->id, $categoriesArray));
 
-        $context = compact('category', 'products', 'categories', 'brands', 'params', 'banners', 'intermedio');
+        $context = compact('category', 'products', 'categories', 'brands', 'params', 'banners');
         return view('pages.category', $context);
     }
 
