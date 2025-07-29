@@ -24,7 +24,7 @@
                             >
                                 <a
                                     :href="product.url"
-                                    class="flex-grow-1 h-40 block w-full bg-cover bg-center hover:scale-110 transition duration-500 cursor-pointer object-cover"
+                                    class="flex-grow-1 h-40 block w-full bg-contain bg-center bg-no-repeat hover:scale-110 transition duration-500 cursor-pointer"
                                     :style="{
                                         backgroundImage: `url(${product.image})`,
                                     }"
