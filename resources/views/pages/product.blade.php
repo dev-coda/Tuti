@@ -127,25 +127,43 @@
     </div>
     @endif
 
-
-    <div class="xl:col-span-12 col-span-12 mt-6 mb-0 pb-0  bg-neutral-200">
-
-        <div id='ads' class="splide mb-0 p-3 bg-neutral-200">
+    @if(count($intermedio) > 0 || count($lateral) > 0)
+    <div class="xl:col-span-12 col-span-12 mt-6">
+        @if(count($intermedio) > 0)
+        <div id='intermedio-banners-product' class="splide mb-0">
             <div class="splide__track">
                 <ul class="splide__list">
-                    @foreach ($lateral as $banner)
+                    @foreach ($intermedio as $banner)
                     <li class="splide__slide">
                         <a href="{{$banner->url ?? '#'}}">
-                            <img src="{{asset('storage/'.$banner->path)}}" class="w-full">
+                            <img src="{{asset('storage/'.$banner->path)}}" class="w-full rounded-lg">
                         </a>
                     </li>
                     @endforeach
                 </ul>
             </div>
         </div>
+        @endif
 
-
+        @if(count($lateral) > 0)
+        <div class="mb-0 pb-0 bg-neutral-200">
+            <div id='ads' class="splide mb-0 p-3 bg-neutral-200">
+                <div class="splide__track">
+                    <ul class="splide__list">
+                        @foreach ($lateral as $banner)
+                        <li class="splide__slide">
+                            <a href="{{$banner->url ?? '#'}}">
+                                <img src="{{asset('storage/'.$banner->path)}}" class="w-full">
+                            </a>
+                        </li>
+                        @endforeach
+                    </ul>
+                </div>
+            </div>
+        </div>
+        @endif
     </div>
+    @endif
 
 
 </div>
@@ -225,6 +243,17 @@
                 arrows: true,
                 pagination: true,
                 gap: '1rem',
+            }).mount();
+        }
+
+        // Initialize intermedio banners carousel if it exists
+        if (document.getElementById('intermedio-banners-product')) {
+            new Splide('#intermedio-banners-product', {
+                type: 'loop',
+                autoplay: true,
+                perPage: 1,
+                arrows: true,
+                pagination: true,
             }).mount();
         }
     });

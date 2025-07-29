@@ -14,7 +14,7 @@
         {{ Aire::password('password', 'Contraseña') }}
 
         <div class="flex justify-between">
-            <a href="{{ route('register') }}" class=" text-sm text-blue-700 hover:underline ">Crear cuenta</a>
+            <a href="{{ route('password.request') }}" class=" text-sm text-blue-700 hover:underline ">¿Olvidó su contraseña?</a>
             {{-- <a href="{{ route('password.request') }}" class=" text-sm text-blue-700 hover:underline ">Olvido su contraseña?</a> --}}
         </div>
 

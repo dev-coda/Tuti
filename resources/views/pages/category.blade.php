@@ -60,7 +60,6 @@
 
     <h1 class="font-bold my-5 text-3xl col-span-12 w-full">{{$category->name}}</h1>
 
-
     @if ($products->count() === 0)
     <div class="col-span-12 h-screen">
         <p>No se encontraron productos con estos filtros. Intenta de nuevo.</p>
@@ -95,11 +94,6 @@
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         new Splide('#banners', {
-            type: 'loop',
-            autoplay: true,
-        }).mount();
-
-        new Splide('#ads', {
             type: 'loop',
             autoplay: true,
         }).mount();

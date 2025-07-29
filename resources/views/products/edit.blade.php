@@ -197,7 +197,7 @@
                 @forelse ($product->images as $image)
 
                  
-                        <div class="flex relative w-full h-48 bg-cover bg-center rounded" style="background-image: url({{ asset('storage/'.$image->path) }})">
+                        <div class="flex relative w-full h-48 bg-contain bg-center bg-no-repeat rounded" style="background-image: url({{ asset('storage/'.$image->path) }})">
                             <form action="{{ route('products.images_delete', [$product, $image]) }}" method="POST">
                                 @csrf
                                 @method('DELETE')
