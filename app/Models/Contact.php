@@ -11,9 +11,14 @@ class Contact extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'email', 'phone', 'business_name', 'read', 'city', 'nit'];
+    protected $fillable = ['name', 'email', 'phone', 'business_name', 'read', 'city', 'city_id', 'nit', 'terms_accepted'];
 
     protected $appends = ['state'];
+
+    public function city()
+    {
+        return $this->belongsTo(City::class);
+    }
 
     public function scopeUnRead($query)
     {

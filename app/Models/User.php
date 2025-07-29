@@ -24,17 +24,18 @@ class User extends Authenticatable
     protected $fillable = [
         'name',
         'email',
+        'city_id',
         'password',
         'document',
         'phone',
         'status_id',
+        'terms_accepted',
         'zone'
-
     ];
 
     const PENDING = 1;
     const ACTIVE = 2;
-    
+
     /**
      * The attributes that should be hidden for serialization.
      *
@@ -73,5 +74,4 @@ class User extends Authenticatable
     {
         return $this->hasMany(Zone::class);
     }
-    
 }

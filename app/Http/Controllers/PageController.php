@@ -11,6 +11,7 @@ use App\Models\Product;
 use Illuminate\Http\Request;
 use Transliterator;
 use function Laravel\Prompts\alert;
+use App\Models\City;
 
 class PageController extends Controller
 {
@@ -232,7 +233,8 @@ class PageController extends Controller
 
     public function form()
     {
-        return view('pages.form');
+        $cities = City::orderBy('name')->pluck('name', 'id')->prepend('Selecciona tu ciudad', '');
+        return view('pages.form', compact('cities'));
     }
 
     public function form_post(Request $request)
@@ -241,13 +243,16 @@ class PageController extends Controller
             'name' => 'required',
             'email' => 'required|email',
             'phone' => 'required',
-            'business_name' => 'required',
-            'city' => 'required',
+            'city_id' => 'required|exists:cities,id',
             'nit' => 'required',
+            'terms_accepted' => 'required|accepted',
         ]);
+
+        // Remove terms_accepted from data to be saved (we just need to validate it was accepted)
+        unset($validate['terms_accepted']);
 
         Contact::create($validate);
 
-        return back()->with('success', 'Mensaje enviado correctamente');
+        return back()->with('success', 'Solicitud enviada correctamente. Nos pondremos en contacto contigo pronto.');
     }
 }
