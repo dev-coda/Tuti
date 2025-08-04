@@ -108,7 +108,7 @@
                         <tr class="hover:bg-gray-100 @if($useMostPopular) opacity-50 @endif">
                             <td class="flex items-center p-4 mr-12 space-x-4 max-w-sm lg:mr-0">
                                 @if($featured->display_image)
-                                    <img class="w-10 h-10 rounded-lg object-cover" src="{{ $featured->display_image }}" alt="{{ $featured->display_title }}">
+                                    <img class="w-10 h-10 rounded-lg object-contain" src="{{ $featured->display_image }}" alt="{{ $featured->display_title }}">
                                     @if($featured->custom_image)
                                         <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                                             Personalizada
@@ -250,7 +250,7 @@
                         </label>
                         <div class="flex items-center space-x-4">
                             <div id="currentImagePreview" class="hidden">
-                                <img id="currentImage" src="" alt="Imagen actual" class="w-20 h-20 object-cover rounded-lg">
+                                <img id="currentImage" src="" alt="Imagen actual" class="w-20 h-20 object-contain rounded-lg">
                                 <button type="button" onclick="removeCustomImage()" class="mt-1 text-xs text-red-600 hover:text-red-800">
                                     Eliminar imagen personalizada
                                 </button>
@@ -409,7 +409,7 @@ document.getElementById('searchInput').addEventListener('input', function(e) {
                             <div class="p-2 hover:bg-gray-100 cursor-pointer rounded" onclick="selectCategory(${category.id}, '${category.name}', '${category.slug}', '${imageUrl}')">
                                 <div class="flex items-center space-x-3">
                                     ${imageUrl ? 
-                                        `<img src="${imageUrl}" class="w-10 h-10 rounded object-cover">` :
+                                        `<img src="${imageUrl}" class="w-10 h-10 rounded object-contain">` :
                                         `<div class="w-10 h-10 rounded bg-gray-200 flex items-center justify-center">
                                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-gray-400">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
@@ -439,7 +439,7 @@ function selectCategory(id, name, slug, imageUrl) {
     let html = `
         <div class="flex items-center space-x-3">
             ${imageUrl ? 
-                `<img src="${imageUrl}" class="w-12 h-12 rounded object-cover">` :
+                `<img src="${imageUrl}" class="w-12 h-12 rounded object-contain">` :
                 `<div class="w-12 h-12 rounded bg-gray-200 flex items-center justify-center">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-gray-400">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
@@ -566,7 +566,7 @@ function openCustomizationModal(featuredCategoryId) {
     // Populate original category info
     const originalInfo = document.getElementById('originalCategoryInfo');
     const originalImageHtml = featured.category.image ? 
-        `<img src="/storage/${featured.category.image}" alt="${featured.category.name}" class="w-12 h-12 object-cover rounded inline-block mr-2">` : 
+        `<img src="/storage/${featured.category.image}" alt="${featured.category.name}" class="w-12 h-12 object-contain rounded inline-block mr-2">` : 
         '<span class="text-gray-400 mr-2">Sin imagen</span>';
     
     originalInfo.innerHTML = `

@@ -16,7 +16,7 @@
 
               
                 {{ Aire::input('url', "Link")->groupClass('col-span-6') }}
-                {{Aire::select([1=>'Principal', 2=>'Lateral'], 'type_id', 'Posición')->value(request()->get('type_id', 1))->groupClass('col-span-6')}}
+                {{Aire::select([1=>'Principal', 2=>'Lateral', 3=>'Intermedio'], 'type_id', 'Posición')->value(request()->get('type_id', 1))->groupClass('col-span-6')}}
                 {{ Aire::file('file', "Banner")->groupClass('col-span-6') }}
 
                

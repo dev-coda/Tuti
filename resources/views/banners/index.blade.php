@@ -55,7 +55,15 @@
                             </td>
 
                              <td class="p-4 text-sm font-normal text-gray-500 whitespace-nowrap">
-                                {{ $banner->type_id == 1 ? 'Principal' : 'Lateral'}}
+                                @if($banner->type_id == 1)
+                                    Principal
+                                @elseif($banner->type_id == 2)
+                                    Lateral
+                                @elseif($banner->type_id == 3)
+                                    Intermedio
+                                @else
+                                    Desconocido
+                                @endif
                             </td>
 
                             <td class="p-4 text-sm font-normal text-gray-500 whitespace-nowrap">

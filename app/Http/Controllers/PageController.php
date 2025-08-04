@@ -11,6 +11,7 @@ use App\Models\Product;
 use Illuminate\Http\Request;
 use Transliterator;
 use function Laravel\Prompts\alert;
+use App\Models\City;
 
 class PageController extends Controller
 {
@@ -38,12 +39,61 @@ class PageController extends Controller
 
         $params = compact('q', 'order', 'category_id', 'brand_id');
 
-        $productsQuery = Product::active()->where(function ($query) use ($q) {
-            $query->whereRaw("unaccent(name) ILIKE ?", ['%' . $q . '%'])
-                ->orWhereRaw("unaccent(description) ILIKE ?", ['%' . $q . '%'])
-                ->orWhereRaw("unaccent(lower(short_description)) ILIKE ?", ['%' . $q . '%'])
-                ->orWhereRaw("unaccent(lower(sku)) ILIKE ?", ['%' . $q . '%']);
-        });
+        // Split search query into individual words and filter out empty ones
+        $searchWords = [];
+        if ($q && trim($q) !== '') {
+            $words = explode(' ', trim($q));
+            foreach ($words as $word) {
+                $word = trim($word);
+                if ($word !== '' && strlen($word) >= 2) { // Only include words with 2+ characters
+                    $searchWords[] = $word;
+                }
+            }
+        }
+
+        $productsQuery = Product::active()->with(['brand.vendor']);
+
+        // Only apply search filter if we have valid search words
+        if (!empty($searchWords)) {
+            $productsQuery->where(function ($query) use ($searchWords) {
+                $isFirst = true;
+                foreach ($searchWords as $word) {
+                    if ($isFirst) {
+                        // First word uses 'where' to start the condition - using word boundaries
+                        $query->where(function ($subQuery) use ($word) {
+                            $subQuery->whereRaw("unaccent(name) ~* ?", ['\\y' . $word . '\\y'])
+                                ->orWhereRaw("unaccent(description) ~* ?", ['\\y' . $word . '\\y'])
+                                ->orWhereRaw("unaccent(short_description) ~* ?", ['\\y' . $word . '\\y'])
+                                ->orWhereRaw("unaccent(sku) ~* ?", ['\\y' . $word . '\\y'])
+                                ->orWhereHas('brand', function ($brandQuery) use ($word) {
+                                    $brandQuery->whereRaw("unaccent(name) ~* ?", ['\\y' . $word . '\\y']);
+                                })
+                                ->orWhereHas('brand.vendor', function ($vendorQuery) use ($word) {
+                                    $vendorQuery->whereRaw("unaccent(name) ~* ?", ['\\y' . $word . '\\y']);
+                                });
+                        });
+                        $isFirst = false;
+                    } else {
+                        // Subsequent words use 'orWhere' for OR logic - using word boundaries
+                        $query->orWhere(function ($subQuery) use ($word) {
+                            $subQuery->whereRaw("unaccent(name) ~* ?", ['\\y' . $word . '\\y'])
+                                ->orWhereRaw("unaccent(description) ~* ?", ['\\y' . $word . '\\y'])
+                                ->orWhereRaw("unaccent(short_description) ~* ?", ['\\y' . $word . '\\y'])
+                                ->orWhereRaw("unaccent(sku) ~* ?", ['\\y' . $word . '\\y'])
+                                ->orWhereHas('brand', function ($brandQuery) use ($word) {
+                                    $brandQuery->whereRaw("unaccent(name) ~* ?", ['\\y' . $word . '\\y']);
+                                })
+                                ->orWhereHas('brand.vendor', function ($vendorQuery) use ($word) {
+                                    $vendorQuery->whereRaw("unaccent(name) ~* ?", ['\\y' . $word . '\\y']);
+                                });
+                        });
+                    }
+                }
+            });
+        } else if ($q && trim($q) !== '') {
+            // If search query exists but no valid words found, return no results
+            $productsQuery->whereRaw('1 = 0');
+        }
 
         if ($category_id) {
             $productsQuery->whereHas('categories', function ($query) use ($category_id) {
@@ -55,14 +105,48 @@ class PageController extends Controller
             $productsQuery->where('brand_id', $brand_id);
         }
 
-        $productBrandIds = Product::active()
-            ->where(function ($query) use ($q) {
-                $query->whereRaw("unaccent(name) ILIKE ?", ['%' . $q . '%'])
-                    ->orWhereRaw("unaccent(description) ILIKE ?", ['%' . $q . '%'])
-                    ->orWhereRaw("unaccent(lower(short_description)) ILIKE ?", ['%' . $q . '%'])
-                    ->orWhereRaw("unaccent(lower(sku)) ILIKE ?", ['%' . $q . '%']);
-            })
-            ->pluck('brand_id')->toArray();
+        // Update brand filtering to match the same search logic
+        if (!empty($searchWords)) {
+            $productBrandIds = Product::active()
+                ->with(['brand.vendor'])
+                ->where(function ($query) use ($searchWords) {
+                    $isFirst = true;
+                    foreach ($searchWords as $word) {
+                        if ($isFirst) {
+                            $query->where(function ($subQuery) use ($word) {
+                                $subQuery->whereRaw("unaccent(name) ~* ?", ['\\y' . $word . '\\y'])
+                                    ->orWhereRaw("unaccent(description) ~* ?", ['\\y' . $word . '\\y'])
+                                    ->orWhereRaw("unaccent(short_description) ~* ?", ['\\y' . $word . '\\y'])
+                                    ->orWhereRaw("unaccent(sku) ~* ?", ['\\y' . $word . '\\y'])
+                                    ->orWhereHas('brand', function ($brandQuery) use ($word) {
+                                        $brandQuery->whereRaw("unaccent(name) ~* ?", ['\\y' . $word . '\\y']);
+                                    })
+                                    ->orWhereHas('brand.vendor', function ($vendorQuery) use ($word) {
+                                        $vendorQuery->whereRaw("unaccent(name) ~* ?", ['\\y' . $word . '\\y']);
+                                    });
+                            });
+                            $isFirst = false;
+                        } else {
+                            $query->orWhere(function ($subQuery) use ($word) {
+                                $subQuery->whereRaw("unaccent(name) ~* ?", ['\\y' . $word . '\\y'])
+                                    ->orWhereRaw("unaccent(description) ~* ?", ['\\y' . $word . '\\y'])
+                                    ->orWhereRaw("unaccent(short_description) ~* ?", ['\\y' . $word . '\\y'])
+                                    ->orWhereRaw("unaccent(sku) ~* ?", ['\\y' . $word . '\\y'])
+                                    ->orWhereHas('brand', function ($brandQuery) use ($word) {
+                                        $brandQuery->whereRaw("unaccent(name) ~* ?", ['\\y' . $word . '\\y']);
+                                    })
+                                    ->orWhereHas('brand.vendor', function ($vendorQuery) use ($word) {
+                                        $vendorQuery->whereRaw("unaccent(name) ~* ?", ['\\y' . $word . '\\y']);
+                                    });
+                            });
+                        }
+                    }
+                })
+                ->pluck('brand_id')->toArray();
+        } else {
+            // If no search words, get all brand IDs for active products
+            $productBrandIds = Product::active()->pluck('brand_id')->toArray();
+        }
 
         $brands = $brands->filter(fn($brand) => in_array($brand->id, $productBrandIds));
 
@@ -123,7 +207,8 @@ class PageController extends Controller
         }
 
         $lateral = Banner::whereTypeId(2)->orderBy('id')->get();
-        $context = compact('product', 'related', 'quantity', 'lateral');
+        $intermedio = Banner::whereTypeId(3)->orderBy('id')->get();
+        $context = compact('product', 'related', 'quantity', 'lateral', 'intermedio');
 
         return view('pages.product', $context);
     }
@@ -231,7 +316,8 @@ class PageController extends Controller
 
     public function form()
     {
-        return view('pages.form');
+        $cities = City::orderBy('name')->pluck('name', 'id')->prepend('Selecciona tu ciudad', '');
+        return view('pages.form', compact('cities'));
     }
 
     public function form_post(Request $request)
@@ -240,13 +326,16 @@ class PageController extends Controller
             'name' => 'required',
             'email' => 'required|email',
             'phone' => 'required',
-            'business_name' => 'required',
-            'city' => 'required',
+            'city_id' => 'required|exists:cities,id',
             'nit' => 'required',
+            'terms_accepted' => 'required|accepted',
         ]);
+
+        // Remove terms_accepted from data to be saved (we just need to validate it was accepted)
+        unset($validate['terms_accepted']);
 
         Contact::create($validate);
 
-        return back()->with('success', 'Mensaje enviado correctamente');
+        return back()->with('success', 'Solicitud enviada correctamente. Nos pondremos en contacto contigo pronto.');
     }
 }

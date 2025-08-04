@@ -111,7 +111,7 @@
                         <tr class="hover:bg-gray-100 @if($useMostSold) opacity-50 @endif">
                             <td class="flex items-center p-4 mr-12 space-x-4 max-w-sm lg:mr-0">
                                 @if($featured->product->images->first())
-                                    <img class="w-10 h-10 rounded-lg object-cover" src="{{ asset('storage/'.$featured->product->images->first()->path) }}" alt="{{ $featured->product->name }}">
+                                    <img class="w-10 h-10 rounded-lg object-contain" src="{{ asset('storage/'.$featured->product->images->first()->path) }}" alt="{{ $featured->product->name }}">
                                 @else
                                     <div class="w-10 h-10 rounded-lg bg-gray-200 flex items-center justify-center">
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-gray-400">
@@ -300,7 +300,7 @@ document.getElementById('searchInput').addEventListener('input', function(e) {
                             <div class="p-2 hover:bg-gray-100 cursor-pointer rounded" onclick="selectProduct(${product.id}, '${product.name}', '${product.sku || ''}', '${imageUrl}')">
                                 <div class="flex items-center space-x-3">
                                     ${imageUrl ? 
-                                        `<img src="${imageUrl}" class="w-10 h-10 rounded object-cover">` :
+                                        `<img src="${imageUrl}" class="w-10 h-10 rounded object-contain">` :
                                         `<div class="w-10 h-10 rounded bg-gray-200 flex items-center justify-center">
                                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-gray-400">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
@@ -330,7 +330,7 @@ function selectProduct(id, name, sku, imageUrl) {
     let html = `
         <div class="flex items-center space-x-3">
             ${imageUrl ? 
-                `<img src="${imageUrl}" class="w-12 h-12 rounded object-cover">` :
+                `<img src="${imageUrl}" class="w-12 h-12 rounded object-contain">` :
                 `<div class="w-12 h-12 rounded bg-gray-200 flex items-center justify-center">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-gray-400">
                         <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />

@@ -22,8 +22,9 @@
             {{ Aire::open()->route('seller.setclient')}}
             
                 <div class='grid grid-cols-1 gap-5'>
-                    {{ Aire::input('document', 'Documento')->helpText('Nit sin dígito de verificación')->groupClass('mb-0') }} 
-                    {{ Aire::input('zone', 'Zona')->helpText('Zona de la sucursal')->groupClass('mb-0') }} 
+            
+                    {{ Aire::input('document', 'Documento Cliente: Escribe el NIT sin dígito de verificación')->groupClass('mb-0') }} 
+                    {{ Aire::input('zone', 'Zona Sucursal: Diligencia este campo si tu cliente cuenta con varias sucursales')->helpText('*En el siguiente paso verás las direcciones asociadas')->groupClass('mb-0') }} 
                 </div>
 
             <div class="flex items-center  mt-4">
