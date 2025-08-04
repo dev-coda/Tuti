@@ -17,9 +17,11 @@ class Kernel extends ConsoleKernel
         //comand every 20 minutes
         $schedule->command('app:get-token')->cron('*/20 * * * *');
 
-        $schedule->call(function (){
-            UpdateProductPrices::dispatch();
-        })->daily();
+
+        //Temporarily disabled:
+        //    $schedule->call(function (){
+        //       UpdateProductPrices::dispatch();
+        //   })->daily();
     }
 
     /**
@@ -27,7 +29,7 @@ class Kernel extends ConsoleKernel
      */
     protected function commands(): void
     {
-        $this->load(__DIR__.'/Commands');
+        $this->load(__DIR__ . '/Commands');
 
         require base_path('routes/console.php');
     }
