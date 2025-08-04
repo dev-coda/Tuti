@@ -14,12 +14,12 @@
             </div>
             <template v-else>
                 <div
-                    class="grid grid-cols-12 grid-flow-row xl:grid-cols-12 gap-5"
+                    class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5"
                 >
                     <div
                         v-for="category in categories"
                         :key="category.id"
-                        class="border border-gray-100 rounded md:col-span-4 col-span-12 bg-cover bg-center hover:scale-110 transition duration-500 cursor-pointer object-cover relative"
+                        class="border border-gray-100 rounded bg-cover bg-center hover:scale-110 transition duration-500 cursor-pointer relative"
                         :style="{ backgroundImage: `url(${category.image})` }"
                     >
                         <div
