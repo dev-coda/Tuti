@@ -196,7 +196,8 @@ class ProductController extends Controller
             'items' => ['variation'],
             'variation',
             'images',
-            'bonifications'
+            'bonifications',
+            'inventories',
         ]); // eager loading
 
 
