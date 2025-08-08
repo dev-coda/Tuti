@@ -40,6 +40,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     // Route::get('/products/search', [ProductController::class, 'search'])->name('products.search');
     Route::post('/products/{product}/images', [ProductController::class, 'images'])->name('products.images');
     Route::delete('/products/{product}/images/{image}', [ProductController::class, 'images_delete'])->name('products.images_delete');
+    Route::post('/products/{product}/images/reorder', [ProductController::class, 'reorderImages'])->name('products.images_reorder');
 
     Route::delete('/products/{product}/add_combined', [ProductController::class, 'add_combined'])->name('products.add_combined');
     Route::delete('/products/{product}/sync_combined', [ProductController::class, 'sync_combined'])->name('products.sync_combined');
@@ -69,6 +70,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::resource('variations.items', VariationItemController::class);
 
     Route::resource('settings', SettingController::class);
+    Route::post('settings/sync-inventory', [SettingController::class, 'syncInventory'])->name('settings.sync-inventory');
     Route::resource('banners', BannerController::class);
     Route::resource('featured-products', FeaturedProductController::class)->only(['index', 'store', 'destroy']);
     Route::get('featured-products/search', [FeaturedProductController::class, 'search'])->name('featured-products.search');

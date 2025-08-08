@@ -54,11 +54,30 @@
     <form action="{{ route('cart.add', $product->id) }}" method="POST" class="xl:col-span-6 col-span-12 space-y-4">
         @csrf
         <div class=" p-2  flex flex-col">
-            <a href="{{route('product', $product->slug)}}" class=" text-[#180F09] font-semibold text-xl">{{$product->name}}</a>
+            <div class="flex items-center gap-2">
+                <a href="{{route('product', $product->slug)}}" class=" text-[#180F09] font-semibold text-xl">{{$product->name}}</a>
+                @php
+                    $available = auth()->check() ? $product->getInventoryForBodega($bodegaCode ?? null) : $product->getInventoryForMdtat();
+                    $invForTag = $product->inventories->firstWhere('bodega_code', (auth()->check() ? ($bodegaCode ?? null) : 'MDTAT'));
+                    $reserved = (int) ($invForTag?->reserved ?? 0);
+                @endphp
+                @if(($available - $reserved) < 10 && ($available - $reserved) > 0)
+                    <span class="ml-2 inline-flex items-center text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-700">últimas unidades disponibles</span>
+                @endif
+            </div>
             @if($product->sku)
             <p class=" text-slate-500 text-lg">{{$product->sku}}</p>
 
             @endif
+            @auth
+                @if($available <= 0)
+                    <p class="text-sm text-red-600">Producto no disponible para tu ubicación</p>
+                @else
+                    <p class="text-sm {{ $available > 5 ? 'text-green-600' : 'text-red-600' }}">Inventario: {{ $available }}</p>
+                @endif
+            @else
+                <p class="text-sm text-gray-600">Inventario (MDTAT): {{ $available }}</p>
+            @endauth
             @if($product->final_price['has_discount'])
             <span class="text-slate-400 text-xl"><small class="line-through text-xl text-slate-400 font-semibold">${{currency($product->final_price['old'])}} </small>Antes</span>
             @endif
@@ -121,7 +140,7 @@
         <h3 class="font-bold text-xl mb-2">Complementa tu compra</h3>
         <div class="grid grid-cols-1 xl:grid-cols-4 gap-5 ">
             @foreach ($related as $p)
-            <x-product :product="$p" />
+            <x-product :product="$p" :bodega-code="$bodegaCode ?? null" />
             @endforeach
         </div>
     </div>
@@ -209,23 +228,6 @@
                 $(this).val(quantity)
             }
         })
-
-        // const discount =  '{{$product->finalPrice['discount']}}'
-
-        // $('#selectPrice').on('change', function(){
-
-        //     let price = $(this).find(':selected').data('price')
-
-        //     if(discount){
-        //         $('#oldprice').html(currency(parseInt(price)))
-        //         price = price - (price * (discount/100))
-        //     }
-        //     console.log(currency(price));
-        //     $('#price').html(currency(price))
-        // })
-
-
-
 
     })
 </script>

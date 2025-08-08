@@ -142,7 +142,8 @@ class ProductController extends Controller
             'variation_id' => 'nullable',
             'is_combined' => 'nullable|boolean',
             'package_quantity' => 'required|numeric',
-            'calculate_package_price' => 'nullable|boolean'
+            'calculate_package_price' => 'nullable|boolean',
+            'safety_stock' => 'nullable|integer|min:0',
         ]);
 
 
@@ -268,7 +269,8 @@ class ProductController extends Controller
                 },
             ],
             'package_quantity' => 'required|numeric',
-            'calculate_package_price' => 'nullable|boolean'
+            'calculate_package_price' => 'nullable|boolean',
+            'safety_stock' => 'nullable|integer|min:0',
         ]);
 
         $validate['slug'] = Str::slug($request->slug);

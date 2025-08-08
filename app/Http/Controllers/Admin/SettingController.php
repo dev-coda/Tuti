@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Setting;
 use Illuminate\Http\Request;
+use App\Jobs\SyncProductInventory;
 
 class SettingController extends Controller
 {
@@ -17,7 +18,7 @@ class SettingController extends Controller
             ->whereShow(true)
             ->orderBy('id')
             ->paginate();
-       
+
         $context = compact('settings');
         return view('settings.index', $context);
     }
@@ -38,5 +39,11 @@ class SettingController extends Controller
 
         $setting->update($validate);
         return to_route('settings.index')->with('success', 'Texto actualizado');
+    }
+
+    public function syncInventory()
+    {
+        SyncProductInventory::dispatchAfterResponse();
+        return back()->with('success', 'Sincronización de inventario iniciada');
     }
 }

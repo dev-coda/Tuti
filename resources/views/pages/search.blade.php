@@ -13,23 +13,9 @@
 
 @section('content')
 
-<div class="flex md:flex-row flex-col items-center md:justify-between justify-center gap-3 col-span-12 font-semibold w-full max-w-[90vw]">
-    <ul class="flex  space-x-2 text-gray-500 uppercase">
-        <li><a href="/">Inicio</a></li>
-        <li>></li>
-        <li>Busqueda: {{request()->q}}</li>
-    </ul>
-    <div id="filter-sort-dropdowns"
-        data-current-sort="{{ $params['order'] }}"
-        data-current-brand-id="{{ $params['brand_id'] ?? 'null' }}"
-        data-current-category-id="{{ $params['category_id'] ?? 'null' }}"
-        data-sort-options="{{ json_encode([
-            ['value' => '1', 'label' => 'Más reciente', 'url' => route('search', '1/' . $params['category_id'] . '/' . $params['brand_id'] . '?q=' . $params['q'])],
-            ['value' => '2', 'label' => 'Precio: Menor a Mayor', 'url' => route('search', '2/' . $params['category_id'] . '/' . $params['brand_id'] . '?q=' . $params['q'])],
-            ['value' => '3', 'label' => 'Precio: Mayor a Menor', 'url' => route('search', '3/' . $params['category_id'] . '/' . $params['brand_id'] . '?q=' . $params['q'])],
-            ['value' => '4', 'label' => 'Nombre A-Z', 'url' => route('search', '4/' . $params['category_id'] . '/' . $params['brand_id'] . '?q=' . $params['q'])],
-            ['value' => '5', 'label' => 'Nombre Z-A', 'url' => route('search', '5/' . $params['category_id'] . '/' . $params['brand_id'] . '?q=' . $params['q'])]
-        ]) }}"
+<div class="grid grid-cols-12 w-full gap-5 max-w-[90vw] mx-auto">
+    <div class="col-span-12">
+        <div id="filters"
         data-brands="{{ json_encode($brands->map(function($brand) use ($params) {
             return [
                 'id' => $brand->id,
@@ -44,6 +30,7 @@
                 'url' => route('search', $params['order'] . '/' . $category->id . '/' . $params['brand_id'] . '?q=' . $params['q'])
             ];
         })) }}"></div>
+    </div>
 </div>
 {{-- Add sorting and filtering --}}
 
@@ -57,7 +44,7 @@
     <div class="my-10">
         <div class="grid grid-cols-1 xl:grid-cols-4 gap-x-5 gap-y-5  ">
             @foreach ($products as $product)
-            <x-product :product="$product" />
+            <x-product :product="$product" :bodega-code="$bodegaCode ?? null" />
             @endforeach
         </div>
     </div>

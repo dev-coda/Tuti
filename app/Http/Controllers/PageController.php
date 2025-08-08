@@ -5,13 +5,14 @@ namespace App\Http\Controllers;
 use App\Models\Banner;
 use App\Models\Brand;
 use App\Models\Category;
-use App\Models\Contact;
 use App\Models\Label;
 use App\Models\Product;
+use App\Models\ZoneWarehouse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Transliterator;
-use function Laravel\Prompts\alert;
 use App\Models\City;
+use App\Models\Contact;
 
 class PageController extends Controller
 {
@@ -179,7 +180,10 @@ class PageController extends Controller
 
         $categories = $categories->filter(fn($category) => in_array($category->id, $categoriesArray));
 
-        return view('pages.search', compact('products', 'brands', 'categories', 'params'));
+        // Determine user's mapped bodega code
+        $bodegaCode = $this->getUserBodegaCode();
+
+        return view('pages.search', compact('products', 'brands', 'categories', 'params', 'bodegaCode'));
     }
 
 
@@ -187,7 +191,7 @@ class PageController extends Controller
     {
         $product = Product::query()
             ->active()
-            ->with(['related.images', 'items', 'variation', 'labels'])
+            ->with(['related.images', 'items', 'variation', 'labels', 'inventories'])
             ->where('slug', $slug)->firstOrFail();
         $related = $product->related;
 
@@ -208,7 +212,11 @@ class PageController extends Controller
 
         $lateral = Banner::whereTypeId(2)->orderBy('id')->get();
         $intermedio = Banner::whereTypeId(3)->orderBy('id')->get();
-        $context = compact('product', 'related', 'quantity', 'lateral', 'intermedio');
+
+        // Determine user's mapped bodega code
+        $bodegaCode = $this->getUserBodegaCode();
+
+        $context = compact('product', 'related', 'quantity', 'lateral', 'intermedio', 'bodegaCode');
 
         return view('pages.product', $context);
     }
@@ -254,40 +262,38 @@ class PageController extends Controller
 
         switch ($order) {
             case 1:
-                $products = $productsQuery->orderBy('created_at', 'desc')->paginate();
+                $products = $productsQuery->with('inventories')->orderBy('created_at', 'desc')->paginate();
                 break;
             case 2:
-                $products = $productsQuery->orderBy('price', 'asc')->paginate();
+                $products = $productsQuery->with('inventories')->orderBy('price', 'asc')->paginate();
                 break;
             case 3:
-                $products = $productsQuery->orderBy('price', 'desc')->paginate();
+                $products = $productsQuery->with('inventories')->orderBy('price', 'desc')->paginate();
                 break;
             case 4:
-                $products = $productsQuery->orderBy('name', 'asc')->paginate();
+                $products = $productsQuery->with('inventories')->orderBy('name', 'asc')->paginate();
                 break;
             case 5:
-                $products = $productsQuery->orderBy('name', 'desc')->paginate();
+                $products = $productsQuery->with('inventories')->orderBy('name', 'desc')->paginate();
                 break;
             default:
-                $products = $productsQuery->paginate();
+                $products = $productsQuery->with('inventories')->paginate();
                 break;
         }
 
         $categoriesArray = [];
-        foreach ($products as $product) {
-            $ids = $product->categories()->pluck('id')->toArray();
-            $categoriesArray = array_merge($categoriesArray, $ids);
+        foreach ($products as $item) {
+            $values = $item->categories()->pluck('id')->toArray();
+            $categoriesArray = array_merge($categoriesArray, $values);
         }
 
-        $categories = $categories->filter(fn($cat) => in_array($cat->id, $categoriesArray));
+        $categories = $categories->filter(fn($category) => in_array($category->id, $categoriesArray));
 
-        $context = compact('category', 'products', 'categories', 'brands', 'params', 'banners');
-        return view('pages.category', $context);
+        // Determine user's mapped bodega code
+        $bodegaCode = $this->getUserBodegaCode();
+
+        return view('pages.category', compact('products', 'brands', 'categories', 'params', 'category', 'bodegaCode', 'banners'));
     }
-
-
-
-
 
     public function label($slug)
     {
@@ -337,5 +343,37 @@ class PageController extends Controller
         Contact::create($validate);
 
         return back()->with('success', 'Solicitud enviada correctamente. Nos pondremos en contacto contigo pronto.');
+    }
+
+    private function getUserBodegaCode(): ?string
+    {
+        if (!Auth::check()) {
+            return null;
+        }
+
+        $user = Auth::user();
+
+        // Try explicit user->zone first (commonly set for sellers)
+        $zoneCode = $user->zone ?? null;
+
+        // Fallback to first related zone's code, then zone name
+        if (!$zoneCode) {
+            $zoneCode = $user->zones()->orderBy('id')->value('code');
+        }
+        if (!$zoneCode) {
+            $zoneCode = $user->zones()->orderBy('id')->value('zone');
+        }
+
+        if (!$zoneCode) {
+            return null;
+        }
+
+        // Map via ZoneWarehouse (exact match, then case-insensitive)
+        $bodega = ZoneWarehouse::where('zone_code', $zoneCode)->value('bodega_code');
+        if (!$bodega) {
+            $bodega = ZoneWarehouse::whereRaw('LOWER(zone_code) = ?', [mb_strtolower($zoneCode)])->value('bodega_code');
+        }
+
+        return $bodega ?: null;
     }
 }
