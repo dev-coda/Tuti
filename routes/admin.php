@@ -85,6 +85,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
 
 
     Route::resource('orders', OrderController::class);
+    Route::post('/orders/{order}/resend', [OrderController::class, 'resend'])->name('orders.resend');
     Route::resource('contacts', ContactController::class);
 
 

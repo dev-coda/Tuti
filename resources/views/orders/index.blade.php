@@ -3,6 +3,17 @@
 
 @section('content')
 
+    @if(session('success'))
+        <div class="p-4 mb-4 text-sm text-green-700 bg-green-100 rounded-lg" role="alert">
+            <span class="font-medium">{{ session('success') }}</span>
+        </div>
+    @endif
+
+    @if(session('error'))
+        <div class="p-4 mb-4 text-sm text-red-700 bg-red-100 rounded-lg" role="alert">
+            <span class="font-medium">{{ session('error') }}</span>
+        </div>
+    @endif
 
     <div class="p-4 bg-white block sm:flex items-center justify-between border-b border-gray-200">
         <div class="flex flex-col w-full mb-1">
@@ -136,7 +147,19 @@
 
                                         <td class="p-4   text-gray-900 whitespace-nowra">
                                             <x-order-status :status="$order->status_id" />
-
+                                            @if($order->status_id === 3)
+                                                <form action="{{ route('orders.resend', $order) }}" method="POST" class="inline ml-2">
+                                                    @csrf
+                                                    <button type="submit" 
+                                                            class="inline-flex items-center p-1 border border-gray-300 rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500"
+                                                            onclick="return confirm('¿Está seguro que desea reenviar esta orden?')"
+                                                            title="Reenviar orden">
+                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                                                        </svg>
+                                                    </button>
+                                                </form>
+                                            @endif
                                         </td>
 
                                         <td class="p-4  text-gray-900 whitespace-nowra">
@@ -156,7 +179,6 @@
                                         <td class="p-4  text-gray-900 whitespace-nowra">
                                             {{ $order->products_sum_quantity ?? 0 }}
                                         </td>
-
 
                                     </tr>
 

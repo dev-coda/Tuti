@@ -59,32 +59,32 @@ class PageController extends Controller
                 $isFirst = true;
                 foreach ($searchWords as $word) {
                     if ($isFirst) {
-                        // First word uses 'where' to start the condition - using word boundaries
+                        // First word uses 'where' to start the condition - supporting partial matches
                         $query->where(function ($subQuery) use ($word) {
-                            $subQuery->whereRaw("unaccent(name) ~* ?", ['\\y' . $word . '\\y'])
-                                ->orWhereRaw("unaccent(description) ~* ?", ['\\y' . $word . '\\y'])
-                                ->orWhereRaw("unaccent(short_description) ~* ?", ['\\y' . $word . '\\y'])
-                                ->orWhereRaw("unaccent(sku) ~* ?", ['\\y' . $word . '\\y'])
+                            $subQuery->whereRaw("unaccent(name) ~* ?", [$word])
+                                ->orWhereRaw("unaccent(description) ~* ?", [$word])
+                                ->orWhereRaw("unaccent(short_description) ~* ?", [$word])
+                                ->orWhereRaw("unaccent(sku) ~* ?", [$word])
                                 ->orWhereHas('brand', function ($brandQuery) use ($word) {
-                                    $brandQuery->whereRaw("unaccent(name) ~* ?", ['\\y' . $word . '\\y']);
+                                    $brandQuery->whereRaw("unaccent(name) ~* ?", [$word]);
                                 })
                                 ->orWhereHas('brand.vendor', function ($vendorQuery) use ($word) {
-                                    $vendorQuery->whereRaw("unaccent(name) ~* ?", ['\\y' . $word . '\\y']);
+                                    $vendorQuery->whereRaw("unaccent(name) ~* ?", [$word]);
                                 });
                         });
                         $isFirst = false;
                     } else {
-                        // Subsequent words use 'orWhere' for OR logic - using word boundaries
+                        // Subsequent words use 'orWhere' for OR logic - supporting partial matches
                         $query->orWhere(function ($subQuery) use ($word) {
-                            $subQuery->whereRaw("unaccent(name) ~* ?", ['\\y' . $word . '\\y'])
-                                ->orWhereRaw("unaccent(description) ~* ?", ['\\y' . $word . '\\y'])
-                                ->orWhereRaw("unaccent(short_description) ~* ?", ['\\y' . $word . '\\y'])
-                                ->orWhereRaw("unaccent(sku) ~* ?", ['\\y' . $word . '\\y'])
+                            $subQuery->whereRaw("unaccent(name) ~* ?", [$word])
+                                ->orWhereRaw("unaccent(description) ~* ?", [$word])
+                                ->orWhereRaw("unaccent(short_description) ~* ?", [$word])
+                                ->orWhereRaw("unaccent(sku) ~* ?", [$word])
                                 ->orWhereHas('brand', function ($brandQuery) use ($word) {
-                                    $brandQuery->whereRaw("unaccent(name) ~* ?", ['\\y' . $word . '\\y']);
+                                    $brandQuery->whereRaw("unaccent(name) ~* ?", [$word]);
                                 })
                                 ->orWhereHas('brand.vendor', function ($vendorQuery) use ($word) {
-                                    $vendorQuery->whereRaw("unaccent(name) ~* ?", ['\\y' . $word . '\\y']);
+                                    $vendorQuery->whereRaw("unaccent(name) ~* ?", [$word]);
                                 });
                         });
                     }
@@ -114,29 +114,29 @@ class PageController extends Controller
                     foreach ($searchWords as $word) {
                         if ($isFirst) {
                             $query->where(function ($subQuery) use ($word) {
-                                $subQuery->whereRaw("unaccent(name) ~* ?", ['\\y' . $word . '\\y'])
-                                    ->orWhereRaw("unaccent(description) ~* ?", ['\\y' . $word . '\\y'])
-                                    ->orWhereRaw("unaccent(short_description) ~* ?", ['\\y' . $word . '\\y'])
-                                    ->orWhereRaw("unaccent(sku) ~* ?", ['\\y' . $word . '\\y'])
+                                $subQuery->whereRaw("unaccent(name) ~* ?", [$word])
+                                    ->orWhereRaw("unaccent(description) ~* ?", [$word])
+                                    ->orWhereRaw("unaccent(short_description) ~* ?", [$word])
+                                    ->orWhereRaw("unaccent(sku) ~* ?", [$word])
                                     ->orWhereHas('brand', function ($brandQuery) use ($word) {
-                                        $brandQuery->whereRaw("unaccent(name) ~* ?", ['\\y' . $word . '\\y']);
+                                        $brandQuery->whereRaw("unaccent(name) ~* ?", [$word]);
                                     })
                                     ->orWhereHas('brand.vendor', function ($vendorQuery) use ($word) {
-                                        $vendorQuery->whereRaw("unaccent(name) ~* ?", ['\\y' . $word . '\\y']);
+                                        $vendorQuery->whereRaw("unaccent(name) ~* ?", [$word]);
                                     });
                             });
                             $isFirst = false;
                         } else {
                             $query->orWhere(function ($subQuery) use ($word) {
-                                $subQuery->whereRaw("unaccent(name) ~* ?", ['\\y' . $word . '\\y'])
-                                    ->orWhereRaw("unaccent(description) ~* ?", ['\\y' . $word . '\\y'])
-                                    ->orWhereRaw("unaccent(short_description) ~* ?", ['\\y' . $word . '\\y'])
-                                    ->orWhereRaw("unaccent(sku) ~* ?", ['\\y' . $word . '\\y'])
+                                $subQuery->whereRaw("unaccent(name) ~* ?", [$word])
+                                    ->orWhereRaw("unaccent(description) ~* ?", [$word])
+                                    ->orWhereRaw("unaccent(short_description) ~* ?", [$word])
+                                    ->orWhereRaw("unaccent(sku) ~* ?", [$word])
                                     ->orWhereHas('brand', function ($brandQuery) use ($word) {
-                                        $brandQuery->whereRaw("unaccent(name) ~* ?", ['\\y' . $word . '\\y']);
+                                        $brandQuery->whereRaw("unaccent(name) ~* ?", [$word]);
                                     })
                                     ->orWhereHas('brand.vendor', function ($vendorQuery) use ($word) {
-                                        $vendorQuery->whereRaw("unaccent(name) ~* ?", ['\\y' . $word . '\\y']);
+                                        $vendorQuery->whereRaw("unaccent(name) ~* ?", [$word]);
                                     });
                             });
                         }

@@ -8,13 +8,26 @@ use App\Models\Setting;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class OrderRepository
 {
     public static function presalesOrder($order)
     {
+        Log::channel('soap')->info('Starting presalesOrder process', [
+            'order_id' => $order->id,
+            'user_id' => $order->user_id,
+            'total' => $order->total,
+            'zone_id' => $order->zone_id
+        ]);
+
         self::sendData(order: $order, products: $order->products, bonification: 0);
         if ($order->bonifications->count()) {
+            Log::channel('soap')->info('Processing bonifications for order', [
+                'order_id' => $order->id,
+                'bonifications_count' => $order->bonifications->count()
+            ]);
+
             $orderBonification = Order::create([
                 'user_id' => $order->user_id,
                 'total' => 0,
@@ -30,15 +43,24 @@ class OrderRepository
 
     private static function sendData($order, $products, $bonification = 0)
     {
+        $startTime = microtime(true);
+        Log::channel('soap')->info('Starting SOAP request', [
+            'order_id' => $order->id,
+            'bonification' => $bonification,
+            'products_count' => $products->count()
+        ]);
 
+        // Load only necessary relationships
         $user = $order->user;
         $zone = $order->zone;
 
+        // Remove the heavy eager loading that was causing performance issues
+        // $order->load('products.product.brand.vendor');
 
-        $order->load('products.product.brand.vendor');
         $order->update([
             'request' => $zone,
         ]);
+
         $delivery_date = $order->delivery_date;
         $observations = $order->observations;
 
@@ -47,22 +69,96 @@ class OrderRepository
         $code = $zone->code;
         $zone = $zone->zone;
 
-
         $productList = '';
 
+        // Optimize product loading - load all necessary data in one query
+        $productIds = $products->pluck('product_id')->toArray();
+        $variationIds = $products->pluck('variation_item_id')->filter()->toArray();
+
+        // Load all products with their relationships in one query
+        $productsData = \App\Models\Product::whereIn('id', $productIds)
+            ->with('brand.vendor')
+            ->get()
+            ->keyBy('id');
+
+        // Load all variation SKUs in one query if needed
+        $variationSkus = [];
+        if (!empty($variationIds)) {
+            // Create a collection of product-variation combinations from the order
+            $productVariationCombinations = $products->filter(function ($product) {
+                return !is_null($product->variation_item_id);
+            })->map(function ($product) {
+                return [
+                    'product_id' => $product->product_id,
+                    'variation_item_id' => $product->variation_item_id
+                ];
+            });
+
+            // Get all unique product IDs that have variations
+            $productIdsWithVariations = $productVariationCombinations->pluck('product_id')->unique()->toArray();
+
+            // Load variation SKUs for all product-variation combinations
+            $variationSkuData = DB::table('product_item_variation')
+                ->whereIn('variation_item_id', $variationIds)
+                ->whereIn('product_id', $productIdsWithVariations)
+                ->select('product_id', 'variation_item_id', 'sku')
+                ->get();
+
+            // Create a lookup array using composite key: product_id-variation_item_id
+            foreach ($variationSkuData as $item) {
+                $compositeKey = $item->product_id . '-' . $item->variation_item_id;
+                $variationSkus[$compositeKey] = $item->sku;
+            }
+
+            Log::channel('soap')->info('Loaded variation SKUs', [
+                'variation_ids' => $variationIds,
+                'product_ids_with_variations' => $productIdsWithVariations,
+                'variation_skus' => $variationSkus,
+                'count' => count($variationSkus)
+            ]);
+        }
+
         foreach ($products as $product) {
-            $vendor_type = $product->product->brand->vendor->vendor_type;
-            $effectivePackageQuantity = $product->product->calculate_package_price ? $product->package_quantity : 1;
-            $unitPrice = $effectivePackageQuantity ? parseCurrency($product->price / $effectivePackageQuantity)  : parseCurrency($product->price);
+            $productData = $productsData[$product->product_id] ?? null;
+
+            if (!$productData) {
+                Log::channel('soap')->warning('Product not found', [
+                    'product_id' => $product->product_id,
+                    'order_id' => $order->id
+                ]);
+                continue;
+            }
+
+            $vendor_type = $productData->brand->vendor->vendor_type;
+
+            // Add stage's package calculation logic while keeping master's caching approach
+            $effectivePackageQuantity = $productData->calculate_package_price ? $product->package_quantity : 1;
+            $unitPrice = $effectivePackageQuantity ? parseCurrency($product->price / $effectivePackageQuantity) : parseCurrency($product->price);
 
             if ($bonification) {
                 $unitPrice = 0;
-            };
-
-            $sku = $product->product->sku;
-            if ($product->variationItem) {
-                $sku = DB::table('product_item_variation')->where('id', $product->variation_item_id)->value('sku');
             }
+
+            // Use cached data instead of making individual queries
+            $sku = $productData->sku;
+            if ($product->variation_item_id && isset($variationSkus[$product->product_id . '-' . $product->variation_item_id])) {
+                $sku = $variationSkus[$product->product_id . '-' . $product->variation_item_id];
+                Log::channel('soap')->info('Using variation SKU', [
+                    'product_id' => $product->product_id,
+                    'variation_item_id' => $product->variation_item_id,
+                    'variation_sku' => $sku,
+                    'original_product_sku' => $productData->sku
+                ]);
+            } else {
+                Log::channel('soap')->info('Using product SKU', [
+                    'product_id' => $product->product_id,
+                    'variation_item_id' => $product->variation_item_id,
+                    'product_sku' => $sku,
+                    'has_variation_id' => !empty($product->variation_item_id),
+                    'variation_sku_exists' => $product->variation_item_id ? isset($variationSkus[$product->product_id . '-' . $product->variation_item_id]) : false
+                ]);
+            }
+
             $qty = $effectivePackageQuantity ? $product->quantity * $effectivePackageQuantity : $product->quantity;
             $productList .= '<dyn:listDetails>
                             <dyn:discount>' . (int) $product->percentage . '</dyn:discount>
@@ -77,14 +173,7 @@ class OrderRepository
         }
 
         $order_id = $order->id;
-
         $transactionDate = $order->created_at->format('Y-m-d');
-
-
-
-        // $transactionDate = '2024-07-08';
-        // $delivery_date = '2024-07-09';
-
 
         $body = '<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:dat="http://schemas.microsoft.com/dynamics/2013/01/datacontracts" xmlns:tem="http://tempuri.org" xmlns:dyn="http://schemas.datacontract.org/2004/07/Dynamics.AX.Application">
             <soapenv:Header>
@@ -121,49 +210,135 @@ class OrderRepository
             </soapenv:Body>
         </soapenv:Envelope>';
 
-
-
         $token = Setting::getByKey('microsoft_token');
-
         $resource_url = config('microsoft.resource');
 
-
-
-        $response = Http::withHeaders([
-            'Content-Type' => 'text/xml;charset=UTF-8',
-            'SOAPAction' => 'http://tempuri.org/DWSSalesForce/PreSaslesProcess',
-            'Authorization' => "Bearer {$token}"
-        ])->send('POST', $resource_url . '/soap/services/DIITDWSSalesForceGroup?=null', [
-            'body' => $body
+        Log::channel('soap')->info('Sending SOAP request', [
+            'order_id' => $order_id,
+            'url' => $resource_url . '/soap/services/DIITDWSSalesForceGroup?=null',
+            'zone' => $zone,
+            'code' => $code,
+            'delivery_date' => $delivery_date
         ]);
 
-
-        $data = $response->body();
-        $xmlString = preg_replace('/<(\/)?(s|a):/', '<$1$2', $data);
-        $xml = simplexml_load_string($xmlString);
-
         try {
+            // Add more detailed timing logs
+            $httpStartTime = microtime(true);
 
-            $response = $xml->sBody->PreSaslesProcessResponse->result->aPreSaslesProcessResult;
-            if ($response == 'OK') {
-                $order->update([
-                    'status_id' => Order::STATUS_PROCESED,
-                    'request' => $body,
-                    'response' => $response
+            $response = Http::withHeaders([
+                'Content-Type' => 'text/xml;charset=UTF-8',
+                'SOAPAction' => 'http://tempuri.org/DWSSalesForce/PreSaslesProcess',
+                'Authorization' => "Bearer {$token}"
+            ])
+                ->timeout(30) // Set timeout to 30 seconds
+                ->connectTimeout(5) // Add connection timeout
+                ->withOptions([
+                    'verify' => false, // Disable SSL verification if not needed (for internal APIs)
+                    'http_errors' => false,
+                    'connect_timeout' => 5,
+                    'timeout' => 30,
+                ])
+                ->send('POST', $resource_url . '/soap/services/DIITDWSSalesForceGroup?=null', [
+                    'body' => $body
                 ]);
-            } else {
+
+            $httpEndTime = microtime(true);
+            $httpTime = round($httpEndTime - $httpStartTime, 2);
+
+            $endTime = microtime(true);
+            $executionTime = round($endTime - $startTime, 2);
+
+            Log::channel('soap')->info('SOAP request completed', [
+                'order_id' => $order_id,
+                'total_execution_time' => $executionTime . ' seconds',
+                'http_request_time' => $httpTime . ' seconds',
+                'preparation_time' => round($httpStartTime - $startTime, 2) . ' seconds',
+                'status_code' => $response->status(),
+                'successful' => $response->successful()
+            ]);
+
+            $data = $response->body();
+            $xmlString = preg_replace('/<(\/)?(s|a):/', '<$1$2', $data);
+            $xml = simplexml_load_string($xmlString);
+
+            try {
+                $response = $xml->sBody->PreSaslesProcessResponse->result->aPreSaslesProcessResult;
+
+                if ($response == 'OK') {
+                    Log::channel('soap')->info('SOAP request successful - Order processed', [
+                        'order_id' => $order_id,
+                        'response' => 'OK',
+                        'execution_time' => $executionTime . ' seconds'
+                    ]);
+
+                    $order->update([
+                        'status_id' => Order::STATUS_PROCESED,
+                        'request' => $body,
+                        'response' => $response
+                    ]);
+                } else {
+                    Log::channel('soap')->warning('SOAP request returned error response', [
+                        'order_id' => $order_id,
+                        'response' => (string)$response,
+                        'execution_time' => $executionTime . ' seconds'
+                    ]);
+
+                    $order->update([
+                        'status_id' => Order::STATUS_ERROR,
+                        'request' => $body,
+                        'response' => $response
+                    ]);
+                }
+            } catch (\Exception $e) {
+                Log::channel('soap')->error('Error parsing SOAP response', [
+                    'order_id' => $order_id,
+                    'error' => $e->getMessage(),
+                    'response_body' => substr($data, 0, 1000), // Log first 1000 chars of response
+                    'execution_time' => $executionTime . ' seconds'
+                ]);
+
                 $order->update([
-                    'status_id' => Order::STATUS_ERROR,
+                    'status_id' => Order::STATUS_ERROR_WEBSERVICE,
                     'request' => $body,
-                    'response' => $response
+                    'response' => $data
                 ]);
             }
-        } catch (\Exception $e) {
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            $endTime = microtime(true);
+            $executionTime = round($endTime - $startTime, 2);
+
+            Log::channel('soap')->error('SOAP request timeout or connection error', [
+                'order_id' => $order_id,
+                'error' => $e->getMessage(),
+                'execution_time' => $executionTime . ' seconds',
+                'timeout' => true
+            ]);
+
             $order->update([
                 'status_id' => Order::STATUS_ERROR_WEBSERVICE,
                 'request' => $body,
-                'response' => $response
+                'response' => 'Timeout or connection error: ' . $e->getMessage()
             ]);
+
+            throw $e;
+        } catch (\Exception $e) {
+            $endTime = microtime(true);
+            $executionTime = round($endTime - $startTime, 2);
+
+            Log::channel('soap')->error('Unexpected error during SOAP request', [
+                'order_id' => $order_id,
+                'error' => $e->getMessage(),
+                'error_type' => get_class($e),
+                'execution_time' => $executionTime . ' seconds'
+            ]);
+
+            $order->update([
+                'status_id' => Order::STATUS_ERROR_WEBSERVICE,
+                'request' => $body,
+                'response' => 'Error: ' . $e->getMessage()
+            ]);
+
+            throw $e;
         }
     }
 

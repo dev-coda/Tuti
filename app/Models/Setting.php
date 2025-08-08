@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Cache;
 
 class Setting extends Model
 {
@@ -13,6 +14,23 @@ class Setting extends Model
 
     public static function getByKey($key)
     {
-        return self::where('key', $key)->first()->value;
+        return Cache::remember("setting_{$key}", 1800, function () use ($key) {
+            $setting = self::where('key', $key)->first();
+            return $setting ? $setting->value : null;
+        });
+    }
+
+    protected static function boot()
+    {
+        parent::boot();
+
+        // Clear cache when settings are updated
+        static::saved(function ($setting) {
+            Cache::forget("setting_{$setting->key}");
+        });
+
+        static::deleted(function ($setting) {
+            Cache::forget("setting_{$setting->key}");
+        });
     }
 }

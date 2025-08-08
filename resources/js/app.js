@@ -23,6 +23,7 @@ import MostSoldProducts from "./components/MostSoldProducts.vue";
 import FeaturedCategories from "./components/FeaturedCategories.vue";
 import MostPopularCategories from "./components/MostPopularCategories.vue";
 import FilterSortDropdowns from "./components/FilterSortDropdowns.vue";
+import SubmitOrderButton from "./components/SubmitOrderButton.vue";
 
 // Mount combinedProducts component
 const productsApp = createApp(combinedProducts);
@@ -59,6 +60,13 @@ mostPopularCategoriesApp.mount("#most-popular-categories");
 // Mount FilterSortDropdowns component
 const filterSortApp = createApp(FilterSortDropdowns);
 filterSortApp.mount("#filter-sort-dropdowns");
+
+// Mount SubmitOrderButton component
+const submitOrderButtonApp = createApp(SubmitOrderButton);
+const submitOrderButtonEl = document.getElementById("submit-order-button");
+if (submitOrderButtonEl) {
+    submitOrderButtonApp.mount("#submit-order-button");
+}
 
 const sidebar = document.getElementById("sidebar");
 

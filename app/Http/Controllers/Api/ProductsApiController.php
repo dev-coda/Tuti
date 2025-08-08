@@ -4,10 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Product;
+use App\Models\Setting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
-use App\Models\Setting;
 
 class ProductsApiController extends Controller
 {
@@ -63,7 +63,8 @@ class ProductsApiController extends Controller
             // Get featured products maintaining the order
             $query = Product::with(['brand', 'categories', 'images'])
                 ->whereIn('id', $featuredProductIds)
-                ->where('active', 1);
+                ->where('active', 1)
+                ->take(12);
         }
 
         // Debug the SQL query
@@ -157,6 +158,13 @@ class ProductsApiController extends Controller
 
         // Debug products count
         Log::info('Most sold products fetched: ' . $products->count());
+
+        if ($products->isEmpty()) {
+            return response()->json([
+                'message' => 'No products found',
+                'products' => []
+            ]);
+        }
 
         $mappedProducts = $products->map(function ($product) {
             $finalPrice = $product->finalPrice;

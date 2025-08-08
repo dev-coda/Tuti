@@ -59,6 +59,7 @@ Route::post('/carrito', [CartController::class, 'processOrder'])->name('cart.pro
 Route::middleware(['auth'])->group(function () {
     Route::get('/ordenes', [OrderController::class, 'index'])->name('clients.orders.index');
     Route::get('/ordenes/{order}', [OrderController::class, 'show'])->name('clients.orders.show');
+    Route::post('/ordenes/{order}/reorder', [OrderController::class, 'reorder'])->name('clients.orders.reorder');
 });
 
 Route::name('sellers.')->prefix('vendedor')->group(function () {
@@ -85,9 +86,7 @@ Route::name('shoppers.')->prefix('tendero')->group(function () {
     Route::get('/reports', [ShopperPageController::class, 'reports'])->name('reports');
 });
 
-Route::middleware(['auth'])->group(function () {
-    Route::get('/orders/{order}', [OrderController::class, 'show'])->name('orders.show');
-});
+Route::middleware(['auth'])->group(function () {});
 
 Route::delete('/admins/{id}', [AdminController::class, 'destroy'])->name('admins.destroy');
 
