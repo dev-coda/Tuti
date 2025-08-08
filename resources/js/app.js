@@ -24,6 +24,7 @@ import FeaturedCategories from "./components/FeaturedCategories.vue";
 import MostPopularCategories from "./components/MostPopularCategories.vue";
 import FilterSortDropdowns from "./components/FilterSortDropdowns.vue";
 import SubmitOrderButton from "./components/SubmitOrderButton.vue";
+import ProductImageReorder from "./components/ProductImageReorder.vue";
 
 // Mount combinedProducts component
 const productsApp = createApp(combinedProducts);
@@ -66,6 +67,20 @@ const submitOrderButtonApp = createApp(SubmitOrderButton);
 const submitOrderButtonEl = document.getElementById("submit-order-button");
 if (submitOrderButtonEl) {
     submitOrderButtonApp.mount("#submit-order-button");
+}
+
+// Mount ProductImageReorder when container exists
+const imageReorderEl = document.getElementById("product-image-reorder");
+if (imageReorderEl) {
+    const props = {
+        images: JSON.parse(imageReorderEl.dataset.images || "[]"),
+        reorderUrl: imageReorderEl.dataset.reorderUrl,
+        csrf: document
+            .querySelector('meta[name="csrf-token"]')
+            .getAttribute("content"),
+    };
+    const imageReorderApp = createApp(ProductImageReorder, props);
+    imageReorderApp.mount("#product-image-reorder");
 }
 
 const sidebar = document.getElementById("sidebar");

@@ -238,10 +238,6 @@ class ProductController extends Controller
      */
     public function update(Request $request, Product $product)
     {
-
-
-
-
         $validate = $request->validate([
             'name' => 'required|max:255',
             'description' => 'nullable',
@@ -356,26 +352,44 @@ class ProductController extends Controller
 
     public function images(Request $request, Product $product)
     {
-
         $validate = $request->validate([
             'image' => 'required|image|max:4096',
         ]);
 
         $path = $validate['image']->store('products', 'public');
 
-        $product->images()->create([
-            'path' => $path
+        $image = $product->images()->create([
+            'path' => $path,
         ]);
+
+        // Set position to max(position)+1 within this product
+        $nextPosition = $product->images()->max('position') ?? 0;
+        $image->update(['position' => $nextPosition + 1]);
 
         return back()->with('success', 'Imagen cargada');
     }
 
     public function images_delete(Request $request, Product $product, ProductImage $image)
     {
-
         $image->delete();
 
         return back()->with('success', 'Imagen eliminada');
+    }
+
+    public function reorderImages(Request $request, Product $product)
+    {
+        $data = $request->validate([
+            'order' => 'required|array',
+            'order.*' => 'integer|exists:product_images,id',
+        ]);
+
+        $position = 1;
+        foreach ($data['order'] as $imageId) {
+            $product->images()->where('id', $imageId)->update(['position' => $position]);
+            $position++;
+        }
+
+        return response()->json(['success' => true]);
     }
 
     public function export()
