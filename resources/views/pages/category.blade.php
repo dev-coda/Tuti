@@ -69,7 +69,7 @@
     <div class="col-span-12 ">
         <div class="grid grid-cols-1 xl:grid-cols-4 gap-0 gap-y-10 ">
             @foreach ($products as $product)
-            <x-product :product="$product" />
+            <x-product :product="$product" :bodega-code="$bodegaCode ?? null" />
             @endforeach
 
         </div>

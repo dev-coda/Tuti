@@ -1,4 +1,4 @@
-@props(['product'])
+@props(['product', 'bodegaCode' => null])
 <div class=" rounded flex flex-col p-6 max-w-[90vw]">
     <div class="flex w-full items-center justify-center py-2 text-gray-400 flex-grow">
         @if($product->images->first())
@@ -20,6 +20,19 @@
         <p class=" text-slate-500 text-md">{{$product->sku}}</p>
 
         @endif
+        @auth
+            @php
+                $available = $product->getInventoryForBodega($bodegaCode);
+            @endphp
+            @if($available <= 0)
+                <p class="text-xs text-red-600">Producto no disponible para tu ubicación</p>
+            @else
+                <p class="text-xs {{ $available > 5 ? 'text-green-600' : 'text-red-600' }}">Inventario: {{ $available }}</p>
+            @endif
+        @else
+            @php $mdtat = $product->getInventoryForMdtat(); @endphp
+            <p class="text-xs text-gray-600">Inventario (MDTAT): {{ $mdtat }}</p>
+        @endauth
         @if($product->final_price['has_discount'])
         <span class="text-slate-400 text-lg"><small class="line-through text-lg text-slate-400 font-semibold">${{currency($product->final_price['old'])}} </small>Antes</span>
         @endif

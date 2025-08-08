@@ -6,8 +6,22 @@
 
 <div class="p-4 bg-white block sm:flex items-center justify-between border-b border-gray-200">
     <div class="w-full mb-1">
-        <div class="mb-4">
+        <div class="mb-4 flex items-center justify-between">
             <h1 class="text-xl font-semibold text-gray-900 sm:text-2xl ">Textos</h1>
+            <div class="flex items-center gap-4">
+                @php($lastSync = \App\Models\Setting::where('key','inventory_last_synced_at')->value('value'))
+                <div class="text-sm text-gray-600">
+                    Última sincronización de inventario:
+                    <span class="font-semibold">{{ $lastSync ? \Carbon\Carbon::parse($lastSync)->format('Y-m-d H:i') : 'N/A' }}</span>
+                </div>
+                <form action="{{ route('settings.sync-inventory') }}" method="POST">
+                    @csrf
+                    <button class="inline-flex items-center px-3 py-2 text-sm font-medium text-center text-white rounded-lg bg-orange-600 hover:bg-orange-700 focus:ring-4 focus:ring-orange-300">
+                        @svg('heroicon-o-arrow-path', 'w-4 h-4 mr-2')
+                        <span>Sincronizar inventario</span>
+                    </button>
+                </form>
+            </div>
         </div>
         <div class="items-center justify-between block sm:flex md:divide-x md:divide-gray-100 ">
             <div class="flex items-center mb-4 sm:mb-0">
@@ -80,6 +94,7 @@
             
 
 
+
                     </tbody>
                 </table>
             </div>
@@ -89,9 +104,6 @@
 
 
 {{ $settings->links() }} 
-
-
-
 
 
 

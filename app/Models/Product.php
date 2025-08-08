@@ -31,6 +31,7 @@ class Product extends Model
         'parent_id',
         'package_quantity',
         'calculate_package_price',
+        'safety_stock',
     ];
 
 
@@ -88,7 +89,35 @@ class Product extends Model
 
     public function images()
     {
-        return $this->hasMany(ProductImage::class);
+        return $this->hasMany(ProductImage::class)->orderBy('position')->orderBy('id');
+    }
+
+    public function inventories()
+    {
+        return $this->hasMany(ProductInventory::class);
+    }
+
+    public function getInventoryForBodega(?string $bodegaCode): int
+    {
+        if (!$bodegaCode) return 0;
+        $inv = $this->inventories->firstWhere('bodega_code', $bodegaCode);
+        return $inv?->available ?? 0;
+    }
+
+    public function getInventoryForMdtat(): int
+    {
+        $inv = $this->inventories->firstWhere('bodega_code', 'MDTAT');
+        return $inv?->available ?? 0;
+    }
+
+    public function getEffectiveSafetyStock(): int
+    {
+        // Product-specific overrides category; otherwise use category safety or 0
+        if (!is_null($this->safety_stock)) {
+            return (int) $this->safety_stock;
+        }
+        $category = $this->categories->first();
+        return (int) ($category?->safety_stock ?? 0);
     }
 
     public function bonifications()

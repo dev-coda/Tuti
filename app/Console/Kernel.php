@@ -5,6 +5,8 @@ namespace App\Console;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 use App\Jobs\UpdateProductPrices;
+use App\Jobs\SyncProductInventory;
+use App\Models\Setting;
 
 class Kernel extends ConsoleKernel
 {
@@ -22,6 +24,14 @@ class Kernel extends ConsoleKernel
         //    $schedule->call(function (){
         //       UpdateProductPrices::dispatch();
         //   })->daily();
+
+        // Nightly inventory sync (guarded by setting inventory_sync_enabled)
+        $schedule->call(function () {
+            $enabled = Setting::getByKey('inventory_sync_enabled');
+            if ($enabled === '1' || $enabled === 1 || $enabled === true) {
+                SyncProductInventory::dispatch();
+            }
+        })->dailyAt('02:30');
     }
 
     /**

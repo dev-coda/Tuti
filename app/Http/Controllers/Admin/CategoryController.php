@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Http\Controllers\Admin;
+
 use App\Http\Controllers\Controller;
 
 //use App\Jobs\ProcessImage;
@@ -67,6 +68,7 @@ class CategoryController extends Controller
             'description' => 'nullable',
             'image' => 'nullable|image',
             'active' => 'nullable|boolean',
+            'safety_stock' => 'nullable|integer|min:0',
         ]);
 
         if ($request->hasFile('image_file')) {
@@ -101,7 +103,6 @@ class CategoryController extends Controller
         $categories->prepend('Seleccione', null);
         $context = compact('category', 'categories');
         return view('categories.edit', $context);
-
     }
 
     /**
@@ -132,7 +133,8 @@ class CategoryController extends Controller
                         $fail('El slug para este nombre ya existe');
                     }
                 },
-            ]
+            ],
+            'safety_stock' => 'nullable|integer|min:0',
         ]);
 
         // $name = asset_name('categories'); 
@@ -185,6 +187,5 @@ class CategoryController extends Controller
 
         $category->delete();
         return to_route('categories.index')->with('success', 'La categoría se ha eliminado correctamente');
-
     }
 }
