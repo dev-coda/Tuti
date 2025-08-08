@@ -5,6 +5,7 @@ namespace App\Console;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 use App\Jobs\UpdateProductPrices;
+use App\Models\Setting;
 
 class Kernel extends ConsoleKernel
 {
@@ -17,11 +18,13 @@ class Kernel extends ConsoleKernel
         //comand every 20 minutes
         $schedule->command('app:get-token')->cron('*/20 * * * *');
 
-
-        //Temporarily disabled:
-        //    $schedule->call(function (){
-        //       UpdateProductPrices::dispatch();
-        //   })->daily();
+        // Auto-updater (daily) guarded by settings toggle
+        $schedule->call(function () {
+            $enabled = Setting::getByKey('auto_updater_enabled');
+            if ($enabled === '1' || $enabled === 1 || $enabled === true) {
+                UpdateProductPrices::dispatch();
+            }
+        })->daily();
     }
 
     /**

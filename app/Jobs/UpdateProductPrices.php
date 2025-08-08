@@ -61,7 +61,7 @@ class UpdateProductPrices implements ShouldQueue
         info($body);
 
         $response = Http::withHeaders([
-            'Content-Type' => 'text/xml;charset=UTF-8',
+
             'SOAPAction' => 'http://tempuri.org/DWSSalesForce/getPriceAndDiscount',
             'Authorization' => "Bearer {$token}"
         ])->send('POST', env('MICROSOFT_RESOURCE_URL', 'https://uattrx.sandbox.operations.dynamics.com/') . '/soap/services/DIITDWSSalesForceGroup', [
@@ -83,6 +83,12 @@ class UpdateProductPrices implements ShouldQueue
         DB::beginTransaction();
         try {
             foreach ($products as $product) {
+                // Filter by GroupId == TATNAC
+                $groupId = (string) ($product->aGroupId ?? '');
+                if (strtoupper($groupId) !== 'TATNAC') {
+                    continue;
+                }
+
                 $itemId = (string) $product->aItemId;
                 $amount = (string) $product->aAmount;
 
@@ -99,10 +105,17 @@ class UpdateProductPrices implements ShouldQueue
                     ->first();
 
                 if ($existingProduct) {
-                    if ($existingProduct->price !== $cleanAmount) {
-                        $existingProduct->update(['price' => $cleanAmount]);
+                    // If "calcular precio por empaque" is disabled, divide by package quantity
+                    $effectivePrice = $cleanAmount;
+                    if (!$existingProduct->calculate_package_price) {
+                        $packageQty = (float) ($existingProduct->package_quantity ?? 1);
+                        $packageQty = $packageQty > 0 ? $packageQty : 1;
+                        $effectivePrice = number_format(((float) $cleanAmount) / $packageQty, 2, '.', '');
+                    }
 
-                        info("Precio actualizado para {$itemId}: {$cleanAmount}");
+                    if ((float) $existingProduct->price !== (float) $effectivePrice) {
+                        $existingProduct->update(['price' => $effectivePrice]);
+                        info("Precio actualizado para {$itemId}: {$effectivePrice} (group {$groupId})");
                     }
                 }
             }
