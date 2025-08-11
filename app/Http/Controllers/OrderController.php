@@ -28,6 +28,11 @@ class OrderController extends Controller
                     $sub->where('name', 'ilike', "%$q%");
                 });
             })
+            ->when($request->filled('order_id'), function ($query) use ($request) {
+                $idq = trim((string) $request->order_id);
+                // Cast id to text for ILIKE partial search (PostgreSQL)
+                $query->whereRaw('CAST(id AS TEXT) ILIKE ?', ["%{$idq}%"]);
+            })
             ->when($request->filled('from_date') && $request->filled('to_date'), function ($query) use ($request) {
                 $query->whereBetween('created_at', [
                     Carbon::parse($request->from_date)->startOfDay(),

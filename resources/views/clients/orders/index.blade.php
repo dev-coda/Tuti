@@ -15,10 +15,14 @@
     <h2 class="text-2xl font-bold mb-5">Historial de ordenes</h2>
 
     <form method="GET" action="{{ route('clients.orders.index') }}" class="mb-4">
-        <div class="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+        <div class="grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
             <div class="md:col-span-2">
                 <label class="block text-sm font-medium text-gray-700 mb-1">Buscar cliente</label>
                 <input type="text" name="q" id="orders-filter-q" value="{{ request('q') }}" class="w-full border-gray-300 rounded-md" placeholder="Nombre del cliente...">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">ID de orden</label>
+                <input type="text" name="order_id" id="orders-filter-id" value="{{ request('order_id') }}" class="w-full border-gray-300 rounded-md" placeholder="Ej: 1024">
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Desde</label>
@@ -43,6 +47,7 @@
         <table class="w-full text-sm text-left rtl:text-right text-gray-500 ">
             <thead class="text-xs text-gray-700 uppercase bg-gray-50  ">
                 <tr>
+                    <th scope="col" class="px-6 py-3">ID</th>
                     <th scope="col" class="px-6 py-3">Fecha</th>
                     <th scope="col" class="px-6 py-3 text-center">Productos</th>
                     <th scope="col" class="px-6 py-3 text-center">Unidades</th>
@@ -57,6 +62,9 @@
             <tbody>
                 @foreach ($orders as $order)
                     <tr class="bg-white border-b  ">
+                        <td class="px-6 py-4 font-medium text-gray-900 whitespace-nowrap">
+                            {{ $order->id }}
+                        </td>
                         <th scope="row" class="px-6 py-4 font-medium text-gray-900 whitespace-nowrap ">
                             {{$order->created_at->subHour(5)->format('Y-m-d H:i')}}
                         </th>
@@ -103,6 +111,7 @@
 <script>
     (function(){
         const input = document.getElementById('orders-filter-q');
+        const idInput = document.getElementById('orders-filter-id');
         if(!input) return;
         let t;
         input.addEventListener('input', function(){
@@ -113,6 +122,18 @@
                 window.location = `${window.location.pathname}?${params.toString()}`;
             }, 350);
         });
+
+        if (idInput) {
+            let ti;
+            idInput.addEventListener('input', function(){
+                clearTimeout(ti);
+                ti = setTimeout(() => {
+                    const params = new URLSearchParams(window.location.search);
+                    params.set('order_id', idInput.value || '');
+                    window.location = `${window.location.pathname}?${params.toString()}`;
+                }, 350);
+            });
+        }
 
         // submit form on date/status change
         document.querySelectorAll("input[name='from_date'], input[name='to_date'], select[name='status_id']").forEach(el => {

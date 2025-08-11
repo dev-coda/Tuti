@@ -63,34 +63,88 @@ class UpdateProductPrices implements ShouldQueue
         $response = Http::withHeaders([
 
             'SOAPAction' => 'http://tempuri.org/DWSSalesForce/getPriceAndDiscount',
-            'Authorization' => "Bearer {$token}"
+            'Authorization' => "Bearer {$token}",
+            'Content-Type' => 'text/xml; charset=utf-8',
+            'Accept' => 'text/xml, application/xml'
         ])->send('POST', env('MICROSOFT_RESOURCE_URL', 'https://uattrx.sandbox.operations.dynamics.com/') . '/soap/services/DIITDWSSalesForceGroup', [
             'body' => $body
         ]);
-        info($response);
-        $data = $response->body();
 
-        $xmlString = preg_replace('/<(\/)?(s|a):/', '<$1$2', $data);
-        // libxml_use_internal_errors(true);
-        $xml = simplexml_load_string($xmlString);
-
-        if (!$xml) {
-            throw new Exception('No se pudo cargar el XML limpio.');
+        // Check HTTP status and basic headers first
+        $status = $response->status();
+        $headers = $response->headers();
+        $contentType = $headers['Content-Type'][0] ?? '';
+        if (!$response->successful()) {
+            $snippet = mb_substr($response->body(), 0, 500);
+            info("SOAP request failed: status {$status}, content-type {$contentType}, body: {$snippet}");
+            throw new Exception("Error en la solicitud SOAP: {$status}");
         }
 
-        $products = $xml->sBody->getPriceAndDiscountResponse->result->agetPriceAndDiscountResult->aListPriceDisc;
+        $data = $response->body();
+
+        // Store last response for debugging purposes (overwritten each run)
+        try {
+            Storage::disk('local')->put('last_soap_response.xml', $data);
+        } catch (Exception $e) {
+            // non-fatal
+        }
+
+        // Enable internal error collection for better diagnostics
+        libxml_use_internal_errors(true);
+
+        // Sanitize XML: normalize encoding, fix stray ampersands, remove invalid control chars
+        $detectedEncoding = mb_detect_encoding($data, ['UTF-8', 'ISO-8859-1', 'Windows-1252'], true) ?: 'UTF-8';
+        $normalized = @mb_convert_encoding($data, 'UTF-8', $detectedEncoding);
+        if ($normalized === false) {
+            $normalized = @iconv($detectedEncoding, 'UTF-8//IGNORE', $data) ?: $data;
+        }
+        // Replace stray ampersands not part of an entity
+        $normalized = preg_replace('/&(?!#?[a-zA-Z0-9]+;)/', '&amp;', $normalized);
+        // Strip invalid XML 1.0 characters
+        $normalized = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', '', $normalized);
+
+        // Try parsing the raw XML (keep namespaces)
+        $xml = simplexml_load_string($normalized, 'SimpleXMLElement', LIBXML_NOERROR | LIBXML_NOWARNING | LIBXML_NOBLANKS | LIBXML_NOCDATA | LIBXML_COMPACT | LIBXML_PARSEHUGE);
+        if (!$xml) {
+            // Fallback: strip namespace prefixes and try again
+            $stripped = preg_replace('/<(\/)?([A-Za-z0-9_\-]+):/', '<$1', $normalized);
+            $xml = simplexml_load_string($stripped, 'SimpleXMLElement', LIBXML_NOERROR | LIBXML_NOWARNING | LIBXML_NOBLANKS | LIBXML_NOCDATA | LIBXML_COMPACT | LIBXML_PARSEHUGE);
+            if (!$xml) {
+                $errors = libxml_get_errors();
+                libxml_clear_errors();
+                $errorMessages = [];
+                foreach ($errors as $err) {
+                    $errorMessages[] = trim($err->message);
+                }
+                info('XML parse errors: ' . implode(' | ', $errorMessages));
+                throw new Exception('No se pudo cargar la respuesta XML.');
+            }
+        }
+
+        // Extract products using namespace-agnostic XPath
+        $products = $xml->xpath('//*[local-name()="Body"]//*[local-name()="getPriceAndDiscountResponse"]//*[local-name()="result"]//*[local-name()="getPriceAndDiscountResult"]//*[local-name()="ListPriceDisc"]');
+
+        if (empty($products)) {
+            info('No se encontraron productos en la respuesta SOAP.');
+            info("Proceso completado.\n");
+            return;
+        }
 
         DB::beginTransaction();
         try {
             foreach ($products as $product) {
                 // Filter by GroupId == TATNAC
-                $groupId = (string) ($product->aGroupId ?? '');
+                $groupIdNode = $product->xpath('./*[local-name()="GroupId"]');
+                $itemIdNode = $product->xpath('./*[local-name()="ItemId"]');
+                $amountNode = $product->xpath('./*[local-name()="Amount"]');
+
+                $groupId = (string) (($groupIdNode[0] ?? null));
+                $itemId = (string) (($itemIdNode[0] ?? null));
+                $amount = (string) (($amountNode[0] ?? null));
+
                 if (strtoupper($groupId) !== 'TATNAC') {
                     continue;
                 }
-
-                $itemId = (string) $product->aItemId;
-                $amount = (string) $product->aAmount;
 
                 if (empty($itemId)) {
                     continue;
