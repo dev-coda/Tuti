@@ -203,7 +203,7 @@
                         {{ Aire::open()->route('cart.process')}}
 
                             <div class="pt-5">
-                                {{ Aire::select($zones, 'zone_id', 'Dirección')->id('states')}}
+                                {{ Aire::select($zones, 'zone_id', 'Dirección')->id('states')->value(session('zone_id'))}}
 
                                 {{Aire::textarea('observations', 'Observaciones')->placeholder('Información adicional')->rows(3)}}
                             </div>

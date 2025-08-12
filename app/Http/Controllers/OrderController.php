@@ -4,8 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Models\User;
+use App\Models\Zone;
+use App\Models\ZoneWarehouse;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
+use App\Repositories\UserRepository;
 
 class OrderController extends Controller
 {
@@ -105,7 +108,7 @@ class OrderController extends Controller
             abort(403);
         }
 
-        $order->load('products');
+        $order->load(['products', 'user.zones']);
         $cart = session()->get('cart', []);
 
         foreach ($order->products as $orderProduct) {
@@ -136,7 +139,79 @@ class OrderController extends Controller
             }
         }
 
+        // Persist cart
         session()->put('cart', $cart);
-        return back()->with('success', 'Productos de la orden agregados al carrito.');
+
+        // Preserve client and zone from the original order for confirmation step
+        // If current user is a seller, set the acting client for the cart
+        if ($user->hasRole('seller')) {
+            session()->put('user_id', $order->user_id);
+
+            // Ensure client zones are available (run SOAP-backed sync if necessary)
+            $client = $order->user;
+            $client->loadMissing('zones');
+            $needsZoneSync = $client->zones->count() === 0;
+
+            // Also sync if original zone has no mapped bodega
+            $selectedZoneId = $order->zone_id ?: session()->get('zone_id');
+            $selectedZone = $selectedZoneId ? Zone::find($selectedZoneId) : null;
+            $hasMappedBodega = $selectedZone && $selectedZone->code && ZoneWarehouse::where('zone_code', $selectedZone->code)->exists();
+            if ($needsZoneSync || !$hasMappedBodega) {
+                try {
+                    $data = UserRepository::getCustomRuteroId($client->document);
+                    if ($data && isset($data['routes'])) {
+                        $existingZones = $client->zones()->get();
+                        $newRoutes = $data['routes'];
+                        foreach ($newRoutes as $index => $route) {
+                            $zoneToUpdate = $existingZones[$index] ?? null;
+                            if ($zoneToUpdate) {
+                                $zoneToUpdate->update([
+                                    'route' => $route['route'],
+                                    'zone' => $route['zone'],
+                                    'day' => $route['day'],
+                                    'address' => $route['address'],
+                                    'code' => $route['code'],
+                                ]);
+                            } else {
+                                $client->zones()->create([
+                                    'route' => $route['route'],
+                                    'zone' => $route['zone'],
+                                    'day' => $route['day'],
+                                    'address' => $route['address'],
+                                    'code' => $route['code'],
+                                ]);
+                            }
+                        }
+                        $client->refresh();
+                    }
+                } catch (\Throwable $th) {
+                    // If sync fails, proceed with whatever data exists
+                }
+
+                // Re-evaluate selected zone; if invalid, pick first zone with mapped bodega
+                $selectedZone = $selectedZoneId ? Zone::find($selectedZoneId) : null;
+                $hasMappedBodega = $selectedZone && $selectedZone->code && ZoneWarehouse::where('zone_code', $selectedZone->code)->exists();
+                if (!$hasMappedBodega) {
+                    $zoneIdWithBodega = null;
+                    foreach ($client->zones as $z) {
+                        if ($z->code && ZoneWarehouse::where('zone_code', $z->code)->exists()) {
+                            $zoneIdWithBodega = $z->id;
+                            break;
+                        }
+                    }
+                    if ($zoneIdWithBodega) {
+                        session()->put('zone_id', $zoneIdWithBodega);
+                    }
+                }
+            }
+        } else {
+            // Non-sellers: ensure zone_id persists from the original order if present
+            if (!empty($order->zone_id)) {
+                session()->put('zone_id', (int) $order->zone_id);
+            }
+        }
+
+        // Go to order confirmation screen (cart)
+        return redirect()->route('cart')->with('success', 'Productos de la orden agregados al carrito.');
     }
 }

@@ -56,25 +56,52 @@ class SyncProductInventory implements ShouldQueue
 
             $items = $xml->sBody->obtenerExistenciaDeInventarioEspecificaResponse->result->aobtenerExistenciaDeInventarioEspecificaResult->aListItemExists ?? [];
 
+            // Aggregate totals per SKU for this bodega, excluding specific WMS locations
+            $aggregatedBySku = [];
+            foreach ($items as $item) {
+                $sku = trim((string) ($item->aItemId ?? ''));
+                if ($sku === '') {
+                    continue;
+                }
+
+                $wmsLocation = strtoupper(trim((string) ($item->aWMSLocation ?? $item->awMSLocation ?? $item->aWmsLocation ?? '')));
+                if ($wmsLocation === 'EMPAQUE' || $wmsLocation === 'SALIDA') {
+                    // Skip excluded locations
+                    continue;
+                }
+
+                $avail = (int) ((string) ($item->aAvailPhysical ?? '0'));
+                $phys = (int) ((string) ($item->aPhysicalInvent ?? '0'));
+                $resv = (int) ((string) ($item->aReservPhysical ?? '0'));
+
+                if (!isset($aggregatedBySku[$sku])) {
+                    $aggregatedBySku[$sku] = [
+                        'available' => 0,
+                        'physical' => 0,
+                        'reserved' => 0,
+                    ];
+                }
+
+                $aggregatedBySku[$sku]['available'] += $avail;
+                $aggregatedBySku[$sku]['physical'] += $phys;
+                $aggregatedBySku[$sku]['reserved'] += $resv;
+            }
+
             DB::beginTransaction();
             try {
-                foreach ($items as $item) {
-                    $sku = (string) $item->aItemId;
-                    if (!$sku) continue;
-                    $avail = (int) ((string) $item->aAvailPhysical);
-                    $phys = (int) ((string) $item->aPhysicalInvent);
-                    $resv = (int) ((string) $item->aReservPhysical);
-
+                foreach ($aggregatedBySku as $sku => $totals) {
                     $product = Product::where('sku', $sku)->first();
-                    if (!$product) continue;
+                    if (!$product) {
+                        continue;
+                    }
 
                     ProductInventory::updateOrCreate([
                         'product_id' => $product->id,
                         'bodega_code' => $bodega,
                     ], [
-                        'available' => $avail,
-                        'physical' => $phys,
-                        'reserved' => $resv,
+                        'available' => (int) ($totals['available'] ?? 0),
+                        'physical' => (int) ($totals['physical'] ?? 0),
+                        'reserved' => (int) ($totals['reserved'] ?? 0),
                     ]);
                 }
                 DB::commit();
