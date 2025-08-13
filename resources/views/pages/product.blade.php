@@ -57,11 +57,13 @@
             <div class="flex items-center gap-2">
                 <a href="{{route('product', $product->slug)}}" class=" text-[#180F09] font-semibold text-xl">{{$product->name}}</a>
                 @php
+                    $inventoryEnabled = \App\Models\Setting::getByKey('inventory_enabled');
+                    $showInventory = ($inventoryEnabled === '1' || $inventoryEnabled === 1 || $inventoryEnabled === true);
                     $available = auth()->check() ? $product->getInventoryForBodega($bodegaCode ?? null) : $product->getInventoryForMdtat();
                     $invForTag = $product->inventories->firstWhere('bodega_code', (auth()->check() ? ($bodegaCode ?? null) : 'MDTAT'));
                     $reserved = (int) ($invForTag?->reserved ?? 0);
                 @endphp
-                @if(($available - $reserved) < 10 && ($available - $reserved) > 0)
+                @if($showInventory && ($available - $reserved) < 10 && ($available - $reserved) > 0)
                     <span class="ml-2 inline-flex items-center text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-700">últimas unidades disponibles</span>
                 @endif
             </div>
@@ -70,10 +72,13 @@
 
             @endif
             @auth
-                @if($available <= 0)
+                @if($showInventory && $available <= 0)
                     <p class="text-sm text-red-600">Producto no disponible para tu ubicación</p>
                 @else
-                    <p class="text-sm {{ $available > 5 ? 'text-green-600' : 'text-red-600' }}">Inventario: {{ $available }}</p>
+                    @if($showInventory)
+                        <p class="text-sm {{ $available > 5 ? 'text-green-600' : 'text-red-600' }}">Inventario: {{ $available }}</p>
+                        <p class="text-sm text-gray-600">Inventario (MDTAT): {{ $available }}</p>
+                    @endif
                 @endif
             @else
                 <p class="text-sm text-gray-600">Inventario (MDTAT): {{ $available }}</p>

@@ -11,6 +11,16 @@ class SettingController extends Controller
 {
     public function index(Request $request)
     {
+        // Ensure inventory management toggle exists
+        Setting::firstOrCreate(
+            ['key' => 'inventory_enabled'],
+            [
+                'name' => 'Inventario habilitado',
+                'value' => '1',
+                'show' => true,
+            ]
+        );
+
         $settings = Setting::query()
             ->when($request->q, function ($query, $q) {
                 $query->where('name', 'like', "%{$q}%");

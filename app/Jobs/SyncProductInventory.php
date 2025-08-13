@@ -23,6 +23,11 @@ class SyncProductInventory implements ShouldQueue
 
     public function handle(): void
     {
+        // Respect inventory enabled setting
+        $inventoryEnabled = Setting::getByKey('inventory_enabled');
+        if (!($inventoryEnabled === '1' || $inventoryEnabled === 1 || $inventoryEnabled === true)) {
+            return;
+        }
         $tokenSetting = Setting::where('key', 'microsoft_token')->first();
         if (!$tokenSetting) {
             Log::warning('Missing microsoft_token setting.');

@@ -291,11 +291,13 @@ class CartController extends Controller
         $delivery_date = OrderRepository::getBusinessDay();
 
         // Inventory validation based on zone/bodega
+        $inventoryEnabled = Setting::getByKey('inventory_enabled');
+        $isInventoryEnabled = ($inventoryEnabled === '1' || $inventoryEnabled === 1 || $inventoryEnabled === true);
         $zoneId = $request->zone_id ?? session()->get('zone_id');
         $zone = $zoneId ? Zone::find($zoneId) : null;
         $zoneCode = $zone?->code ?? null;
         $bodega = null;
-        if ($zoneCode) {
+        if ($zoneCode && $isInventoryEnabled) {
             // First try DB mapping
             $bodega = ZoneWarehouse::where('zone_code', trim((string)$zoneCode))->value('bodega_code');
             // Fallback to config mapping if DB has no record
@@ -309,7 +311,7 @@ class CartController extends Controller
                 }
             }
         }
-        if (!$bodega) {
+        if ($isInventoryEnabled && !$bodega) {
             // Attempt fallback: choose the first zone of the acting user that has a mapped bodega
             $actingUser = $user;
             if ($user->hasRole('seller')) {
@@ -351,25 +353,27 @@ class CartController extends Controller
             }
         }
 
-        // Pre-check inventory and safety stock for each item
-        foreach ($cart as $cartItem) {
-            $product = Product::find($cartItem['product_id']);
-            if (!$product) {
-                return back()->with('error', 'Producto no encontrado en el carrito.');
-            }
-            $inventory = ProductInventory::where('product_id', $product->id)->where('bodega_code', $bodega)->first();
-            $available = (int) ($inventory?->available ?? 0);
-            $reserved = (int) ($inventory?->reserved ?? 0);
-            $safety = (int) $product->getEffectiveSafetyStock();
+        // Pre-check inventory and safety stock for each item (only when enabled)
+        if ($isInventoryEnabled) {
+            foreach ($cart as $cartItem) {
+                $product = Product::find($cartItem['product_id']);
+                if (!$product) {
+                    return back()->with('error', 'Producto no encontrado en el carrito.');
+                }
+                $inventory = ProductInventory::where('product_id', $product->id)->where('bodega_code', $bodega)->first();
+                $available = (int) ($inventory?->available ?? 0);
+                $reserved = (int) ($inventory?->reserved ?? 0);
+                $safety = (int) $product->getEffectiveSafetyStock();
 
-            if ($available <= $safety) {
-                return back()->with('error', "{$product->name} está por debajo del stock de seguridad.");
-            }
-            if ($available <= 5) {
-                return back()->with('error', "El producto {$product->name} tiene inventario insuficiente en su zona.");
-            }
-            if ($cartItem['quantity'] > ($available - max($reserved, 0))) {
-                return back()->with('error', "La cantidad solicitada de {$product->name} excede el inventario disponible en su zona.");
+                if ($available <= $safety) {
+                    return back()->with('error', "{$product->name} está por debajo del stock de seguridad.");
+                }
+                if ($available <= 5) {
+                    return back()->with('error', "El producto {$product->name} tiene inventario insuficiente en su zona.");
+                }
+                if ($cartItem['quantity'] > ($available - max($reserved, 0))) {
+                    return back()->with('error', "La cantidad solicitada de {$product->name} excede el inventario disponible en su zona.");
+                }
             }
         }
 
@@ -460,28 +464,30 @@ class CartController extends Controller
                     'package_quantity' => $p->package_quantity ?? 1,
                 ]);
 
-                // Decrement inventory for bodega with safety stock enforcement
-                $inventory = ProductInventory::lockForUpdate()->where('product_id', $p->id)->where('bodega_code', $bodega)->first();
-                $current = (int) ($inventory?->available ?? 0);
-                $reserved = (int) ($inventory?->reserved ?? 0);
-                $safety = (int) $p->getEffectiveSafetyStock();
+                // Decrement inventory (only when enabled)
+                if ($isInventoryEnabled) {
+                    $inventory = ProductInventory::lockForUpdate()->where('product_id', $p->id)->where('bodega_code', $bodega)->first();
+                    $current = (int) ($inventory?->available ?? 0);
+                    $reserved = (int) ($inventory?->reserved ?? 0);
+                    $safety = (int) $p->getEffectiveSafetyStock();
 
-                // Ensure after decrement, available won't go below safety
-                if ($current <= 5 || ($current - (int)$row['quantity']) < $safety || $row['quantity'] > ($current - max($reserved, 0))) {
-                    DB::rollBack();
-                    return back()->with('error', "Inventario insuficiente para {$p->name} en su zona.");
-                }
-                if ($inventory) {
-                    $inventory->update(['available' => $current - (int) $row['quantity']]);
-                } else {
-                    // shouldn't happen, but guard
-                    ProductInventory::create([
-                        'product_id' => $p->id,
-                        'bodega_code' => $bodega,
-                        'available' => max(0, $current - (int) $row['quantity']),
-                        'physical' => 0,
-                        'reserved' => $reserved,
-                    ]);
+                    // Ensure after decrement, available won't go below safety
+                    if ($current <= 5 || ($current - (int)$row['quantity']) < $safety || $row['quantity'] > ($current - max($reserved, 0))) {
+                        DB::rollBack();
+                        return back()->with('error', "Inventario insuficiente para {$p->name} en su zona.");
+                    }
+                    if ($inventory) {
+                        $inventory->update(['available' => $current - (int) $row['quantity']]);
+                    } else {
+                        // shouldn't happen, but guard
+                        ProductInventory::create([
+                            'product_id' => $p->id,
+                            'bodega_code' => $bodega,
+                            'available' => max(0, $current - (int) $row['quantity']),
+                            'physical' => 0,
+                            'reserved' => $reserved,
+                        ]);
+                    }
                 }
 
                 $bonification = $p->bonifications->first();
