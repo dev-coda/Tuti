@@ -143,15 +143,19 @@ class CartController extends Controller
             'quantity' => 'required|numeric',
         ]);
 
-        // Enforce safety stock: prevent adding if below effective safety stock
-        $safety = $product->getEffectiveSafetyStock();
-        // Determine user bodega from first zone mapping
-        $zone = $user->zones()->orderBy('id')->first();
-        $zoneCode = $zone?->code ?? $user->zone;
-        $bodega = $zoneCode ? ZoneWarehouse::where('zone_code', $zoneCode)->value('bodega_code') : null;
-        $available = $bodega ? ($product->inventories()->where('bodega_code', $bodega)->value('available') ?? 0) : 0;
-        if ($available <= $safety) {
-            return back()->with('error', 'Este producto no está disponible por debajo del stock de seguridad.');
+        // Enforce safety stock only when inventory management is enabled
+        $inventoryEnabled = Setting::getByKey('inventory_enabled');
+        $isInventoryEnabled = ($inventoryEnabled === '1' || $inventoryEnabled === 1 || $inventoryEnabled === true);
+        if ($isInventoryEnabled) {
+            $safety = $product->getEffectiveSafetyStock();
+            // Determine user bodega from first zone mapping
+            $zone = $user->zones()->orderBy('id')->first();
+            $zoneCode = $zone?->code ?? $user->zone;
+            $bodega = $zoneCode ? ZoneWarehouse::where('zone_code', $zoneCode)->value('bodega_code') : null;
+            $available = $bodega ? ($product->inventories()->where('bodega_code', $bodega)->value('available') ?? 0) : 0;
+            if ($available <= $safety) {
+                return back()->with('error', 'Este producto no está disponible por debajo del stock de seguridad.');
+            }
         }
 
         $product_id = $product->id;
