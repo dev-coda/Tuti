@@ -20,7 +20,7 @@
             <div class="mb-4 flex justify-between">
                 <h1 class="text-xl font-semibold text-gray-900 sm:text-2xl ">Pedidos</h1>
                 <div>
-                    <a href="{{ '/orderexport?from_date=' . (request()->from_date ? request()->from_date : '') . '&to_date=' . (request()->to_date ? request()->to_date : '') }}">
+                    <a href="{{ '/orderexport?from_date=' . (request()->from_date ? request()->from_date : '') . '&to_date=' . (request()->to_date ? request()->to_date : '') . '&brand_id=' . (request()->brand_id ?? '') . '&vendor_id=' . (request()->vendor_id ?? '') }}">
                         @svg('heroicon-o-arrow-down-on-square', 'w-8 h-8 text-blue-500')
                     </a>
                 </div>
@@ -53,6 +53,8 @@
                     </div>
 
                     {{ Aire::select($sellers, 'seller_id')->value(request()->seller_id)->groupClass('mb-0') }}
+                    {{ Aire::select($brands, 'brand_id')->value(request()->brand_id)->groupClass('mb-0') }}
+                    {{ Aire::select($vendors, 'vendor_id')->value(request()->vendor_id)->groupClass('mb-0') }}
 
                     <div>
                         <input type="date" name="from_date" value="{{ request()->from_date }}"

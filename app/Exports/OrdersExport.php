@@ -17,20 +17,41 @@ class OrdersExport implements FromQuery, WithMapping, WithHeadings, withChunkRea
 
     private $from_date;
     private $to_date;
+    private $brand_id;
+    private $vendor_id;
 
-    public function __construct(string $from_date = null, string $to_date = null)
+    public function __construct(string $from_date = null, string $to_date = null, $brand_id = null, $vendor_id = null)
     {
         $this->from_date = $from_date;
         $this->to_date = $to_date;
+        $this->brand_id = $brand_id;
+        $this->vendor_id = $vendor_id;
     }
 
     public function query()
     {
+        $query = Order::query();
         if ($this->from_date == null || $this->to_date == null) {
-            return Order::query()->whereBetween('created_at', [now()->subDays(2), now()]);
+            $query->whereBetween('created_at', [now()->subDays(2), now()]);
         } else {
-            return Order::query()->whereBetween('created_at', [$this->from_date, $this->to_date]);
+            $query->whereBetween('created_at', [$this->from_date, $this->to_date]);
         }
+
+        if (!empty($this->brand_id)) {
+            $brandId = (int) $this->brand_id;
+            $query->whereHas('products.product', function ($q) use ($brandId) {
+                $q->where('brand_id', $brandId);
+            });
+        }
+
+        if (!empty($this->vendor_id)) {
+            $vendorId = (int) $this->vendor_id;
+            $query->whereHas('products.product.brand', function ($q) use ($vendorId) {
+                $q->where('vendor_id', $vendorId);
+            });
+        }
+
+        return $query;
     }
 
     public function map($order): array

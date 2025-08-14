@@ -12,6 +12,8 @@ use Maatwebsite\Excel\Facades\Excel;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Http;
 use App\Models\Setting;
+use App\Models\Brand;
+use App\Models\Vendor;
 
 class OrderController extends Controller
 {
@@ -36,6 +38,21 @@ class OrderController extends Controller
                         $subQuery->where('zone', $request->zone);
                     });
                 }
+            })
+
+            // Filter orders that include at least one product of a given brand
+            ->when($request->filled('brand_id') && $request->brand_id !== '', function ($query) use ($request) {
+                $brandId = (int) $request->brand_id;
+                $query->whereHas('products.product', function ($sub) use ($brandId) {
+                    $sub->where('brand_id', $brandId);
+                });
+            })
+            // Filter orders that include at least one product of a given vendor
+            ->when($request->filled('vendor_id') && $request->vendor_id !== '', function ($query) use ($request) {
+                $vendorId = (int) $request->vendor_id;
+                $query->whereHas('products.product.brand', function ($sub) use ($vendorId) {
+                    $sub->where('vendor_id', $vendorId);
+                });
             })
 
             ->when($request->filled('from_date') && $request->filled('to_date'), function ($query) use ($request) {
@@ -63,7 +80,10 @@ class OrderController extends Controller
             ->orderBy('zone', 'asc')
             ->pluck('zone');
 
-        return view('orders.index', compact('orders', 'sellers', 'zones'));
+        $brands = Brand::orderBy('name')->pluck('name', 'id')->prepend('Todas las marcas', '');
+        $vendors = Vendor::orderBy('name')->pluck('name', 'id')->prepend('Todos los vendors', '');
+
+        return view('orders.index', compact('orders', 'sellers', 'zones', 'brands', 'vendors'));
     }
 
     public function edit(Order $order)
@@ -88,6 +108,8 @@ class OrderController extends Controller
     {
         $from_date = $request->input('from_date');
         $to_date = $request->input('to_date');
+        $brand_id = $request->input('brand_id');
+        $vendor_id = $request->input('vendor_id');
 
         if (!$to_date) {
             $to_date = Carbon::now();
@@ -96,7 +118,7 @@ class OrderController extends Controller
         if ($from_date && $to_date) {
             $from_date = Carbon::parse($from_date)->startOfDay();
             $to_date = Carbon::parse($to_date)->endOfDay();
-            return Excel::download(new OrdersExport($from_date->toDateString(), $to_date->toDateString()), 'orders.xlsx');
+            return Excel::download(new OrdersExport($from_date->toDateString(), $to_date->toDateString(), $brand_id, $vendor_id), 'orders.xlsx');
         } else {
             return redirect()->back()->withErrors(['error' => 'Por favor ingresa un rango de fechas.']);
         }
