@@ -373,7 +373,9 @@ class ProductController extends Controller
     public function images_delete(Request $request, Product $product, ProductImage $image)
     {
         $image->delete();
-
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true]);
+        }
         return back()->with('success', 'Imagen eliminada');
     }
 

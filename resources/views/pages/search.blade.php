@@ -42,7 +42,7 @@
     @else
     <h1 class="text-2xl font-bold mt-5">Resultados de búsqueda: {{request()->q}}</h1>
     <div class="my-10">
-        <div class="grid grid-cols-1 xl:grid-cols-4 gap-x-5 gap-y-5  ">
+         <div class="grid grid-cols-1 xl:grid-cols-4 gap-x-5 gap-y-5  ">
             @foreach ($products as $product)
             <x-product :product="$product" :bodega-code="$bodegaCode ?? null" />
             @endforeach

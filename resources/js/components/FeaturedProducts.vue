@@ -44,45 +44,31 @@
                                 >
                                     {{ product.sku }}
                                 </p>
-                                <span
-                                    v-if="product.final_price.has_discount"
-                                    class="text-slate-400 text-lg"
-                                    ><small
-                                        class="line-through text-lg text-slate-400 font-semibold"
-                                        >${{
-                                            formatPrice(product.final_price.old)
-                                        }} </small
-                                    >Antes</span
-                                >
-                                <span class="text-slate-400 text-lg"
-                                    ><small
-                                        class="text-lg text-orange-500 font-semibold"
-                                        >${{
+                                <div class="flex items-baseline gap-2">
+                                    <span
+                                        class="text-orange-500 font-semibold text-2xl"
+                                    >
+                                        ${{
                                             formatPrice(
                                                 product.final_price.price
                                             )
                                         }}
-                                        Ahora
-                                    </small></span
-                                >
+                                    </span>
+                                    <span
+                                        v-if="product.final_price.has_discount"
+                                        class="line-through text-slate-400 text-base font-semibold"
+                                    >
+                                        ${{
+                                            formatPrice(product.final_price.old)
+                                        }}
+                                    </span>
+                                </div>
                                 <p v-if="product.final_price.perItemPrice">
                                     (Und. x) ${{
                                         formatPrice(
                                             product.final_price.perItemPrice
                                         )
                                     }}
-                                </p>
-                                <p
-                                    v-if="product.brand"
-                                    class="text-slate-500 text-md"
-                                >
-                                    {{ product.brand.name }}
-                                </p>
-                                <p
-                                    v-if="product.category"
-                                    class="text-[#180F09] text-xs"
-                                >
-                                    {{ product.category.name }}
                                 </p>
                             </div>
                             <a
@@ -101,7 +87,7 @@
                                     <path
                                         stroke-linecap="round"
                                         stroke-linejoin="round"
-                                        d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"
+                                        d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"
                                     />
                                 </svg>
                             </a>

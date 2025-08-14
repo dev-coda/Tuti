@@ -4,7 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-
+use App\Models\Setting;
 
 class Product extends Model
 {
@@ -32,6 +32,7 @@ class Product extends Model
         'package_quantity',
         'calculate_package_price',
         'safety_stock',
+        'inventory_opt_out',
     ];
 
 
@@ -225,5 +226,38 @@ class Product extends Model
     public function getCategoryAttribute()
     {
         return $this->categories->first();
+    }
+
+    public function isInventoryManaged(): bool
+    {
+        // Global toggle
+        $inventoryEnabled = Setting::getByKey('inventory_enabled');
+        $globalOn = ($inventoryEnabled === '1' || $inventoryEnabled === 1 || $inventoryEnabled === true);
+        if (!$globalOn) {
+            return false;
+        }
+
+        // Product-level opt-out (optional column)
+        if (!empty($this->inventory_opt_out) && (int)$this->inventory_opt_out === 1) {
+            return false;
+        }
+
+        // Category-level opt-out (optional column) or default by name 'OFERTAS'
+        $category = $this->categories->first();
+        if ($category) {
+            if (!empty($category->inventory_opt_out) && (int)$category->inventory_opt_out === 1) {
+                return false;
+            }
+            if (mb_strtoupper(trim((string) $category->name)) === 'OFERTAS') {
+                return false;
+            }
+        }
+
+        // Default opt-out for products with variations
+        if (!empty($this->variation)) {
+            return false;
+        }
+
+        return true;
     }
 }

@@ -40,6 +40,8 @@
                 {{ Aire::select($categories, 'parent_id', 'Padre')->groupClass('col-span-6') }}
 
                 {{ Aire::input('safety_stock', 'Stock de seguridad por categoría')->type('number')->min(0)->helpText('Nivel mínimo de inventario permitido para productos de esta categoría')->groupClass('col-span-6') }}
+
+                {{ Aire::checkbox('inventory_opt_out', 'Excluir de gestión de inventario')->checked((bool)($category->inventory_opt_out ?? (mb_strtoupper($category->name) === 'OFERTAS')))->groupClass('col-span-6') }}
             </div>
         </div>
     </div>

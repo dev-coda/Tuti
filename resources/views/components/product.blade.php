@@ -41,20 +41,15 @@
                 <p class="text-xs text-gray-600">Inventario (MDTAT): {{ $mdtat }}</p>
             @endif
         @endauth
-        @if($product->final_price['has_discount'])
-        <span class="text-slate-400 text-lg"><small class="line-through text-lg text-slate-400 font-semibold">${{currency($product->final_price['old'])}} </small>Antes</span>
-        @endif
-        <span class="text-slate-400 text-lg"><small class=" text-lg text-orange-500 font-semibold">${{currency($product->final_price['price'])}} Ahora </small></span>
+        <div class="flex items-baseline gap-2">
+            <span class="text-orange-500 font-semibold text-2xl">${{ currency($product->final_price['price']) }}</span>
+            @if($product->final_price['has_discount'])
+            <span class="line-through text-slate-400 text-base font-semibold">${{ currency($product->final_price['old']) }}</span>
+            @endif
+        </div>
 
         @if($product->final_price['perItemPrice'])
         <p>(Und. x) ${{ currency($product->final_price['perItemPrice']) }}</p>
-        @endif 
-        @if($product->brand)
-        <p class=" text-slate-500 text-md">{{$product->brand->name}}</p>
-
-        @endif
-        @if($product->category)
-        <p class=" text-[#180F09] text-xs">{{$product->category->name}}</p>
         @endif
     </div>
     <a href="{{route('product', $product->slug)}}" class="bg-secondary p-2 mt-4 text-white hover:bg-gray2 flex px-4 text-xl font-semibold rounded-full items-center justify-center w-52 mx-auto">

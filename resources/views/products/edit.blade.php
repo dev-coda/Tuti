@@ -50,6 +50,7 @@
                 {{ Aire::input('quantity_max', "Cantidad maxima")->helpText('Si esta en cero no hay límite')->groupClass('col-span-3') }}
 
                 {{ Aire::input('safety_stock', 'Stock de seguridad')->type('number')->min(0)->helpText('Nivel mínimo de inventario permitido por producto')->groupClass('col-span-3') }}
+                {{ Aire::checkbox('inventory_opt_out', 'Excluir de gestión de inventario')->value(old('inventory_opt_out', $product->inventory_opt_out))->groupClass('col-span-3') }}
 
                 @if(!$product->is_combined)
                     {{Aire::select($variations, 'variation_id', "Variación")->groupClass('col-span-3')}}

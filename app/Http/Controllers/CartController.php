@@ -146,7 +146,7 @@ class CartController extends Controller
         // Enforce safety stock only when inventory management is enabled
         $inventoryEnabled = Setting::getByKey('inventory_enabled');
         $isInventoryEnabled = ($inventoryEnabled === '1' || $inventoryEnabled === 1 || $inventoryEnabled === true);
-        if ($isInventoryEnabled) {
+        if ($isInventoryEnabled && $product->isInventoryManaged()) {
             $safety = $product->getEffectiveSafetyStock();
             // Determine user bodega from first zone mapping
             $zone = $user->zones()->orderBy('id')->first();
@@ -364,6 +364,10 @@ class CartController extends Controller
                 if (!$product) {
                     return back()->with('error', 'Producto no encontrado en el carrito.');
                 }
+                // Skip checks if product opted out
+                if (!$product->isInventoryManaged()) {
+                    continue;
+                }
                 $inventory = ProductInventory::where('product_id', $product->id)->where('bodega_code', $bodega)->first();
                 $available = (int) ($inventory?->available ?? 0);
                 $reserved = (int) ($inventory?->reserved ?? 0);
@@ -457,6 +461,10 @@ class CartController extends Controller
                 $id = $row['product_id'];
                 $p = Product::find($id);
 
+                // Resolve per-line discount percent for SOAP
+                $lineFinal = $p->getFinalPriceForUser($has_orders);
+                $lineDiscountPercent = (int) ($lineFinal['discount'] ?? 0);
+
                 $orderProduct = OrderProduct::create([
                     'order_id' => $order->id,
                     'product_id' => $id,
@@ -464,12 +472,12 @@ class CartController extends Controller
                     'price' => $p->finalPrice['originalPrice'],
                     'discount' => 0,
                     'variation_item_id' => $row['variation_id'] ?? null,
-                    'percentage' => 0,
+                    'percentage' => $lineDiscountPercent,
                     'package_quantity' => $p->package_quantity ?? 1,
                 ]);
 
                 // Decrement inventory (only when enabled)
-                if ($isInventoryEnabled) {
+                if ($isInventoryEnabled && $p->isInventoryManaged()) {
                     $inventory = ProductInventory::lockForUpdate()->where('product_id', $p->id)->where('bodega_code', $bodega)->first();
                     $current = (int) ($inventory?->available ?? 0);
                     $reserved = (int) ($inventory?->reserved ?? 0);
@@ -512,8 +520,9 @@ class CartController extends Controller
                 }
 
 
-                $total = $total + ($p->finalPrice['price'] * $row['quantity']);
-                $discount = $discount + ($p->finalPrice['totalDiscount'] * $row['quantity']);
+                $lineFinal = $p->getFinalPriceForUser($has_orders);
+                $total = $total + ($lineFinal['price'] * $row['quantity']);
+                $discount = $discount + ($lineFinal['totalDiscount'] * $row['quantity']);
             }
 
             $discount = $has_orders ? 0 : $discount;

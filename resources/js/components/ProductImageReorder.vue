@@ -53,27 +53,7 @@
                 >
                     {{ index + 1 }}
                 </div>
-                <div
-                    class="absolute top-2 right-2 hidden group-hover:flex items-center space-x-1"
-                >
-                    <button
-                        type="button"
-                        class="p-1 bg-white/90 rounded hover:bg-white shadow"
-                        title="Mover"
-                    >
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            viewBox="0 0 24 24"
-                            fill="currentColor"
-                            class="w-4 h-4 text-gray-700"
-                        >
-                            <path
-                                fill-rule="evenodd"
-                                d="M5.47 3.97a.75.75 0 011.06 0L12 9.44l5.47-5.47a.75.75 0 111.06 1.06L13.06 10.5l5.47 5.47a.75.75 0 11-1.06 1.06L12 11.56l-5.47 5.47a.75.75 0 11-1.06-1.06l5.47-5.47-5.47-5.47a.75.75 0 010-1.06z"
-                                clip-rule="evenodd"
-                            />
-                        </svg>
-                    </button>
+                <div class="absolute top-2 right-2 flex items-center space-x-1">
                     <button
                         type="button"
                         class="p-1 bg-white/90 rounded hover:bg-white shadow"

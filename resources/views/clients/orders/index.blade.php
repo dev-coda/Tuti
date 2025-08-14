@@ -85,12 +85,14 @@
                         <td class="px-6 py-4">
                             ${{number_format(($order->total+$order->discount) - $order->discount)}}
                         </td>
-                        <td class="px-6 py-4 text-end space-x-2">
-                            <a href="{{route('clients.orders.show', $order)}}" class="rounded py-1 px-2 text-white bg-secondary ">Ver orden</a>
-                            <form action="{{ route('clients.orders.reorder', $order) }}" method="POST" class="inline">
-                                @csrf
-                                <button class="rounded py-1 px-2 text-white bg-orange-600 hover:bg-orange-700">Volver a pedir</button>
-                            </form>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="flex flex-row flex-nowrap gap-2 justify-end items-center whitespace-nowrap">
+                                <a href="{{route('clients.orders.show', $order)}}" class="inline-flex items-center justify-center rounded py-1 px-3 text-white bg-secondary text-sm whitespace-nowrap flex-shrink-0">Ver orden</a>
+                                <form action="{{ route('clients.orders.reorder', $order) }}" method="POST" class="inline">
+                                    @csrf
+                                    <button class="inline-flex items-center justify-center rounded py-1 px-3 text-white bg-orange-600 hover:bg-orange-700 text-sm whitespace-nowrap flex-shrink-0">Volver a pedir</button>
+                                </form>
+                            </div>
                         </td>
                     </tr>
                 @endforeach

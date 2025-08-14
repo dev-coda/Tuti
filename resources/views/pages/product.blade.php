@@ -83,14 +83,16 @@
             @else
                 <p class="text-sm text-gray-600">Inventario (MDTAT): {{ $available }}</p>
             @endauth
-            @if($product->final_price['has_discount'])
-            <span class="text-slate-400 text-xl"><small class="line-through text-xl text-slate-400 font-semibold">${{currency($product->final_price['old'])}} </small>Antes</span>
-            @endif
-            <span class="text-slate-400 text-xl"><small class=" text-xl text-orange-500 font-semibold">${{currency($product->final_price['price'])}} Ahora </small></span>
+            <div class="flex items-baseline gap-2">
+                <span class="text-orange-500 font-semibold text-3xl">${{ currency($product->final_price['price']) }}</span>
+                @if($product->final_price['has_discount'])
+                <span class="line-through text-slate-400 text-xl font-semibold">${{ currency($product->final_price['old']) }}</span>
+                @endif
+            </div>
 
-            {{-- @if($product->final_price['perItemPrice'])
+            @if($product->final_price['perItemPrice'])
             <p class="text-lg">(Und. x) ${{ currency($product->final_price['perItemPrice']) }}</p>
-            @endif --}}
+            @endif
             @if($product->brand)
             <p class=" text-slate-500 text-lg">{{$product->brand->name}}</p>
 

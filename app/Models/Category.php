@@ -10,7 +10,7 @@ class Category extends Model
 {
     use HasFactory;
 
-    protected $fillable = [ 'name', 'slug', 'description', 'active', 'image', 'parent_id'];
+    protected $fillable = ['name', 'slug', 'description', 'active', 'image', 'parent_id', 'inventory_opt_out'];
 
 
     public function scopeActive($query)
@@ -27,7 +27,7 @@ class Category extends Model
     {
         return $this->hasMany(Category::class, 'parent_id');
     }
-   
+
 
     public function products()
     {
