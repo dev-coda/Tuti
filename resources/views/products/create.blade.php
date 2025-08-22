@@ -42,9 +42,22 @@
 
                 {{Aire::input('step', 'Steps')->min(1)->max(100)->groupClass('col-span-6')->helpText('Salto de cantidad para el precio')}}
               
+                {{ Aire::input('safety_stock', 'Stock de seguridad')->type('number')->min(0)->helpText('Nivel mínimo de inventario permitido por producto')->groupClass('col-span-3') }}
+                
+                <div class="col-span-3 flex items-center">
+                    {{ Aire::hidden('inventory_opt_out')->value(0)}}
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" name='inventory_opt_out' value="1" class="sr-only peer">
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        <span class="ml-3 text-sm font-medium text-gray-900">Excluir de gestión de inventario</span>
+                    </label>
+                </div>
 
                 {{ Aire::textarea('description', "Descripción")->id('description')->rows(5)->groupClass('col-span-6') }}
                 {{ Aire::textarea('short_description', "Descripción corta")->id('sort_description')->rows(5)->groupClass('col-span-6') }}
+                {{ Aire::textarea('technical_specifications', "Ficha técnica")->id('technical_specifications')->rows(5)->groupClass('col-span-6') }}
+                {{ Aire::textarea('warranty', "Garantía")->id('warranty')->rows(5)->groupClass('col-span-6') }}
+                {{ Aire::textarea('other_information', "Otra información")->id('other_information')->rows(5)->groupClass('col-span-6') }}
 
                 <div>
                     {{ Aire::hidden('active')->value(0)}}

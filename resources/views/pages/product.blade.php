@@ -134,12 +134,24 @@
 
     <hr class="border-gray-200 col-span-12 mt-5">
 
+    <!-- Product Details Accordion -->
+    @php
+        $hasDetails = $product->description || $product->technical_specifications || $product->warranty || $product->other_information;
+    @endphp
+    
+    @if($hasDetails)
     <div class="col-span-12 py-5">
-        <h3 class="font-bold text-xl mb-2">Detalles del producto</h3>
-        <p>
-            {{$product->description}}
-        </p>
+        <h3 class="font-bold text-xl mb-4">Detalles del producto</h3>
+        <div 
+            id="product-details-accordion"
+            data-description="{{ e($product->description ?? '') }}"
+            data-technical-specifications="{{ e($product->technical_specifications ?? '') }}"
+            data-warranty="{{ e($product->warranty ?? '') }}"
+            data-other-information="{{ e($product->other_information ?? '') }}"
+        ></div>
     </div>
+    @endif
+    
     <hr class="border-gray-200 col-span-12 mt-5">
 
     @if($related->count())

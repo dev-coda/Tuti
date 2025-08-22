@@ -128,6 +128,9 @@ class ProductController extends Controller
             ],
             'description' => 'nullable',
             'short_description' => 'nullable',
+            'technical_specifications' => 'nullable',
+            'warranty' => 'nullable',
+            'other_information' => 'nullable',
             'sku' => 'required',
             'active' => 'nullable|boolean',
             'price' => 'required',
@@ -144,6 +147,7 @@ class ProductController extends Controller
             'package_quantity' => 'required|numeric',
             'calculate_package_price' => 'nullable|boolean',
             'safety_stock' => 'nullable|integer|min:0',
+            'inventory_opt_out' => 'nullable|boolean',
         ]);
 
 
@@ -243,6 +247,9 @@ class ProductController extends Controller
             'name' => 'required|max:255',
             'description' => 'nullable',
             'short_description' => 'nullable',
+            'technical_specifications' => 'nullable',
+            'warranty' => 'nullable',
+            'other_information' => 'nullable',
             'sku' => 'required',
             'active' => 'nullable|boolean',
             'price' => 'required',
@@ -268,6 +275,7 @@ class ProductController extends Controller
             'package_quantity' => 'required|numeric',
             'calculate_package_price' => 'nullable|boolean',
             'safety_stock' => 'nullable|integer|min:0',
+            'inventory_opt_out' => 'nullable|boolean',
         ]);
 
         $validate['slug'] = Str::slug($request->slug);

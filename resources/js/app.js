@@ -25,6 +25,7 @@ import MostPopularCategories from "./components/MostPopularCategories.vue";
 import FilterSortDropdowns from "./components/FilterSortDropdowns.vue";
 import SubmitOrderButton from "./components/SubmitOrderButton.vue";
 import ProductImageReorder from "./components/ProductImageReorder.vue";
+import ProductDetailsAccordion from "./components/ProductDetailsAccordion.vue";
 
 // Mount combinedProducts component
 const productsApp = createApp(combinedProducts);
@@ -81,6 +82,20 @@ if (imageReorderEl) {
     };
     const imageReorderApp = createApp(ProductImageReorder, props);
     imageReorderApp.mount("#product-image-reorder");
+}
+
+// Mount ProductDetailsAccordion when container exists
+const accordionEl = document.getElementById("product-details-accordion");
+if (accordionEl) {
+    const props = {
+        description: accordionEl.dataset.description || "",
+        technicalSpecifications:
+            accordionEl.dataset.technicalSpecifications || "",
+        warranty: accordionEl.dataset.warranty || "",
+        otherInformation: accordionEl.dataset.otherInformation || "",
+    };
+    const accordionApp = createApp(ProductDetailsAccordion, props);
+    accordionApp.mount("#product-details-accordion");
 }
 
 const sidebar = document.getElementById("sidebar");
