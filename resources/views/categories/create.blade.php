@@ -28,6 +28,34 @@
                         <span class="ml-3 text-sm font-medium text-gray-900 ">Activo</span>
                     </label>
                 </div>
+            </div>
+        </div>
+
+        <!-- Sorting Configuration -->
+        <div class="p-4 mb-4 bg-white border border-gray-200 rounded-lg shadow-sm">
+            <h3 class="mb-4 text-xl font-semibold">Configuración de Ordenamiento</h3>
+            
+            <div class="grid grid-cols-6 gap-6">
+                {{ Aire::select($sortOrders, 'default_sort_order', 'Orden por defecto')->value('most_recent')->groupClass('col-span-6') }}
+            </div>
+        </div>
+
+        <!-- Product Highlighting Configuration -->
+        <div class="p-4 mb-4 bg-white border border-gray-200 rounded-lg shadow-sm">
+            <h3 class="mb-4 text-xl font-semibold">Configuración de Productos Destacados</h3>
+            
+            <div class="grid grid-cols-6 gap-6">
+                {{ Aire::checkbox('enable_highlighting', 'Habilitar productos destacados')->groupClass('col-span-6') }}
+                
+                <div class="col-span-6" id="highlighting-options" style="display: none;">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Marcas destacadas</label>
+                    <select name="highlighted_brand_ids[]" multiple class="w-full p-2 border border-gray-300 rounded-md" size="5">
+                        @foreach($brands as $brand)
+                            <option value="{{ $brand->id }}">{{ $brand->name }}</option>
+                        @endforeach
+                    </select>
+                    <p class="text-sm text-gray-500 mt-1">Selecciona las marcas cuyos productos aparecerán destacados</p>
+                </div>
 
                 <div class="col-span-6 justify-between  items-center mt-5 space-x-2 flex">
                     <p class="flex space-x-2 items-center">
@@ -36,7 +64,6 @@
                     </p>
                 </div>
             </div>
-
         </div>
     </div>
 
@@ -51,6 +78,21 @@
 </div>
 {{ Aire::close() }}
 
-
-
+@section('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const enableHighlighting = document.querySelector('input[name="enable_highlighting"]');
+    const highlightingOptions = document.getElementById('highlighting-options');
+    
+    if (enableHighlighting) {
+        enableHighlighting.addEventListener('change', function() {
+            if (this.checked) {
+                highlightingOptions.style.display = '';
+            } else {
+                highlightingOptions.style.display = 'none';
+            }
+        });
+    }
+});
+</script>
 @endsection

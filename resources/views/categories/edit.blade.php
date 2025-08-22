@@ -44,6 +44,45 @@
                 {{ Aire::checkbox('inventory_opt_out', 'Excluir de gestión de inventario')->checked((bool)($category->inventory_opt_out ?? (mb_strtoupper($category->name) === 'OFERTAS')))->groupClass('col-span-6') }}
             </div>
         </div>
+
+        <!-- Sorting Configuration -->
+        <div class="p-4 mb-4 bg-white border border-gray-200 rounded-lg shadow-sm">
+            <h3 class="mb-4 text-xl font-semibold">Configuración de Ordenamiento</h3>
+            
+            <div class="grid grid-cols-6 gap-6">
+                {{ Aire::select($sortOrders, 'default_sort_order', 'Orden por defecto')->groupClass('col-span-6') }}
+            </div>
+        </div>
+
+        <!-- Product Highlighting Configuration -->
+        <div class="p-4 mb-4 bg-white border border-gray-200 rounded-lg shadow-sm">
+            <h3 class="mb-4 text-xl font-semibold">Configuración de Productos Destacados</h3>
+            
+            <div class="grid grid-cols-6 gap-6">
+                {{ Aire::checkbox('enable_highlighting', 'Habilitar productos destacados')->groupClass('col-span-6') }}
+                
+                <div class="col-span-6" id="highlighting-options" style="{{ $category->enable_highlighting ? '' : 'display: none;' }}">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Marcas destacadas</label>
+                    <select name="highlighted_brand_ids[]" multiple class="w-full p-2 border border-gray-300 rounded-md" size="5">
+                        @foreach($brands as $brand)
+                            <option value="{{ $brand->id }}" 
+                                {{ in_array($brand->id, $category->highlighted_brand_ids ?? []) ? 'selected' : '' }}>
+                                {{ $brand->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <p class="text-sm text-gray-500 mt-1">Selecciona las marcas cuyos productos aparecerán destacados</p>
+                </div>
+
+                <div class="col-span-6" id="highlight-products-link" style="{{ $category->enable_highlighting ? '' : 'display: none;' }}">
+                    <a href="{{ route('categories.highlights.index', $category) }}" 
+                       class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-blue-700">
+                        Gestionar Productos Destacados Específicos
+                    </a>
+                    <p class="text-sm text-gray-500 mt-1">Configura hasta 4 productos específicos para mostrar en las primeras posiciones</p>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div class="col-span-1">
@@ -51,4 +90,25 @@
     </div>
 </div>
 {{ Aire::close() }}
+
+@section('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const enableHighlighting = document.querySelector('input[name="enable_highlighting"]');
+    const highlightingOptions = document.getElementById('highlighting-options');
+    const highlightProductsLink = document.getElementById('highlight-products-link');
+    
+    if (enableHighlighting) {
+        enableHighlighting.addEventListener('change', function() {
+            if (this.checked) {
+                highlightingOptions.style.display = '';
+                highlightProductsLink.style.display = '';
+            } else {
+                highlightingOptions.style.display = 'none';
+                highlightProductsLink.style.display = 'none';
+            }
+        });
+    }
+});
+</script>
 @endsection

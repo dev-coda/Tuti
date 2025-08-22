@@ -39,7 +39,8 @@
                 ['value' => '2', 'label' => 'Precio: Menor a Mayor', 'url' => route('category', $params['slug'] . '/' . $params['slug2'] . '/2/' . $params['category_id'] . '/' . $params['brand_id'])],
                 ['value' => '3', 'label' => 'Precio: Mayor a Menor', 'url' => route('category', $params['slug'] . '/' . $params['slug2'] . '/3/' . $params['category_id'] . '/' . $params['brand_id'])],
                 ['value' => '4', 'label' => 'Nombre A-Z', 'url' => route('category', $params['slug'] . '/' . $params['slug2'] . '/4/' . $params['category_id'] . '/' . $params['brand_id'])],
-                ['value' => '5', 'label' => 'Nombre Z-A', 'url' => route('category', $params['slug'] . '/' . $params['slug2'] . '/5/' . $params['category_id'] . '/' . $params['brand_id'])]
+                ['value' => '5', 'label' => 'Nombre Z-A', 'url' => route('category', $params['slug'] . '/' . $params['slug2'] . '/5/' . $params['category_id'] . '/' . $params['brand_id'])],
+                ['value' => '6', 'label' => 'Más vendidos', 'url' => route('category', $params['slug'] . '/' . $params['slug2'] . '/6/' . $params['category_id'] . '/' . $params['brand_id'])]
             ]) }}"
             data-brands="{{ json_encode($brands->map(function($brand) use ($params) {
                 return [

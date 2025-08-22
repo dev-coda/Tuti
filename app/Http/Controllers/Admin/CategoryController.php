@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 
 //use App\Jobs\ProcessImage;
 use App\Models\Category;
+use App\Models\Brand;
+use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str as Str;
 use Closure;
@@ -42,7 +44,10 @@ class CategoryController extends Controller
         $categories = Category::active()->whereNull('parent_id')->orderBy('name')->get()->pluck('name', 'id');
         $categories->prepend('Seleccione', null);
 
-        $context = compact('categories');
+        $sortOrders = Category::getSortOrderOptions();
+        $brands = Brand::active()->orderBy('name')->get();
+
+        $context = compact('categories', 'sortOrders', 'brands');
 
         return view('categories.create', $context);
     }
@@ -69,6 +74,10 @@ class CategoryController extends Controller
             'image' => 'nullable|image',
             'active' => 'nullable|boolean',
             'safety_stock' => 'nullable|integer|min:0',
+            'default_sort_order' => 'required|in:most_recent,price_asc,price_desc,name_asc,name_desc,best_selling',
+            'enable_highlighting' => 'nullable|boolean',
+            'highlighted_brand_ids' => 'nullable|array',
+            'highlighted_brand_ids.*' => 'exists:brands,id',
         ]);
 
         if ($request->hasFile('image_file')) {
@@ -101,7 +110,11 @@ class CategoryController extends Controller
 
         $categories = Category::active()->whereNot('id', $category->id)->whereNull('parent_id')->orderBy('name')->get()->pluck('name', 'id');
         $categories->prepend('Seleccione', null);
-        $context = compact('category', 'categories');
+
+        $sortOrders = Category::getSortOrderOptions();
+        $brands = Brand::active()->orderBy('name')->get();
+
+        $context = compact('category', 'categories', 'sortOrders', 'brands');
         return view('categories.edit', $context);
     }
 
@@ -135,6 +148,10 @@ class CategoryController extends Controller
                 },
             ],
             'safety_stock' => 'nullable|integer|min:0',
+            'default_sort_order' => 'required|in:most_recent,price_asc,price_desc,name_asc,name_desc,best_selling',
+            'enable_highlighting' => 'nullable|boolean',
+            'highlighted_brand_ids' => 'nullable|array',
+            'highlighted_brand_ids.*' => 'exists:brands,id',
         ]);
 
         // $name = asset_name('categories'); 

@@ -33,6 +33,7 @@ class Product extends Model
         'calculate_package_price',
         'safety_stock',
         'inventory_opt_out',
+        'sales_count',
     ];
 
 
@@ -259,5 +260,26 @@ class Product extends Model
         }
 
         return true;
+    }
+
+    public function highlights()
+    {
+        return $this->hasMany(ProductHighlight::class);
+    }
+
+    /**
+     * Increment the sales count for this product
+     */
+    public function incrementSalesCount(int $quantity = 1): void
+    {
+        $this->increment('sales_count', $quantity);
+    }
+
+    /**
+     * Scope for best-selling products
+     */
+    public function scopeBestSelling($query)
+    {
+        return $query->orderBy('sales_count', 'desc');
     }
 }

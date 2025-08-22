@@ -563,6 +563,9 @@ class CartController extends Controller
                 $lineFinal = $p->getFinalPriceForUser($has_orders);
                 $total = $total + ($lineFinal['price'] * $row['quantity']);
                 $discount = $discount + ($lineFinal['totalDiscount'] * $row['quantity']);
+
+                // Increment sales count for best-selling tracking
+                $p->incrementSalesCount($row['quantity']);
             }
 
             $discount = $has_orders ? 0 : $discount;

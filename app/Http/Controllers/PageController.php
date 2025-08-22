@@ -167,6 +167,9 @@ class PageController extends Controller
             case 5:
                 $products = $productsQuery->orderBy('name', 'desc')->paginate();
                 break;
+            case 6:
+                $products = $productsQuery->orderBy('sales_count', 'desc')->paginate();
+                break;
             default:
                 $products = $productsQuery->paginate();
                 break;
@@ -260,26 +263,40 @@ class PageController extends Controller
 
         $brands = $brands->filter(fn($brand) => in_array($brand->id, $productBrandIds));
 
-        switch ($order) {
-            case 1:
-                $products = $productsQuery->with('inventories')->orderBy('created_at', 'desc')->paginate();
-                break;
-            case 2:
-                $products = $productsQuery->with('inventories')->orderBy('price', 'asc')->paginate();
-                break;
-            case 3:
-                $products = $productsQuery->with('inventories')->orderBy('price', 'desc')->paginate();
-                break;
-            case 4:
-                $products = $productsQuery->with('inventories')->orderBy('name', 'asc')->paginate();
-                break;
-            case 5:
-                $products = $productsQuery->with('inventories')->orderBy('name', 'desc')->paginate();
-                break;
-            default:
-                $products = $productsQuery->with('inventories')->paginate();
-                break;
+        // Apply sorting - use category default if order is 0 or not specified
+        if ($order == '0' || !$order) {
+            // Use category's default sorting
+            $sortOrder = $category->default_sort_order ?? 'most_recent';
+            $productsQuery = $this->applyCategorySorting($productsQuery, $sortOrder);
+        } else {
+            // Use user-selected sorting
+            switch ($order) {
+                case 1:
+                    $productsQuery = $productsQuery->orderBy('created_at', 'desc');
+                    break;
+                case 2:
+                    $productsQuery = $productsQuery->orderBy('price', 'asc');
+                    break;
+                case 3:
+                    $productsQuery = $productsQuery->orderBy('price', 'desc');
+                    break;
+                case 4:
+                    $productsQuery = $productsQuery->orderBy('name', 'asc');
+                    break;
+                case 5:
+                    $productsQuery = $productsQuery->orderBy('name', 'desc');
+                    break;
+                case 6:
+                    $productsQuery = $productsQuery->orderBy('sales_count', 'desc');
+                    break;
+                default:
+                    $productsQuery = $productsQuery->orderBy('created_at', 'desc');
+                    break;
+            }
         }
+
+        // Handle highlighting and get final products
+        $products = $this->getProductsWithHighlighting($category, $productsQuery, $order, $category_id, $brand_id);
 
         $categoriesArray = [];
         foreach ($products as $item) {
@@ -375,5 +392,111 @@ class PageController extends Controller
         }
 
         return $bodega ?: null;
+    }
+
+    /**
+     * Apply category-specific sorting to a query
+     */
+    private function applyCategorySorting($query, $sortOrder)
+    {
+        switch ($sortOrder) {
+            case 'most_recent':
+                return $query->orderBy('created_at', 'desc');
+            case 'price_asc':
+                return $query->orderBy('price', 'asc');
+            case 'price_desc':
+                return $query->orderBy('price', 'desc');
+            case 'name_asc':
+                return $query->orderBy('name', 'asc');
+            case 'name_desc':
+                return $query->orderBy('name', 'desc');
+            case 'best_selling':
+                return $query->orderBy('sales_count', 'desc');
+            default:
+                return $query->orderBy('created_at', 'desc');
+        }
+    }
+
+    /**
+     * Get products with highlighting applied
+     */
+    private function getProductsWithHighlighting($category, $productsQuery, $order, $category_id, $brand_id)
+    {
+        // If highlighting is disabled for this category, return normal pagination
+        if (!$category->enable_highlighting) {
+            return $productsQuery->with('inventories')->paginate();
+        }
+
+        // Get all products first
+        $allProducts = $productsQuery->with('inventories')->get();
+
+        // Get highlighted products
+        $highlightedProductIds = [];
+        $highlightedByBrandIds = [];
+
+        // Get specifically highlighted products (up to 4 positions)
+        $specificHighlights = $category->highlightedProducts()
+            ->with('product')
+            ->orderBy('position')
+            ->get();
+
+        foreach ($specificHighlights as $highlight) {
+            if ($highlight->product) {
+                $highlightedProductIds[] = $highlight->product->id;
+            }
+        }
+
+        // Get products from highlighted brands
+        if (!empty($category->highlighted_brand_ids)) {
+            $brandHighlights = $allProducts->whereIn('brand_id', $category->highlighted_brand_ids)
+                ->whereNotIn('id', $highlightedProductIds); // Exclude already highlighted products
+
+            foreach ($brandHighlights as $product) {
+                $highlightedByBrandIds[] = $product->id;
+            }
+        }
+
+        // Separate highlighted and regular products
+        $highlighted = $allProducts->whereIn('id', array_merge($highlightedProductIds, $highlightedByBrandIds));
+        $regular = $allProducts->whereNotIn('id', array_merge($highlightedProductIds, $highlightedByBrandIds));
+
+        // Sort highlighted products by position (specific highlights first, then brand highlights)
+        $sortedHighlighted = collect();
+
+        // Add specifically highlighted products in position order
+        foreach ($highlightedProductIds as $productId) {
+            $product = $highlighted->where('id', $productId)->first();
+            if ($product) {
+                $sortedHighlighted->push($product);
+            }
+        }
+
+        // Add brand highlighted products
+        foreach ($highlightedByBrandIds as $productId) {
+            $product = $highlighted->where('id', $productId)->first();
+            if ($product) {
+                $sortedHighlighted->push($product);
+            }
+        }
+
+        // Merge highlighted and regular products
+        $finalProducts = $sortedHighlighted->merge($regular);
+
+        // Create a paginator manually
+        $perPage = 15; // Default pagination size
+        $currentPage = request()->get('page', 1);
+        $offset = ($currentPage - 1) * $perPage;
+        $itemsForCurrentPage = $finalProducts->slice($offset, $perPage)->values();
+
+        return new \Illuminate\Pagination\LengthAwarePaginator(
+            $itemsForCurrentPage,
+            $finalProducts->count(),
+            $perPage,
+            $currentPage,
+            [
+                'path' => request()->url(),
+                'pageName' => 'page',
+            ]
+        );
     }
 }
