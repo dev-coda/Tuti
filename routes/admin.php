@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Admin\BonificationController;
 use App\Http\Controllers\Admin\BrandController;
 use App\Http\Controllers\Admin\CategoryController;
+use App\Http\Controllers\Admin\CouponController;
 use App\Http\Controllers\Admin\HolidayController;
 use App\Http\Controllers\Admin\LabelController;
 use App\Http\Controllers\Admin\OrderController;
@@ -65,6 +66,8 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::resource('labels', LabelController::class);
     Route::resource('vendors', VendorController::class);
     Route::resource('bonifications', BonificationController::class);
+    Route::resource('coupons', CouponController::class);
+    Route::post('coupons/{coupon}/toggle', [CouponController::class, 'toggle'])->name('coupons.toggle');
 
     Route::resource('variations', VariationController::class);
     Route::resource('variations.items', VariationItemController::class);

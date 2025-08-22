@@ -15,6 +15,9 @@ use App\Models\ZoneWarehouse;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Models\Setting;
+use App\Models\Coupon;
+use App\Models\CouponUsage;
+use App\Services\CouponService;
 use App\Repositories\OrderRepository;
 use App\Settings\GeneralSettings;
 use Illuminate\Http\Request;
@@ -118,7 +121,25 @@ class CartController extends Controller
             ->exists()
             : false; // If disabled, treat as if user has no orders (always apply discount)
 
-        $context = compact('products', 'alertVendors', 'zones', 'set_user', 'client', 'alertTotal', 'min_amount', 'total_cart', 'has_orders');
+        // Check for applied coupon
+        $appliedCoupon = session()->get('applied_coupon');
+        $couponDiscount = 0;
+        $couponMessage = null;
+
+        if ($appliedCoupon) {
+            $coupon = Coupon::find($appliedCoupon['coupon_id']);
+            if ($coupon && $coupon->isValid()) {
+                $couponDiscount = $appliedCoupon['discount_amount'];
+                $couponMessage = "Cupón '{$coupon->code}' aplicado";
+                $total_cart -= $couponDiscount;
+            } else {
+                // Coupon is no longer valid, remove it
+                session()->forget('applied_coupon');
+                $appliedCoupon = null;
+            }
+        }
+
+        $context = compact('products', 'alertVendors', 'zones', 'set_user', 'client', 'alertTotal', 'min_amount', 'total_cart', 'has_orders', 'appliedCoupon', 'couponDiscount', 'couponMessage');
 
         return view('pages.cart', $context);
     }
@@ -443,6 +464,22 @@ class CartController extends Controller
         $firstOrderDiscountEnabled = config('app.first_order_discount_enabled', true);
         $has_orders = $firstOrderDiscountEnabled ? Order::where('user_id', $user_id)->exists() : false;
 
+        // Check for applied coupon
+        $appliedCoupon = session()->get('applied_coupon');
+        $couponDiscount = 0;
+        $coupon = null;
+
+        if ($appliedCoupon) {
+            $coupon = Coupon::find($appliedCoupon['coupon_id']);
+            if ($coupon && $coupon->isValid()) {
+                $couponDiscount = $appliedCoupon['discount_amount'];
+            } else {
+                // Coupon is no longer valid
+                session()->forget('applied_coupon');
+                $appliedCoupon = null;
+            }
+        }
+
         // Use database transaction to ensure atomicity
         DB::beginTransaction();
 
@@ -455,6 +492,9 @@ class CartController extends Controller
                 'seller_id' => $seller_id,
                 'delivery_date' => $delivery_date,
                 'observations' => $observations,
+                'coupon_id' => $coupon ? $coupon->id : null,
+                'coupon_code' => $coupon ? $coupon->code : null,
+                'coupon_discount' => $couponDiscount,
             ]);
 
             foreach ($cart as $key => $row) {
@@ -527,10 +567,20 @@ class CartController extends Controller
 
             $discount = $has_orders ? 0 : $discount;
 
+            // Apply coupon discount to final total
+            $finalTotal = $total - $couponDiscount;
+
             $order->update([
-                'total' => $total,
+                'total' => $finalTotal,
                 'discount' => $discount,
+                'coupon_discount' => $couponDiscount,
             ]);
+
+            // Record coupon usage if coupon was applied
+            if ($coupon && $couponDiscount > 0) {
+                $couponService = app(CouponService::class);
+                $couponService->recordCouponUsage($coupon, User::find($user_id), $order, $couponDiscount);
+            }
 
             DB::commit();
 
@@ -540,6 +590,7 @@ class CartController extends Controller
             }
 
             session()->forget('user_id');
+            session()->forget('applied_coupon'); // Clear applied coupon after successful order
 
 
 
@@ -564,5 +615,85 @@ class CartController extends Controller
         // 
 
 
+    }
+
+    /**
+     * Apply a coupon to the cart
+     */
+    public function applyCoupon(Request $request, CouponService $couponService)
+    {
+        $request->validate([
+            'coupon_code' => 'required|string|max:255',
+        ]);
+
+        $user = auth()->user();
+        if (!$user) {
+            return redirect()->route('login');
+        }
+
+        $cart = session()->get('cart');
+        if (!$cart || empty($cart)) {
+            return redirect()->route('cart')->with('error', 'El carrito está vacío.');
+        }
+
+        // Check if there's already a coupon applied
+        if (session()->has('applied_coupon')) {
+            return redirect()->route('cart')->with('error', 'Ya tienes un cupón aplicado. Remuévelo primero para aplicar otro.');
+        }
+
+        $couponCode = trim($request->coupon_code);
+
+        // Calculate current cart total (without any existing discounts from promotions)
+        $cartProducts = collect($cart);
+        $cartTotal = 0;
+
+        foreach ($cartProducts as $item) {
+            $product = Product::with('brand.vendor')->find($item['product_id']);
+            if ($product) {
+                $basePrice = $product->price;
+                $variation = $product->items->where('id', $item['variation_id'])->first();
+                if ($variation) {
+                    $basePrice = $variation->pivot->price;
+                }
+                $cartTotal += $basePrice * $item['quantity'] * ($product->package_quantity ?? 1);
+            }
+        }
+
+        // Validate coupon
+        $validation = $couponService->validateCoupon($couponCode, $user, $cartProducts, $cartTotal);
+
+        if (!$validation['valid']) {
+            return redirect()->route('cart')->with('error', $validation['message']);
+        }
+
+        $coupon = $validation['coupon'];
+
+        // Apply coupon to cart
+        $application = $couponService->applyCouponToCart($coupon, $user, $cartProducts);
+
+        if (!$application['success']) {
+            return redirect()->route('cart')->with('error', $application['message']);
+        }
+
+        // Store coupon in session
+        session()->put('applied_coupon', [
+            'coupon_id' => $coupon->id,
+            'coupon_code' => $coupon->code,
+            'discount_amount' => $application['discount_amount'],
+            'type' => $coupon->type,
+            'value' => $coupon->value,
+        ]);
+
+        return redirect()->route('cart')->with('success', "Cupón '{$coupon->code}' aplicado exitosamente. Descuento: $" . number_format($application['discount_amount'], 2));
+    }
+
+    /**
+     * Remove the applied coupon from the cart
+     */
+    public function removeCoupon()
+    {
+        session()->forget('applied_coupon');
+
+        return redirect()->route('cart')->with('success', 'Cupón removido exitosamente.');
     }
 }

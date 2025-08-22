@@ -154,6 +154,42 @@
 
                 {{ Aire::close() }}
 
+                <!-- Coupon Section -->
+                <div class="border-t pt-4 mt-4">
+                    @if($appliedCoupon)
+                        <div class="mb-4 p-3 bg-green-50 border border-green-200 rounded-md">
+                            <div class="flex justify-between items-center">
+                                <div>
+                                    <span class="text-green-800 font-medium">Cupón aplicado: {{$appliedCoupon['coupon_code']}}</span>
+                                    <div class="text-sm text-green-600">
+                                        Descuento: ${{currency($appliedCoupon['discount_amount'])}}
+                                    </div>
+                                </div>
+                                <form action="{{route('cart.coupon.remove')}}" method="POST" class="inline">
+                                    @csrf
+                                    <button type="submit" class="text-red-600 hover:text-red-800 text-sm">
+                                        Remover
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    @else
+                        <div class="mb-4">
+                            <form action="{{route('cart.coupon.apply')}}" method="POST">
+                                @csrf
+                                <div class="flex gap-2">
+                                    <input type="text" name="coupon_code" placeholder="Código de cupón" 
+                                           class="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500">
+                                    <button type="submit" 
+                                            class="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 focus:ring-2 focus:ring-blue-500">
+                                        Aplicar
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    @endif
+                </div>
+
                 <div class="text-sm">
                     <hr class="my-4">
 
@@ -188,10 +224,22 @@
                         </strong>
                     </div>
                     @endif
+                    @if($appliedCoupon && $appliedCoupon['discount_amount'] > 0)
+                    <div class="flex justify-between text-green-600">
+                        <span>Descuento cupón ({{$appliedCoupon['coupon_code']}})</span>
+                        <strong>
+                            -${{currency($appliedCoupon['discount_amount'])}}
+                        </strong>
+                    </div>
+                    @endif
                     <hr class="my-4">
+                    @php
+                        $couponDiscount = $appliedCoupon ? $appliedCoupon['discount_amount'] : 0;
+                        $finalTotal = $subtotal - $discount - $couponDiscount;
+                    @endphp
                     <div class="flex justify-between">
                         <strong>Total</strong>
-                        <strong>${{currency($subtotal-$discount)}}</strong>
+                        <strong>${{currency($finalTotal)}}</strong>
                     </div>
 
 

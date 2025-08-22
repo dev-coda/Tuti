@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 class Order extends Model
 {
     use HasFactory;
-    
+
 
     protected $fillable = [
         'user_id',
@@ -20,7 +20,10 @@ class Order extends Model
         'zone_id',
         'seller_id',
         'delivery_date',
-        'observations'
+        'observations',
+        'coupon_id',
+        'coupon_code',
+        'coupon_discount'
     ];
 
 
@@ -28,14 +31,16 @@ class Order extends Model
     const STATUS_PROCESED = 1;
     const STATUS_ERROR = 2;
     const STATUS_ERROR_WEBSERVICE = 3;
-    
-    public function user(){
+
+    public function user()
+    {
         return $this->belongsTo(User::class);
     }
 
-    public function products(){
+    public function products()
+    {
         return $this->hasMany(OrderProduct::class);
-       // return $this->belongsToMany(Product::class)->withPivot(["quantity","price", "discount", "variation_id", 'is_bonification']);
+        // return $this->belongsToMany(Product::class)->withPivot(["quantity","price", "discount", "variation_id", 'is_bonification']);
     }
 
 
@@ -45,13 +50,23 @@ class Order extends Model
     }
 
 
-    public function zone(){
+    public function zone()
+    {
         return $this->belongsTo(Zone::class);
     }
 
-    public function seller(){
+    public function seller()
+    {
         return $this->belongsTo(User::class, 'seller_id');
     }
 
+    public function coupon()
+    {
+        return $this->belongsTo(Coupon::class);
+    }
 
+    public function couponUsages()
+    {
+        return $this->hasMany(CouponUsage::class);
+    }
 }

@@ -49,6 +49,10 @@ Route::get('/cart/remove/{key}', [CartController::class, 'remove'])->name('cart.
 Route::patch('/cart/update', [CartController::class, 'update'])->name('cart.update');
 Route::get('/carrito', [CartController::class, 'cart'])->name('cart');
 
+// Coupon routes
+Route::post('/carrito/cupon/aplicar', [CartController::class, 'applyCoupon'])->name('cart.coupon.apply');
+Route::post('/carrito/cupon/remover', [CartController::class, 'removeCoupon'])->name('cart.coupon.remove');
+
 Route::get('/formulario', [PageController::class, 'form'])->name('form');
 Route::post('/formulario', [PageController::class, 'form_post'])->name('form_post');
 
