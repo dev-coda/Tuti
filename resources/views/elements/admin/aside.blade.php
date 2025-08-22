@@ -33,6 +33,7 @@
                         'labels'=>'Etiquetas', 
                         'variations'=>'Variaciones', 
                         'bonifications'=>'Bonificaciones',
+                        'coupons'=>'Cupones',
                         ]" />
 
                     <x-dropdown title='Configuraciones'
