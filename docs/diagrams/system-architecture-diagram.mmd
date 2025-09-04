@@ -1,0 +1,211 @@
+graph TB
+    %% Frontend Layer
+    subgraph "Capa de Presentación"
+        A[Navegador Web]
+        B[Vue.js Components]
+        C[Alpine.js]
+        D[Livewire Components]
+        E[Blade Templates]
+    end
+    
+    %% Web Server Layer
+    subgraph "Servidor Web"
+        F[Nginx/Apache]
+        G[PHP 8.1+ FPM]
+    end
+    
+    %% Application Layer
+    subgraph "Aplicación Laravel 10"
+        subgraph "Rutas"
+            H[web.php - Rutas Públicas]
+            I[admin.php - Panel Admin]
+            J[api.php - API REST]
+            K[auth.php - Autenticación]
+        end
+        
+        subgraph "Middleware"
+            L[Authenticate]
+            M[Role & Permissions]
+            N[CORS]
+            O[Rate Limiting]
+        end
+        
+        subgraph "Controladores"
+            P[PageController - Frontend]
+            Q[Admin Controllers]
+            R[API Controllers]
+            S[Auth Controllers]
+            T[CartController]
+            U[OrderController]
+        end
+        
+        subgraph "Servicios de Negocio"
+            V[CouponService]
+            W[ProductService]
+            X[OrderService]
+            Y[InventoryService]
+        end
+        
+        subgraph "Modelos Eloquent"
+            Z[User]
+            AA[Product]
+            BB[Order]
+            CC[Category]
+            DD[Brand]
+            EE[Coupon]
+            FF[Inventory]
+        end
+        
+        subgraph "Repositorios"
+            GG[UserRepository]
+            HH[OrderRepository]
+            II[ProductRepository]
+        end
+    end
+    
+    %% Job Queue System
+    subgraph "Sistema de Colas"
+        JJ[Laravel Horizon]
+        KK[Redis Queue]
+        LL[ProcessImage Job]
+        MM[ProcessOrder Job]
+        NN[SyncInventory Job]
+        OO[UpdatePrices Job]
+    end
+    
+    %% Storage Layer
+    subgraph "Almacenamiento"
+        PP[(MySQL Database)]
+        QQ[Redis Cache]
+        RR[Local File Storage]
+        SS[AWS S3 Storage]
+    end
+    
+    %% External Services
+    subgraph "Servicios Externos"
+        TT[Sistema ERP]
+        UU[Servicio de Email]
+        VV[Sistema de Inventario]
+        WW[API de Pagos]
+    end
+    
+    %% User Types
+    subgraph "Tipos de Usuario"
+        XX[Administradores]
+        YY[Vendedores]
+        ZZ[Tenderos/Compradores]
+        AAA[Clientes Potenciales]
+    end
+    
+    %% Connections Frontend to Web Server
+    A --> F
+    B --> F
+    C --> F
+    D --> F
+    E --> F
+    
+    %% Web Server to Application
+    F --> G
+    G --> H
+    G --> I
+    G --> J
+    G --> K
+    
+    %% Routes to Middleware
+    H --> L
+    I --> M
+    J --> N
+    K --> O
+    
+    %% Middleware to Controllers
+    L --> P
+    M --> Q
+    N --> R
+    O --> S
+    L --> T
+    L --> U
+    
+    %% Controllers to Services
+    P --> V
+    Q --> W
+    R --> X
+    T --> Y
+    U --> X
+    
+    %% Services to Models
+    V --> Z
+    W --> AA
+    X --> BB
+    Y --> FF
+    
+    %% Services to Repositories
+    V --> GG
+    X --> HH
+    W --> II
+    
+    %% Models to Database
+    Z --> PP
+    AA --> PP
+    BB --> PP
+    CC --> PP
+    DD --> PP
+    EE --> PP
+    FF --> PP
+    
+    %% Jobs System
+    X --> JJ
+    W --> JJ
+    JJ --> KK
+    KK --> LL
+    KK --> MM
+    KK --> NN
+    KK --> OO
+    
+    %% Storage Connections
+    AA --> RR
+    AA --> SS
+    Z --> QQ
+    BB --> QQ
+    
+    %% External Services
+    MM --> TT
+    NN --> VV
+    OO --> TT
+    U --> UU
+    T --> WW
+    
+    %% User Access
+    XX --> I
+    YY --> I
+    YY --> H
+    ZZ --> H
+    AAA --> H
+    
+    %% Component Relationships
+    B -.-> D
+    C -.-> E
+    D -.-> E
+    
+    %% Cache Flow
+    QQ -.-> AA
+    QQ -.-> BB
+    QQ -.-> CC
+    
+    %% File Processing
+    LL --> RR
+    LL --> SS
+    
+    %% Styling
+    classDef frontend fill:#e1f5fe
+    classDef application fill:#f3e5f5
+    classDef storage fill:#e8f5e8
+    classDef external fill:#fff3e0
+    classDef users fill:#fce4ec
+    classDef jobs fill:#f1f8e9
+    
+    class A,B,C,D,E frontend
+    class H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z,AA,BB,CC,DD,EE,FF,GG,HH,II application
+    class PP,QQ,RR,SS storage
+    class TT,UU,VV,WW external
+    class XX,YY,ZZ,AAA users
+    class JJ,KK,LL,MM,NN,OO jobs

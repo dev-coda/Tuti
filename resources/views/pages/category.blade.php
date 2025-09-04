@@ -11,19 +11,11 @@
 
 @section('content')
 <section class="w-full grid xl:grid-cols-12 gap-x-10 xl:gap-y-0 gap-y-10 max-w-[100vw] overflow-hidden">
-    <div id='banners' class="splide mb-10 max-h-[384px] w-full max-w-[90vw] col-span-12">
-        <div class="splide__track">
-            <ul class="splide__list">
-                @foreach ($banners as $banner)
-                <li class="splide__slide">
-                    <a href="{{$banner->url ?? '#'}}">
-                        <img src="{{asset('storage/'.$banner->path)}}" class="w-full">
-                    </a>
-                </li>
-                @endforeach
-            </ul>
-        </div>
+    @if($category->image)
+    <div class="col-span-12 mb-10">
+        <img src="{{asset('storage/'.$category->image)}}" alt="{{$category->name}}" class="w-full h-auto object-cover">
     </div>
+    @endif
     <div class="flex md:flex-row flex-col items-center md:justify-between justify-center gap-3 col-span-12 font-semibold w-full max-w-[90vw]">
         <ul class="flex  space-x-2 text-gray-500 uppercase">
             <li><a href="/">Inicio</a></li>
@@ -90,15 +82,5 @@
 @endsection
 
 @section('scripts')
-<script src="{{asset('js/splide.min.js')}}"></script>
-
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        new Splide('#banners', {
-            type: 'loop',
-            autoplay: true,
-        }).mount();
-    });
-</script>
 
 @endsection

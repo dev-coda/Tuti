@@ -120,16 +120,8 @@ class UserController extends Controller
         $validate = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:' . User::class . ',email,' . $user->id],
-            'state_id' => ['required', 'exists:' . State::class . ',id'],
-            'city_id' => ['required', 'exists:' . City::class . ',id'],
             'document' => ['required', 'string', 'max:255'],
-            'company' => ['required', 'string', 'max:255'],
-            'address' => ['required', 'string', 'max:255'],
-            'area' => ['required', 'string', 'max:255'],
             'phone' => ['required', 'string', 'max:255'],
-            'mobile' => ['required', 'string', 'max:255'],
-            'has_whatsapp' => ['required', 'boolean'],
-            'visit_by_tronex' => ['required', 'boolean'],
         ]);
         $user->update($validate);
 

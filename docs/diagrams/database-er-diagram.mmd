@@ -1,0 +1,407 @@
+erDiagram
+    %% Entidades de Usuarios y Geografía
+    users {
+        id bigint PK
+        name varchar
+        email varchar
+        password varchar
+        document varchar
+        phone varchar
+        company varchar
+        address varchar
+        city_id bigint FK
+        state_id bigint FK
+        zone varchar
+        status_id int
+        terms_accepted boolean
+        created_at timestamp
+        updated_at timestamp
+    }
+    
+    states {
+        id bigint PK
+        name varchar
+        code varchar
+        created_at timestamp
+        updated_at timestamp
+    }
+    
+    cities {
+        id bigint PK
+        name varchar
+        state_id bigint FK
+        created_at timestamp
+        updated_at timestamp
+    }
+    
+    zones {
+        id bigint PK
+        route varchar
+        zone varchar
+        day varchar
+        address varchar
+        code varchar
+        user_id bigint FK
+        created_at timestamp
+        updated_at timestamp
+    }
+    
+    %% Entidades de Proveedores y Marcas
+    vendors {
+        id bigint PK
+        name varchar
+        image varchar
+        banner varchar
+        slug varchar
+        minimum_purchase decimal
+        active boolean
+        discount int
+        first_purchase_only boolean
+        vendor_type varchar
+        created_at timestamp
+        updated_at timestamp
+    }
+    
+    brands {
+        id bigint PK
+        name varchar
+        image varchar
+        banner varchar
+        description text
+        slug varchar
+        delivery_days int
+        active boolean
+        discount int
+        first_purchase_only boolean
+        vendor_id bigint FK
+        created_at timestamp
+        updated_at timestamp
+    }
+    
+    %% Entidades de Productos
+    products {
+        id bigint PK
+        name varchar
+        description text
+        short_description text
+        technical_specifications text
+        warranty text
+        other_information text
+        sku varchar
+        slug varchar
+        active boolean
+        price decimal
+        delivery_days int
+        discount int
+        first_purchase_only boolean
+        quantity_min int
+        quantity_max int
+        step int
+        tax_id bigint FK
+        brand_id bigint FK
+        variation_id bigint FK
+        is_combined boolean
+        parent_id bigint FK
+        package_quantity int
+        safety_stock int
+        inventory_opt_out boolean
+        sales_count int
+        created_at timestamp
+        updated_at timestamp
+    }
+    
+    categories {
+        id bigint PK
+        name varchar
+        slug varchar
+        description text
+        active boolean
+        image varchar
+        parent_id bigint FK
+        inventory_opt_out boolean
+        default_sort_order varchar
+        highlighted_brand_ids json
+        enable_highlighting boolean
+        safety_stock int
+        created_at timestamp
+        updated_at timestamp
+    }
+    
+    labels {
+        id bigint PK
+        name varchar
+        active boolean
+        created_at timestamp
+        updated_at timestamp
+    }
+    
+    taxes {
+        id bigint PK
+        name varchar
+        tax decimal
+        created_at timestamp
+        updated_at timestamp
+    }
+    
+    %% Variaciones de Productos
+    variations {
+        id bigint PK
+        name varchar
+        created_at timestamp
+        updated_at timestamp
+    }
+    
+    variation_items {
+        id bigint PK
+        name varchar
+        variation_id bigint FK
+        created_at timestamp
+        updated_at timestamp
+    }
+    
+    %% Imágenes y Medios
+    product_images {
+        id bigint PK
+        product_id bigint FK
+        path varchar
+        position int
+        created_at timestamp
+        updated_at timestamp
+    }
+    
+    banners {
+        id bigint PK
+        title varchar
+        image varchar
+        url varchar
+        active boolean
+        type_id int
+        created_at timestamp
+        updated_at timestamp
+    }
+    
+    %% Inventario
+    product_inventories {
+        id bigint PK
+        product_id bigint FK
+        bodega_code varchar
+        available int
+        reserved int
+        created_at timestamp
+        updated_at timestamp
+    }
+    
+    zone_warehouses {
+        id bigint PK
+        zone_code varchar
+        warehouse_code varchar
+        warehouse_name varchar
+        active boolean
+        created_at timestamp
+        updated_at timestamp
+    }
+    
+    %% Sistema de Órdenes
+    orders {
+        id bigint PK
+        user_id bigint FK
+        total decimal
+        discount decimal
+        status_id int
+        request text
+        response text
+        zone_id bigint FK
+        seller_id bigint FK
+        delivery_date date
+        observations text
+        coupon_id bigint FK
+        coupon_code varchar
+        coupon_discount decimal
+        created_at timestamp
+        updated_at timestamp
+    }
+    
+    order_products {
+        id bigint PK
+        order_id bigint FK
+        product_id bigint FK
+        variation_item_id bigint FK
+        quantity int
+        price decimal
+        discount decimal
+        package_quantity int
+        is_bonification boolean
+        created_at timestamp
+        updated_at timestamp
+    }
+    
+    order_product_bonifications {
+        id bigint PK
+        order_product_id bigint FK
+        bonification_id bigint FK
+        product_id bigint FK
+        order_id bigint FK
+        quantity int
+        created_at timestamp
+        updated_at timestamp
+    }
+    
+    %% Bonificaciones y Cupones
+    bonifications {
+        id bigint PK
+        name varchar
+        buy int
+        get int
+        product_id bigint FK
+        max int
+        created_at timestamp
+        updated_at timestamp
+    }
+    
+    coupons {
+        id bigint PK
+        code varchar
+        name varchar
+        description text
+        type varchar
+        value decimal
+        valid_from datetime
+        valid_to datetime
+        usage_limit_per_customer int
+        usage_limit_per_vendor int
+        total_usage_limit int
+        current_usage int
+        applies_to varchar
+        applies_to_ids json
+        except_product_ids json
+        except_category_ids json
+        except_brand_ids json
+        except_vendor_ids json
+        except_customer_ids json
+        except_customer_types json
+        minimum_amount decimal
+        active boolean
+        created_at timestamp
+        updated_at timestamp
+    }
+    
+    coupon_usages {
+        id bigint PK
+        coupon_id bigint FK
+        user_id bigint FK
+        order_id bigint FK
+        vendor_id bigint FK
+        usage_date datetime
+        created_at timestamp
+        updated_at timestamp
+    }
+    
+    %% Productos Destacados
+    featured_products {
+        id bigint PK
+        product_id bigint FK
+        active boolean
+        created_at timestamp
+        updated_at timestamp
+    }
+    
+    featured_categories {
+        id bigint PK
+        category_id bigint FK
+        active boolean
+        created_at timestamp
+        updated_at timestamp
+    }
+    
+    product_highlights {
+        id bigint PK
+        category_id bigint FK
+        product_id bigint FK
+        position int
+        active boolean
+        created_at timestamp
+        updated_at timestamp
+    }
+    
+    %% Configuración
+    settings {
+        id bigint PK
+        key varchar
+        value text
+        created_at timestamp
+        updated_at timestamp
+    }
+    
+    holidays {
+        id bigint PK
+        name varchar
+        date date
+        created_at timestamp
+        updated_at timestamp
+    }
+    
+    contacts {
+        id bigint PK
+        name varchar
+        email varchar
+        phone varchar
+        business_name varchar
+        nit varchar
+        city_id bigint FK
+        terms_accepted boolean
+        created_at timestamp
+        updated_at timestamp
+    }
+    
+    %% Relaciones Geográficas
+    users ||--o{ zones : "asigna"
+    states ||--o{ cities : "contiene"
+    states ||--o{ users : "ubicado_en"
+    cities ||--o{ users : "reside_en"
+    cities ||--o{ contacts : "ubicado_en"
+    
+    %% Relaciones de Proveedores
+    vendors ||--o{ brands : "posee"
+    brands ||--o{ products : "fabrica"
+    
+    %% Relaciones de Productos
+    products }o--|| taxes : "tiene_impuesto"
+    products }o--o| variations : "tiene_variacion"
+    products ||--o{ product_images : "tiene_imagenes"
+    products ||--o{ product_inventories : "tiene_inventario"
+    products }o--o| products : "producto_padre"
+    
+    %% Relaciones Many-to-Many
+    products }o--o{ categories : "category_product"
+    products }o--o{ labels : "label_product"
+    products }o--o{ bonifications : "bonification_product"
+    variations ||--o{ variation_items : "contiene"
+    products }o--o{ variation_items : "product_item_variation"
+    
+    %% Relaciones de Órdenes
+    users ||--o{ orders : "realiza"
+    orders ||--o{ order_products : "contiene"
+    orders }o--o| coupons : "usa_cupon"
+    orders }o--o| zones : "entrega_en"
+    users ||--o{ orders : "vendedor"
+    order_products ||--o{ order_product_bonifications : "genera_bonificacion"
+    order_products }o--|| products : "incluye"
+    order_products }o--o| variation_items : "variacion_especifica"
+    
+    %% Relaciones de Bonificaciones
+    bonifications }o--o| products : "producto_base"
+    bonifications ||--o{ order_product_bonifications : "aplicada_en"
+    
+    %% Relaciones de Cupones
+    coupons ||--o{ coupon_usages : "usado_en"
+    coupons ||--o{ orders : "aplicado_en"
+    users ||--o{ coupon_usages : "usa"
+    
+    %% Relaciones de Destacados
+    products ||--o{ featured_products : "destacado_como"
+    categories ||--o{ featured_categories : "destacada_como"
+    categories ||--o{ product_highlights : "destaca"
+    products ||--o{ product_highlights : "destacado_en"
+    
+    %% Relaciones de Categorías
+    categories }o--o| categories : "categoria_padre"

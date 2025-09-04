@@ -111,13 +111,35 @@
                             </tr>
                             @endforeach
 
+                            @php
+                                $totalTax = 0;
+                                $subtotalBeforeTax = 0;
+                                foreach ($order->products as $orderProduct) {
+                                    $productPrice = $orderProduct->product->price;
+                                    $discount = $orderProduct->product->discount;
+                                    $quantity = $orderProduct->quantity;
+                                    
+                                    // Calculate discounted price per item
+                                    $discountedPrice = $productPrice * ((100 - $discount) / 100);
+                                    $lineSubtotal = $discountedPrice * $quantity;
+                                    $subtotalBeforeTax += $lineSubtotal;
+                                    
+                                    // Calculate tax for this line item
+                                    $taxRate = $orderProduct->product->tax ? $orderProduct->product->tax->tax : 0;
+                                    $lineTax = $lineSubtotal * ($taxRate / 100);
+                                    $totalTax += $lineTax;
+                                }
+                            @endphp
+                            
                             <tr>
-                                <td colspan="3">
-
-                                </td>
+                                <td colspan="3"></td>
+                                <td class='p-4 text-base font-medium text-gray-900 whitespace-nowrap text-right'>Subtotal</td>
+                                <td class='p-4 text-base font-bold text-gray-900 whitespace-nowrap text-left'>${{ number_format($subtotalBeforeTax, 2) }}</td>
+                            </tr>
+                            <tr>
+                                <td colspan="3"></td>
                                 <td class='p-4 text-base font-medium text-gray-900 whitespace-nowrap text-right'>Impuestos</td>
-
-                                <td class='p-4 text-base font-bold text-gray-900 whitespace-nowrap text-left'>${{ number_format($order->total-($product->product->price*((100-$product->product->discount)/100)*$product->quantity), 2) }}</td>
+                                <td class='p-4 text-base font-bold text-gray-900 whitespace-nowrap text-left'>${{ number_format($totalTax, 2) }}</td>
                             </tr>
                             <tr>
                                 <td colspan="3">

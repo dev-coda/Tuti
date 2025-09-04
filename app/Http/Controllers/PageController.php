@@ -227,9 +227,8 @@ class PageController extends Controller
     public function category($slug, $slug2 = '0', $order = '1', $category_id = '0', $brand_id = '0')
     {
         $brands = Brand::whereActive(1)->orderBy('name')->get();
-        $banners = Banner::whereTypeId(1)->orderBy('id')->get();
         $categories = Category::with('parent')->get();
-        $params = compact('slug', 'slug2', 'order', 'category_id', 'brand_id', 'banners');
+        $params = compact('slug', 'slug2', 'order', 'category_id', 'brand_id');
 
         $category = $slug2
             ? Category::with('parent')->where('slug', $slug2)->firstOrFail()
@@ -309,7 +308,7 @@ class PageController extends Controller
         // Determine user's mapped bodega code
         $bodegaCode = $this->getUserBodegaCode();
 
-        return view('pages.category', compact('products', 'brands', 'categories', 'params', 'category', 'bodegaCode', 'banners'));
+        return view('pages.category', compact('products', 'brands', 'categories', 'params', 'category', 'bodegaCode'));
     }
 
     public function label($slug)
