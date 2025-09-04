@@ -13,7 +13,7 @@
 <section class="w-full grid xl:grid-cols-12 gap-x-10 xl:gap-y-0 gap-y-10 max-w-[100vw] overflow-hidden">
     @if($category->image)
     <div class="col-span-12 mb-10">
-        <img src="{{asset('storage/'.$category->image)}}" alt="{{$category->name}}" class="w-full h-auto max-h-[300px] object-contain">
+        <img src="{{asset('storage/'.$category->image)}}" alt="{{$category->name}}" class="w-full h-auto object-contain" style="max-height: 300px;">
     </div>
     @endif
     <div class="flex md:flex-row flex-col items-center md:justify-between justify-center gap-3 col-span-12 font-semibold w-full max-w-[90vw]">
