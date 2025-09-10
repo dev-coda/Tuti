@@ -1,52 +1,31 @@
 @extends('layouts.admin')
 
-
 @section('content')
-{{ Aire::open()->route('holidays.update', $holiday)->bind($holiday)->enctype('multipart/form-data')}}
-<div class="grid grid-cols-1 p-4 xl:grid-cols-3 xl:gap-4 ">
-    <div class="mb-4 col-span-full xl:mb-2">
-        <h1 class="text-xl font-semibold text-gray-900 sm:text-2xl">Editar Festivo</h1>
-    </div>
+<div class="p-4">
+    <div class="bg-white rounded-lg shadow">
+        <div class="p-6">
+            <h1 class="text-2xl font-bold text-gray-900 mb-4">Editar Festivo</h1>
 
-    <div class="col-span-2">
-        <div class="p-4 mb-4 bg-white border border-gray-200 rounded-lg shadow-sm 2xl:col-span-2 ">
-            <h3 class="mb-4 text-xl font-semibold ">Información</h3>
+            {{ Aire::open()->route('holidays.update', $holiday)->bind($holiday) }}
 
-            <div class="grid grid-cols-6 gap-6">
-
-
-                {{ Aire::input('name', "Nombre")->groupClass('col-span-6 sm:col-span-3') }}
-
-                {{ Aire::input('date', "Festivo")->readonly()->groupClass('col-span-6')->setAttribute('datepicker', true)->setAttribute('datepicker-autohide', true)->setAttribute('datepicker-format', 'yyyy-mm-dd') }}
-                
-            
-
-                <div class="col-span-6 justify-between  items-center mt-5 space-x-2 flex">
-
-                    <p class="flex space-x-2 items-center">
-                        {{ Aire::submit('Actualizar')->variant()->submit() }}
-                        <a href="{{ route('holidays.index') }}">Cancelar</a>
-                    </p>
-
-                    <x-remove-button />  
-                    
-                    
-               
-                   
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    {{ Aire::select([1 => 'Festivo', 2 => 'Sábado'], 'type_id')->required() }}
+                </div>
+                <div>
+                    {{ Aire::input('date')->type('date')->required() }}
                 </div>
             </div>
 
+            <div class="mt-6 flex space-x-4">
+                {{ Aire::submit('Actualizar') }}
+                <a href="{{ route('holidays.index') }}" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded">
+                    Cancelar
+                </a>
+            </div>
 
+            {{ Aire::close() }}
         </div>
     </div>
-
-   
 </div>
-{{ Aire::close() }}
-
-
-<x-remove-drawer title="Festivo" route='holidays.destroy' :item='$holiday' />
-
-
-
 @endsection

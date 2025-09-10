@@ -15,22 +15,24 @@
             <div class="grid grid-cols-6 gap-6">
 
                 {{ Aire::input('name', "Nombre")->groupClass('col-span-6 sm:col-span-3') }}
-                
+
                 {{ Aire::input('slug', "Slug")->groupClass('col-span-6 sm:col-span-3') }}
+
+                {{ Aire::textarea('description', "Descripción")->rows(3)->groupClass('col-span-6') }}
 
                 <div class="col-span-6">
                     <h3 class="text-lg font-semibold">Tipo Categoría</h3>
                     <div class="flex items-center space-x-4 mt-2">
                         <label class="inline-flex items-center">
-                            <input type="radio" name="category_type" value="parent" 
-                                class="form-radio text-blue-600" 
+                            <input type="radio" name="category_type" value="parent"
+                                class="form-radio text-blue-600"
                                 @checked($category->category_type == 'parent')
                                 id="category_type_parent">
                             <span class="ml-2">Padre</span>
                         </label>
                         <label class="inline-flex items-center">
-                            <input type="radio" name="category_type" value="child" 
-                                class="form-radio text-blue-600" 
+                            <input type="radio" name="category_type" value="child"
+                                class="form-radio text-blue-600"
                                 @checked($category->category_type == 'child')
                                 id="category_type_child">
                             <span class="ml-2">Hijo</span>
@@ -44,6 +46,15 @@
 
                 {{ Aire::checkbox('inventory_opt_out', 'Excluir de gestión de inventario')->checked((bool)($category->inventory_opt_out ?? (mb_strtoupper($category->name) === 'OFERTAS')))->groupClass('col-span-6') }}
 
+                <div class="col-span-6">
+                    {{ Aire::hidden('active')->value(0)}}
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" checked name='active' value="1" class="sr-only peer" {{ $category->active ? 'checked' : '' }}>
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300  rounded-full peer  peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all0 peer-checked:bg-blue-600"></div>
+                        <span class="ml-3 text-sm font-medium text-gray-900 ">Activo</span>
+                    </label>
+                </div>
+
                 <div class="col-span-6 justify-between items-center mt-5 space-x-2 flex">
                     <p class="flex space-x-2 items-center">
                         {{ Aire::submit('Actualizar')->variant()->submit() }}
@@ -55,6 +66,17 @@
     </div>
 
     <div class="col-span-full xl:col-auto">
+        <div class="p-4 mb-4 bg-white border border-gray-200 rounded-lg shadow-sm 2xl:col-span-2">
+            <h3 class="mb-4 text-xl font-semibold ">Imagen</h3>
+            @if($category->image)
+                <div class="mb-4">
+                    <img src="{{ asset('storage/' . $category->image) }}" alt="{{ $category->name }}" class="w-32 h-32 object-cover rounded-lg border">
+                    <p class="text-sm text-gray-500 mt-2">Imagen actual</p>
+                </div>
+            @endif
+            {{ Aire::file('image_file', 'Nueva imagen')->helpText('Selecciona una nueva imagen para reemplazar la actual (opcional)') }}
+        </div>
+
         <div class="p-4 mb-4 bg-white border border-gray-200 rounded-lg shadow-sm 2xl:col-span-2 ">
             <h3 class="mb-4 text-xl font-semibold">Configuración de Ordenamiento</h3>
             

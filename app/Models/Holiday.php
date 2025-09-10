@@ -10,6 +10,7 @@ class Holiday extends Model
     use HasFactory;
 
     protected $fillable = [
+        'name',
         'type_id',
         'date'
     ];
@@ -31,7 +32,5 @@ class Holiday extends Model
         //array of days of week spanish
         $days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
         return $days[$this->date->dayOfWeek];
-
     }
-
 }

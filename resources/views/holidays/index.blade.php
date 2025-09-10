@@ -1,7 +1,56 @@
 @extends('layouts.admin')
 
-
 @section('content')
+<!-- Import Results Modal -->
+@if(session('import_stats'))
+<div id="importModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-medium text-gray-900">📊 Resultados de la Importación</h3>
+            <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">
+                <span class="text-2xl">&times;</span>
+            </button>
+        </div>
+
+        <div class="space-y-4">
+            <!-- Statistics Cards -->
+            <div class="grid grid-cols-3 gap-4">
+                <div class="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+                    <div class="text-2xl font-bold text-green-600">{{ session('import_stats')['imported'] }}</div>
+                    <div class="text-sm text-green-800">Importados</div>
+                </div>
+                <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center">
+                    <div class="text-2xl font-bold text-yellow-600">{{ session('import_stats')['duplicates'] }}</div>
+                    <div class="text-sm text-yellow-800">Duplicados</div>
+                </div>
+                <div class="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
+                    <div class="text-2xl font-bold text-red-600">{{ session('import_stats')['errors'] }}</div>
+                    <div class="text-sm text-red-800">Errores</div>
+                </div>
+            </div>
+
+            <!-- Error Details -->
+            @if(session('import_stats')['error_details'] && count(session('import_stats')['error_details']) > 0)
+            <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+                <h4 class="font-medium text-red-800 mb-2">⚠️ Errores encontrados:</h4>
+                <ul class="text-sm text-red-700 space-y-1 max-h-40 overflow-y-auto">
+                    @foreach(session('import_stats')['error_details'] as $error)
+                    <li>• {{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+            @endif
+
+            <div class="flex justify-end space-x-2">
+                <button onclick="closeModal()"
+                    class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm">
+                    Cerrar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+@endif
 
 
 
@@ -14,10 +63,24 @@
             <form id='form' action="" class='flex space-x-2'>
                 {{ Aire::select([0=>'Todos', 1=>'Festivo', 2=>'Sábado'], 'type_id')->id("type_id")->value(request()->type_id, 0 ) }}
             </form>
-            <a href="{{ route('holidays.create') }}"
-                class="text-white bg-blue-700 hover:bg-primary-800 focus:ring-4 focus:ring-blue-300 font-bold rounded-lg text-sm px-5 py-2.5 ">
-                Nueva fecha
-            </a>
+            <div class="flex flex-wrap gap-2">
+                <a href="{{ route('holidays.create') }}"
+                    class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 font-bold rounded-lg text-sm px-5 py-2.5 ">
+                    ➕ Nueva fecha
+                </a>
+                <a href="{{ route('holidays.import') }}"
+                    class="text-white bg-purple-600 hover:bg-purple-700 focus:ring-4 focus:ring-purple-300 font-bold rounded-lg text-sm px-5 py-2.5 flex items-center">
+                    📤 Importar CSV
+                </a>
+                <a href="{{ route('holidays.export') }}"
+                    class="text-white bg-indigo-600 hover:bg-indigo-700 focus:ring-4 focus:ring-indigo-300 font-bold rounded-lg text-sm px-5 py-2.5 flex items-center">
+                    📥 Exportar CSV
+                </a>
+                <a href="{{ route('holidays.debug') }}"
+                    class="text-white bg-green-600 hover:bg-green-700 focus:ring-4 focus:ring-green-300 font-bold rounded-lg text-sm px-5 py-2.5 flex items-center">
+                    🔍 Debug Datos
+                </a>
+            </div>
         </div>
     </div>
 </div>
@@ -97,7 +160,7 @@
 
 
 @section('scripts')
-    
+
 <script src="{{ asset('js/jquery.js') }}" ></script>
 <script>
 
@@ -105,9 +168,31 @@
         $('#type_id').on('change', function(){
             $('#form').submit();
         })
+
+        // Auto-show import modal if there are results
+        @if(session('import_stats'))
+            $('#importModal').show();
+        @endif
     })
 
-</script>
+    function closeModal() {
+        $('#importModal').hide();
+    }
 
+    // Close modal when clicking outside
+    $(document).on('click', '#importModal', function(e) {
+        if (e.target === this) {
+            closeModal();
+        }
+    });
+
+    // Close modal on ESC key
+    $(document).on('keydown', function(e) {
+        if (e.keyCode === 27 && $('#importModal').is(':visible')) {
+            closeModal();
+        }
+    });
+
+</script>
 
 @endsection

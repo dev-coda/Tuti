@@ -61,6 +61,10 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::resource('brands', BrandController::class);
     Route::resource('taxes', TaxController::class);
     Route::resource('holidays', HolidayController::class);
+    Route::get('holidays-debug', [HolidayController::class, 'debug'])->name('holidays.debug');
+    Route::get('holidays-export', [HolidayController::class, 'export'])->name('holidays.export');
+    Route::get('holidays-import', [HolidayController::class, 'showImport'])->name('holidays.import');
+    Route::post('holidays-import', [HolidayController::class, 'import'])->name('holidays.import.store');
     Route::resource('products', ProductController::class);
     Route::resource('products.combinations', ProductCombinationsController::class)->only(['store', 'update']);
     Route::resource('categories', CategoryController::class);

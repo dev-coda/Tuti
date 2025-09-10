@@ -44,7 +44,11 @@
                             </th>
                             <th scope="col"
                                 class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
-                                
+                                Imagen
+                            </th>
+                            <th scope="col"
+                                class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
+
                             </th>
                         </tr>
                     </thead>
@@ -69,17 +73,25 @@
                             
                             <td class="p-4 text-base  text-gray-900 whitespace-nowra">
                                 <div class="flex items-center">
-                                   
+
                                     <div @class([
-                                        'inline-block w-4 h-4 mr-2 rounded-full', 
+                                        'inline-block w-4 h-4 mr-2 rounded-full',
                                         'bg-green-700' => $category->active,
                                         'bg-red-700' => !$category->active
                                         ])></div>
                                     {{ $category->active ? 'Activo' : 'Inactivo' }}
                                 </div>
                             </td>
-                           
-                          
+
+                            <td class="p-4 text-base text-gray-900 whitespace-nowrap">
+                                @if($category->image)
+                                    <img src="{{ asset('storage/' . $category->image) }}" alt="{{ $category->name }}" class="w-12 h-12 object-cover rounded">
+                                @else
+                                    <span class="text-gray-400 text-sm">Sin imagen</span>
+                                @endif
+                            </td>
+
+
 
                             <td class="p-4 space-x-2 whitespace-nowrap text-end">
                                 <a href="{{ route('categories.edit', $category) }}"

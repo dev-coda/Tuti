@@ -12,8 +12,12 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('holidays', function (Blueprint $table) {
-            $table->dropColumn('name');
-            $table->integer('type_id')->default(1);
+            if (Schema::hasColumn('holidays', 'name')) {
+                $table->dropColumn('name');
+            }
+            if (!Schema::hasColumn('holidays', 'type_id')) {
+                $table->integer('type_id')->default(1);
+            }
         });
     }
 
@@ -22,6 +26,13 @@ return new class extends Migration
      */
     public function down(): void
     {
-        //
+        Schema::table('holidays', function (Blueprint $table) {
+            if (Schema::hasColumn('holidays', 'type_id')) {
+                $table->dropColumn('type_id');
+            }
+            if (!Schema::hasColumn('holidays', 'name')) {
+                $table->string('name')->nullable(); // Make it nullable since we can't restore the original data
+            }
+        });
     }
 };

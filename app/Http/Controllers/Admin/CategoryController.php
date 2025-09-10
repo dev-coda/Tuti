@@ -71,7 +71,7 @@ class CategoryController extends Controller
             ],
             'parent_id' => 'nullable',
             'description' => 'nullable',
-            'image' => 'nullable|image',
+            'image_file' => 'nullable|image|max:2000',
             'active' => 'nullable|boolean',
             'safety_stock' => 'nullable|integer|min:0',
             'default_sort_order' => 'required|in:most_recent,price_asc,price_desc,name_asc,name_desc,best_selling',
