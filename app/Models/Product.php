@@ -115,6 +115,47 @@ class Product extends Model
         return $inv?->available ?? 0;
     }
 
+    /**
+     * Get all products that share the same SKU as this product
+     */
+    public function getProductsWithSameSku()
+    {
+        if (empty($this->sku)) {
+            return collect([$this]);
+        }
+
+        return Product::where('sku', $this->sku)->get();
+    }
+
+    /**
+     * Get the shared inventory for this SKU across all products with the same SKU
+     * Useful for duplicate SKUs that should share inventory
+     */
+    public function getSharedInventoryForBodega(?string $bodegaCode): int
+    {
+        if (!$bodegaCode || empty($this->sku)) {
+            return $this->getInventoryForBodega($bodegaCode);
+        }
+
+        // First try to get inventory from this product
+        $inventory = $this->getInventoryForBodega($bodegaCode);
+        
+        // If this product has no inventory, try to get it from other products with same SKU
+        if ($inventory === 0) {
+            $productsWithSameSku = $this->getProductsWithSameSku();
+            foreach ($productsWithSameSku as $product) {
+                if ($product->id !== $this->id) {
+                    $sharedInventory = $product->getInventoryForBodega($bodegaCode);
+                    if ($sharedInventory > 0) {
+                        return $sharedInventory;
+                    }
+                }
+            }
+        }
+
+        return $inventory;
+    }
+
     public function getEffectiveSafetyStock(): int
     {
         // Product-specific overrides category; otherwise use category safety or 0
@@ -284,5 +325,20 @@ class Product extends Model
     public function scopeBestSelling($query)
     {
         return $query->orderBy('sales_count', 'desc');
+    }
+
+    /**
+     * Scope for products that have duplicate SKUs
+     */
+    public function scopeWithDuplicateSkus($query)
+    {
+        return $query->whereIn('sku', function($subQuery) {
+            $subQuery->select('sku')
+                ->from('products')
+                ->whereNotNull('sku')
+                ->where('sku', '!=', '')
+                ->groupBy('sku')
+                ->havingRaw('COUNT(*) > 1');
+        });
     }
 }

@@ -95,19 +95,23 @@ class SyncProductInventory implements ShouldQueue
             DB::beginTransaction();
             try {
                 foreach ($aggregatedBySku as $sku => $totals) {
-                    $product = Product::where('sku', $sku)->first();
-                    if (!$product) {
+                    // Find ALL products with this SKU (handles duplicate SKUs)
+                    $products = Product::where('sku', $sku)->get();
+                    if ($products->isEmpty()) {
                         continue;
                     }
 
-                    ProductInventory::updateOrCreate([
-                        'product_id' => $product->id,
-                        'bodega_code' => $bodega,
-                    ], [
-                        'available' => (int) ($totals['available'] ?? 0),
-                        'physical' => (int) ($totals['physical'] ?? 0),
-                        'reserved' => (int) ($totals['reserved'] ?? 0),
-                    ]);
+                    // Update inventory for each product with the same SKU
+                    foreach ($products as $product) {
+                        ProductInventory::updateOrCreate([
+                            'product_id' => $product->id,
+                            'bodega_code' => $bodega,
+                        ], [
+                            'available' => (int) ($totals['available'] ?? 0),
+                            'physical' => (int) ($totals['physical'] ?? 0),
+                            'reserved' => (int) ($totals['reserved'] ?? 0),
+                        ]);
+                    }
                 }
                 DB::commit();
             } catch (Exception $e) {
