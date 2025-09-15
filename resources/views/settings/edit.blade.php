@@ -29,6 +29,16 @@
                             <span class="ml-3 text-sm font-medium text-gray-900">Habilitar</span>
                         </label>
                     </div>
+                @elseif(in_array($setting->key, ['terms_conditions_content', 'privacy_policy_content', 'faq_content']))
+                    <div class="col-span-6">
+                        <label for="value" class="block text-sm font-medium text-gray-700 mb-2">{{ $setting->name }}</label>
+                        <textarea 
+                            id="rich-text-editor" 
+                            name="value" 
+                            rows="20" 
+                            class="w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                        >{{ old('value', $setting->value) }}</textarea>
+                    </div>
                 @elseif($setting->id == 5)
                     {{ Aire::textarea('value')->rows(10)->groupClass('col-span-6 sm:col-span-3') }}
                 @else
@@ -58,4 +68,39 @@
 
 
 
+@endsection
+
+@push('head')
+@if(in_array($setting->key, ['terms_conditions_content', 'privacy_policy_content', 'faq_content']))
+<script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+@endif
+@endpush
+
+@section('scripts')
+@if(in_array($setting->key, ['terms_conditions_content', 'privacy_policy_content', 'faq_content']))
+<script>
+tinymce.init({
+    selector: '#rich-text-editor',
+    height: 500,
+    menubar: true,
+    plugins: [
+        'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
+        'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
+        'insertdatetime', 'media', 'table', 'help', 'wordcount'
+    ],
+    toolbar: 'undo redo | blocks | bold italic forecolor | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | removeformat | help',
+    content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, San Francisco, Segoe UI, Roboto, Helvetica Neue, sans-serif; font-size: 14px; }',
+    language: 'es',
+    branding: false,
+    statusbar: true,
+    resize: true,
+    block_formats: 'Párrafo=p; Título 1=h1; Título 2=h2; Título 3=h3; Título 4=h4; Título 5=h5; Título 6=h6; Preformateado=pre',
+    setup: function (editor) {
+        editor.on('change', function () {
+            editor.save();
+        });
+    }
+});
+</script>
+@endif
 @endsection
