@@ -3,6 +3,12 @@
 use App\Http\Controllers\Api\CityController;
 use App\Http\Controllers\Api\CategoriesApiController;
 use App\Http\Controllers\Api\ProductsApiController;
+use App\Http\Controllers\Api\ClientesApiController;
+use App\Http\Controllers\Api\ProductosApiController;
+use App\Http\Controllers\Api\PreciosApiController;
+use App\Http\Controllers\Api\PromocionesApiController;
+use App\Http\Controllers\Api\InventariosApiController;
+use App\Http\Controllers\Api\PedidosApiController;
 use App\Jobs\ProcessImage;
 use App\Models\Article;
 use App\Models\Tax;
@@ -74,3 +80,46 @@ Route::get('/products/section-title', [ProductsApiController::class, 'getSection
 Route::get('/categories/featured', [CategoriesApiController::class, 'featured']);
 Route::get('/categories/most-popular', [CategoriesApiController::class, 'mostPopular']);
 Route::get('/categories/section-title', [CategoriesApiController::class, 'getSectionTitle']);
+
+// Authenticated API Routes
+Route::middleware('auth:sanctum')->group(function () {
+
+    // Clientes (Customers/Users)
+    Route::prefix('clientes')->group(function () {
+        Route::get('/', [ClientesApiController::class, 'index']);
+        Route::get('/{client}', [ClientesApiController::class, 'show']);
+    });
+
+    // Productos (Products)
+    Route::prefix('productos')->group(function () {
+        Route::get('/', [ProductosApiController::class, 'index']);
+        Route::get('/{product}', [ProductosApiController::class, 'show']);
+    });
+
+    // Precios (Prices)
+    Route::prefix('precios')->group(function () {
+        Route::get('/', [PreciosApiController::class, 'index']);
+        Route::get('/{product}', [PreciosApiController::class, 'show']);
+    });
+
+    // Promociones (Promotions/Coupons)
+    Route::prefix('promociones')->group(function () {
+        Route::get('/', [PromocionesApiController::class, 'index']);
+        Route::get('/{coupon}', [PromocionesApiController::class, 'show']);
+        Route::post('/validar', [PromocionesApiController::class, 'validateCoupon']);
+    });
+
+    // Inventarios (Inventory)
+    Route::prefix('inventarios')->group(function () {
+        Route::get('/', [InventariosApiController::class, 'index']);
+        Route::get('/producto/{product}', [InventariosApiController::class, 'show']);
+        Route::get('/bodega/{bodegaCode}', [InventariosApiController::class, 'byBodega']);
+    });
+
+    // Pedidos (Orders)
+    Route::prefix('pedidos')->group(function () {
+        Route::get('/', [PedidosApiController::class, 'index']);
+        Route::get('/{order}', [PedidosApiController::class, 'show']);
+        Route::get('/cliente/{customer}', [PedidosApiController::class, 'byCustomer']);
+    });
+});
