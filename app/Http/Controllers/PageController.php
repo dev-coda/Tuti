@@ -345,18 +345,27 @@ class PageController extends Controller
     public function form_post(Request $request)
     {
         $validate = $request->validate([
-            'name' => 'required',
-            'email' => 'required|email',
-            'phone' => 'required',
-            'city_id' => 'required|exists:cities,id',
-            'nit' => 'required',
+            'reg_name' => 'required',
+            'reg_email' => 'required|email',
+            'reg_phone' => 'required',
+            'reg_city_id' => 'required|exists:cities,id',
+            'reg_nit' => 'required',
             'terms_accepted' => 'required|accepted',
         ]);
 
         // Remove terms_accepted from data to be saved (we just need to validate it was accepted)
         unset($validate['terms_accepted']);
 
-        Contact::create($validate);
+        // Map the prefixed field names to the expected database columns
+        $contactData = [
+            'name' => $validate['reg_name'],
+            'email' => $validate['reg_email'],
+            'phone' => $validate['reg_phone'],
+            'city_id' => $validate['reg_city_id'],
+            'nit' => $validate['reg_nit'],
+        ];
+
+        Contact::create($contactData);
 
         return back()->with('success', 'Solicitud enviada correctamente. Nos pondremos en contacto contigo pronto.');
     }

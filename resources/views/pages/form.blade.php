@@ -52,15 +52,15 @@
             <div class="mt-5 p-5 w-full">
                 {{ Aire::open()->route('form')->post()->addClass('space-y-4') }}
                 
-                {{ Aire::input('name', 'Nombre y Apellido')->placeholder('Nombre y Apellido')->groupClass('mb-0')->required() }}
+                {{ Aire::input('reg_name', 'Nombre y Apellido')->placeholder('Nombre y Apellido')->groupClass('mb-0')->required() }}
                 
-                {{ Aire::email('email', 'Correo electrónico')->placeholder('Correo electrónico')->groupClass('mb-0')->required() }}
+                {{ Aire::email('reg_email', 'Correo electrónico')->placeholder('Correo electrónico')->groupClass('mb-0')->required() }}
                 
-                {{ Aire::input('phone', 'Celular')->placeholder('Celular')->groupClass('mb-0')->required() }}
+                {{ Aire::input('reg_phone', 'Celular')->placeholder('Celular')->groupClass('mb-0')->required() }}
                 
-                {{ Aire::select($cities ?? [], 'city_id', 'Ciudad')->groupClass('mb-0')->required() }}
+                {{ Aire::select($cities ?? [], 'reg_city_id', 'Ciudad')->groupClass('mb-0')->required() }}
                 
-                {{ Aire::input('nit', 'Nit o cédula')->placeholder('Nit o cédula')->groupClass('mb-0')->required() }}
+                {{ Aire::input('reg_nit', 'Nit o cédula')->placeholder('Nit o cédula')->groupClass('mb-0')->required() }}
                 
                 <div class="flex items-start mt-4">
                     <div class="flex items-center h-5">
