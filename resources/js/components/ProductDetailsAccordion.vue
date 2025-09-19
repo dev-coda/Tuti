@@ -42,7 +42,9 @@
                     v-show="openSections.description"
                     class="accordion-content"
                 >
-                    <div class="px-6 py-4 text-gray-700 leading-relaxed">
+                    <div
+                        class="px-6 py-4 text-gray-700 leading-relaxed content-area"
+                    >
                         <div v-html="formatText(description)"></div>
                     </div>
                 </div>
@@ -88,7 +90,9 @@
                 @leave="onLeave"
             >
                 <div v-show="openSections.technical" class="accordion-content">
-                    <div class="px-6 py-4 text-gray-700 leading-relaxed">
+                    <div
+                        class="px-6 py-4 text-gray-700 leading-relaxed content-area"
+                    >
                         <div v-html="formatText(technicalSpecifications)"></div>
                     </div>
                 </div>
@@ -134,7 +138,9 @@
                 @leave="onLeave"
             >
                 <div v-show="openSections.warranty" class="accordion-content">
-                    <div class="px-6 py-4 text-gray-700 leading-relaxed">
+                    <div
+                        class="px-6 py-4 text-gray-700 leading-relaxed content-area"
+                    >
                         <div v-html="formatText(warranty)"></div>
                     </div>
                 </div>
@@ -180,7 +186,9 @@
                 @leave="onLeave"
             >
                 <div v-show="openSections.other" class="accordion-content">
-                    <div class="px-6 py-4 text-gray-700 leading-relaxed">
+                    <div
+                        class="px-6 py-4 text-gray-700 leading-relaxed content-area"
+                    >
                         <div v-html="formatText(otherInformation)"></div>
                     </div>
                 </div>
@@ -226,6 +234,12 @@ export default {
 
         const formatText = (text) => {
             if (!text || text.trim() === "") return "";
+
+            // If text already contains HTML tags, return as-is (rich text content)
+            if (text.includes("<") && text.includes(">")) {
+                return text;
+            }
+
             // Convert line breaks to <br> tags and preserve formatting
             return text.replace(/\n/g, "<br>").replace(/\r\n/g, "<br>");
         };
@@ -281,6 +295,83 @@ export default {
 /* Smooth focus transitions */
 button:focus {
     outline: none;
+}
+
+/* Content styling for rich text */
+.content-area h1 {
+    font-size: 1.875rem;
+    font-weight: 700;
+    margin-top: 1.5rem;
+    margin-bottom: 1rem;
+    color: #111827;
+}
+
+.content-area h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-top: 1.5rem;
+    margin-bottom: 0.75rem;
+    color: #111827;
+}
+
+.content-area h3 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-top: 1.25rem;
+    margin-bottom: 0.5rem;
+    color: #111827;
+}
+
+.content-area h4 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+    color: #111827;
+}
+
+.content-area p {
+    margin-bottom: 1rem;
+    line-height: 1.75;
+}
+
+.content-area ul,
+.content-area ol {
+    margin-bottom: 1rem;
+    padding-left: 1.5rem;
+}
+
+.content-area li {
+    margin-bottom: 0.5rem;
+    line-height: 1.6;
+}
+
+.content-area strong {
+    font-weight: 600;
+    color: #111827;
+}
+
+.content-area a {
+    color: #2563eb;
+    text-decoration: underline;
+}
+
+.content-area a:hover {
+    color: #1d4ed8;
+}
+
+.content-area blockquote {
+    border-left: 4px solid #e5e7eb;
+    padding-left: 1rem;
+    margin: 1rem 0;
+    font-style: italic;
+    color: #6b7280;
+}
+
+.content-area hr {
+    margin: 2rem 0;
+    border: 0;
+    border-top: 1px solid #e5e7eb;
 }
 
 /* Responsive adjustments */

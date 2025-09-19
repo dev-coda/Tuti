@@ -1,5 +1,8 @@
 import "./bootstrap";
 
+// Import Quill styles
+import "quill/dist/quill.snow.css";
+
 import c from "currency.js";
 
 window.currency = function (value) {
@@ -26,6 +29,7 @@ import FilterSortDropdowns from "./components/FilterSortDropdowns.vue";
 import SubmitOrderButton from "./components/SubmitOrderButton.vue";
 import ProductImageReorder from "./components/ProductImageReorder.vue";
 import ProductDetailsAccordion from "./components/ProductDetailsAccordion.vue";
+import RichTextEditor from "./components/RichTextEditor.vue";
 
 // Mount combinedProducts component
 const productsApp = createApp(combinedProducts);
@@ -87,16 +91,116 @@ if (imageReorderEl) {
 // Mount ProductDetailsAccordion when container exists
 const accordionEl = document.getElementById("product-details-accordion");
 if (accordionEl) {
+    // Handle content decoding for product details
+    let description = accordionEl.dataset.description || "";
+    let technicalSpecifications =
+        accordionEl.dataset.technicalSpecifications || "";
+    let warranty = accordionEl.dataset.warranty || "";
+    let otherInformation = accordionEl.dataset.otherInformation || "";
+
+    if (accordionEl.dataset.contentEncoding === "json") {
+        try {
+            description = description ? JSON.parse(description) : "";
+            technicalSpecifications = technicalSpecifications
+                ? JSON.parse(technicalSpecifications)
+                : "";
+            warranty = warranty ? JSON.parse(warranty) : "";
+            otherInformation = otherInformation
+                ? JSON.parse(otherInformation)
+                : "";
+            console.log(
+                "Decoded JSON content for product details with UTF-8 support"
+            );
+        } catch (e) {
+            console.error(
+                "Failed to decode JSON content for product details:",
+                e
+            );
+        }
+    }
+
     const props = {
-        description: accordionEl.dataset.description || "",
-        technicalSpecifications:
-            accordionEl.dataset.technicalSpecifications || "",
-        warranty: accordionEl.dataset.warranty || "",
-        otherInformation: accordionEl.dataset.otherInformation || "",
+        description,
+        technicalSpecifications,
+        warranty,
+        otherInformation,
     };
     const accordionApp = createApp(ProductDetailsAccordion, props);
     accordionApp.mount("#product-details-accordion");
 }
+
+// Mount RichTextEditor components
+document.querySelectorAll(".rich-text-editor-mount").forEach((element) => {
+    console.log("Mounting RichTextEditor on element:", element);
+
+    // Handle content decoding if needed
+    let initialContent = element.dataset.content || "";
+    if (element.dataset.contentEncoding === "json" && initialContent) {
+        try {
+            initialContent = JSON.parse(initialContent);
+            console.log("Decoded JSON content for editor with UTF-8 support");
+        } catch (e) {
+            console.error("Failed to decode JSON content:", e);
+            initialContent = element.dataset.content || "";
+        }
+    }
+
+    console.log("Initial content:", initialContent.substring(0, 100) + "...");
+    console.log("Field name:", element.dataset.name);
+
+    const editorApp = createApp(RichTextEditor, {
+        modelValue: initialContent,
+        name: element.dataset.name || "",
+        placeholder: element.dataset.placeholder || "Escribe aquí...",
+        height: element.dataset.height || "300px",
+    });
+
+    editorApp.mount(element);
+    console.log("RichTextEditor mounted successfully");
+});
+
+// Global event listener for rich editor changes
+window.addEventListener("rich-editor-change", function (e) {
+    const { name, content } = e.detail;
+
+    console.log(
+        "Rich editor change event received:",
+        name,
+        content.substring(0, 100) + "..."
+    );
+
+    // Update any existing hidden input with the same name
+    let hiddenInput = document.querySelector(`input[name="${name}"]`);
+    if (!hiddenInput) {
+        console.log("Creating new hidden input for:", name);
+        // Create hidden input if it doesn't exist
+        hiddenInput = document.createElement("input");
+        hiddenInput.type = "hidden";
+        hiddenInput.name = name;
+
+        // Find the parent form and append the input
+        const editorElement = document.querySelector(`[data-name="${name}"]`);
+        const form = editorElement
+            ? editorElement.closest("form")
+            : document.querySelector("form");
+        if (form) {
+            form.appendChild(hiddenInput);
+            console.log("Hidden input added to form");
+        } else {
+            console.error("No form found to add hidden input");
+        }
+    } else {
+        console.log("Updating existing hidden input for:", name);
+    }
+    hiddenInput.value = content;
+
+    // Emit event for content management page
+    window.dispatchEvent(
+        new CustomEvent("editor-content-change", {
+            detail: { content: content, name: name },
+        })
+    );
+});
 
 const sidebar = document.getElementById("sidebar");
 

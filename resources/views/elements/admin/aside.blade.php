@@ -36,6 +36,12 @@
                         'coupons'=>'Cupones',
                         ]" />
 
+                    <x-dropdown title='Contenido'
+                        icon='heroicon-o-document-text'
+                        :menu="[
+                            'admin.content'=>'Gestión de Contenido',
+                            ]" />
+
                     <x-dropdown title='Configuraciones'
                         icon='heroicon-o-cog-6-tooth'
                         :menu="[

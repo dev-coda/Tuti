@@ -2,7 +2,7 @@
 
 
 use App\Http\Controllers\CartController;
-use App\Http\Controllers\ContentController;
+use App\Http\Controllers\Admin\ContentController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PageController;
 use App\Http\Controllers\Seller\PageController as SellerPageController;
@@ -98,7 +98,7 @@ Route::name('shoppers.')->prefix('tendero')->group(function () {
 
 Route::middleware(['auth'])->group(function () {});
 
-Route::delete('/admins/{id}', [AdminController::class, 'destroy'])->name('admins.destroy');
+// Moved to admin.php: Route::delete('/admins/{id}', [AdminController::class, 'destroy'])->name('admins.destroy');
 
 // Cart API route
 Route::get('/api/cart', [CartApiController::class, 'index'])->name('api.cart');
