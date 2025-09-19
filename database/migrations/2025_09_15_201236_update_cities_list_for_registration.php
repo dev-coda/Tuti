@@ -10,12 +10,23 @@ return new class extends Migration
 {
     /**
      * Run the migrations.
+     * 
+     * ⚠️  WARNING: THIS MIGRATION IS DESTRUCTIVE AND HAS BEEN DISABLED ⚠️
+     * 
+     * This migration was causing data loss by truncating cities table
+     * which broke foreign key relationships with users, orders, and contacts.
+     * 
+     * Use the safe migration instead: 2025_09_19_003533_fix_cities_safely_without_data_loss
      */
     public function up(): void
     {
-        // Clear existing cities
-        City::truncate();
-        
+        // ⚠️  DISABLED: This truncation caused massive data loss
+        // City::truncate();
+
+        // This migration has been replaced with a safer approach
+        // See: database/migrations/2025_09_19_003533_fix_cities_safely_without_data_loss.php
+        return;
+
         // Map cities to their state IDs (based on existing states table)
         // From the states list: Bogotá D.C.=31, Meta=7, Antioquia=1, etc.
         $citiesData = [
@@ -31,7 +42,7 @@ return new class extends Migration
             ['name' => 'Cartagena', 'state_id' => 9], // Bolívar
             ['name' => 'Valledupar', 'state_id' => 13], // Cesar
         ];
-        
+
         // Insert new cities
         foreach ($citiesData as $cityData) {
             City::create([

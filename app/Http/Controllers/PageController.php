@@ -338,7 +338,8 @@ class PageController extends Controller
 
     public function form()
     {
-        $cities = City::orderBy('name')->pluck('name', 'id')->prepend('Selecciona tu ciudad', '');
+        // Use only preferred cities for registration, but keep all cities available for existing data
+        $cities = City::forRegistration()->orderBy('name')->pluck('name', 'id')->prepend('Selecciona tu ciudad', '');
         return view('pages.form', compact('cities'));
     }
 
