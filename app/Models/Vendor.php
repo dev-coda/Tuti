@@ -15,6 +15,7 @@ class Vendor extends Model
         'banner',
         'slug',
         'minimum_purchase',
+        'minimum_discount_amount',
         'active',
         'discount',
         'first_purchase_only',

@@ -135,7 +135,7 @@ class Product extends Model
         return $this->images->first()?->path;
     }
 
-    public function getFinalPriceForUser($has_orders = false)
+    public function getFinalPriceForUser($has_orders = false, $vendorCartTotal = null)
     {
         $discount = 0;
         $discount_on = false;
@@ -163,10 +163,21 @@ class Product extends Model
             }
         }
 
-        // Vendor discount (highest priority)
+        // Vendor discount (highest priority) - with minimum amount check
         if ($this->brand && $this->brand->vendor && $this->brand->vendor->discount > $discount) {
-            if (!$enforce_first_purchase || !$has_orders || !$this->brand->vendor->first_purchase_only) {
-                $discount = $this->brand->vendor->discount;
+            $vendor = $this->brand->vendor;
+            
+            // Check if vendor discount should apply based on first purchase rules
+            $vendorDiscountApplies = !$enforce_first_purchase || !$has_orders || !$vendor->first_purchase_only;
+            
+            // Check if vendor minimum discount amount is met (if specified and vendorCartTotal is provided)
+            $vendorMinimumMet = true;
+            if ($vendor->minimum_discount_amount > 0 && $vendorCartTotal !== null) {
+                $vendorMinimumMet = $vendorCartTotal >= $vendor->minimum_discount_amount;
+            }
+            
+            if ($vendorDiscountApplies && $vendorMinimumMet) {
+                $discount = $vendor->discount;
                 $discount_on = 'Vendor';
             }
         }

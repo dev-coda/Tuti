@@ -85,21 +85,51 @@ class CartController extends Controller
 
 
 
-        //compra minima por vendor
+        //compra minima por vendor y calcular totales para descuentos
         $byVendors = collect($products)->groupBy('vendor_id');
         $alertVendors = [];
+        $vendorDiscountAlerts = [];
+        $vendorTotals = [];
+        
         foreach ($byVendors as $key => $vendor) {
             $total = $vendor->sum(function ($product) {
                 return $product->quantity * $product->calculatedFinalPrice['price'];
             });
 
             $v = Vendor::find($key);
+            $vendorTotals[$key] = $total;
 
+            // Check minimum purchase requirement
             if ($total < $v->minimum_purchase) {
                 $v->current = $total;
                 $alertVendors[] = $v;
             }
+            
+            // Check vendor discount minimum requirement (only if vendor has discount > 0 and minimum_discount_amount > 0)
+            if ($v->discount > 0 && $v->minimum_discount_amount > 0 && $total < $v->minimum_discount_amount) {
+                $vendorDiscountAlerts[] = [
+                    'vendor' => $v,
+                    'current_total' => $total,
+                    'needed_amount' => $v->minimum_discount_amount - $total,
+                    'discount_percentage' => $v->discount
+                ];
+            }
         }
+        
+        // Recalculate products with vendor totals for proper discount application
+        $products = collect($products)->map(function ($product) use ($vendorTotals, $has_orders) {
+            $vendorTotal = $vendorTotals[$product->vendor_id] ?? 0;
+            
+            // Recalculate with vendor total for discount qualification
+            $finalPrice = $product->getFinalPriceForUser($has_orders, $vendorTotal);
+            $product->calculatedFinalPrice = $finalPrice;
+            return $product;
+        });
+        
+        // Recalculate total cart value after vendor discount adjustments
+        $total_cart = $products->sum(function ($product) {
+            return $product->quantity * $product->calculatedFinalPrice['price'];
+        });
 
         $min_amount = Setting::where('key', 'min_amount')->value('value');
         $alertTotal = [];
@@ -139,7 +169,7 @@ class CartController extends Controller
             }
         }
 
-        $context = compact('products', 'alertVendors', 'zones', 'set_user', 'client', 'alertTotal', 'min_amount', 'total_cart', 'has_orders', 'appliedCoupon', 'couponDiscount', 'couponMessage');
+        $context = compact('products', 'alertVendors', 'vendorDiscountAlerts', 'zones', 'set_user', 'client', 'alertTotal', 'min_amount', 'total_cart', 'has_orders', 'appliedCoupon', 'couponDiscount', 'couponMessage');
 
         return view('pages.cart', $context);
     }

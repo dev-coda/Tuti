@@ -18,6 +18,7 @@
 
                     {{ Aire::input('name', "Nombre")->placeholder('Nombre')->groupClass('col-span-6') }}
                     {{ Aire::number('minimum_purchase', "Compra mínima")->placeholder('Compra mínima')->groupClass('col-span-6') }}
+                    {{ Aire::number('minimum_discount_amount', "Mínimo para descuento")->placeholder('Monto mínimo para aplicar descuento')->helpText('Monto mínimo en productos de este vendor para aplicar el descuento')->groupClass('col-span-6') }}
                     {{ Aire::input('vendor_type', "Vendor Type")->groupClass('col-span-6') }}
                     {{ Aire::input('discount', 'Descuento %')->id('discount')->value(old('discount', 0))->min(0)->max(100)->step(1)->groupClass('col-span-6')}}
 

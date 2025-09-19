@@ -77,6 +77,16 @@
         </div>
         @endif
 
+        @if($vendorDiscountAlerts)
+        <div class="space-y-2 mb-5">
+            @foreach ($vendorDiscountAlerts as $alert)
+            <div class="bg-blue-100 border border-blue-400 text-blue-700 px-4 py-3 rounded relative" role="alert">
+                Agrega <strong>${{currency($alert['needed_amount'])}}</strong> en productos <strong>{{$alert['vendor']->name}}</strong> para recibir un descuento de <strong>{{$alert['discount_percentage']}}%</strong>.
+            </div>
+            @endforeach
+        </div>
+        @endif
+
         <div class="">
 
             @if($alertVendors)
