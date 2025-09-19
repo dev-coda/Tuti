@@ -47,7 +47,7 @@
                 <div class="flex justify-center  space-x-5 text-slate-700 font-semibold">
                     {{-- {{email}}</span>
                     <span>{{$phone}}</span> --}}
-                    <span>Envíos gratis por compras mayores a $22.000</span>
+                    <span>{{ \App\Models\Setting::getByKey('free_shipping_message') ?? 'Envíos gratis por compras mayores a $22.000' }}</span>
                 </div>
             </div>
         </div>
