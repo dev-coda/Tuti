@@ -131,12 +131,15 @@ class OrderRepository
 
             $vendor_type = $productData->brand->vendor->vendor_type;
 
-            // Add stage's package calculation logic while keeping master's caching approach
-            $effectivePackageQuantity = $productData->calculate_package_price ? $product->package_quantity : 1;
-            $unitPrice = $effectivePackageQuantity ? parseCurrency($product->price / $effectivePackageQuantity) : parseCurrency($product->price);
-
+            // Handle package calculation differently for bonifications vs regular products
             if ($bonification) {
-                $unitPrice = 0;
+                // For bonifications, use the product's package quantity, not from the bonification record
+                $effectivePackageQuantity = $productData->calculate_package_price ? ($productData->package_quantity ?? 1) : 1;
+                $unitPrice = 0; // Bonifications always have 0 price
+            } else {
+                // For regular products, use the order product's package quantity
+                $effectivePackageQuantity = $productData->calculate_package_price ? $product->package_quantity : 1;
+                $unitPrice = $effectivePackageQuantity ? parseCurrency($product->price / $effectivePackageQuantity) : parseCurrency($product->price);
             }
 
             // Use cached data instead of making individual queries
@@ -159,7 +162,21 @@ class OrderRepository
                 ]);
             }
 
+            // Calculate quantity with proper fallback handling
             $qty = $effectivePackageQuantity ? $product->quantity * $effectivePackageQuantity : $product->quantity;
+            
+            // Add logging for bonification quantity debugging
+            if ($bonification) {
+                Log::channel('soap')->info('Bonification quantity calculation', [
+                    'order_id' => $order->id,
+                    'product_id' => $product->product_id,
+                    'bonification_quantity' => $product->quantity,
+                    'effective_package_quantity' => $effectivePackageQuantity,
+                    'final_qty' => $qty,
+                    'product_calculate_package_price' => $productData->calculate_package_price,
+                    'product_package_quantity' => $productData->package_quantity ?? 'null'
+                ]);
+            }
             $productList .= '<dyn:listDetails>
                             <dyn:discount>' . (int) $product->percentage . '</dyn:discount>
                             <dyn:itemId>' . $sku . '</dyn:itemId>
