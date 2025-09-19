@@ -65,23 +65,74 @@ class CartController extends Controller
             ->whereBelongsTo($targetUser)
             ->exists();
 
-        foreach ($cart as $item) {
+        // Check for applied coupon and calculate proper discounts FIRST
+        $appliedCoupon = session()->get('applied_coupon');
+        $couponDiscount = 0;
+        $couponMessage = null;
+        $couponResult = null;
 
+        if ($appliedCoupon) {
+            $coupon = Coupon::find($appliedCoupon['coupon_id']);
+            if ($coupon && $coupon->isValid()) {
+                // Use new CouponDiscountService for proper discount calculation
+                $couponDiscountService = app(\App\Services\CouponDiscountService::class);
+                $couponResult = $couponDiscountService->applyCouponDiscountToProducts(
+                    $coupon,
+                    $targetUser,
+                    collect($cart),
+                    $has_orders
+                );
+
+                if ($couponResult['success']) {
+                    $couponDiscount = $couponResult['total_coupon_discount'];
+                    $couponMessage = "Cupón '{$coupon->code}' aplicado";
+                } else {
+                    // Coupon application failed
+                    session()->forget('applied_coupon');
+                    $appliedCoupon = null;
+                }
+            } else {
+                // Coupon is no longer valid, remove it
+                session()->forget('applied_coupon');
+                $appliedCoupon = null;
+            }
+        }
+
+        // Create products array with potential coupon-modified pricing
+        $modifiedProductsLookup = [];
+        if ($couponResult && $couponResult['success']) {
+            foreach ($couponResult['modified_products'] as $modProduct) {
+                $key = $modProduct['product_id'] . '_' . ($modProduct['variation_id'] ?? 'null');
+                $modifiedProductsLookup[$key] = $modProduct;
+            }
+        }
+
+        foreach ($cart as $item) {
             $product = Product::with('brand.vendor', 'variation')->find($item['product_id']);
 
             $product->item = $product->items->where('id', $item['variation_id'])->first();
-
             $product->quantity = $item['quantity'];
             $product->vendor_id = $product->brand->vendor->id;
 
-            // Calculate price with user order status
-            $finalPrice = $product->getFinalPriceForUser($has_orders);
-            $product->calculatedFinalPrice = $finalPrice;
+            // Check if this product was modified by coupon
+            $lookupKey = $item['product_id'] . '_' . ($item['variation_id'] ?? 'null');
+            if (isset($modifiedProductsLookup[$lookupKey])) {
+                // Use coupon-modified pricing
+                $finalPrice = $product->getFinalPriceWithCoupon($has_orders, $modifiedProductsLookup[$lookupKey]);
+            } else {
+                // Use regular pricing
+                $finalPrice = $product->getFinalPriceForUser($has_orders);
+            }
 
+            $product->calculatedFinalPrice = $finalPrice;
             $products[] = $product;
-            $total_cart += $product->quantity * $finalPrice['price'];
         }
         $products = collect($products);
+
+        // Calculate total cart value
+        $total_cart = $products->sum(function ($product) {
+            return $product->quantity * $product->calculatedFinalPrice['price'];
+        });
 
 
 
@@ -121,23 +172,7 @@ class CartController extends Controller
             ->exists()
             : false; // If disabled, treat as if user has no orders (always apply discount)
 
-        // Check for applied coupon
-        $appliedCoupon = session()->get('applied_coupon');
-        $couponDiscount = 0;
-        $couponMessage = null;
-
-        if ($appliedCoupon) {
-            $coupon = Coupon::find($appliedCoupon['coupon_id']);
-            if ($coupon && $coupon->isValid()) {
-                $couponDiscount = $appliedCoupon['discount_amount'];
-                $couponMessage = "Cupón '{$coupon->code}' aplicado";
-                $total_cart -= $couponDiscount;
-            } else {
-                // Coupon is no longer valid, remove it
-                session()->forget('applied_coupon');
-                $appliedCoupon = null;
-            }
-        }
+        // Coupon calculation is already done above
 
         $context = compact('products', 'alertVendors', 'zones', 'set_user', 'client', 'alertTotal', 'min_amount', 'total_cart', 'has_orders', 'appliedCoupon', 'couponDiscount', 'couponMessage');
 
@@ -464,15 +499,31 @@ class CartController extends Controller
         $firstOrderDiscountEnabled = config('app.first_order_discount_enabled', true);
         $has_orders = $firstOrderDiscountEnabled ? Order::where('user_id', $user_id)->exists() : false;
 
-        // Check for applied coupon
+        // Check for applied coupon and calculate proper discounts
         $appliedCoupon = session()->get('applied_coupon');
         $couponDiscount = 0;
         $coupon = null;
+        $couponResult = null;
 
         if ($appliedCoupon) {
             $coupon = Coupon::find($appliedCoupon['coupon_id']);
             if ($coupon && $coupon->isValid()) {
-                $couponDiscount = $appliedCoupon['discount_amount'];
+                // Use new CouponDiscountService for proper discount calculation
+                $couponDiscountService = app(\App\Services\CouponDiscountService::class);
+                $couponResult = $couponDiscountService->applyCouponDiscountToProducts(
+                    $coupon,
+                    User::find($user_id),
+                    collect($cart),
+                    $has_orders
+                );
+
+                if ($couponResult['success']) {
+                    $couponDiscount = $couponResult['total_coupon_discount'];
+                } else {
+                    // Coupon application failed
+                    session()->forget('applied_coupon');
+                    $appliedCoupon = null;
+                }
             } else {
                 // Coupon is no longer valid
                 session()->forget('applied_coupon');
@@ -497,19 +548,46 @@ class CartController extends Controller
                 'coupon_discount' => $couponDiscount,
             ]);
 
+            // Create a lookup for modified products from coupon discount service
+            $modifiedProductsLookup = [];
+            if ($couponResult && $couponResult['success']) {
+                foreach ($couponResult['modified_products'] as $modProduct) {
+                    $key = $modProduct['product_id'] . '_' . ($modProduct['variation_id'] ?? 'null');
+                    $modifiedProductsLookup[$key] = $modProduct;
+                }
+            }
+
             foreach ($cart as $key => $row) {
                 $id = $row['product_id'];
                 $p = Product::find($id);
+                $lookupKey = $id . '_' . ($row['variation_id'] ?? 'null');
 
-                // Resolve per-line discount percent for SOAP
-                $lineFinal = $p->getFinalPriceForUser($has_orders);
-                $lineDiscountPercent = (int) ($lineFinal['discount'] ?? 0);
+                // Check if this product was modified by coupon discount service
+                if (isset($modifiedProductsLookup[$lookupKey])) {
+                    $modProduct = $modifiedProductsLookup[$lookupKey];
+
+                    // Use the discount percentage or modified price from coupon service
+                    if ($modProduct['applied_discount_type'] === 'fixed_amount') {
+                        // For fixed amount discounts, use the new unit price
+                        $unitPrice = $modProduct['new_unit_price'];
+                        $lineDiscountPercent = 0; // Don't use percentage field for fixed amount
+                    } else {
+                        // For percentage discounts, use the applied percentage
+                        $unitPrice = $modProduct['base_price'];
+                        $lineDiscountPercent = (int) ($modProduct['applied_discount_percentage'] ?? 0);
+                    }
+                } else {
+                    // Use original product pricing logic
+                    $lineFinal = $p->getFinalPriceForUser($has_orders);
+                    $lineDiscountPercent = (int) ($lineFinal['discount'] ?? 0);
+                    $unitPrice = $p->finalPrice['originalPrice'];
+                }
 
                 $orderProduct = OrderProduct::create([
                     'order_id' => $order->id,
                     'product_id' => $id,
                     'quantity' => $row['quantity'],
-                    'price' => $p->finalPrice['originalPrice'],
+                    'price' => $unitPrice,
                     'discount' => 0,
                     'variation_item_id' => $row['variation_id'] ?? null,
                     'percentage' => $lineDiscountPercent,
@@ -560,18 +638,77 @@ class CartController extends Controller
                 }
 
 
-                $lineFinal = $p->getFinalPriceForUser($has_orders);
-                $total = $total + ($lineFinal['price'] * $row['quantity']);
-                $discount = $discount + ($lineFinal['totalDiscount'] * $row['quantity']);
+                // Calculate line totals based on whether coupon modified the product
+                if (isset($modifiedProductsLookup[$lookupKey])) {
+                    $modProduct = $modifiedProductsLookup[$lookupKey];
+
+                    if ($modProduct['applied_discount_type'] === 'fixed_amount') {
+                        // For fixed amount: price is already reduced, so total is simply price * quantity * package
+                        $lineTotal = $modProduct['new_unit_price'] * $row['quantity'] * ($p->package_quantity ?? 1);
+                        $lineDiscount = $modProduct['final_discount_amount'];
+                    } else {
+                        // For percentage: calculate based on base price and percentage
+                        $lineSubtotal = $modProduct['base_price'] * $row['quantity'] * ($p->package_quantity ?? 1);
+                        $lineDiscount = $modProduct['final_discount_amount'];
+                        $lineTotal = $lineSubtotal - $lineDiscount;
+                    }
+                } else {
+                    // Use original calculation for non-coupon affected products
+                    $lineFinal = $p->getFinalPriceForUser($has_orders);
+                    $lineTotal = $lineFinal['price'] * $row['quantity'];
+                    $lineDiscount = $lineFinal['totalDiscount'] * $row['quantity'];
+                }
+
+                $total += $lineTotal;
+                $discount += $lineDiscount;
 
                 // Increment sales count for best-selling tracking
                 $p->incrementSalesCount($row['quantity']);
             }
 
-            $discount = $has_orders ? 0 : $discount;
+            // For users with orders, reset traditional discounts but keep coupon discounts
+            if ($has_orders) {
+                // Recalculate totals to exclude traditional discounts but keep coupon effects
+                $total = 0;
+                $discount = 0;
 
-            // Apply coupon discount to final total
-            $finalTotal = $total - $couponDiscount;
+                foreach ($cart as $key => $row) {
+                    $p = Product::find($row['product_id']);
+                    $lookupKey = $row['product_id'] . '_' . ($row['variation_id'] ?? 'null');
+
+                    if (isset($modifiedProductsLookup[$lookupKey])) {
+                        $modProduct = $modifiedProductsLookup[$lookupKey];
+
+                        if ($modProduct['applied_discount_type'] === 'fixed_amount') {
+                            $lineTotal = $modProduct['new_unit_price'] * $row['quantity'] * ($p->package_quantity ?? 1);
+                            $lineDiscount = $modProduct['final_discount_amount'];
+                        } else if ($modProduct['applied_discount_type'] === 'coupon') {
+                            // Only apply coupon discount, ignore existing discounts
+                            $lineSubtotal = $modProduct['base_price'] * $row['quantity'] * ($p->package_quantity ?? 1);
+                            $lineDiscount = $modProduct['coupon_contribution'];
+                            $lineTotal = $lineSubtotal - $lineDiscount;
+                        } else {
+                            // No discount for users with orders if it's existing discount
+                            $lineTotal = $modProduct['base_price'] * $row['quantity'] * ($p->package_quantity ?? 1);
+                            $lineDiscount = 0;
+                        }
+                    } else {
+                        // No coupon, no discount for users with orders
+                        $basePrice = $p->price;
+                        $variation = $p->items->where('id', $row['variation_id'])->first();
+                        if ($variation) {
+                            $basePrice = $variation->pivot->price;
+                        }
+                        $lineTotal = $basePrice * $row['quantity'] * ($p->package_quantity ?? 1);
+                        $lineDiscount = 0;
+                    }
+
+                    $total += $lineTotal;
+                    $discount += $lineDiscount;
+                }
+            }
+
+            $finalTotal = $total;
 
             $order->update([
                 'total' => $finalTotal,
