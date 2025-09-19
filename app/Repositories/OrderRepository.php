@@ -164,7 +164,7 @@ class OrderRepository
 
             // Calculate quantity with proper fallback handling
             $qty = $effectivePackageQuantity ? $product->quantity * $effectivePackageQuantity : $product->quantity;
-            
+
             // Add logging for bonification quantity debugging
             if ($bonification) {
                 Log::channel('soap')->info('Bonification quantity calculation', [
