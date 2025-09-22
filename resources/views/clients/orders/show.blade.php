@@ -145,13 +145,6 @@
                                 <td colspan="3">
 
                                 </td>
-                                <td class='p-4 text-base font-medium text-gray-900 whitespace-nowrap text-right'>Descuento</td>
-                                <td class='p-4 text-base font-bold text-gray-900 whitespace-nowrap text-left'>${{ number_format($order->discount, 2) }}</td>
-                            </tr>
-                            <tr>
-                                <td colspan="3">
-
-                                </td>
                                 <td class='p-4 text-base font-medium text-gray-900 whitespace-nowrap text-right'>Total</td>
                                 <td class='p-4 text-base font-bold text-gray-900 whitespace-nowrap text-left'>${{ number_format($order->total, 2) }}</td>
                             </tr>
