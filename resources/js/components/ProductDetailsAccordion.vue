@@ -39,7 +39,7 @@
                 @leave="onLeave"
             >
                 <div
-                    v-show="openSections.description"
+                    v-if="openSections.description"
                     class="accordion-content"
                 >
                     <div
@@ -89,7 +89,7 @@
                 @before-leave="onBeforeLeave"
                 @leave="onLeave"
             >
-                <div v-show="openSections.technical" class="accordion-content">
+                <div v-if="openSections.technical" class="accordion-content">
                     <div
                         class="px-6 py-4 text-gray-700 leading-relaxed content-area"
                     >
@@ -137,7 +137,7 @@
                 @before-leave="onBeforeLeave"
                 @leave="onLeave"
             >
-                <div v-show="openSections.warranty" class="accordion-content">
+                <div v-if="openSections.warranty" class="accordion-content">
                     <div
                         class="px-6 py-4 text-gray-700 leading-relaxed content-area"
                     >
@@ -185,7 +185,7 @@
                 @before-leave="onBeforeLeave"
                 @leave="onLeave"
             >
-                <div v-show="openSections.other" class="accordion-content">
+                <div v-if="openSections.other" class="accordion-content">
                     <div
                         class="px-6 py-4 text-gray-700 leading-relaxed content-area"
                     >
