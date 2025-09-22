@@ -10,11 +10,35 @@ class City extends Model
     use HasFactory;
 
     protected $fillable = [
-        'name', 
+        'name',
         'state_id',
+        'active',
+        'is_preferred',
     ];
 
-    public function state(){
+    protected $casts = [
+        'active' => 'boolean',
+        'is_preferred' => 'boolean',
+    ];
+
+    // Query Scopes for safe city filtering
+    public function scopeActive($query)
+    {
+        return $query->where('active', true);
+    }
+
+    public function scopePreferred($query)
+    {
+        return $query->where('is_preferred', true);
+    }
+
+    public function scopeForRegistration($query)
+    {
+        return $query->active()->preferred();
+    }
+
+    public function state()
+    {
         return $this->belongsTo(State::class);
     }
 }

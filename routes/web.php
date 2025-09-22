@@ -2,6 +2,7 @@
 
 
 use App\Http\Controllers\CartController;
+use App\Http\Controllers\Admin\ContentController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PageController;
 use App\Http\Controllers\Seller\PageController as SellerPageController;
@@ -28,6 +29,11 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', [PageController::class, 'home'])->name('home');
 Route::get('/busqueda/{order?}/{category_id?}/{brand_id?}', [PageController::class, 'search'])->name('search');
+
+// Content pages
+Route::get('/terminos-y-condiciones', [ContentController::class, 'terms'])->name('content.terms');
+Route::get('/politicas-de-privacidad', [ContentController::class, 'privacy'])->name('content.privacy');
+Route::get('/preguntas-frecuentes', [ContentController::class, 'faq'])->name('content.faq');
 
 Route::get('/categoria-producto/{slug}', [PageController::class, 'category'])->name('category');
 Route::get('/categoria-producto/{slug}/{slug2?}', [PageController::class, 'category'])->name('category2');
@@ -92,7 +98,7 @@ Route::name('shoppers.')->prefix('tendero')->group(function () {
 
 Route::middleware(['auth'])->group(function () {});
 
-Route::delete('/admins/{id}', [AdminController::class, 'destroy'])->name('admins.destroy');
+// Moved to admin.php: Route::delete('/admins/{id}', [AdminController::class, 'destroy'])->name('admins.destroy');
 
 // Cart API route
 Route::get('/api/cart', [CartApiController::class, 'index'])->name('api.cart');

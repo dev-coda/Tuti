@@ -53,11 +53,55 @@
                     </label>
                 </div>
 
-                {{ Aire::textarea('description', "Descripción")->id('description')->rows(5)->groupClass('col-span-6') }}
-                {{ Aire::textarea('short_description', "Descripción corta")->id('sort_description')->rows(5)->groupClass('col-span-6') }}
-                {{ Aire::textarea('technical_specifications', "Ficha técnica")->id('technical_specifications')->rows(5)->groupClass('col-span-6') }}
-                {{ Aire::textarea('warranty', "Garantía")->id('warranty')->rows(5)->groupClass('col-span-6') }}
-                {{ Aire::textarea('other_information', "Otra información")->id('other_information')->rows(5)->groupClass('col-span-6') }}
+                <!-- Rich Text Editors for Product Content -->
+                <div class="col-span-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Descripción</label>
+                    <div 
+                        class="rich-text-editor-mount" 
+                        data-content=""
+                        data-name="description"
+                        data-placeholder="Escribe la descripción del producto..."
+                        data-height="250px"
+                    ></div>
+                </div>
+
+                <div class="col-span-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Descripción corta</label>
+                    {{ Aire::textarea('short_description', "")->id('sort_description')->rows(3)->groupClass('mb-0')->helpText('Descripción breve para listados de productos') }}
+                </div>
+
+                <div class="col-span-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Ficha técnica</label>
+                    <div 
+                        class="rich-text-editor-mount" 
+                        data-content=""
+                        data-name="technical_specifications"
+                        data-placeholder="Especificaciones técnicas del producto..."
+                        data-height="200px"
+                    ></div>
+                </div>
+
+                <div class="col-span-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Garantía</label>
+                    <div 
+                        class="rich-text-editor-mount" 
+                        data-content=""
+                        data-name="warranty"
+                        data-placeholder="Información sobre la garantía del producto..."
+                        data-height="150px"
+                    ></div>
+                </div>
+
+                <div class="col-span-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Otra información</label>
+                    <div 
+                        class="rich-text-editor-mount" 
+                        data-content=""
+                        data-name="other_information"
+                        data-placeholder="Información adicional del producto..."
+                        data-height="150px"
+                    ></div>
+                </div>
 
                 <div>
                     {{ Aire::hidden('active')->value(0)}}

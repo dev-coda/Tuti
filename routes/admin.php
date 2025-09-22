@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Admin\BonificationController;
 use App\Http\Controllers\Admin\BrandController;
 use App\Http\Controllers\Admin\CategoryController;
+use App\Http\Controllers\Admin\ContentController;
 use App\Http\Controllers\Admin\CouponController;
 use App\Http\Controllers\Admin\HolidayController;
 use App\Http\Controllers\Admin\LabelController;
@@ -97,6 +98,14 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::post('featured-categories/{featuredCategory}/update-customization', [FeaturedCategoryController::class, 'updateCustomization'])->name('featured-categories.update-customization');
     Route::delete('featured-categories/{featuredCategory}/remove-custom-image', [FeaturedCategoryController::class, 'removeCustomImage'])->name('featured-categories.remove-custom-image');
     Route::resource('admins', AdminController::class);
+
+    // Content management routes
+    Route::prefix('content')->name('admin.content.')->group(function () {
+        Route::get('/', [ContentController::class, 'index'])->name('index');
+        Route::get('/{key}/edit', [ContentController::class, 'edit'])->name('edit');
+        Route::put('/{key}', [ContentController::class, 'update'])->name('update');
+        Route::get('/{key}/show', [ContentController::class, 'show'])->name('show');
+    });
     Route::resource('sellers', SellerController::class);
 
 

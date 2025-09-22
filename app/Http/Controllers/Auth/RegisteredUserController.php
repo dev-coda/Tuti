@@ -24,7 +24,7 @@ class RegisteredUserController extends Controller
      */
     public function create(): View
     {
-        $cities = \App\Models\City::orderBy('name')->get(['id', 'name']);
+        $cities = \App\Models\City::forRegistration()->orderBy('name')->get(['id', 'name']);
         return view('auth.register', compact('cities'));
     }
 

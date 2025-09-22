@@ -49,18 +49,18 @@
             <div class="flex flex-col items-center gap-3 justify-center md:items-start">
                 <h3 class="text-xl mb-3">NOSOTROS</h3>
                 <ul class="text-sm space-y-2">
-                    <li><a href="">Términos y condiciones</a></li>
-                    <li><a href="">Políticas de privacidad</a></li>
-                    <li><a href="">Contacto</a></li>
+                    <li><a href="{{ route('content.terms') }}" class="hover:text-gray-300 transition-colors">Términos y condiciones</a></li>
+                    <li><a href="{{ route('content.privacy') }}" class="hover:text-gray-300 transition-colors">Políticas de privacidad</a></li>
+                    <li><a href="{{route('form')}}" class="hover:text-gray-300 transition-colors">Contacto</a></li>
                 </ul>
             </div>
 
             <div class="flex flex-col items-center gap-3 justify-center md:items-start">
                 <h3 class="text-xl mb-3">PÁGINAS DE INTERÉS</h3>
                 <ul class="text-sm space-y-2">
-                    <li><a href="{{route('register')}}">Registro</a></li>
-                    <li><a href="{{route('form')}}">Quiero ser cliente</a></li>
-                    <li><a href="">Preguntas frecuentes</a></li>
+                    <li><a href="{{route('register')}}" class="hover:text-gray-300 transition-colors">Registro</a></li>
+                    <li><a href="{{route('form')}}" class="hover:text-gray-300 transition-colors">Quiero ser cliente</a></li>
+                    <li><a href="{{ route('content.faq') }}" class="hover:text-gray-300 transition-colors">Preguntas frecuentes</a></li>
                 </ul>
             </div>
 

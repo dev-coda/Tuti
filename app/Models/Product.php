@@ -115,6 +115,47 @@ class Product extends Model
         return $inv?->available ?? 0;
     }
 
+    /**
+     * Get all products that share the same SKU as this product
+     */
+    public function getProductsWithSameSku()
+    {
+        if (empty($this->sku)) {
+            return collect([$this]);
+        }
+
+        return Product::where('sku', $this->sku)->get();
+    }
+
+    /**
+     * Get the shared inventory for this SKU across all products with the same SKU
+     * Useful for duplicate SKUs that should share inventory
+     */
+    public function getSharedInventoryForBodega(?string $bodegaCode): int
+    {
+        if (!$bodegaCode || empty($this->sku)) {
+            return $this->getInventoryForBodega($bodegaCode);
+        }
+
+        // First try to get inventory from this product
+        $inventory = $this->getInventoryForBodega($bodegaCode);
+
+        // If this product has no inventory, try to get it from other products with same SKU
+        if ($inventory === 0) {
+            $productsWithSameSku = $this->getProductsWithSameSku();
+            foreach ($productsWithSameSku as $product) {
+                if ($product->id !== $this->id) {
+                    $sharedInventory = $product->getInventoryForBodega($bodegaCode);
+                    if ($sharedInventory > 0) {
+                        return $sharedInventory;
+                    }
+                }
+            }
+        }
+
+        return $inventory;
+    }
+
     public function getEffectiveSafetyStock(): int
     {
         // Product-specific overrides category; otherwise use category safety or 0
@@ -220,6 +261,82 @@ class Product extends Model
         ];
     }
 
+    /**
+     * Get final price considering coupon discounts
+     * This method integrates with the CouponDiscountService results
+     */
+    public function getFinalPriceWithCoupon($has_orders = false, $couponData = null): array
+    {
+        $basePriceInfo = $this->getFinalPriceForUser($has_orders);
+
+        // If no coupon data provided, return base pricing
+        if (!$couponData) {
+            return $basePriceInfo;
+        }
+
+        // Apply coupon-modified pricing
+        if ($couponData['applied_discount_type'] === 'fixed_amount') {
+            // For fixed amount coupons, use the modified unit price
+            $newUnitPrice = $couponData['new_unit_price'];
+            $packageQuantity = $this->package_quantity ?? 1;
+            $finalPriceWithPackage = $newUnitPrice * $packageQuantity;
+
+            // Calculate tax if applicable
+            $finalPriceWithTax = $this->taxValue() > 0
+                ? ($finalPriceWithPackage + ($finalPriceWithPackage * $this->taxValue() / 100))
+                : $finalPriceWithPackage;
+
+            $originalPrice = $couponData['base_price'] * $packageQuantity;
+            $originalPriceWithTax = $this->taxValue() > 0
+                ? ($originalPrice + ($originalPrice * $this->taxValue() / 100))
+                : $originalPrice;
+
+            return [
+                'old' => $originalPriceWithTax,
+                'price' => $finalPriceWithTax,
+                'totalDiscount' => $couponData['final_discount_amount'],
+                'discount' => 0, // Don't use percentage field for fixed amount
+                'discount_on' => 'Cupón (Monto Fijo)',
+                'has_discount' => true,
+                'originalPrice' => $originalPrice,
+                'perItemPrice' => $newUnitPrice,
+                'coupon_applied' => true,
+                'coupon_type' => 'fixed_amount'
+            ];
+        } else {
+            // For percentage coupons or when existing discount is better
+            $appliedPercentage = $couponData['applied_discount_percentage'];
+            $discountSource = $couponData['discount_source'] ?? 'existing';
+
+            // Use the applied percentage (which is the higher of coupon vs existing)
+            $price = $couponData['base_price'];
+            $packageQuantity = $this->package_quantity ?? 1;
+
+            $discountedPrice = $price - ($price * $appliedPercentage / 100);
+            $finalPrice = $this->taxValue() > 0
+                ? ($discountedPrice + ($discountedPrice * $this->taxValue() / 100))
+                : $discountedPrice;
+
+            $finalPriceWithPackage = $finalPrice * $packageQuantity;
+            $pricePreDiscount = $price + ($price * $this->taxValue() / 100);
+
+            $discountLabel = $discountSource === 'coupon' ? 'Cupón' : $basePriceInfo['discount_on'];
+
+            return [
+                'old' => $pricePreDiscount * $packageQuantity,
+                'price' => $finalPriceWithPackage,
+                'totalDiscount' => ($price * $appliedPercentage / 100) * $packageQuantity,
+                'discount' => $appliedPercentage,
+                'discount_on' => $discountLabel,
+                'has_discount' => $appliedPercentage > 0,
+                'originalPrice' => $price * $packageQuantity,
+                'perItemPrice' => $finalPrice,
+                'coupon_applied' => $discountSource === 'coupon',
+                'coupon_type' => 'percentage'
+            ];
+        }
+    }
+
     public function getFinalPriceAttribute()
     {
         // For backward compatibility, call the new method with has_orders = false
@@ -295,5 +412,20 @@ class Product extends Model
     public function scopeBestSelling($query)
     {
         return $query->orderBy('sales_count', 'desc');
+    }
+
+    /**
+     * Scope for products that have duplicate SKUs
+     */
+    public function scopeWithDuplicateSkus($query)
+    {
+        return $query->whereIn('sku', function ($subQuery) {
+            $subQuery->select('sku')
+                ->from('products')
+                ->whereNotNull('sku')
+                ->where('sku', '!=', '')
+                ->groupBy('sku')
+                ->havingRaw('COUNT(*) > 1');
+        });
     }
 }

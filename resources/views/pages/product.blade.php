@@ -144,10 +144,11 @@
         <h3 class="font-bold text-xl mb-4">Detalles del producto</h3>
         <div 
             id="product-details-accordion"
-            data-description="{{ e($product->description ?? '') }}"
-            data-technical-specifications="{{ e($product->technical_specifications ?? '') }}"
-            data-warranty="{{ e($product->warranty ?? '') }}"
-            data-other-information="{{ e($product->other_information ?? '') }}"
+            data-description="{{ json_encode($product->description ?? '', JSON_UNESCAPED_UNICODE) }}"
+            data-technical-specifications="{{ json_encode($product->technical_specifications ?? '', JSON_UNESCAPED_UNICODE) }}"
+            data-warranty="{{ json_encode($product->warranty ?? '', JSON_UNESCAPED_UNICODE) }}"
+            data-other-information="{{ json_encode($product->other_information ?? '', JSON_UNESCAPED_UNICODE) }}"
+            data-content-encoding="json"
         ></div>
     </div>
     @endif
