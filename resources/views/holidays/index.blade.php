@@ -60,8 +60,18 @@
             <h1 class="text-xl font-semibold text-gray-900 sm:text-2xl ">Festivos</h1>
         </div>
         <div class="items-center justify-between block sm:flex md:divide-x md:divide-gray-100 ">
-            <form id='form' action="" class='flex space-x-2'>
+            <form id='form' action="" class='flex flex-wrap items-center gap-4'>
                 {{ Aire::select([0=>'Todos', 1=>'Festivo', 2=>'Sábado'], 'type_id')->id("type_id")->value(request()->type_id, 0 ) }}
+
+                <label class="flex items-center space-x-2 cursor-pointer">
+                    <input type="checkbox"
+                           name="show_past"
+                           value="1"
+                           {{ request('show_past') ? 'checked' : '' }}
+                           onchange="this.form.submit()"
+                           class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50">
+                    <span class="text-sm text-gray-700">Mostrar festivos pasados</span>
+                </label>
             </form>
             <div class="flex flex-wrap gap-2">
                 <a href="{{ route('holidays.create') }}"
