@@ -43,7 +43,7 @@
                     class="accordion-content"
                 >
                     <div
-                        class="px-6 py-4 text-gray-700 leading-relaxed content-area"
+                        class="px-6 py-4 content-area quill-content"
                     >
                         <div v-html="formatText(description)"></div>
                     </div>
@@ -91,7 +91,7 @@
             >
                 <div v-if="openSections.technical" class="accordion-content">
                     <div
-                        class="px-6 py-4 text-gray-700 leading-relaxed content-area"
+                        class="px-6 py-4 content-area quill-content"
                     >
                         <div v-html="formatText(technicalSpecifications)"></div>
                     </div>
@@ -139,7 +139,7 @@
             >
                 <div v-if="openSections.warranty" class="accordion-content">
                     <div
-                        class="px-6 py-4 text-gray-700 leading-relaxed content-area"
+                        class="px-6 py-4 content-area quill-content"
                     >
                         <div v-html="formatText(warranty)"></div>
                     </div>
@@ -187,7 +187,7 @@
             >
                 <div v-if="openSections.other" class="accordion-content">
                     <div
-                        class="px-6 py-4 text-gray-700 leading-relaxed content-area"
+                        class="px-6 py-4 content-area quill-content"
                     >
                         <div v-html="formatText(otherInformation)"></div>
                     </div>
@@ -235,12 +235,24 @@ export default {
         const formatText = (text) => {
             if (!text || text.trim() === "") return "";
 
-            // If text already contains HTML tags, return as-is (rich text content)
+            // If text already contains HTML tags, treat as rich text content from Quill.js
             if (text.includes("<") && text.includes(">")) {
-                return text;
+                // Clean up any potential issues with Quill.js HTML
+                let cleanedText = text;
+                
+                // Remove any empty paragraphs that Quill might create
+                cleanedText = cleanedText.replace(/<p><br><\/p>/g, '');
+                cleanedText = cleanedText.replace(/<p>&nbsp;<\/p>/g, '');
+                cleanedText = cleanedText.replace(/<p>\s*<\/p>/g, '');
+                
+                // Ensure proper spacing for lists
+                cleanedText = cleanedText.replace(/<\/ul><ul>/g, '');
+                cleanedText = cleanedText.replace(/<\/ol><ol>/g, '');
+                
+                return cleanedText;
             }
 
-            // Convert line breaks to <br> tags and preserve formatting
+            // Convert plain text line breaks to HTML
             return text.replace(/\n/g, "<br>").replace(/\r\n/g, "<br>");
         };
 
