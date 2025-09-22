@@ -22,6 +22,7 @@
     $email = $email ? $email->value : '';
     $google_tag = App\Models\Setting::where('key', 'google_tag')->first();
     $google_tag = $google_tag ? $google_tag->value : '';
+    $free_shipping_message = App\Models\Setting::getByKey('free_shipping_message') ?? 'Envíos gratis por compras mayores a $22.000';
     @endphp
 
     {!! $google_tag !!}
@@ -47,7 +48,7 @@
                 <div class="flex justify-center  space-x-5 text-slate-700 font-semibold">
                     {{-- {{email}}</span>
                     <span>{{$phone}}</span> --}}
-                    <span>Envíos gratis por compras mayores a $22.000</span>
+                    <span>{{ $free_shipping_message }}</span>
                 </div>
             </div>
         </div>
