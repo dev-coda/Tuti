@@ -38,12 +38,9 @@
                 @before-leave="onBeforeLeave"
                 @leave="onLeave"
             >
-                <div
-                    v-if="openSections.description"
-                    class="accordion-content"
-                >
+                <div v-if="openSections.description" class="accordion-content">
                     <div
-                        class="px-6 py-4 content-area quill-content"
+                        class="px-6 py-4 text-gray-700 leading-relaxed content-area"
                     >
                         <div v-html="formatText(description)"></div>
                     </div>
@@ -91,7 +88,7 @@
             >
                 <div v-if="openSections.technical" class="accordion-content">
                     <div
-                        class="px-6 py-4 content-area quill-content"
+                        class="px-6 py-4 text-gray-700 leading-relaxed content-area"
                     >
                         <div v-html="formatText(technicalSpecifications)"></div>
                     </div>
@@ -139,7 +136,7 @@
             >
                 <div v-if="openSections.warranty" class="accordion-content">
                     <div
-                        class="px-6 py-4 content-area quill-content"
+                        class="px-6 py-4 text-gray-700 leading-relaxed content-area"
                     >
                         <div v-html="formatText(warranty)"></div>
                     </div>
@@ -187,7 +184,7 @@
             >
                 <div v-if="openSections.other" class="accordion-content">
                     <div
-                        class="px-6 py-4 content-area quill-content"
+                        class="px-6 py-4 text-gray-700 leading-relaxed content-area"
                     >
                         <div v-html="formatText(otherInformation)"></div>
                     </div>
@@ -239,16 +236,16 @@ export default {
             if (text.includes("<") && text.includes(">")) {
                 // Clean up any potential issues with Quill.js HTML
                 let cleanedText = text;
-                
+
                 // Remove any empty paragraphs that Quill might create
-                cleanedText = cleanedText.replace(/<p><br><\/p>/g, '');
-                cleanedText = cleanedText.replace(/<p>&nbsp;<\/p>/g, '');
-                cleanedText = cleanedText.replace(/<p>\s*<\/p>/g, '');
-                
+                cleanedText = cleanedText.replace(/<p><br><\/p>/g, "");
+                cleanedText = cleanedText.replace(/<p>&nbsp;<\/p>/g, "");
+                cleanedText = cleanedText.replace(/<p>\s*<\/p>/g, "");
+
                 // Ensure proper spacing for lists
-                cleanedText = cleanedText.replace(/<\/ul><ul>/g, '');
-                cleanedText = cleanedText.replace(/<\/ol><ol>/g, '');
-                
+                cleanedText = cleanedText.replace(/<\/ul><ul>/g, "");
+                cleanedText = cleanedText.replace(/<\/ol><ol>/g, "");
+
                 return cleanedText;
             }
 
