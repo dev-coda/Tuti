@@ -23,6 +23,7 @@ class Product extends Model
         'price',
         'delivery_days',
         'discount',
+        'discount_type',
         'first_purchase_only',
         'quantity_min',
         'quantity_max',
@@ -179,6 +180,7 @@ class Product extends Model
     public function getFinalPriceForUser($has_orders = false)
     {
         $discount = 0;
+        $discountType = 'percentage';
         $discount_on = false;
 
         // Check if first purchase discount restrictions are enabled via .env
@@ -192,22 +194,25 @@ class Product extends Model
             // 3. User has orders but first_purchase_only is false
             if (!$enforce_first_purchase || !$has_orders || !$this->first_purchase_only) {
                 $discount = $this->discount;
+                $discountType = $this->discount_type ?? 'percentage';
                 $discount_on = 'Producto';
             }
         }
 
         // Brand discount (higher priority than product)
-        if ($this->brand && $this->brand->discount > $discount) {
+        if ($this->brand && $this->brand->discount > 0) {
             if (!$enforce_first_purchase || !$has_orders || !$this->brand->first_purchase_only) {
                 $discount = $this->brand->discount;
+                $discountType = $this->brand->discount_type ?? 'percentage';
                 $discount_on = 'Marca';
             }
         }
 
         // Vendor discount (highest priority)
-        if ($this->brand && $this->brand->vendor && $this->brand->vendor->discount > $discount) {
+        if ($this->brand && $this->brand->vendor && $this->brand->vendor->discount > 0) {
             if (!$enforce_first_purchase || !$has_orders || !$this->brand->vendor->first_purchase_only) {
                 $discount = $this->brand->vendor->discount;
+                $discountType = $this->brand->vendor->discount_type ?? 'percentage';
                 $discount_on = 'Vendor';
             }
         }
@@ -230,7 +235,13 @@ class Product extends Model
             $has_discount = true;
         }
 
-        $discountedPrice = $price - ($price * $discount / 100);
+        // Calculate discount based on type
+        if ($discountType === 'percentage') {
+            $discountedPrice = $price - ($price * $discount / 100);
+        } else {
+            // Fixed amount discount
+            $discountedPrice = max(0, $price - $discount);
+        }
         $finalPrice = $this->taxValue() > 0 ? ($discountedPrice + ($discountedPrice * $this->taxValue() / 100)) : $discountedPrice;
 
         $packageQuantity = $this->package_quantity ?? 1;

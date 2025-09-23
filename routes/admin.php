@@ -12,12 +12,15 @@ use App\Http\Controllers\Admin\OrderController;
 use App\Http\Controllers\Admin\ProductCombinationsController;
 use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\ProductHighlightController;
+use App\Http\Controllers\Admin\PromocionesController;
+use App\Http\Controllers\Admin\PromocionController;
 use App\Http\Controllers\Admin\SettingController;
 use App\Http\Controllers\Admin\TaxController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\VariationController;
 use App\Http\Controllers\Admin\VariationItemController;
 use App\Http\Controllers\Admin\VendorController;
+use App\Http\Controllers\Admin\VolumeDiscountController;
 use App\Http\Controllers\Admin\BannerController;
 use App\Http\Controllers\Admin\ContactController;
 use App\Http\Controllers\Admin\SellerController;
@@ -80,6 +83,24 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::resource('bonifications', BonificationController::class);
     Route::resource('coupons', CouponController::class);
     Route::post('coupons/{coupon}/toggle', [CouponController::class, 'toggle'])->name('coupons.toggle');
+
+    // Promociones routes
+    Route::prefix('promociones')->name('promociones.')->group(function () {
+        Route::get('/', [PromocionesController::class, 'index'])->name('index');
+        Route::get('/descuento-directo', [PromocionesController::class, 'descuentoDirecto'])->name('descuento-directo');
+        Route::get('/descuento-volumen', [PromocionesController::class, 'descuentoVolumen'])->name('descuento-volumen');
+        Route::get('/bonificaciones', [PromocionesController::class, 'bonificaciones'])->name('bonificaciones');
+        Route::get('/cupones', [PromocionesController::class, 'cupones'])->name('cupones');
+        Route::get('/promociones', [PromocionesController::class, 'promociones'])->name('promociones');
+        Route::get('/analisis', [PromocionesController::class, 'analisis'])->name('analisis');
+        Route::get('/elements', [PromocionesController::class, 'getElements'])->name('elements');
+    });
+
+    // Volume Discount routes
+    Route::resource('volume-discounts', VolumeDiscountController::class);
+
+    // Promocion routes
+    Route::resource('promocion', PromocionController::class);
 
     Route::resource('variations', VariationController::class);
     Route::resource('variations.items', VariationItemController::class);

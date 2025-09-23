@@ -18,6 +18,7 @@ use App\Models\Setting;
 use App\Models\Coupon;
 use App\Models\CouponUsage;
 use App\Services\CouponService;
+use App\Services\DiscountService;
 use App\Repositories\OrderRepository;
 use App\Settings\GeneralSettings;
 use Illuminate\Http\Request;
@@ -134,6 +135,13 @@ class CartController extends Controller
             return $product->quantity * $product->calculatedFinalPrice['price'];
         });
 
+        // Apply the new discount service to find the best available discount
+        $discountService = app(DiscountService::class);
+        $bestDiscount = $discountService->applyBestDiscount(collect($cart), $targetUser, $has_orders);
+
+        // If we have a better discount than what's currently applied, show it
+        $availableDiscount = $bestDiscount['amount'] > $couponDiscount ? $bestDiscount : null;
+
 
 
         //compra minima por vendor
@@ -174,7 +182,7 @@ class CartController extends Controller
 
         // Coupon calculation is already done above
 
-        $context = compact('products', 'alertVendors', 'zones', 'set_user', 'client', 'alertTotal', 'min_amount', 'total_cart', 'has_orders', 'appliedCoupon', 'couponDiscount', 'couponMessage');
+        $context = compact('products', 'alertVendors', 'zones', 'set_user', 'client', 'alertTotal', 'min_amount', 'total_cart', 'has_orders', 'appliedCoupon', 'couponDiscount', 'couponMessage', 'availableDiscount');
 
         return view('pages.cart', $context);
     }

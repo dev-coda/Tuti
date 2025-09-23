@@ -26,7 +26,18 @@
     <ul id="dropdown-{{ $title }}" class="{{ request()->is($is) ? '' : 'hidden' }} py-2 space-y-2">
         @foreach ($menu as $key => $item)
             <li>
-                <a class="{{ request()->is($key.'*') ? 'active' : '' }}" href="{{ route($key.'.index') }}" >
+                @php
+                    // Handle special route patterns
+                    $routeName = $key;
+                    if (str_contains($key, '.')) {
+                        // For routes like 'promociones.descuento-directo', use as is
+                        $routeName = $key;
+                    } else {
+                        // For standard routes, append .index
+                        $routeName = $key . '.index';
+                    }
+                @endphp
+                <a class="{{ request()->is($key.'*') ? 'active' : '' }}" href="{{ route($routeName) }}" >
                     {{ $item }}                            
                 </a>
             </li>

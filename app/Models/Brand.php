@@ -18,6 +18,7 @@ class Brand extends Model
         'delivery_days',
         'active',
         'discount',
+        'discount_type',
         'first_purchase_only',
         'vendor_id'
 

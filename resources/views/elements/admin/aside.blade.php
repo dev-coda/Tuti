@@ -31,15 +31,25 @@
                         'vendors'=>'Proveedores', 
                         'categories'=>'Categorías', 
                         'labels'=>'Etiquetas', 
-                        'variations'=>'Variaciones', 
-                        'bonifications'=>'Bonificaciones',
-                        'coupons'=>'Cupones',
+                        'variations'=>'Variaciones',
+                        ]" />
+
+                    <x-dropdown 
+                        title='Promociones' 
+                        icon='heroicon-o-tag'
+                        :menu="[
+                        'promociones.descuento-directo'=>'Descuento Directo',
+                        'promociones.descuento-volumen'=>'Descuento por Volumen',
+                        'promociones.bonificaciones'=>'Bonificaciones',
+                        'promociones.cupones'=>'Cupones',
+                        'promociones.promociones'=>'Promociones',
+                        'promociones.analisis'=>'Análisis',
                         ]" />
 
                     <x-dropdown title='Contenido'
                         icon='heroicon-o-document-text'
                         :menu="[
-                            'admin.content'=>'Gestión de Contenido',
+                            'admin.content.index'=>'Gestión de Contenido',
                             ]" />
 
                     <x-dropdown title='Configuraciones'

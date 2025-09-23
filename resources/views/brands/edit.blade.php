@@ -22,9 +22,11 @@
 
                 {{ Aire::select($vendors, 'vendor_id', 'Vendor')->groupClass('col-span-6 sm:col-span-3') }}
 
-                {{ Aire::input('discount', 'Descuento %')->id('discount')->min(0)->max(100)->step(1)->groupClass('col-span-2')}}
+                {{ Aire::select(['percentage' => 'Porcentaje (%)', 'fixed_amount' => 'Valor Fijo ($)'], 'discount_type', 'Tipo de Descuento')->groupClass('col-span-2') }}
+                
+                {{ Aire::input('discount', 'Valor del Descuento')->id('discount')->min(0)->step(0.01)->groupClass('col-span-2')}}
 
-                <div class="col-span-4 flex items-center">
+                <div class="col-span-2 flex items-center">
                     {{ Aire::hidden('first_purchase_only')->value(0)}}
                     <label class="relative inline-flex items-center cursor-pointer">
                         <input @checked($brand->first_purchase_only) type="checkbox" name='first_purchase_only' value="1" class="sr-only peer">
