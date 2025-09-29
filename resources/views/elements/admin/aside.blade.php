@@ -56,6 +56,8 @@
                         icon='heroicon-o-cog-6-tooth'
                         :menu="[
                             'settings'=>'Configuraciones',
+                            'settings.mailer'=>'Configuración de Correo',
+                            'email-templates.index'=>'Plantillas de Correo',
                             'holidays'=>'Festivos y Sabados',
                             'banners'=>'Banners',
                             'featured-products'=>'Productos Destacados',
