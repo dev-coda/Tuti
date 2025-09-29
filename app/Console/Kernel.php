@@ -29,8 +29,8 @@ class Kernel extends ConsoleKernel
 
         // Nightly inventory sync (guarded by setting inventory_sync_enabled)
         $schedule->call(function () {
-            $syncEnabled = Setting::getByKey('inventory_sync_enabled');
-            $inventoryEnabled = Setting::getByKey('inventory_enabled');
+            $syncEnabled = Setting::getByKeyWithDefault('inventory_sync_enabled', '1');
+            $inventoryEnabled = Setting::getByKeyWithDefault('inventory_enabled', '1');
             if (($syncEnabled === '1' || $syncEnabled === 1 || $syncEnabled === true) && ($inventoryEnabled === '1' || $inventoryEnabled === 1 || $inventoryEnabled === true)) {
                 SyncProductInventory::dispatch();
             }
