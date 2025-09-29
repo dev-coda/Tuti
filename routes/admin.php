@@ -107,6 +107,27 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
 
     Route::resource('settings', SettingController::class);
     Route::post('settings/sync-inventory', [SettingController::class, 'syncInventory'])->name('settings.sync-inventory');
+    Route::get('settings/mailer', [SettingController::class, 'mailer'])->name('settings.mailer');
+    Route::post('settings/mailer', [SettingController::class, 'updateMailer'])->name('settings.mailer.update');
+    Route::post('test-email', function(\Illuminate\Http\Request $request) {
+        try {
+            $email = $request->input('email');
+
+            // Update mail configuration from database
+            $mailingService = app(\App\Services\MailingService::class);
+            $mailingService->updateMailConfiguration();
+
+            // Send test email
+            \Illuminate\Support\Facades\Mail::raw('Este es un correo de prueba desde Tuti. Si recibes este mensaje, la configuración de correo está funcionando correctamente.', function($message) use ($email) {
+                $message->to($email)
+                        ->subject('Prueba de Configuración de Correo - Tuti');
+            });
+
+            return response()->json(['success' => true]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()]);
+        }
+    })->name('test.email');
     Route::resource('banners', BannerController::class);
     Route::resource('featured-products', FeaturedProductController::class)->only(['index', 'store', 'destroy']);
     Route::get('featured-products/search', [FeaturedProductController::class, 'search'])->name('featured-products.search');
@@ -133,6 +154,8 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::resource('orders', OrderController::class);
     Route::post('/orders/{order}/resend', [OrderController::class, 'resend'])->name('orders.resend');
     Route::resource('contacts', ContactController::class);
+    Route::resource('email-templates', EmailTemplateController::class);
+    Route::get('/email-templates/{template}/preview', [EmailTemplateController::class, 'preview'])->name('email-templates.preview');
 
 
 

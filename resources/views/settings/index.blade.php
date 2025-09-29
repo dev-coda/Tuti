@@ -26,6 +26,9 @@
         <div class="items-center justify-between block sm:flex md:divide-x md:divide-gray-100 ">
             <div class="flex items-center mb-4 sm:mb-0">
                <x-search :home="route('settings.index')" />
+               <a href="{{ route('settings.mailer') }}" class="btn btn-sm btn-outline-primary mx-2" title="Configuración de Correo">
+                    @svg('heroicon-o-envelope', 'w-5 h-5')
+               </a>
                <a href="/updateproductprices">
                     @svg('heroicon-o-arrow-down-on-square', 'w-8 h-8 text-blue-500')
                </a>
