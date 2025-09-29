@@ -20,6 +20,15 @@ class Setting extends Model
         });
     }
 
+    /**
+     * Get setting value with default fallback
+     */
+    public static function getByKeyWithDefault($key, $default = null)
+    {
+        $value = self::getByKey($key);
+        return $value !== null ? $value : $default;
+    }
+
     protected static function boot()
     {
         parent::boot();

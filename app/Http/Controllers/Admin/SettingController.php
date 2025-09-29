@@ -53,7 +53,7 @@ class SettingController extends Controller
 
     public function syncInventory()
     {
-        SyncProductInventory::dispatchAfterResponse();
+        SyncProductInventory::dispatch();
         return back()->with('success', 'Sincronización de inventario iniciada');
     }
 }
