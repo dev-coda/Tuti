@@ -105,11 +105,11 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::resource('variations', VariationController::class);
     Route::resource('variations.items', VariationItemController::class);
 
-    Route::resource('settings', SettingController::class);
+    Route::resource('settings', SettingController::class)->except(['show']);
     Route::post('settings/sync-inventory', [SettingController::class, 'syncInventory'])->name('settings.sync-inventory');
-    Route::get('settings/mailer', [SettingController::class, 'mailer'])->name('settings.mailer');
-    Route::post('settings/mailer', [SettingController::class, 'updateMailer'])->name('settings.mailer.update');
-    Route::post('test-email', function(\Illuminate\Http\Request $request) {
+    Route::get('settings/mailer-config', [SettingController::class, 'mailer'])->name('settings.mailer');
+    Route::post('settings/mailer-config', [SettingController::class, 'updateMailer'])->name('settings.mailer.update');
+    Route::post('test-email', function (\Illuminate\Http\Request $request) {
         try {
             $email = $request->input('email');
 
@@ -118,9 +118,9 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
             $mailingService->updateMailConfiguration();
 
             // Send test email
-            \Illuminate\Support\Facades\Mail::raw('Este es un correo de prueba desde Tuti. Si recibes este mensaje, la configuración de correo está funcionando correctamente.', function($message) use ($email) {
+            \Illuminate\Support\Facades\Mail::raw('Este es un correo de prueba desde Tuti. Si recibes este mensaje, la configuración de correo está funcionando correctamente.', function ($message) use ($email) {
                 $message->to($email)
-                        ->subject('Prueba de Configuración de Correo - Tuti');
+                    ->subject('Prueba de Configuración de Correo - Tuti');
             });
 
             return response()->json(['success' => true]);

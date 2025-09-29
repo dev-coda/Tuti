@@ -55,13 +55,13 @@
                     <x-dropdown title='Configuraciones'
                         icon='heroicon-o-cog-6-tooth'
                         :menu="[
-                            'settings'=>'Configuraciones',
+                            'settings.index'=>'Configuraciones',
                             'settings.mailer'=>'Configuración de Correo',
                             'email-templates.index'=>'Plantillas de Correo',
-                            'holidays'=>'Festivos y Sabados',
-                            'banners'=>'Banners',
-                            'featured-products'=>'Productos Destacados',
-                            'featured-categories'=>'Categorías Destacadas',
+                            'holidays.index'=>'Festivos y Sabados',
+                            'banners.index'=>'Banners',
+                            'featured-products.index'=>'Productos Destacados',
+                            'featured-categories.index'=>'Categorías Destacadas',
                             ]" />
                         
                         

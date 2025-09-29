@@ -33,6 +33,15 @@ class SettingController extends Controller
         return view('settings.index', $context);
     }
 
+    /**
+     * Display the specified resource.
+     */
+    public function show(Setting $setting)
+    {
+        $context = compact('setting');
+        return view('settings.show', $context);
+    }
+
     //edit
     public function edit(Setting $setting)
     {
