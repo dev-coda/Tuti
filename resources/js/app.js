@@ -17,6 +17,9 @@ window.Alpine = Alpine;
 Alpine.start();
 
 import { createApp } from "vue";
+
+// Make Vue globally available
+window.Vue = { createApp };
 import combinedProducts from "./vue/combinedProducts.vue";
 import HelloWorld from "./vue/HelloWorld.vue";
 import MobileMenu from "./vue/MobileMenu.vue";

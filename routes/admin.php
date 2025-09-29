@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\ContentController;
 use App\Http\Controllers\Admin\CouponController;
 use App\Http\Controllers\Admin\HolidayController;
+use App\Http\Controllers\Admin\KpiController;
 use App\Http\Controllers\Admin\LabelController;
 use App\Http\Controllers\Admin\OrderController;
 use App\Http\Controllers\Admin\ProductCombinationsController;
@@ -41,6 +42,12 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
         return to_route('products.index');
         return view('dashboard');
     })->name('dashboard');
+
+    // KPI Dashboard routes
+    Route::prefix('kpi')->name('admin.kpi.')->group(function () {
+        Route::get('/', [KpiController::class, 'index'])->name('index');
+        Route::get('/export', [KpiController::class, 'export'])->name('export');
+    });
 
 
     // Route::get('/products/search', [ProductController::class, 'search'])->name('products.search');
@@ -154,14 +161,14 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::resource('orders', OrderController::class);
     Route::post('/orders/{order}/resend', [OrderController::class, 'resend'])->name('orders.resend');
     Route::resource('contacts', ContactController::class);
-    Route::get('email-templates', [App\Http\Controllers\Admin\EmailTemplateController::class, 'index'])->name('email-templates.index');
-    Route::get('email-templates/create', [App\Http\Controllers\Admin\EmailTemplateController::class, 'create'])->name('email-templates.create');
-    Route::post('email-templates', [App\Http\Controllers\Admin\EmailTemplateController::class, 'store'])->name('email-templates.store');
-    Route::get('email-templates/{id}', [App\Http\Controllers\Admin\EmailTemplateController::class, 'show'])->name('email-templates.show');
-    Route::get('email-templates/{id}/edit', [App\Http\Controllers\Admin\EmailTemplateController::class, 'edit'])->name('email-templates.edit');
-    Route::put('email-templates/{id}', [App\Http\Controllers\Admin\EmailTemplateController::class, 'update'])->name('email-templates.update');
-    Route::delete('email-templates/{id}', [App\Http\Controllers\Admin\EmailTemplateController::class, 'destroy'])->name('email-templates.destroy');
-    Route::get('email-templates/{id}/preview', [App\Http\Controllers\Admin\EmailTemplateController::class, 'preview'])->name('email-templates.preview');
+    Route::get('email-templates', [App\Http\Controllers\Admin\EmailTemplateController::class, 'index'])->name('admin.email-templates.index');
+    Route::get('email-templates/create', [App\Http\Controllers\Admin\EmailTemplateController::class, 'create'])->name('admin.email-templates.create');
+    Route::post('email-templates', [App\Http\Controllers\Admin\EmailTemplateController::class, 'store'])->name('admin.email-templates.store');
+    Route::get('email-templates/{template}', [App\Http\Controllers\Admin\EmailTemplateController::class, 'show'])->name('admin.email-templates.show');
+    Route::get('email-templates/{template}/edit', [App\Http\Controllers\Admin\EmailTemplateController::class, 'edit'])->name('admin.email-templates.edit');
+    Route::put('email-templates/{template}', [App\Http\Controllers\Admin\EmailTemplateController::class, 'update'])->name('admin.email-templates.update');
+    Route::delete('email-templates/{template}', [App\Http\Controllers\Admin\EmailTemplateController::class, 'destroy'])->name('admin.email-templates.destroy');
+    Route::get('email-templates/{template}/preview', [App\Http\Controllers\Admin\EmailTemplateController::class, 'preview'])->name('admin.email-templates.preview');
 
 
 

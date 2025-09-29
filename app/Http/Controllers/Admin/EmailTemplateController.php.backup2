@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\EmailTemplate;
 use Illuminate\Http\Request;
 
-class EmailTemplateController extends Controller
+class EmailTemplatesController extends Controller
 {
     /**
      * Display a listing of the resource.
@@ -117,7 +117,7 @@ class EmailTemplateController extends Controller
 
         return response()->json([
             'subject' => $processedContent['subject'],
-            'body' => nl2br(e($processedContent['body'])),
+            'body' => $processedContent['body'],
         ]);
     }
 

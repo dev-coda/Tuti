@@ -36,13 +36,13 @@
 
 
 
-<section class="w-full grid grid-cols-1 gap-x-10 xl:gap-y-0 gap-y-10">
+<section class="w-full grid grid-cols-1 gap-x-10 xl:gap-y-0 gap-y-2 md:gap-y-10">
     @if (count($products) == 0)
     <h1 class="text-2xl font-bold mt-5">No se encontraron resultados</h1>
     @else
-    <h1 class="text-2xl font-bold mt-5">Resultados de búsqueda: {{request()->q}}</h1>
-    <div class="my-10">
-         <div class="grid grid-cols-1 xl:grid-cols-4 gap-x-5 gap-y-5  ">
+    <h1 class="text-2xl font-bold mt-2 md:mt-5">Resultados de búsqueda: {{request()->q}}</h1>
+    <div class="my-4 md:my-10">
+         <div class="grid grid-cols-1 xl:grid-cols-4 gap-x-5 gap-y-2 md:gap-y-5  ">
             @foreach ($products as $product)
             <x-product :product="$product" :bodega-code="$bodegaCode ?? null" />
             @endforeach

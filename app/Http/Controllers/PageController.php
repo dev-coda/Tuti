@@ -20,7 +20,9 @@ class PageController extends Controller
     {
         $productsPre = Product::active()->with('images')->orderBy('created_at', 'desc')->limit(12);
         $products = $productsPre->paginate(4);
-        $categories = Category::with('children')->whereNull('parent_id')->get();
+        $categories = Category::active()->whereNull('parent_id')->with(['children' => function ($query) {
+            $query->where('active', 1);
+        }])->get();
         $banners = Banner::whereTypeId(1)->orderBy('id')->get();
         $lateral = Banner::whereTypeId(2)->orderBy('id')->get();
         // Removed hardcoded featured categories - now using API

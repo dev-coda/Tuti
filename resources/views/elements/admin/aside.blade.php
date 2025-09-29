@@ -19,6 +19,13 @@
                             <span class="ml-3" sidebar-toggle-item>Pedidos</span>
                         </a>
                     </li>
+
+                    <li>
+                        <a href="{{ route('admin.kpi.index') }}">
+                            @svg('heroicon-o-chart-bar', 'w-6 h-6 text-gray-500')
+                            <span class="ml-3" sidebar-toggle-item>KPIs</span>
+                        </a>
+                    </li>
             
                     <x-dropdown 
                         title='Productos' 
@@ -57,7 +64,7 @@
                         :menu="[
                             'settings.index'=>'Configuraciones',
                             'settings.mailer'=>'Configuración de Correo',
-                            'email-templates.index'=>'Plantillas de Correo',
+                            'admin.email-templates.index'=>'Plantillas de Correo',
                             'holidays.index'=>'Festivos y Sabados',
                             'banners.index'=>'Banners',
                             'featured-products.index'=>'Productos Destacados',

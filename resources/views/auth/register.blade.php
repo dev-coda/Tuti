@@ -21,7 +21,7 @@
                 
                 {{ Aire::input('phone', 'Celular')->placeholder('Celular')->groupClass('mb-0') }}
                 
-                {{ Aire::select($cities ?? [], 'city_id', 'Ciudad')->placeholder('Selecciona tu ciudad')->groupClass('mb-0') }}
+                {{ Aire::select(['' => 'Selecciona tu ciudad'] + ($cities ?? []), 'city_id', 'Ciudad')->groupClass('mb-0') }}
                 
                 {{ Aire::input('document', 'Nit o cédula')->placeholder('Nit o cédula')->groupClass('mb-0') }}
                 

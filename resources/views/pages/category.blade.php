@@ -10,10 +10,16 @@
 @endsection
 
 @section('content')
-<section class="w-full grid xl:grid-cols-12 gap-x-10 xl:gap-y-0 gap-y-10 max-w-[100vw] overflow-hidden">
+<section class="w-full grid xl:grid-cols-12 gap-x-10 xl:gap-y-0 gap-y-2 md:gap-y-10 max-w-[100vw] overflow-hidden">
     @if($category->image)
-    <div class="col-span-12 mb-10">
-        <img src="{{asset('storage/'.$category->image)}}" alt="{{$category->name}}" class="w-full h-auto object-contain" style="max-height: 300px;">
+    <div class="col-span-12 mb-4 md:mb-10 flex justify-center">
+        <div class="relative w-full max-w-sm sm:max-w-md md:max-w-lg lg:max-w-xl xl:max-w-2xl h-48 sm:h-56 md:h-64 lg:h-72 xl:h-80 overflow-hidden rounded-lg bg-gray-100">
+            <img 
+                src="{{asset('storage/'.$category->image)}}" 
+                alt="{{$category->name}}" 
+                class="w-full h-full object-cover object-center"
+            >
+        </div>
     </div>
     @endif
     <div class="flex md:flex-row flex-col items-center md:justify-between justify-center gap-3 col-span-12 font-semibold w-full max-w-[90vw]">
@@ -51,7 +57,7 @@
     </div>
 
 
-    <h1 class="font-bold my-5 text-3xl col-span-12 w-full">{{$category->name}}</h1>
+    <h1 class="font-bold my-2 md:my-5 text-3xl col-span-12 w-full">{{$category->name}}</h1>
 
     @if ($products->count() === 0)
     <div class="col-span-12 h-screen">
@@ -60,7 +66,7 @@
     @endif
 
     <div class="col-span-12 ">
-        <div class="grid grid-cols-1 xl:grid-cols-4 gap-0 gap-y-10 ">
+        <div class="grid grid-cols-1 xl:grid-cols-4 gap-0 gap-y-4 md:gap-y-10 ">
             @foreach ($products as $product)
             <x-product :product="$product" :bodega-code="$bodegaCode ?? null" />
             @endforeach

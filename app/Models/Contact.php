@@ -5,11 +5,23 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\User;
+use App\Services\MailingService;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 
 class Contact extends Model
 {
     use HasFactory;
+
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::created(function ($contact) {
+            // Send admin notification email for new contact
+            $mailingService = app(MailingService::class);
+            $mailingService->sendContactFormNotification($contact);
+        });
+    }
 
     protected $fillable = ['name', 'email', 'phone', 'business_name', 'read', 'city', 'city_id', 'nit', 'terms_accepted'];
 

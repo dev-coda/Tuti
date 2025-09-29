@@ -132,4 +132,67 @@
     .content-area .ql-align-justify {
         @apply text-justify;
     }
+
+    /* Complementary Products Carousel Styles */
+    .complementary-products-carousel {
+        @apply relative overflow-hidden;
+    }
+
+    .complementary-products-slide {
+        @apply flex-shrink-0 transition-transform duration-300 ease-in-out;
+    }
+
+    .complementary-products-nav {
+        @apply absolute top-1/2 transform -translate-y-1/2 bg-white shadow-lg rounded-full p-2 border border-gray-200 z-10;
+    }
+
+    .complementary-products-nav:hover {
+        @apply shadow-xl;
+    }
+
+    .complementary-products-nav:disabled {
+        @apply opacity-50 cursor-not-allowed;
+    }
+
+    .complementary-products-nav-left {
+        @apply left-0 -translate-x-2;
+    }
+
+    .complementary-products-nav-right {
+        @apply right-0 translate-x-2;
+    }
+
+    .complementary-products-dots {
+        @apply flex justify-center gap-2 mt-4;
+    }
+
+    .complementary-products-dot {
+        @apply w-2 h-2 rounded-full transition-all duration-300 cursor-pointer;
+    }
+
+    .complementary-products-dot.active {
+        @apply bg-orange-500;
+    }
+
+    .complementary-products-dot:not(.active) {
+        @apply bg-gray-300;
+    }
+
+    /* Mobile optimizations */
+    @media (max-width: 640px) {
+        .complementary-products-nav {
+            @apply p-1.5;
+        }
+
+        .complementary-products-nav svg {
+            @apply w-4 h-4;
+        }
+    }
+
+    /* Touch/swipe support */
+    @media (max-width: 1023px) {
+        .complementary-products-carousel {
+            touch-action: pan-x;
+        }
+    }
 }

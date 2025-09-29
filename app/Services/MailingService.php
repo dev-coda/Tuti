@@ -70,8 +70,8 @@ class MailingService
             $this->updateMailConfiguration();
 
             $template = EmailTemplate::where('slug', $templateSlug)
-                                   ->where('is_active', true)
-                                   ->first();
+                ->where('is_active', true)
+                ->first();
 
             if (!$template) {
                 Log::warning("Email template not found or inactive: {$templateSlug}");

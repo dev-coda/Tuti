@@ -36,7 +36,9 @@ Route::middleware('api')->group(function () {
     Route::get('/categories', function () {
         return Category::active()
             ->whereNull('parent_id')
-            ->with('children')
+            ->with(['children' => function ($query) {
+                $query->where('active', 1);
+            }])
             ->orderBy('name')
             ->get();
     });

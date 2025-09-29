@@ -3,8 +3,8 @@
     $inventoryEnabled = \App\Models\Setting::getByKey('inventory_enabled');
     $showInventory = ($inventoryEnabled === '1' || $inventoryEnabled === 1 || $inventoryEnabled === true);
 @endphp
-<div class=" rounded flex flex-col p-6 max-w-[90vw]">
-    <div class="flex w-full items-center justify-center py-2 text-gray-400 flex-grow">
+<div class=" rounded flex flex-col p-2 md:p-6 max-w-[90vw]">
+    <div class="flex w-full items-center justify-center py-1 md:py-2 text-gray-400 flex-grow">
         @if($product->images->first())
         <a href="{{route('product', $product->slug)}}" class="flex-grow-1 h-40 block w-full bg-contain bg-center bg-no-repeat hover:scale-110 transition duration-500 cursor-pointer" style="background-image: url({{asset('storage/'.$product->images->first()->path)}});">
         </a>
@@ -18,7 +18,7 @@
     </div>
 
 
-    <div class=" p-2  flex flex-col">
+    <div class=" p-1 md:p-2  flex flex-col">
         <a href="{{route('product', $product->slug)}}" class=" text-[#180F09] font-semibold text-lg">{{$product->name}}</a>
         @if($product->sku)
         <p class=" text-slate-500 text-md">{{$product->sku}}</p>
@@ -52,7 +52,7 @@
         <p>(Und. x) ${{ currency($product->final_price['perItemPrice']) }}</p>
         @endif
     </div>
-    <a href="{{route('product', $product->slug)}}" class="bg-secondary p-2 mt-4 text-white hover:bg-gray2 flex px-4 text-xl font-semibold rounded-full items-center justify-center w-52 mx-auto">
+    <a href="{{route('product', $product->slug)}}" class="bg-secondary p-1 md:p-2 mt-2 md:mt-4 text-white hover:bg-gray2 flex px-2 md:px-4 text-lg md:text-xl font-semibold rounded-full items-center justify-center w-40 md:w-52 mx-auto">
         <span>¡Lo quiero! </span>
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8">
             <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" />
