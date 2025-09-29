@@ -20,8 +20,8 @@ class KpiController extends Controller
      */
     public function index(Request $request)
     {
-        // Get date range from request or default to last 30 days
-        $startDate = $request->get('start_date', now()->subDays(30)->startOfDay());
+        // Get date range from request or default to last 12 months to show historical data
+        $startDate = $request->get('start_date', now()->subYear()->startOfDay());
         $endDate = $request->get('end_date', now()->endOfDay());
 
         // Convert string dates to Carbon instances if needed
@@ -205,7 +205,7 @@ class KpiController extends Controller
      */
     public function export(Request $request)
     {
-        $startDate = $request->get('start_date', now()->subDays(30)->startOfDay());
+        $startDate = $request->get('start_date', now()->subYear()->startOfDay());
         $endDate = $request->get('end_date', now()->endOfDay());
 
         if (is_string($startDate)) {
