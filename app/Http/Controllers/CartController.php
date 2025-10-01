@@ -769,12 +769,12 @@ class CartController extends Controller
                 try {
                     // Reconnect to database (shutdown functions run after DB disconnect)
                     DB::reconnect();
-                    
+
                     $order = Order::find($orderId);
                     if ($order) {
                         OrderRepository::presalesOrder($order);
                         Log::info("Order {$orderId} processed via shutdown function");
-                        
+
                         // Send emails
                         try {
                             $mailingService = app(\App\Services\MailingService::class);
