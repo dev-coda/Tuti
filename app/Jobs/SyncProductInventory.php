@@ -24,7 +24,7 @@ class SyncProductInventory implements ShouldQueue
     public function handle(): void
     {
         // Respect inventory enabled setting
-        $inventoryEnabled = Setting::getByKey('inventory_enabled');
+        $inventoryEnabled = Setting::getByKeyWithDefault('inventory_enabled', '1');
         if (!($inventoryEnabled === '1' || $inventoryEnabled === 1 || $inventoryEnabled === true)) {
             return;
         }
@@ -35,27 +35,52 @@ class SyncProductInventory implements ShouldQueue
         }
 
         if ($tokenSetting->updated_at->diffInMinutes(now()) > 2) {
-            Artisan::call('app:get-token');
-            $tokenSetting = Setting::where('key', 'microsoft_token')->first();
+            try {
+                Artisan::call('app:get-token');
+                $tokenSetting = Setting::where('key', 'microsoft_token')->first();
+                if (!$tokenSetting) {
+                    Log::error('Failed to refresh microsoft token - token setting not found after refresh');
+                    return;
+                }
+            } catch (Exception $e) {
+                Log::error('Failed to refresh microsoft token: ' . $e->getMessage());
+                return;
+            }
         }
 
         $token = $tokenSetting->value;
 
         $bodegas = ZoneWarehouse::query()->select('bodega_code')->distinct()->pluck('bodega_code');
+        if ($bodegas->isEmpty()) {
+            Log::warning('No bodegas found for inventory sync');
+            return;
+        }
+
         foreach ($bodegas as $bodega) {
             $body = $this->buildSoapBody($bodega);
-            $response = Http::withHeaders([
-                'Content-Type' => 'text/xml;charset=UTF-8',
-                'SOAPAction' => 'http://tempuri.org/DWSSalesForce/obtenerExistenciaDeInventarioEspecifica',
-                'Authorization' => "Bearer {$token}",
-            ])->send('POST', env('MICROSOFT_RESOURCE_URL', 'https://uattrx.sandbox.operations.dynamics.com/') . '/soap/services/DIITDWSSalesForceGroup', [
-                'body' => $body,
-            ]);
 
-            $xmlString = preg_replace('/<(\/)?(s|a):/', '<$1$2', $response->body());
-            $xml = @simplexml_load_string($xmlString);
-            if (!$xml) {
-                Log::warning("Inventory SOAP parse failed for bodega {$bodega}");
+            try {
+                $response = Http::withHeaders([
+                    'Content-Type' => 'text/xml;charset=UTF-8',
+                    'SOAPAction' => 'http://tempuri.org/DWSSalesForce/obtenerExistenciaDeInventarioEspecifica',
+                    'Authorization' => "Bearer {$token}",
+                ])->timeout(30)->send('POST', env('MICROSOFT_RESOURCE_URL', 'https://uattrx.sandbox.operations.dynamics.com/') . '/soap/services/DIITDWSSalesForceGroup', [
+                    'body' => $body,
+                ]);
+
+                if (!$response->successful()) {
+                    Log::error("Inventory sync HTTP request failed for bodega {$bodega}: " . $response->status() . " - " . $response->body());
+                    continue;
+                }
+
+                $xmlString = preg_replace('/<(\/)?(s|a):/', '<$1$2', $response->body());
+                $xml = @simplexml_load_string($xmlString);
+                if (!$xml) {
+                    Log::warning("Inventory SOAP parse failed for bodega {$bodega}. Response: " . substr($response->body(), 0, 500));
+                    continue;
+                }
+            } catch (Exception $e) {
+                Log::error("Inventory sync HTTP error for bodega {$bodega}: " . $e->getMessage());
                 continue;
             }
 
@@ -63,6 +88,10 @@ class SyncProductInventory implements ShouldQueue
 
             // Aggregate totals per SKU for this bodega, excluding specific WMS locations
             $aggregatedBySku = [];
+            if (empty($items)) {
+                Log::info("No inventory items found for bodega {$bodega}");
+                continue;
+            }
             foreach ($items as $item) {
                 $sku = trim((string) ($item->aItemId ?? ''));
                 if ($sku === '') {
@@ -90,6 +119,11 @@ class SyncProductInventory implements ShouldQueue
                 $aggregatedBySku[$sku]['available'] += $avail;
                 $aggregatedBySku[$sku]['physical'] += $phys;
                 $aggregatedBySku[$sku]['reserved'] += $resv;
+            }
+
+            if (empty($aggregatedBySku)) {
+                Log::info("No valid inventory data to sync for bodega {$bodega}");
+                continue;
             }
 
             DB::beginTransaction();
@@ -121,10 +155,14 @@ class SyncProductInventory implements ShouldQueue
         }
 
         // Update last sync timestamp setting
-        Setting::updateOrCreate(
-            ['key' => 'inventory_last_synced_at'],
-            ['name' => 'Inventario - última sincronización', 'value' => now()->toDateTimeString(), 'show' => true]
-        );
+        try {
+            Setting::updateOrCreate(
+                ['key' => 'inventory_last_synced_at'],
+                ['name' => 'Inventario - última sincronización', 'value' => now()->toDateTimeString(), 'show' => true]
+            );
+        } catch (Exception $e) {
+            Log::error('Failed to update inventory sync timestamp: ' . $e->getMessage());
+        }
     }
 
     private function buildSoapBody(string $bodega): string

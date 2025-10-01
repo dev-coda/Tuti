@@ -64,7 +64,9 @@
                     {{Aire::select($variations, 'variation_id', "Variación")->groupClass('col-span-3')}}
                 @endif
 
-                {{Aire::input('discount', 'Descuento %')->id('discount')->min(0)->max(100)->groupClass('col-span-1')}}
+                {{ Aire::select(['percentage' => 'Porcentaje (%)', 'fixed_amount' => 'Valor Fijo ($)'], 'discount_type', 'Tipo de Descuento')->groupClass('col-span-2') }}
+                
+                {{Aire::input('discount', 'Valor del Descuento')->id('discount')->min(0)->step(0.01)->groupClass('col-span-2')}}
 
                 <div class="col-span-2 flex items-center">
                     {{ Aire::hidden('first_purchase_only')->value(0)}}

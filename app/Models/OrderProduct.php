@@ -28,6 +28,11 @@ class OrderProduct extends Model
         return $this->belongsTo(Product::class);
     }
 
+    public function order()
+    {
+        return $this->belongsTo(Order::class);
+    }
+
     public function variationItem()
     {
 

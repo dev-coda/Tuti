@@ -36,7 +36,7 @@
 
 
 
-<section class="w-full grid grid-cols-12 xl:gap-x-10 gap-x-0 xl:gap-y-0 gap-y-10">
+<section class="w-full grid grid-cols-12 xl:gap-x-10 gap-x-0 xl:gap-y-0 gap-y-2 md:gap-y-10">
 
 
 
@@ -50,7 +50,7 @@
 
 </section>
 
-<div class="xl:col-span-12 col-span-12 mt-6 mb-0 pb-0 bg-neutral-200">
+<div class="xl:col-span-12 col-span-12 mt-2 md:mt-6 mb-0 pb-0 bg-neutral-200">
     <div id='ads' class="splide mb-0 p-3 bg-neutral-200">
         <div class="splide__track">
             <ul class="splide__list">

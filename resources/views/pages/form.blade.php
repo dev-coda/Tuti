@@ -20,8 +20,32 @@
 <div class="max-w-5xl container mx-auto xl:space-y-10 space-y-0 mt-5 mb-20">
     <h1 class="xl:text-4xl text-2xl font-bold  text-center">Bienvenido Tendero</h1>
 
-    <div class="grid xl:grid-cols-2 grid-cols-1 gap-10">
-        <div class="border border-3 border-blue-900 p-5 rounded-lg flex flex-col items-center justify-center">
+    <!-- Mobile Tabs Navigation -->
+    <div class="xl:hidden mb-6">
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            <div class="flex">
+                <button id="login-tab" class="flex-1 py-4 px-6 text-sm font-semibold text-center border-b-2 border-blue-500 text-blue-600 bg-blue-50 transition-all duration-200">
+                    <div class="flex items-center justify-center space-x-2">
+                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 01-.437-.695z" clip-rule="evenodd" />
+                        </svg>
+                        <span>Ingreso</span>
+                    </div>
+                </button>
+                <button id="register-tab" class="flex-1 py-4 px-6 text-sm font-semibold text-center border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50 transition-all duration-200">
+                    <div class="flex items-center justify-center space-x-2">
+                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" />
+                        </svg>
+                        <span>Registro</span>
+                    </div>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid xl:grid-cols-2 grid-cols-1 gap-10 xl:gap-10 gap-0">
+        <div id="login-section" class="border border-3 border-blue-900 p-5 rounded-lg flex flex-col items-center justify-center xl:flex xl:flex-col xl:items-center xl:justify-center">
             <div class="w-20 h-20 bg-blue-900 rounded-full flex items-center justify-center mb-5">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-white" viewBox="0 0 24 24" fill="currentColor">
                     <path fill-rule="evenodd" d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 01-.437-.695z" clip-rule="evenodd" />
@@ -45,7 +69,7 @@
                 </form>
             </div>
         </div>
-        <div class="border border-3 border-blue-900 p-5 rounded-lg flex flex-col items-center justify-center">
+        <div id="register-section" class="border border-3 border-blue-900 p-5 rounded-lg flex flex-col items-center justify-center xl:flex xl:flex-col xl:items-center xl:justify-center hidden">
             <h2 class="text-2xl font-bold">Registrate aquí</h2>
             <p class="text-center mb-4">Completa los datos para acceder al portafolio de productos</p>
 
@@ -154,6 +178,71 @@
     document.getElementById('termsModal').addEventListener('click', function(e) {
         if (e.target === this) {
             hideTermsModal();
+        }
+    });
+
+    // Tab functionality for mobile
+    document.addEventListener('DOMContentLoaded', function() {
+        const loginTab = document.getElementById('login-tab');
+        const registerTab = document.getElementById('register-tab');
+        const loginSection = document.getElementById('login-section');
+        const registerSection = document.getElementById('register-section');
+
+        function switchToLogin() {
+            // Update tab appearance
+            loginTab.classList.add('border-blue-500', 'text-blue-600', 'bg-blue-50');
+            loginTab.classList.remove('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:bg-gray-50');
+            registerTab.classList.remove('border-blue-500', 'text-blue-600', 'bg-blue-50');
+            registerTab.classList.add('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:bg-gray-50');
+            
+            // Show/hide sections only on mobile
+            if (window.innerWidth < 1280) { // xl breakpoint
+                loginSection.classList.remove('hidden');
+                registerSection.classList.add('hidden');
+            }
+        }
+
+        function switchToRegister() {
+            // Update tab appearance
+            registerTab.classList.add('border-blue-500', 'text-blue-600', 'bg-blue-50');
+            registerTab.classList.remove('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:bg-gray-50');
+            loginTab.classList.remove('border-blue-500', 'text-blue-600', 'bg-blue-50');
+            loginTab.classList.add('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:bg-gray-50');
+            
+            // Show/hide sections only on mobile
+            if (window.innerWidth < 1280) { // xl breakpoint
+                registerSection.classList.remove('hidden');
+                loginSection.classList.add('hidden');
+            }
+        }
+
+        // Add event listeners
+        if (loginTab && registerTab) {
+            loginTab.addEventListener('click', switchToLogin);
+            registerTab.addEventListener('click', switchToRegister);
+            
+            // Set default state - login tab active on mobile
+            if (window.innerWidth < 1280) { // xl breakpoint
+                switchToLogin();
+            }
+            
+            // Handle window resize to ensure proper layout
+            window.addEventListener('resize', function() {
+                if (window.innerWidth >= 1280) { // Desktop
+                    // Show both sections on desktop
+                    loginSection.classList.remove('hidden');
+                    registerSection.classList.remove('hidden');
+                } else { // Mobile
+                    // Apply current tab state on mobile
+                    if (loginTab.classList.contains('border-blue-500')) {
+                        switchToLogin();
+                    } else if (registerTab.classList.contains('border-blue-500')) {
+                        switchToRegister();
+                    } else {
+                        switchToLogin(); // Default to login
+                    }
+                }
+            });
         }
     });
 </script>

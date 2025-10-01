@@ -14,6 +14,8 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             AdminUserSeeder::class,
+            MailerSettingsSeeder::class,
+            EmailTemplatesSeeder::class,
         ]);
 
         // \App\Models\User::factory(10)->create();

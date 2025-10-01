@@ -15,7 +15,9 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
     @php
-    $categories = App\Models\Category::active()->whereNull('parent_id')->with('children')->orderBy('name')->get();
+    $categories = App\Models\Category::active()->whereNull('parent_id')->with(['children' => function ($query) {
+        $query->where('active', 1);
+    }])->orderBy('name')->get();
     $phone = App\Models\Setting::where('key', 'phone')->first();
     $phone = $phone ? $phone->value : '';
     $email = App\Models\Setting::where('key', 'email')->first();

@@ -158,10 +158,27 @@
     @if($related->count())
     <div class="col-span-12 py-5">
         <h3 class="font-bold text-xl mb-2">Complementa tu compra</h3>
-        <div class="grid grid-cols-1 xl:grid-cols-4 gap-5 ">
+        
+        <!-- Desktop Grid -->
+        <div class="hidden xl:grid xl:grid-cols-4 gap-5">
             @foreach ($related as $p)
             <x-product :product="$p" :bodega-code="$bodegaCode ?? null" />
             @endforeach
+        </div>
+        
+        <!-- Mobile Carousel -->
+        <div class="xl:hidden">
+            <div id="complementary-products-carousel" class="splide">
+                <div class="splide__track">
+                    <ul class="splide__list">
+                        @foreach ($related as $p)
+                        <li class="splide__slide">
+                            <x-product :product="$p" :bodega-code="$bodegaCode ?? null" />
+                        </li>
+                        @endforeach
+                    </ul>
+                </div>
+            </div>
         </div>
     </div>
     @endif
@@ -278,9 +295,32 @@
                 pagination: true,
             }).mount();
         }
+        
+        // Initialize complementary products carousel if it exists
+        if (document.getElementById('complementary-products-carousel')) {
+            new Splide('#complementary-products-carousel', {
+                type: 'slide',
+                perPage: 1,
+                perMove: 1,
+                arrows: true,
+                pagination: true,
+                gap: '1rem',
+                padding: '1rem',
+                breakpoints: {
+                    640: {
+                        perPage: 1,
+                        gap: '0.5rem',
+                        padding: '0.5rem',
+                    },
+                    768: {
+                        perPage: 2,
+                        gap: '1rem',
+                        padding: '1rem',
+                    },
+                },
+            }).mount();
+        }
     });
 </script>
-
-
 
 @endsection

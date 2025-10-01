@@ -16,7 +16,11 @@
 
     <!-- Order Information Section -->
     <div class="bg-gray-50 p-4 rounded-lg mb-6">
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div>
+                <span class="text-sm font-medium text-gray-500">Cliente:</span>
+                <span class="text-sm text-gray-900 ml-2">{{$order->user->name}}</span>
+            </div>
             <div>
                 <span class="text-sm font-medium text-gray-500">Fecha:</span>
                 <span class="text-sm text-gray-900 ml-2">{{$order->created_at->subHour(5)->format('Y-m-d H:i')}}</span>

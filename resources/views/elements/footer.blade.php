@@ -58,7 +58,6 @@
             <div class="flex flex-col items-center gap-3 justify-center md:items-start">
                 <h3 class="text-xl mb-3">PÁGINAS DE INTERÉS</h3>
                 <ul class="text-sm space-y-2">
-                    <li><a href="{{route('register')}}" class="hover:text-gray-300 transition-colors">Registro</a></li>
                     <li><a href="{{route('form')}}" class="hover:text-gray-300 transition-colors">Quiero ser cliente</a></li>
                     <li><a href="{{ route('content.faq') }}" class="hover:text-gray-300 transition-colors">Preguntas frecuentes</a></li>
                 </ul>

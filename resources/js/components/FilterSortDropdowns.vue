@@ -1,17 +1,17 @@
 <template>
     <div class="md:col-span-12 pt-3 max-w-[90vw] uppercase font-semibold">
         <div
-            class="flex md:justify-between md:items-center flex-col md:flex-row pr-3 space-y-4 md:space-y-0"
+            class="flex md:justify-between md:items-center flex-row pr-3 space-x-2 md:space-x-0 md:space-y-0"
         >
             <!-- Sort Dropdown -->
             <div class="relative">
                 <button
                     @click="toggleSort"
-                    class="flex items-center justify-between w-full md:w-64 px-4 py-2 hover:bg-gray-50 rounded-md focus:outline-none"
+                    class="flex items-center justify-between w-full md:w-64 px-2 md:px-4 py-2 hover:bg-gray-50 rounded-md focus:outline-none text-sm md:text-base"
                 >
                     <span class="text-gray-700 flex items-center gap-2">
                         <svg
-                            class="w-5 h-5 ml-2"
+                            class="w-4 h-4 md:w-5 md:h-5 ml-1 md:ml-2"
                             xmlns="http://www.w3.org/2000/svg"
                             fill="none"
                             viewBox="0 0 24 24"
@@ -66,7 +66,7 @@
             <div class="relative">
                 <button
                     @click="toggleFilter"
-                    class="flex items-center justify-between w-full md:w-64 px-4 py-2 hover:bg-gray-50 rounded-md focus:outline-none"
+                    class="flex items-center justify-between w-full md:w-64 px-2 md:px-4 py-2 hover:bg-gray-50 rounded-md focus:outline-none text-sm md:text-base"
                 >
                     <span class="text-gray-700">FILTRAR</span>
                     <svg

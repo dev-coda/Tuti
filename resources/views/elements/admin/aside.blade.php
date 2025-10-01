@@ -19,6 +19,13 @@
                             <span class="ml-3" sidebar-toggle-item>Pedidos</span>
                         </a>
                     </li>
+
+                    <li>
+                        <a href="{{ route('admin.kpi.index') }}">
+                            @svg('heroicon-o-chart-bar', 'w-6 h-6 text-gray-500')
+                            <span class="ml-3" sidebar-toggle-item>KPIs</span>
+                        </a>
+                    </li>
             
                     <x-dropdown 
                         title='Productos' 
@@ -39,17 +46,19 @@
                     <x-dropdown title='Contenido'
                         icon='heroicon-o-document-text'
                         :menu="[
-                            'admin.content'=>'Gestión de Contenido',
+                            'admin.content.index'=>'Gestión de Contenido',
                             ]" />
 
                     <x-dropdown title='Configuraciones'
                         icon='heroicon-o-cog-6-tooth'
                         :menu="[
-                            'settings'=>'Configuraciones',
-                            'holidays'=>'Festivos y Sabados',
-                            'banners'=>'Banners',
-                            'featured-products'=>'Productos Destacados',
-                            'featured-categories'=>'Categorías Destacadas',
+                            'settings.index'=>'Configuraciones',
+                            'settings.mailer'=>'Configuración de Correo',
+                            'admin.email-templates.index'=>'Plantillas de Correo',
+                            'holidays.index'=>'Festivos y Sabados',
+                            'banners.index'=>'Banners',
+                            'featured-products.index'=>'Productos Destacados',
+                            'featured-categories.index'=>'Categorías Destacadas',
                             ]" />
                         
                         

@@ -76,7 +76,7 @@
                     <div class="px-3 py-3">
                         <ul class="pl-7 text-sm space-y-2">
                             <li><a class="text-gray-600" href="{{route('category', $category->slug)}}">{{$category->name}}</a></li>
-                            @foreach ($category->children as $subcategory)
+                            @foreach ($category->children->where('active', 1) as $subcategory)
                             <li><a class="text-gray-600" href="{{route('category2', $subcategory->slug)}}">{{$subcategory->name}}</a></li>
                             @endforeach
                         </ul>
