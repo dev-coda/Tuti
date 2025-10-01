@@ -30,8 +30,16 @@ class MailingService
             Config::set('mail.from.address', $fromAddress);
             Config::set('mail.from.name', $fromName);
 
-            // Only configure Mailgun if the package is available
-            if ($mailDriver === 'mailgun' && class_exists('Symfony\Component\Mailer\Bridge\Mailgun\Transport\MailgunTransportFactory')) {
+            // Only configure Mailgun if the package is available (check composer autoloader)
+            $mailgunAvailable = false;
+            try {
+                $mailgunAvailable = class_exists('Symfony\Component\Mailer\Bridge\Mailgun\Transport\MailgunTransportFactory', false);
+            } catch (\Exception $e) {
+                // Mailgun package not available
+                $mailgunAvailable = false;
+            }
+            
+            if ($mailDriver === 'mailgun' && $mailgunAvailable) {
                 $mailgunDomain = Setting::getByKey('mailgun_domain');
                 $mailgunSecret = Setting::getByKey('mailgun_secret');
                 $mailgunEndpoint = Setting::getByKeyWithDefault('mailgun_endpoint', 'api.mailgun.net');
@@ -60,6 +68,12 @@ class MailingService
             if ($smtpUsername && $smtpPassword) {
                 Config::set('mail.mailers.smtp.username', $smtpUsername);
                 Config::set('mail.mailers.smtp.password', $smtpPassword);
+            }
+            
+            // If Mailgun was requested but not available, fallback to SMTP
+            if ($mailDriver === 'mailgun' && !$mailgunAvailable) {
+                Log::warning("Mailgun package not available, falling back to SMTP");
+                Config::set('mail.default', 'smtp');
             }
         } catch (\Exception $e) {
             Log::error("Failed to update mail configuration: " . $e->getMessage());
