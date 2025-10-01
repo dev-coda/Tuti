@@ -10,8 +10,17 @@
         <div class="flex justify-between items-center">
             <h1 class="text-xl font-semibold text-gray-900 sm:text-2xl ">Compra #{{ $order->id }}</h1>
             <div class="flex items-center space-x-4">
-                <!-- Email Retry Buttons -->
+                <!-- XML Transmission Retry Button (Primary) -->
                 <div class="flex space-x-2">
+                    <form method="POST" action="{{ route('orders.retry-xml-transmission', $order) }}" class="inline">
+                        @csrf
+                        <button type="submit" class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+                            @svg('heroicon-o-arrow-path', 'w-4 h-4 mr-2')
+                            Reintentar XML
+                        </button>
+                    </form>
+                    
+                    <!-- Email Retry Buttons (Secondary) -->
                     <form method="POST" action="{{ route('orders.retry-confirmation-email', $order) }}" class="inline">
                         @csrf
                         <button type="submit" class="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">

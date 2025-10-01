@@ -175,6 +175,20 @@ class OrderController extends Controller
     }
 
     /**
+     * Retry XML transmission for an order
+     */
+    public function retryXmlTransmission(Order $order)
+    {
+        $result = OrderRepository::retryXmlTransmission($order);
+        
+        if ($result['success']) {
+            return redirect()->back()->with('success', $result['message']);
+        } else {
+            return redirect()->back()->with('error', $result['message']);
+        }
+    }
+
+    /**
      * Retry sending order confirmation email
      */
     public function retryConfirmationEmail(Order $order)

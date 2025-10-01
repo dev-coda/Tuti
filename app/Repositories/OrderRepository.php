@@ -288,11 +288,17 @@ class OrderRepository
                         'execution_time' => $executionTime . ' seconds'
                     ]);
 
-                    $order->update([
-                        'status_id' => Order::STATUS_PROCESED,
-                        'request' => $body,
-                        'response' => $response
-                    ]);
+                    // Update order status without triggering email events during XML transmission
+                    $order->withoutEvents(function() use ($order, $body, $response) {
+                        $order->update([
+                            'status_id' => Order::STATUS_PROCESED,
+                            'request' => $body,
+                            'response' => $response
+                        ]);
+                    });
+
+                    // Send email notification after successful XML transmission
+                    self::sendOrderStatusEmail($order, 'processed');
                 } else {
                     Log::channel('soap')->warning('SOAP request returned error response', [
                         'order_id' => $order_id,
@@ -300,11 +306,14 @@ class OrderRepository
                         'execution_time' => $executionTime . ' seconds'
                     ]);
 
-                    $order->update([
-                        'status_id' => Order::STATUS_ERROR,
-                        'request' => $body,
-                        'response' => $response
-                    ]);
+                    // Update order status without triggering email events during XML transmission
+                    $order->withoutEvents(function() use ($order, $body, $response) {
+                        $order->update([
+                            'status_id' => Order::STATUS_ERROR,
+                            'request' => $body,
+                            'response' => $response
+                        ]);
+                    });
                 }
             } catch (\Exception $e) {
                 Log::channel('soap')->error('Error parsing SOAP response', [
@@ -314,11 +323,14 @@ class OrderRepository
                     'execution_time' => $executionTime . ' seconds'
                 ]);
 
-                $order->update([
-                    'status_id' => Order::STATUS_ERROR_WEBSERVICE,
-                    'request' => $body,
-                    'response' => $data
-                ]);
+                // Update order status without triggering email events during XML transmission
+                $order->withoutEvents(function() use ($order, $body, $data) {
+                    $order->update([
+                        'status_id' => Order::STATUS_ERROR_WEBSERVICE,
+                        'request' => $body,
+                        'response' => $data
+                    ]);
+                });
             }
         } catch (\Illuminate\Http\Client\ConnectionException $e) {
             $endTime = microtime(true);
@@ -331,11 +343,14 @@ class OrderRepository
                 'timeout' => true
             ]);
 
-            $order->update([
-                'status_id' => Order::STATUS_ERROR_WEBSERVICE,
-                'request' => $body,
-                'response' => 'Timeout or connection error: ' . $e->getMessage()
-            ]);
+            // Update order status without triggering email events during XML transmission
+            $order->withoutEvents(function() use ($order, $body, $e) {
+                $order->update([
+                    'status_id' => Order::STATUS_ERROR_WEBSERVICE,
+                    'request' => $body,
+                    'response' => 'Timeout or connection error: ' . $e->getMessage()
+                ]);
+            });
 
             throw $e;
         } catch (\Exception $e) {
@@ -500,5 +515,75 @@ class OrderRepository
         }
 
         return $next_business_day;
+    }
+
+    /**
+     * Send order status email manually (after XML transmission)
+     */
+    private static function sendOrderStatusEmail($order, $status)
+    {
+        try {
+            $mailingService = app(\App\Services\MailingService::class);
+            $mailingService->sendOrderStatusEmail($order, $status);
+        } catch (\Exception $e) {
+            Log::error("Failed to send order status email for order {$order->id}: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Retry XML transmission for an order
+     */
+    public static function retryXmlTransmission($order)
+    {
+        Log::channel('soap')->info('Retrying XML transmission', [
+            'order_id' => $order->id,
+            'current_status' => $order->status_id
+        ]);
+
+        try {
+            // Forcefully refresh the Microsoft token before retry
+            self::refreshMicrosoftToken();
+            
+            // Retry the XML transmission
+            self::presalesOrder($order);
+            
+            return ['success' => true, 'message' => 'Transmisión XML exitosa'];
+        } catch (\Exception $e) {
+            Log::error("XML transmission retry failed for order {$order->id}: " . $e->getMessage());
+            return ['success' => false, 'message' => 'Error en transmisión XML: ' . $e->getMessage()];
+        }
+    }
+
+    /**
+     * Refresh Microsoft token for XML transmission
+     */
+    private static function refreshMicrosoftToken()
+    {
+        $client_id = config('microsoft.client_id');
+        $client_secret = config('microsoft.client_secret');
+        $resource = config('microsoft.resource');
+        $url = config('microsoft.url_token');
+
+        $data = [
+            'grant_type' => 'client_credentials',
+            'client_id' => $client_id,
+            'client_secret' => $client_secret,
+            'resource' => $resource,
+        ];
+
+        $response = Http::asForm()->post($url, $data);
+
+        if (!$response->successful()) {
+            throw new \Exception('No se pudo actualizar el token de autenticación');
+        }
+
+        $json = $response->json();
+        $token = $json['access_token'] ?? null;
+
+        if (!$token) {
+            throw new \Exception('Token de autenticación no válido');
+        }
+
+        Setting::where('key', 'microsoft_token')->update(['value' => $token]);
     }
 }
