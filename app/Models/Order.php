@@ -163,3 +163,9 @@ class Order extends Model
             return ['success' => false, 'message' => 'Error: ' . $e->getMessage()];
         }
     }
+
+    public function couponUsages()
+    {
+        return $this->hasMany(CouponUsage::class);
+    }
+}
