@@ -173,4 +173,32 @@ class OrderController extends Controller
 
         Setting::where('key', 'microsoft_token')->update(['value' => $token]);
     }
+
+    /**
+     * Retry sending order confirmation email
+     */
+    public function retryConfirmationEmail(Order $order)
+    {
+        $result = $order->retryConfirmationEmail();
+        
+        if ($result['success']) {
+            return redirect()->back()->with('success', $result['message']);
+        } else {
+            return redirect()->back()->with('error', $result['message']);
+        }
+    }
+
+    /**
+     * Retry sending order status email
+     */
+    public function retryStatusEmail(Order $order)
+    {
+        $result = $order->retryStatusEmail();
+        
+        if ($result['success']) {
+            return redirect()->back()->with('success', $result['message']);
+        } else {
+            return redirect()->back()->with('error', $result['message']);
+        }
+    }
 }

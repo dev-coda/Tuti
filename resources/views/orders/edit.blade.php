@@ -9,15 +9,35 @@
     <div class="w-full">
         <div class="flex justify-between items-center">
             <h1 class="text-xl font-semibold text-gray-900 sm:text-2xl ">Compra #{{ $order->id }}</h1>
-            @if(request()->filled('code'))
-            <a href="{{route('orders.edit',[$order])}}">
-                 @svg('heroicon-o-x-circle', 'w-6 h-6 text-blue-500')
-            </a>
-            @else
-            <a href="{{route('orders.edit',[$order, 'code'=>1])}}">
-                 @svg('heroicon-o-code-bracket', 'w-6 h-6 text-blue-500')
-            </a>
-            @endif
+            <div class="flex items-center space-x-4">
+                <!-- Email Retry Buttons -->
+                <div class="flex space-x-2">
+                    <form method="POST" action="{{ route('orders.retry-confirmation-email', $order) }}" class="inline">
+                        @csrf
+                        <button type="submit" class="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                            @svg('heroicon-o-envelope', 'w-4 h-4 mr-1')
+                            Reenviar Confirmación
+                        </button>
+                    </form>
+                    <form method="POST" action="{{ route('orders.retry-status-email', $order) }}" class="inline">
+                        @csrf
+                        <button type="submit" class="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                            @svg('heroicon-o-envelope', 'w-4 h-4 mr-1')
+                            Reenviar Estado
+                        </button>
+                    </form>
+                </div>
+                
+                @if(request()->filled('code'))
+                <a href="{{route('orders.edit',[$order])}}">
+                     @svg('heroicon-o-x-circle', 'w-6 h-6 text-blue-500')
+                </a>
+                @else
+                <a href="{{route('orders.edit',[$order, 'code'=>1])}}">
+                     @svg('heroicon-o-code-bracket', 'w-6 h-6 text-blue-500')
+                </a>
+                @endif
+            </div>
         </div>
     </div>
 </div>

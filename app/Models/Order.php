@@ -20,16 +20,26 @@ class Order extends Model
                 $oldStatus = $order->getOriginal('status_id');
                 $newStatus = $order->status_id;
 
-                // Send status change email
-                $mailingService = app(MailingService::class);
-                $mailingService->sendOrderStatusEmail($order, static::getStatusSlug($newStatus));
+                // Send status change email asynchronously (non-blocking)
+                try {
+                    $mailingService = app(MailingService::class);
+                    $mailingService->sendOrderStatusEmail($order, static::getStatusSlug($newStatus));
+                } catch (\Exception $e) {
+                    // Log the error but don't let it block order processing
+                    \Log::error("Failed to send order status email for order {$order->id}: " . $e->getMessage());
+                }
             }
         });
 
         static::created(function ($order) {
-            // Send order confirmation email when order is created
-            $mailingService = app(MailingService::class);
-            $mailingService->sendOrderConfirmationEmail($order);
+            // Send order confirmation email asynchronously (non-blocking)
+            try {
+                $mailingService = app(MailingService::class);
+                $mailingService->sendOrderConfirmationEmail($order);
+            } catch (\Exception $e) {
+                // Log the error but don't let it block order creation
+                \Log::error("Failed to send order confirmation email for order {$order->id}: " . $e->getMessage());
+            }
         });
     }
 
@@ -109,8 +119,47 @@ class Order extends Model
         return $this->belongsTo(Coupon::class);
     }
 
-    public function couponUsages()
+    /**
+     * Manually retry sending order confirmation email
+     */
+    public function retryConfirmationEmail()
     {
-        return $this->hasMany(CouponUsage::class);
+        try {
+            $mailingService = app(MailingService::class);
+            $result = $mailingService->sendOrderConfirmationEmail($this);
+            
+            if ($result) {
+                \Log::info("Order confirmation email retry successful for order {$this->id}");
+                return ['success' => true, 'message' => 'Email enviado correctamente'];
+            } else {
+                \Log::warning("Order confirmation email retry failed for order {$this->id}");
+                return ['success' => false, 'message' => 'Error al enviar el email'];
+            }
+        } catch (\Exception $e) {
+            \Log::error("Order confirmation email retry error for order {$this->id}: " . $e->getMessage());
+            return ['success' => false, 'message' => 'Error: ' . $e->getMessage()];
+        }
     }
-}
+
+    /**
+     * Manually retry sending order status email
+     */
+    public function retryStatusEmail()
+    {
+        try {
+            $mailingService = app(MailingService::class);
+            $statusSlug = static::getStatusSlug($this->status_id);
+            $result = $mailingService->sendOrderStatusEmail($this, $statusSlug);
+            
+            if ($result) {
+                \Log::info("Order status email retry successful for order {$this->id}");
+                return ['success' => true, 'message' => 'Email enviado correctamente'];
+            } else {
+                \Log::warning("Order status email retry failed for order {$this->id}");
+                return ['success' => false, 'message' => 'Error al enviar el email'];
+            }
+        } catch (\Exception $e) {
+            \Log::error("Order status email retry error for order {$this->id}: " . $e->getMessage());
+            return ['success' => false, 'message' => 'Error: ' . $e->getMessage()];
+        }
+    }

@@ -139,6 +139,8 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
 
     Route::resource('orders', OrderController::class);
     Route::post('/orders/{order}/resend', [OrderController::class, 'resend'])->name('orders.resend');
+    Route::post('/orders/{order}/retry-confirmation-email', [OrderController::class, 'retryConfirmationEmail'])->name('orders.retry-confirmation-email');
+    Route::post('/orders/{order}/retry-status-email', [OrderController::class, 'retryStatusEmail'])->name('orders.retry-status-email');
     Route::resource('contacts', ContactController::class);
     Route::get('email-templates', [App\Http\Controllers\Admin\EmailTemplateController::class, 'index'])->name('admin.email-templates.index');
     Route::get('email-templates/create', [App\Http\Controllers\Admin\EmailTemplateController::class, 'create'])->name('admin.email-templates.create');
