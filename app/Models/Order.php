@@ -109,7 +109,7 @@ class Order extends Model
         try {
             $mailingService = app(MailingService::class);
             $result = $mailingService->sendOrderConfirmationEmail($this);
-            
+
             if ($result) {
                 \Log::info("Order confirmation email retry successful for order {$this->id}");
                 return ['success' => true, 'message' => 'Email enviado correctamente'];
@@ -132,7 +132,7 @@ class Order extends Model
             $mailingService = app(MailingService::class);
             $statusSlug = static::getStatusSlug($this->status_id);
             $result = $mailingService->sendOrderStatusEmail($this, $statusSlug);
-            
+
             if ($result) {
                 \Log::info("Order status email retry successful for order {$this->id}");
                 return ['success' => true, 'message' => 'Email enviado correctamente'];

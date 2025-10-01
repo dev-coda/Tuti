@@ -765,7 +765,7 @@ class CartController extends Controller
             try {
                 OrderRepository::presalesOrder($order);
                 Log::info("Order {$order->id} processed successfully via XML transmission");
-                
+
                 // Send emails AFTER successful XML transmission using terminate callback
                 app()->terminating(function () use ($order) {
                     try {
@@ -775,24 +775,23 @@ class CartController extends Controller
                         Log::error("Failed to dispatch emails for order {$order->id}: " . $e->getMessage());
                     }
                 });
-                
             } catch (\Throwable $th) {
                 Log::error('Error in presalesOrder: ' . $th->getMessage(), [
                     'order_id' => $order->id,
                     'error' => $th->getMessage(),
                     'trace' => $th->getTraceAsString()
                 ]);
-                
+
                 // Update order status to indicate XML transmission failed
                 $order->update([
                     'status_id' => Order::STATUS_PENDING,
                     'response' => 'XML transmission failed: ' . $th->getMessage()
                 ]);
-                
+
                 // Dispatch job to retry XML transmission automatically
                 ProcessOrder::dispatch($order)->delay(now()->addMinutes(1));
                 Log::info("Dispatched ProcessOrder job for order {$order->id}");
-                
+
                 // Don't return error here as the order is already created
                 // The job will retry XML transmission automatically
             }

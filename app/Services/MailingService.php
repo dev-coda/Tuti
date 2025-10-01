@@ -38,7 +38,7 @@ class MailingService
                 // Mailgun package not available
                 $mailgunAvailable = false;
             }
-            
+
             if ($mailDriver === 'mailgun' && $mailgunAvailable) {
                 $mailgunDomain = Setting::getByKey('mailgun_domain');
                 $mailgunSecret = Setting::getByKey('mailgun_secret');
@@ -69,7 +69,7 @@ class MailingService
                 Config::set('mail.mailers.smtp.username', $smtpUsername);
                 Config::set('mail.mailers.smtp.password', $smtpPassword);
             }
-            
+
             // If Mailgun was requested but not available, fallback to SMTP
             if ($mailDriver === 'mailgun' && !$mailgunAvailable) {
                 Log::warning("Mailgun package not available, falling back to SMTP");

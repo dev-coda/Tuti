@@ -25,8 +25,7 @@ class SendOrderEmail implements ShouldQueue
         protected Order $order,
         protected string $emailType,
         protected ?string $status = null
-    )
-    {
+    ) {
         //
     }
 
@@ -39,20 +38,19 @@ class SendOrderEmail implements ShouldQueue
 
         try {
             $mailingService = app(MailingService::class);
-            
+
             if ($this->emailType === 'confirmation') {
                 $mailingService->sendOrderConfirmationEmail($this->order);
             } elseif ($this->emailType === 'status' && $this->status) {
                 $mailingService->sendOrderStatusEmail($this->order, $this->status);
             }
-            
+
             Log::info("Email sent successfully for order {$this->order->id}");
         } catch (\Exception $e) {
             Log::error("Failed to send {$this->emailType} email for order {$this->order->id}: " . $e->getMessage());
-            
+
             // Don't fail the job, just log the error
             // Emails are not critical to order processing
         }
     }
 }
-

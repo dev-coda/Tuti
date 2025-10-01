@@ -24,8 +24,7 @@ class ProcessOrder implements ShouldQueue
      */
     public function __construct(
         protected Order $order
-    )
-    {
+    ) {
         //
     }
 
@@ -42,7 +41,7 @@ class ProcessOrder implements ShouldQueue
         try {
             // Retry XML transmission
             OrderRepository::retryXmlTransmission($this->order);
-            
+
             Log::info("Order {$this->order->id} processed successfully via queue job");
         } catch (\Throwable $exception) {
             Log::error("Failed to process order {$this->order->id} via queue job", [
@@ -58,7 +57,7 @@ class ProcessOrder implements ShouldQueue
                     'status_id' => Order::STATUS_PENDING,
                     'response' => 'XML transmission failed after ' . $this->tries . ' attempts: ' . $exception->getMessage()
                 ]);
-                
+
                 Log::error("Order {$this->order->id} failed after {$this->tries} attempts");
                 throw $exception;
             }
