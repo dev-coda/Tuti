@@ -291,7 +291,7 @@ class OrderRepository
                     // Update order status without triggering email events during XML transmission
                     $order->withoutEvents(function() use ($order, $body, $response) {
                         $order->update([
-                            'status_id' => Order::STATUS_PROCESED,
+                            'status_id' => Order::STATUS_PROCESSED,
                             'request' => $body,
                             'response' => $response
                         ]);
