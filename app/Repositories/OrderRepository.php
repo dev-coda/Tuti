@@ -298,9 +298,8 @@ class OrderRepository
                         ]);
                     });
 
-                    // Dispatch email after response - don't block the HTTP response
-                    SendOrderEmail::dispatchAfterResponse($order, 'status', 'processed');
-                    Log::info("Dispatched order status email job for order {$order_id}");
+                    // Email dispatching is handled in the controller after successful response
+                    // This ensures emails don't block the XML transmission process
                 } else {
                     Log::channel('soap')->warning('SOAP request returned error response', [
                         'order_id' => $order_id,
