@@ -19,44 +19,52 @@ class MailingService
      */
     public function updateMailConfiguration(): void
     {
-        // Update mail driver
-        $mailDriver = Setting::getByKeyWithDefault('mail_mailer', 'mailgun');
-        Config::set('mail.default', $mailDriver);
+        try {
+            // Update mail driver
+            $mailDriver = Setting::getByKeyWithDefault('mail_mailer', 'smtp');
+            Config::set('mail.default', $mailDriver);
 
-        // Update from address and name
-        $fromAddress = Setting::getByKeyWithDefault('mail_from_address', 'noreply@tuti.com');
-        $fromName = Setting::getByKeyWithDefault('mail_from_name', 'Tuti');
-        Config::set('mail.from.address', $fromAddress);
-        Config::set('mail.from.name', $fromName);
+            // Update from address and name
+            $fromAddress = Setting::getByKeyWithDefault('mail_from_address', 'noreply@tuti.com');
+            $fromName = Setting::getByKeyWithDefault('mail_from_name', 'Tuti');
+            Config::set('mail.from.address', $fromAddress);
+            Config::set('mail.from.name', $fromName);
 
-        // Update Mailgun configuration
-        $mailgunDomain = Setting::getByKey('mailgun_domain');
-        $mailgunSecret = Setting::getByKey('mailgun_secret');
-        $mailgunEndpoint = Setting::getByKeyWithDefault('mailgun_endpoint', 'api.mailgun.net');
+            // Only configure Mailgun if the package is available
+            if ($mailDriver === 'mailgun' && class_exists('Symfony\Component\Mailer\Bridge\Mailgun\Transport\MailgunTransportFactory')) {
+                $mailgunDomain = Setting::getByKey('mailgun_domain');
+                $mailgunSecret = Setting::getByKey('mailgun_secret');
+                $mailgunEndpoint = Setting::getByKeyWithDefault('mailgun_endpoint', 'api.mailgun.net');
 
-        if ($mailgunDomain && $mailgunSecret) {
-            Config::set('mail.mailers.mailgun.domain', $mailgunDomain);
-            Config::set('mail.mailers.mailgun.secret', $mailgunSecret);
-            Config::set('mail.mailers.mailgun.endpoint', $mailgunEndpoint);
-            Config::set('services.mailgun.domain', $mailgunDomain);
-            Config::set('services.mailgun.secret', $mailgunSecret);
-            Config::set('services.mailgun.endpoint', $mailgunEndpoint);
-        }
+                if ($mailgunDomain && $mailgunSecret) {
+                    Config::set('mail.mailers.mailgun.domain', $mailgunDomain);
+                    Config::set('mail.mailers.mailgun.secret', $mailgunSecret);
+                    Config::set('mail.mailers.mailgun.endpoint', $mailgunEndpoint);
+                    Config::set('services.mailgun.domain', $mailgunDomain);
+                    Config::set('services.mailgun.secret', $mailgunSecret);
+                    Config::set('services.mailgun.endpoint', $mailgunEndpoint);
+                }
+            }
 
-        // Update SMTP configuration
-        $smtpHost = Setting::getByKeyWithDefault('smtp_host', 'smtp.mailgun.org');
-        $smtpPort = Setting::getByKeyWithDefault('smtp_port', '587');
-        $smtpUsername = Setting::getByKey('smtp_username');
-        $smtpPassword = Setting::getByKey('smtp_password');
-        $smtpEncryption = Setting::getByKeyWithDefault('smtp_encryption', 'tls');
+            // Update SMTP configuration
+            $smtpHost = Setting::getByKeyWithDefault('smtp_host', 'smtp.mailgun.org');
+            $smtpPort = Setting::getByKeyWithDefault('smtp_port', '587');
+            $smtpUsername = Setting::getByKey('smtp_username');
+            $smtpPassword = Setting::getByKey('smtp_password');
+            $smtpEncryption = Setting::getByKeyWithDefault('smtp_encryption', 'tls');
 
-        Config::set('mail.mailers.smtp.host', $smtpHost);
-        Config::set('mail.mailers.smtp.port', (int)$smtpPort);
-        Config::set('mail.mailers.smtp.encryption', $smtpEncryption);
+            Config::set('mail.mailers.smtp.host', $smtpHost);
+            Config::set('mail.mailers.smtp.port', (int)$smtpPort);
+            Config::set('mail.mailers.smtp.encryption', $smtpEncryption);
 
-        if ($smtpUsername && $smtpPassword) {
-            Config::set('mail.mailers.smtp.username', $smtpUsername);
-            Config::set('mail.mailers.smtp.password', $smtpPassword);
+            if ($smtpUsername && $smtpPassword) {
+                Config::set('mail.mailers.smtp.username', $smtpUsername);
+                Config::set('mail.mailers.smtp.password', $smtpPassword);
+            }
+        } catch (\Exception $e) {
+            Log::error("Failed to update mail configuration: " . $e->getMessage());
+            // Fallback to basic SMTP configuration
+            Config::set('mail.default', 'smtp');
         }
     }
 
