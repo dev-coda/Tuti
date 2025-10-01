@@ -762,39 +762,32 @@ class CartController extends Controller
             session()->forget('user_id');
             session()->forget('applied_coupon'); // Clear applied coupon after successful order
 
-            try {
-                OrderRepository::presalesOrder($order);
-                Log::info("Order {$order->id} processed successfully via XML transmission");
-
-                // Send emails AFTER successful XML transmission using terminate callback
-                app()->terminating(function () use ($order) {
-                    try {
-                        \App\Jobs\SendOrderEmail::dispatch($order, 'confirmation');
-                        \App\Jobs\SendOrderEmail::dispatch($order, 'status', 'processed');
-                    } catch (\Exception $e) {
-                        Log::error("Failed to dispatch emails for order {$order->id}: " . $e->getMessage());
+            // Use PHP shutdown function to process XML AFTER response is sent to user
+            // This is the ONLY way to truly defer with sync queue
+            $orderId = $order->id;
+            register_shutdown_function(function () use ($orderId) {
+                try {
+                    // Reconnect to database (shutdown functions run after DB disconnect)
+                    DB::reconnect();
+                    
+                    $order = Order::find($orderId);
+                    if ($order) {
+                        OrderRepository::presalesOrder($order);
+                        Log::info("Order {$orderId} processed via shutdown function");
+                        
+                        // Send emails
+                        try {
+                            $mailingService = app(\App\Services\MailingService::class);
+                            $mailingService->sendOrderConfirmationEmail($order);
+                            $mailingService->sendOrderStatusEmail($order, 'processed');
+                        } catch (\Exception $e) {
+                            Log::error("Email sending failed for order {$orderId}: " . $e->getMessage());
+                        }
                     }
-                });
-            } catch (\Throwable $th) {
-                Log::error('Error in presalesOrder: ' . $th->getMessage(), [
-                    'order_id' => $order->id,
-                    'error' => $th->getMessage(),
-                    'trace' => $th->getTraceAsString()
-                ]);
-
-                // Update order status to indicate XML transmission failed
-                $order->update([
-                    'status_id' => Order::STATUS_PENDING,
-                    'response' => 'XML transmission failed: ' . $th->getMessage()
-                ]);
-
-                // Dispatch job to retry XML transmission automatically
-                ProcessOrder::dispatch($order)->delay(now()->addMinutes(1));
-                Log::info("Dispatched ProcessOrder job for order {$order->id}");
-
-                // Don't return error here as the order is already created
-                // The job will retry XML transmission automatically
-            }
+                } catch (\Exception $e) {
+                    Log::error("Shutdown function failed for order {$orderId}: " . $e->getMessage());
+                }
+            });
 
             return to_route('home')->with('success', 'Compra procesada con exito!');
         } catch (\Exception $e) {
