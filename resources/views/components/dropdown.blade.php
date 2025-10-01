@@ -26,7 +26,14 @@
     <ul id="dropdown-{{ $title }}" class="{{ request()->is($is) ? '' : 'hidden' }} py-2 space-y-2">
         @foreach ($menu as $key => $item)
             <li>
-                <a class="{{ request()->is($key.'*') ? 'active' : '' }}" href="{{ route($key.'.index') }}" >
+                @php
+                    // If the route key already contains a dot notation suffix (like .index, .mailer, etc.), use it as-is
+                    // Otherwise, append .index to maintain backward compatibility
+                    $routeName = (substr_count($key, '.') >= 1 && (str_ends_with($key, '.index') || str_ends_with($key, '.mailer'))) 
+                        ? $key 
+                        : $key . '.index';
+                @endphp
+                <a class="{{ request()->is($key.'*') ? 'active' : '' }}" href="{{ route($routeName) }}" >
                     {{ $item }}                            
                 </a>
             </li>
