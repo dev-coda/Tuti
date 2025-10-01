@@ -6,18 +6,24 @@ use App\Models\Order;
 use App\Repositories\OrderRepository;
 use App\Services\MailingService;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
-class ProcessOrderAsync implements ShouldQueue
+class ProcessOrderAsync implements ShouldQueue, ShouldBeUnique
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public $tries = 3;
     public $backoff = [60, 300, 900]; // 1 min, 5 min, 15 min
+
+    /**
+     * The number of seconds after which the job's unique lock will be released.
+     */
+    public $uniqueFor = 3600; // 1 hour
 
     /**
      * Create a new job instance.
@@ -29,6 +35,14 @@ class ProcessOrderAsync implements ShouldQueue
     }
 
     /**
+     * The unique ID of the job.
+     */
+    public function uniqueId(): string
+    {
+        return 'order-' . $this->order->id;
+    }
+
+    /**
      * Execute the job.
      */
     public function handle(): void
@@ -37,6 +51,15 @@ class ProcessOrderAsync implements ShouldQueue
             'order_id' => $this->order->id,
             'attempt' => $this->attempts()
         ]);
+
+        // Refresh order from database to get latest status
+        $this->order->refresh();
+
+        // Skip if already successfully processed
+        if ($this->order->status_id === Order::STATUS_PROCESSED) {
+            Log::info("Order {$this->order->id} already processed, skipping");
+            return;
+        }
 
         try {
             // Step 1: Process XML transmission

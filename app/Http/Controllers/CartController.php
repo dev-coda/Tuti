@@ -765,18 +765,32 @@ class CartController extends Controller
             // Dispatch async job to handle XML transmission and email sending
             // This allows the user to get an immediate response while processing happens in the background
 
-            // Force the job to use a real queue even if QUEUE_CONNECTION is set to 'sync'
-            // This ensures the user gets an immediate response
-            $job = new \App\Jobs\ProcessOrderAsync($order);
+            // Determine which queue connection to use
+            $queueConnection = config('queue.default');
 
-            // If queue is sync, force it to database or redis
-            if (config('queue.default') === 'sync') {
-                $job->onConnection('database'); // or 'redis' if available
+            // If sync, use database queue to ensure async processing
+            if ($queueConnection === 'sync') {
+                $queueConnection = 'database';
             }
 
-            dispatch($job);
+            // Check if Redis is available, fallback to database if not
+            if ($queueConnection === 'redis') {
+                try {
+                    // Test if Redis is actually available
+                    if (!extension_loaded('redis') || !class_exists('Redis')) {
+                        Log::warning("Redis extension not available, falling back to database queue");
+                        $queueConnection = 'database';
+                    }
+                } catch (\Exception $e) {
+                    Log::warning("Redis check failed, falling back to database queue: " . $e->getMessage());
+                    $queueConnection = 'database';
+                }
+            }
 
-            Log::info("Order {$order->id} created successfully, async processing dispatched");
+            // Dispatch job on the appropriate connection
+            \App\Jobs\ProcessOrderAsync::dispatch($order)->onConnection($queueConnection);
+
+            Log::info("Order {$order->id} created successfully, async processing dispatched on {$queueConnection} queue");
 
             return to_route('home')->with('success', 'Compra procesada con exito!');
         } catch (\Exception $e) {
