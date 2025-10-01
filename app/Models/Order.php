@@ -15,31 +15,13 @@ class Order extends Model
         parent::boot();
 
         static::updating(function ($order) {
-            // Check if status is being changed
-            if ($order->isDirty('status_id') && $order->status_id != $order->getOriginal('status_id')) {
-                $oldStatus = $order->getOriginal('status_id');
-                $newStatus = $order->status_id;
-
-                // Send status change email asynchronously (non-blocking)
-                try {
-                    $mailingService = app(MailingService::class);
-                    $mailingService->sendOrderStatusEmail($order, static::getStatusSlug($newStatus));
-                } catch (\Exception $e) {
-                    // Log the error but don't let it block order processing
-                    \Log::error("Failed to send order status email for order {$order->id}: " . $e->getMessage());
-                }
-            }
+            // Email sending is now handled after XML transmission in OrderRepository
+            // This prevents email issues from blocking order processing
         });
 
         static::created(function ($order) {
-            // Send order confirmation email asynchronously (non-blocking)
-            try {
-                $mailingService = app(MailingService::class);
-                $mailingService->sendOrderConfirmationEmail($order);
-            } catch (\Exception $e) {
-                // Log the error but don't let it block order creation
-                \Log::error("Failed to send order confirmation email for order {$order->id}: " . $e->getMessage());
-            }
+            // Email sending is now handled after XML transmission in OrderRepository
+            // This prevents email issues from blocking order creation
         });
     }
 
