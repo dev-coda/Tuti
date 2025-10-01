@@ -762,32 +762,21 @@ class CartController extends Controller
             session()->forget('user_id');
             session()->forget('applied_coupon'); // Clear applied coupon after successful order
 
-            // Use PHP shutdown function to process XML AFTER response is sent to user
-            // This is the ONLY way to truly defer with sync queue
-            $orderId = $order->id;
-            register_shutdown_function(function () use ($orderId) {
-                try {
-                    // Reconnect to database (shutdown functions run after DB disconnect)
-                    DB::reconnect();
+            // Dispatch async job to handle XML transmission and email sending
+            // This allows the user to get an immediate response while processing happens in the background
 
-                    $order = Order::find($orderId);
-                    if ($order) {
-                        OrderRepository::presalesOrder($order);
-                        Log::info("Order {$orderId} processed via shutdown function");
+            // Force the job to use a real queue even if QUEUE_CONNECTION is set to 'sync'
+            // This ensures the user gets an immediate response
+            $job = new \App\Jobs\ProcessOrderAsync($order);
 
-                        // Send emails
-                        try {
-                            $mailingService = app(\App\Services\MailingService::class);
-                            $mailingService->sendOrderConfirmationEmail($order);
-                            $mailingService->sendOrderStatusEmail($order, 'processed');
-                        } catch (\Exception $e) {
-                            Log::error("Email sending failed for order {$orderId}: " . $e->getMessage());
-                        }
-                    }
-                } catch (\Exception $e) {
-                    Log::error("Shutdown function failed for order {$orderId}: " . $e->getMessage());
-                }
-            });
+            // If queue is sync, force it to database or redis
+            if (config('queue.default') === 'sync') {
+                $job->onConnection('database'); // or 'redis' if available
+            }
+
+            dispatch($job);
+
+            Log::info("Order {$order->id} created successfully, async processing dispatched");
 
             return to_route('home')->with('success', 'Compra procesada con exito!');
         } catch (\Exception $e) {
