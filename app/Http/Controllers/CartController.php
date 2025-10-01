@@ -763,7 +763,8 @@ class CartController extends Controller
             session()->forget('applied_coupon'); // Clear applied coupon after successful order
 
             // Dispatch confirmation email asynchronously (non-blocking)
-            \App\Jobs\SendOrderEmail::dispatch($order, 'confirmation');
+            // Use dispatchAfterResponse to ensure it runs after the HTTP response is sent
+            \App\Jobs\SendOrderEmail::dispatchAfterResponse($order, 'confirmation');
 
             try {
                 OrderRepository::presalesOrder($order);
@@ -774,17 +775,17 @@ class CartController extends Controller
                     'error' => $th->getMessage(),
                     'trace' => $th->getTraceAsString()
                 ]);
-                
+
                 // Update order status to indicate XML transmission failed
                 $order->update([
                     'status_id' => Order::STATUS_PENDING,
                     'response' => 'XML transmission failed: ' . $th->getMessage()
                 ]);
-                
+
                 // Dispatch job to retry XML transmission automatically
                 ProcessOrder::dispatch($order)->delay(now()->addMinutes(1));
                 Log::info("Dispatched ProcessOrder job for order {$order->id}");
-                
+
                 // Don't return error here as the order is already created
                 // The job will retry XML transmission automatically
             }

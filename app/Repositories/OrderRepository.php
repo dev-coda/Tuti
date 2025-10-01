@@ -290,7 +290,7 @@ class OrderRepository
                     ]);
 
                     // Update order status without triggering email events during XML transmission
-                    $order->withoutEvents(function() use ($order, $body, $response) {
+                    $order->withoutEvents(function () use ($order, $body, $response) {
                         $order->update([
                             'status_id' => Order::STATUS_PROCESSED,
                             'request' => $body,
@@ -298,8 +298,8 @@ class OrderRepository
                         ]);
                     });
 
-                    // Dispatch email asynchronously - don't block the response
-                    SendOrderEmail::dispatch($order, 'status', 'processed');
+                    // Dispatch email after response - don't block the HTTP response
+                    SendOrderEmail::dispatchAfterResponse($order, 'status', 'processed');
                     Log::info("Dispatched order status email job for order {$order_id}");
                 } else {
                     Log::channel('soap')->warning('SOAP request returned error response', [
@@ -309,7 +309,7 @@ class OrderRepository
                     ]);
 
                     // Update order status without triggering email events during XML transmission
-                    $order->withoutEvents(function() use ($order, $body, $response) {
+                    $order->withoutEvents(function () use ($order, $body, $response) {
                         $order->update([
                             'status_id' => Order::STATUS_ERROR,
                             'request' => $body,
@@ -326,7 +326,7 @@ class OrderRepository
                 ]);
 
                 // Update order status without triggering email events during XML transmission
-                $order->withoutEvents(function() use ($order, $body, $data) {
+                $order->withoutEvents(function () use ($order, $body, $data) {
                     $order->update([
                         'status_id' => Order::STATUS_ERROR_WEBSERVICE,
                         'request' => $body,
@@ -346,7 +346,7 @@ class OrderRepository
             ]);
 
             // Update order status without triggering email events during XML transmission
-            $order->withoutEvents(function() use ($order, $body, $e) {
+            $order->withoutEvents(function () use ($order, $body, $e) {
                 $order->update([
                     'status_id' => Order::STATUS_ERROR_WEBSERVICE,
                     'request' => $body,
@@ -545,10 +545,10 @@ class OrderRepository
         try {
             // Forcefully refresh the Microsoft token before retry
             self::refreshMicrosoftToken();
-            
+
             // Retry the XML transmission
             self::presalesOrder($order);
-            
+
             return ['success' => true, 'message' => 'Transmisión XML exitosa'];
         } catch (\Exception $e) {
             Log::error("XML transmission retry failed for order {$order->id}: " . $e->getMessage());
