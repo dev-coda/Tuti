@@ -5,6 +5,7 @@ namespace App\Repositories;
 use App\Models\Holiday;
 use App\Models\Order;
 use App\Models\Setting;
+use App\Jobs\SendOrderEmail;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -297,8 +298,9 @@ class OrderRepository
                         ]);
                     });
 
-                    // Send email notification after successful XML transmission
-                    self::sendOrderStatusEmail($order, 'processed');
+                    // Dispatch email asynchronously - don't block the response
+                    SendOrderEmail::dispatch($order, 'status', 'processed');
+                    Log::info("Dispatched order status email job for order {$order_id}");
                 } else {
                     Log::channel('soap')->warning('SOAP request returned error response', [
                         'order_id' => $order_id,

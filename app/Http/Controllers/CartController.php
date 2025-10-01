@@ -141,7 +141,7 @@ class CartController extends Controller
         $alertVendors = [];
         $vendorDiscountAlerts = [];
         $vendorTotals = [];
-        
+
         foreach ($byVendors as $key => $vendor) {
             $total = $vendor->sum(function ($product) {
                 return $product->quantity * $product->calculatedFinalPrice['price'];
@@ -155,7 +155,7 @@ class CartController extends Controller
                 $v->current = $total;
                 $alertVendors[] = $v;
             }
-            
+
             // Check vendor discount minimum requirement (only if vendor has discount > 0 and minimum_discount_amount > 0)
             if ($v->discount > 0 && $v->minimum_discount_amount > 0 && $total < $v->minimum_discount_amount) {
                 $vendorDiscountAlerts[] = [
@@ -166,17 +166,17 @@ class CartController extends Controller
                 ];
             }
         }
-        
+
         // Recalculate products with vendor totals for proper discount application
         $products = collect($products)->map(function ($product) use ($vendorTotals, $has_orders) {
             $vendorTotal = $vendorTotals[$product->vendor_id] ?? 0;
-            
+
             // Recalculate with vendor total for discount qualification
             $finalPrice = $product->getFinalPriceForUser($has_orders, $vendorTotal);
             $product->calculatedFinalPrice = $finalPrice;
             return $product;
         });
-        
+
         // Recalculate total cart value after vendor discount adjustments
         $total_cart = $products->sum(function ($product) {
             return $product->quantity * $product->calculatedFinalPrice['price'];
@@ -762,7 +762,8 @@ class CartController extends Controller
             session()->forget('user_id');
             session()->forget('applied_coupon'); // Clear applied coupon after successful order
 
-
+            // Dispatch confirmation email asynchronously (non-blocking)
+            \App\Jobs\SendOrderEmail::dispatch($order, 'confirmation');
 
             try {
                 OrderRepository::presalesOrder($order);
