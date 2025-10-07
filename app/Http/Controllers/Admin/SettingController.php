@@ -62,6 +62,10 @@ class SettingController extends Controller
 
     public function syncInventory()
     {
+        // Increase execution time limit for inventory sync (can take several minutes)
+        set_time_limit(300); // 5 minutes
+        ini_set('max_execution_time', '300');
+        
         // Dispatch synchronously to ensure it runs immediately
         try {
             SyncProductInventory::dispatchSync();

@@ -16,13 +16,13 @@
                     <span class="font-medium">Última sincronización:</span>
                     <span class="text-gray-900">{{ $lastSync ? \Carbon\Carbon::parse($lastSync)->format('d/m/Y H:i') : 'N/A' }}</span>
                 </div>
-                <form action="{{ route('settings.sync-inventory') }}" method="POST">
+                <form action="{{ route('settings.sync-inventory') }}" method="POST" id="syncForm" onsubmit="return handleSyncSubmit()">
                     @csrf
-                    <button class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-orange-600 border border-transparent rounded-lg shadow-sm hover:bg-orange-700 focus:ring-4 focus:ring-orange-300">
-                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <button type="submit" id="syncButton" class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-orange-600 border border-transparent rounded-lg shadow-sm hover:bg-orange-700 focus:ring-4 focus:ring-orange-300 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <svg id="syncIcon" class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
                         </svg>
-                        Sincronizar Inventario
+                        <span id="syncText">Sincronizar Inventario</span>
                     </button>
                 </form>
             </div>
@@ -231,6 +231,24 @@ function showSearch() {
     if (searchInput) {
         searchInput.focus();
     }
+}
+
+function handleSyncSubmit() {
+    const button = document.getElementById('syncButton');
+    const icon = document.getElementById('syncIcon');
+    const text = document.getElementById('syncText');
+    
+    // Disable button and show loading state
+    button.disabled = true;
+    icon.classList.add('animate-spin');
+    text.textContent = 'Sincronizando... (puede tomar varios minutos)';
+    
+    // Warn user not to close the page
+    window.onbeforeunload = function() {
+        return "La sincronización está en curso. ¿Está seguro de que desea salir?";
+    };
+    
+    return true;
 }
 </script>
 @endsection
