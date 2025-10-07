@@ -156,6 +156,11 @@ class ProductController extends Controller
         $slug = Str::slug($request->name);
         $validate['slug'] = $slug;
 
+        // Set default value for safety_stock if not provided
+        if (!isset($validate['safety_stock'])) {
+            $validate['safety_stock'] = 0;
+        }
+
         $product = Product::create($validate);
 
         $product->labels()->attach($labels);
@@ -276,6 +281,11 @@ class ProductController extends Controller
         ]);
 
         $validate['slug'] = Str::slug($request->slug);
+
+        // Set default value for safety_stock if not provided
+        if (!isset($validate['safety_stock'])) {
+            $validate['safety_stock'] = 0;
+        }
 
         $product->labels()->sync($request->labels);
         $product->categories()->sync($request->categories);
