@@ -111,6 +111,45 @@ class EmailTemplate extends Model
     }
 
     /**
+     * Get the full URL for the header image
+     */
+    public function getHeaderImageUrl()
+    {
+        if (!$this->header_image) {
+            return null;
+        }
+        
+        return asset('storage/' . $this->header_image);
+    }
+
+    /**
+     * Get the full URL for the footer image
+     */
+    public function getFooterImageUrl()
+    {
+        if (!$this->footer_image) {
+            return null;
+        }
+        
+        return asset('storage/' . $this->footer_image);
+    }
+
+    /**
+     * Get template data for email rendering including images
+     */
+    public function getEmailData($variablesData = [])
+    {
+        $processed = $this->replaceVariables($variablesData);
+        
+        return [
+            'subject' => $processed['subject'],
+            'body' => $processed['body'],
+            'headerImage' => $this->getHeaderImageUrl(),
+            'footerImage' => $this->getFooterImageUrl(),
+        ];
+    }
+
+    /**
      * Scope to get active templates
      */
     public function scopeActive($query)
