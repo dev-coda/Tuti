@@ -71,7 +71,7 @@ class SyncProductInventory implements ShouldQueue
                     'Content-Type' => 'text/xml;charset=UTF-8',
                     'SOAPAction' => 'http://tempuri.org/DWSSalesForce/obtenerExistenciaDeInventarioEspecifica',
                     'Authorization' => "Bearer {$token}",
-                ])->timeout(120)->send('POST', env('MICROSOFT_RESOURCE_URL', 'https://uattrx.sandbox.operations.dynamics.com/') . '/soap/services/DIITDWSSalesForceGroup', [
+                ])->timeout(30)->send('POST', env('MICROSOFT_RESOURCE_URL', 'https://uattrx.sandbox.operations.dynamics.com/') . '/soap/services/DIITDWSSalesForceGroup', [
                     'body' => $body,
                 ]);
 
