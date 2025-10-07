@@ -275,10 +275,31 @@
                         @yield('preheader')
                     </span>
                     <table class="wrap" cellspacing="0" cellpadding="0" style="font-family: Open Sans, -apple-system, BlinkMacSystemFont, Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; border-collapse: collapse; width: 100%; max-width: 640px; text-align: left;">
+                        <!-- Header Image -->
+                        @if(isset($headerImage) && $headerImage)
+                        <tr>
+                            <td align="center" style="font-family: Open Sans, -apple-system, BlinkMacSystemFont, Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; padding: 0;">
+                                <img src="{{ $headerImage }}" alt="Header" style="width: 100%; max-width: 640px; height: auto; display: block; border: 0 none; line-height: 100%; outline: none; text-decoration: none;" />
+                            </td>
+                        </tr>
+                        @endif
+                        
                         <tr>
                             <td class="p-sm" style="font-family: Open Sans, -apple-system, BlinkMacSystemFont, Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; padding: 8px;">
                                 
                                @yield('content')
+                                
+                                <!-- Footer Image -->
+                                @if(isset($footerImage) && $footerImage)
+                                <table cellspacing="0" cellpadding="0" style="font-family: Open Sans, -apple-system, BlinkMacSystemFont, Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; border-collapse: collapse; width: 100%;">
+                                    <tr>
+                                        <td align="center" class="pt-md" style="font-family: Open Sans, -apple-system, BlinkMacSystemFont, Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; padding-top: 16px;">
+                                            <img src="{{ $footerImage }}" alt="Footer" style="width: 100%; max-width: 640px; height: auto; display: block; border: 0 none; line-height: 100%; outline: none; text-decoration: none;" />
+                                        </td>
+                                    </tr>
+                                </table>
+                                @endif
+                                
                                 <table cellspacing="0" cellpadding="0" style="font-family: Open Sans, -apple-system, BlinkMacSystemFont, Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; border-collapse: collapse; width: 100%;">
                                     <tr>
                                         <td class="py-xl" style="font-family: Open Sans, -apple-system, BlinkMacSystemFont, Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; padding-top: 48px; padding-bottom: 48px;">

@@ -20,7 +20,7 @@
 
     <div class="col-span-full">
         <div class="bg-white border border-gray-200 rounded-lg shadow-sm">
-            <form action="{{ route('admin.email-templates.store') }}" method="POST" class="space-y-6">
+            <form action="{{ route('admin.email-templates.store') }}" method="POST" enctype="multipart/form-data" class="space-y-6">
                 @csrf
                 
                 <div class="p-6 border-b border-gray-200">
@@ -132,21 +132,55 @@
                         </div>
                     </div>
 
-                    <!-- Body Content -->
+                    <!-- Body Content with Rich Text Editor -->
                     <div>
-                        <label for="body" class="block text-sm font-medium text-gray-700 mb-2">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
                             Contenido del Correo <span class="text-red-500">*</span>
                         </label>
-                        <textarea id="body"
-                                  name="body"
-                                  rows="15"
-                                  class="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('body') border-red-300 @enderror"
-                                  placeholder="Escribe el contenido del correo aquí..."
-                                  required>{{ old('body') }}</textarea>
+                        <div 
+                            class="rich-text-editor-mount" 
+                            data-content="{{ htmlspecialchars(old('body', ''), ENT_QUOTES, 'UTF-8') }}"
+                            data-name="body"
+                        ></div>
                         @error('body')
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                         @enderror
-                        <p class="mt-1 text-xs text-gray-500">Puedes usar HTML para formatear el contenido. Usa variables como {customer_name}, {order_id}, etc.</p>
+                        <p class="mt-1 text-xs text-gray-500">Usa el editor para formatear el contenido. Puedes usar variables como {customer_name}, {order_id}, etc.</p>
+                    </div>
+
+                    <!-- Header and Footer Images -->
+                    <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                        <!-- Header Image -->
+                        <div>
+                            <label for="header_image" class="block text-sm font-medium text-gray-700 mb-2">
+                                Imagen de Encabezado
+                            </label>
+                            <input type="file"
+                                   id="header_image"
+                                   name="header_image"
+                                   accept="image/*"
+                                   class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 @error('header_image') border-red-300 @enderror">
+                            @error('header_image')
+                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                            @enderror
+                            <p class="mt-1 text-xs text-gray-500">Imagen que aparecerá en la parte superior del correo (máx. 2MB)</p>
+                        </div>
+
+                        <!-- Footer Image -->
+                        <div>
+                            <label for="footer_image" class="block text-sm font-medium text-gray-700 mb-2">
+                                Imagen de Pie de Página
+                            </label>
+                            <input type="file"
+                                   id="footer_image"
+                                   name="footer_image"
+                                   accept="image/*"
+                                   class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 @error('footer_image') border-red-300 @enderror">
+                            @error('footer_image')
+                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                            @enderror
+                            <p class="mt-1 text-xs text-gray-500">Imagen que aparecerá en la parte inferior del correo (máx. 2MB)</p>
+                        </div>
                     </div>
                 </div>
 

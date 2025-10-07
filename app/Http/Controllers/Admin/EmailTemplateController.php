@@ -37,12 +37,24 @@ class EmailTemplateController extends Controller
             'slug' => 'required|string|max:255|unique:email_templates',
             'subject' => 'required|string|max:255',
             'body' => 'required|string',
+            'header_image' => 'nullable|image|max:2048',
+            'footer_image' => 'nullable|image|max:2048',
             'variables' => 'nullable|array',
             'is_active' => 'boolean',
             'type' => 'required|in:' . implode(',', array_keys(EmailTemplate::getTypes())),
         ]);
 
         $validated['is_active'] = $request->has('is_active');
+
+        // Handle header image upload
+        if ($request->hasFile('header_image')) {
+            $validated['header_image'] = $request->file('header_image')->store('email-templates', 'public');
+        }
+
+        // Handle footer image upload
+        if ($request->hasFile('footer_image')) {
+            $validated['footer_image'] = $request->file('footer_image')->store('email-templates', 'public');
+        }
 
         EmailTemplate::create($validated);
 
@@ -77,12 +89,32 @@ class EmailTemplateController extends Controller
             'slug' => 'required|string|max:255|unique:email_templates,slug,' . $template->id,
             'subject' => 'required|string|max:255',
             'body' => 'required|string',
+            'header_image' => 'nullable|image|max:2048',
+            'footer_image' => 'nullable|image|max:2048',
             'variables' => 'nullable|array',
             'is_active' => 'boolean',
             'type' => 'required|in:' . implode(',', array_keys(EmailTemplate::getTypes())),
         ]);
 
         $validated['is_active'] = $request->has('is_active');
+
+        // Handle header image upload
+        if ($request->hasFile('header_image')) {
+            // Delete old image if exists
+            if ($template->header_image && \Storage::disk('public')->exists($template->header_image)) {
+                \Storage::disk('public')->delete($template->header_image);
+            }
+            $validated['header_image'] = $request->file('header_image')->store('email-templates', 'public');
+        }
+
+        // Handle footer image upload
+        if ($request->hasFile('footer_image')) {
+            // Delete old image if exists
+            if ($template->footer_image && \Storage::disk('public')->exists($template->footer_image)) {
+                \Storage::disk('public')->delete($template->footer_image);
+            }
+            $validated['footer_image'] = $request->file('footer_image')->store('email-templates', 'public');
+        }
 
         $template->update($validated);
 

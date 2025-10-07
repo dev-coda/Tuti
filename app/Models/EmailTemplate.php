@@ -14,6 +14,8 @@ class EmailTemplate extends Model
         'slug',
         'subject',
         'body',
+        'header_image',
+        'footer_image',
         'variables',
         'is_active',
         'type'
