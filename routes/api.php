@@ -16,6 +16,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Models\Category;
 use App\Models\Product;
+use App\Repositories\OrderRepository;
+use Carbon\Carbon;
 
 /*
 |--------------------------------------------------------------------------
@@ -82,6 +84,46 @@ Route::get('/products/section-title', [ProductsApiController::class, 'getSection
 Route::get('/categories/featured', [CategoriesApiController::class, 'featured']);
 Route::get('/categories/most-popular', [CategoriesApiController::class, 'mostPopular']);
 Route::get('/categories/section-title', [CategoriesApiController::class, 'getSectionTitle']);
+
+// Delivery date calculation endpoint
+Route::get('/delivery-date/{method}', function ($method) {
+    $deliveryDate = OrderRepository::getDeliveryDateByMethod($method);
+    $date = Carbon::parse($deliveryDate);
+    
+    // Spanish days and months
+    $days = [
+        "Domingo",
+        "Lunes",
+        "Martes",
+        "Miércoles",
+        "Jueves",
+        "Viernes",
+        "Sábado"
+    ];
+    
+    $months = [
+        "Enero",
+        "Febrero",
+        "Marzo",
+        "Abril",
+        "Mayo",
+        "Junio",
+        "Julio",
+        "Agosto",
+        "Septiembre",
+        "Octubre",
+        "Noviembre",
+        "Diciembre"
+    ];
+    
+    // Format date: Lunes 12 de Julio
+    $formattedDate = $days[$date->dayOfWeek] . ' ' . $date->day . ' de ' . $months[$date->month - 1];
+    
+    return response()->json([
+        'date' => $formattedDate,
+        'raw_date' => $deliveryDate
+    ]);
+});
 
 // Authenticated API Routes
 Route::middleware('auth:sanctum')->group(function () {

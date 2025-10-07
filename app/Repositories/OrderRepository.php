@@ -401,7 +401,7 @@ class OrderRepository
         return $response;
     }
 
-    public static function getBusinessDay()
+    public static function getBusinessDay($daysAhead = 0)
     {
 
         $now = now();
@@ -417,16 +417,20 @@ class OrderRepository
 
         //while 10 times
         $i = 0;
+        $businessDaysFound = 0;
         while (True):
             $now = $now->addDay();
 
             $i++;
-            if ($i > 10) {
+            if ($i > 20) { // Increased limit to accommodate multiple business days
                 break;
             }
 
             if (self::isBussinessDay($now)) {
-                break;
+                $businessDaysFound++;
+                if ($businessDaysFound > $daysAhead) {
+                    break;
+                }
             }
 
 
@@ -553,6 +557,35 @@ class OrderRepository
             Log::error("XML transmission retry failed for order {$order->id}: " . $e->getMessage());
             return ['success' => false, 'message' => 'Error en transmisión XML: ' . $e->getMessage()];
         }
+    }
+
+    /**
+     * Calculate delivery date for Tronex method (next available route date)
+     * For now, defaults to next business day
+     */
+    public static function getTronexDeliveryDate()
+    {
+        return self::getBusinessDay(0);
+    }
+
+    /**
+     * Calculate delivery date for Express method (2 business days from order date)
+     */
+    public static function getExpressDeliveryDate()
+    {
+        return self::getBusinessDay(1); // 2 business days ahead (0 = next, 1 = day after next)
+    }
+
+    /**
+     * Calculate delivery date based on delivery method
+     */
+    public static function getDeliveryDateByMethod($method)
+    {
+        if ($method === 'express') {
+            return self::getExpressDeliveryDate();
+        }
+        
+        return self::getTronexDeliveryDate();
     }
 
     /**

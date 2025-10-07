@@ -260,8 +260,27 @@
                     @else 
                         {{ Aire::open()->route('cart.process')}}
 
-                            <div class="pt-5">
+                            <div class="pt-5 space-y-4">
                                 {{ Aire::select($zones, 'zone_id', 'Dirección')->id('states')->value(session('zone_id'))}}
+
+                                <!-- Delivery Method Selection -->
+                                {{ Aire::select([
+                                    'express' => 'Envío Express',
+                                    'tronex' => 'Envío Tronex'
+                                ], 'delivery_method', 'Método de Envío')
+                                    ->id('delivery_method')
+                                    ->value('tronex')
+                                }}
+
+                                <!-- Delivery Date Preview -->
+                                <div class="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                    <div class="text-sm text-gray-700">
+                                        <strong id="delivery-method-name">Envío Tronex</strong>
+                                        <p id="delivery-method-description" class="text-gray-600 mt-1">
+                                            Entrega en la próxima ruta asignada (<span id="delivery-date">Calculando...</span>)
+                                        </p>
+                                    </div>
+                                </div>
 
                                 {{Aire::textarea('observations', 'Observaciones')->placeholder('Información adicional')->rows(3)}}
                             </div>
@@ -325,6 +344,49 @@
             quantity = quantity + step
             quantityInput.val(quantity)
         })
+
+        // Delivery method change handler
+        const deliveryMethodSelect = document.getElementById('delivery_method');
+        
+        function updateDeliveryInfo() {
+            const method = deliveryMethodSelect ? deliveryMethodSelect.value : 'tronex';
+            const deliveryMethodName = document.getElementById('delivery-method-name');
+            const deliveryMethodDescription = document.getElementById('delivery-method-description');
+            
+            if (!deliveryMethodName || !deliveryMethodDescription) return;
+            
+            // Update method name and description
+            if (method === 'express') {
+                deliveryMethodName.textContent = 'Envío Express';
+                deliveryMethodDescription.innerHTML = '2 días hábiles desde la fecha de pedido (<span id="delivery-date">Calculando...</span>)';
+            } else {
+                deliveryMethodName.textContent = 'Envío Tronex';
+                deliveryMethodDescription.innerHTML = 'Entrega en la próxima ruta asignada (<span id="delivery-date">Calculando...</span>)';
+            }
+            
+            // Fetch calculated delivery date from server
+            fetch(`/api/delivery-date/${method}`)
+                .then(response => response.json())
+                .then(data => {
+                    const dateSpan = document.getElementById('delivery-date');
+                    if (dateSpan && data.date) {
+                        dateSpan.textContent = data.date;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching delivery date:', error);
+                    const dateSpan = document.getElementById('delivery-date');
+                    if (dateSpan) {
+                        dateSpan.textContent = 'Error al calcular fecha';
+                    }
+                });
+        }
+
+        // Initialize delivery info on page load
+        if (deliveryMethodSelect) {
+            updateDeliveryInfo();
+            deliveryMethodSelect.addEventListener('change', updateDeliveryInfo);
+        }
     })
 </script>
 

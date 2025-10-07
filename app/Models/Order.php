@@ -35,6 +35,7 @@ class Order extends Model
         'zone_id',
         'seller_id',
         'delivery_date',
+        'delivery_method',
         'observations',
         'coupon_id',
         'coupon_code',
@@ -49,6 +50,9 @@ class Order extends Model
     const STATUS_CANCELLED = 6;
     const STATUS_ERROR = 2;
     const STATUS_ERROR_WEBSERVICE = 3;
+
+    const DELIVERY_METHOD_EXPRESS = 'express';
+    const DELIVERY_METHOD_TRONEX = 'tronex';
 
     /**
      * Get status slug from status ID

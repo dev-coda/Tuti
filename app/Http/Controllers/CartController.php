@@ -378,7 +378,11 @@ class CartController extends Controller
             $user_id = session()->get('user_id');
         }
 
-        $delivery_date = OrderRepository::getBusinessDay();
+        // Get delivery method from request, default to 'tronex'
+        $delivery_method = $request->input('delivery_method', 'tronex');
+        
+        // Calculate delivery date based on selected method
+        $delivery_date = OrderRepository::getDeliveryDateByMethod($delivery_method);
 
         // Inventory validation based on zone/bodega
         $inventoryEnabled = Setting::getByKey('inventory_enabled');
@@ -572,6 +576,7 @@ class CartController extends Controller
                 'zone_id' => $request->zone_id,
                 'seller_id' => $seller_id,
                 'delivery_date' => $delivery_date,
+                'delivery_method' => $delivery_method,
                 'observations' => $observations,
                 'coupon_id' => $coupon ? $coupon->id : null,
                 'coupon_code' => $coupon ? $coupon->code : null,
