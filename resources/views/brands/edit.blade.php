@@ -22,7 +22,8 @@
 
                 {{ Aire::select($vendors, 'vendor_id', 'Vendor')->groupClass('col-span-6 sm:col-span-3') }}
 
-                {{ Aire::input('discount', 'Descuento %')->id('discount')->min(0)->max(100)->step(1)->groupClass('col-span-2')}}
+                {{ Aire::input('discount', 'Descuento')->id('discount')->min(0)->step(0.01)->groupClass('col-span-3')}}
+                {{ Aire::select(['percentage' => 'Porcentaje (%)', 'fixed_amount' => 'Monto Fijo ($)'], 'discount_type', 'Tipo de Descuento')->groupClass('col-span-3') }}
 
                 <div class="col-span-4 flex items-center">
                     {{ Aire::hidden('first_purchase_only')->value(0)}}

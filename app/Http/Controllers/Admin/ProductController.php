@@ -135,7 +135,8 @@ class ProductController extends Controller
             'active' => 'nullable|boolean',
             'price' => 'required',
             'delivery_days' => 'required',
-            'discount' => 'numeric|min:0|max:100',
+            'discount' => 'numeric|min:0',
+            'discount_type' => 'required|in:percentage,fixed_amount',
             'first_purchase_only' => 'nullable|boolean',
             'quantity_min' => 'required|numeric',
             'quantity_max' => 'required|numeric',
@@ -149,6 +150,11 @@ class ProductController extends Controller
             'safety_stock' => 'nullable|integer|min:0',
             'inventory_opt_out' => 'nullable|boolean',
         ]);
+
+        // Validate discount based on type
+        if ($validate['discount_type'] === 'percentage' && $validate['discount'] > 100) {
+            return back()->withErrors(['discount' => 'El descuento porcentual no puede ser mayor a 100%']);
+        }
 
         $categories = $request->categories;
         $labels = $request->labels;
@@ -256,7 +262,8 @@ class ProductController extends Controller
             'active' => 'nullable|boolean',
             'price' => 'required',
             'delivery_days' => 'required',
-            'discount' => 'numeric|min:0|max:100',
+            'discount' => 'numeric|min:0',
+            'discount_type' => 'required|in:percentage,fixed_amount',
             'first_purchase_only' => 'nullable|boolean',
             'quantity_min' => 'required|numeric',
             'quantity_max' => 'required|numeric',
@@ -279,6 +286,11 @@ class ProductController extends Controller
             'safety_stock' => 'nullable|integer|min:0',
             'inventory_opt_out' => 'nullable|boolean',
         ]);
+
+        // Validate discount based on type
+        if ($validate['discount_type'] === 'percentage' && $validate['discount'] > 100) {
+            return back()->withErrors(['discount' => 'El descuento porcentual no puede ser mayor a 100%']);
+        }
 
         $validate['slug'] = Str::slug($request->slug);
 

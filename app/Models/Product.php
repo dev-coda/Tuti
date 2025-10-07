@@ -23,6 +23,7 @@ class Product extends Model
         'price',
         'delivery_days',
         'discount',
+        'discount_type',
         'first_purchase_only',
         'quantity_min',
         'quantity_max',

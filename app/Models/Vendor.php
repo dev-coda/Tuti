@@ -18,6 +18,7 @@ class Vendor extends Model
         'minimum_discount_amount',
         'active',
         'discount',
+        'discount_type',
         'first_purchase_only',
         'vendor_type',
     ];

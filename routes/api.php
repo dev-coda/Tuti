@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\ProductsApiController;
 use App\Http\Controllers\Api\ClientesApiController;
 use App\Http\Controllers\Api\ProductosApiController;
 use App\Http\Controllers\Api\PreciosApiController;
+use App\Http\Controllers\Api\PromocionesApiController;
 use App\Http\Controllers\Api\InventariosApiController;
 use App\Http\Controllers\Api\PedidosApiController;
 use App\Jobs\ProcessImage;
@@ -101,6 +102,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('precios')->group(function () {
         Route::get('/', [PreciosApiController::class, 'index']);
         Route::get('/{product}', [PreciosApiController::class, 'show']);
+    });
+
+    // Promociones (Promotions/Coupons)
+    Route::prefix('promociones')->group(function () {
+        Route::get('/', [PromocionesApiController::class, 'index']);
+        Route::get('/{coupon}', [PromocionesApiController::class, 'show']);
+        Route::post('/validar', [PromocionesApiController::class, 'validateCoupon']);
     });
 
     // Inventarios (Inventory)

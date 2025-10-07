@@ -19,7 +19,8 @@
                     {{ Aire::input('name', "Nombre")->groupClass('col-span-6 sm:col-span-3') }}
                     {{ Aire::input('delivery_days', "Dias de entrega")->groupClass('col-span-6 sm:col-span-3') }}
                     {{ Aire::select($vendors, 'vendor_id', 'Vendor')->groupClass('col-span-6 sm:col-span-3') }}
-                    {{  Aire::input('discount', 'Descuento %')->id('discount')->min(0)->max(100)->step(1)->groupClass('col-span-6')}}
+                    {{  Aire::input('discount', 'Descuento')->id('discount')->min(0)->step(0.01)->groupClass('col-span-6 sm:col-span-3')}}
+                    {{ Aire::select(['percentage' => 'Porcentaje (%)', 'fixed_amount' => 'Monto Fijo ($)'], 'discount_type', 'Tipo de Descuento')->value('percentage')->groupClass('col-span-6 sm:col-span-3') }}
 
 
 

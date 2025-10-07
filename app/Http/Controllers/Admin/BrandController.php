@@ -48,12 +48,18 @@ class BrandController extends Controller
         $validate = $request->validate([
             'name' => 'required|max:255',
             'delivery_days' => 'numeric',
-            'discount' => 'numeric|min:0|max:100',
+            'discount' => 'numeric|min:0',
+            'discount_type' => 'required|in:percentage,fixed_amount',
             'first_purchase_only' => 'nullable|boolean',
             'description' => 'nullable',
             'active' => 'nullable',
             'vendor_id' => 'required|numeric',
         ]);
+
+        // Validate discount based on type
+        if ($validate['discount_type'] === 'percentage' && $validate['discount'] > 100) {
+            return back()->withErrors(['discount' => 'El descuento porcentual no puede ser mayor a 100%']);
+        }
 
 
         $slug =  Str::slug($request->name);
@@ -98,13 +104,19 @@ class BrandController extends Controller
         $validate = $request->validate([
             'name' => 'required|max:255',
             'delivery_days' => 'numeric',
-            'discount' => 'numeric|min:0|max:100',
+            'discount' => 'numeric|min:0',
+            'discount_type' => 'required|in:percentage,fixed_amount',
             'first_purchase_only' => 'nullable|boolean',
             'description' => 'nullable',
             'slug' => 'required|unique:brands,slug,' . $brand->id,
             'active' => 'nullable',
             'vendor_id' => 'required|numeric',
         ]);
+
+        // Validate discount based on type
+        if ($validate['discount_type'] === 'percentage' && $validate['discount'] > 100) {
+            return back()->withErrors(['discount' => 'El descuento porcentual no puede ser mayor a 100%']);
+        }
 
         //save file
         if ($request->hasFile('image_file')) {
