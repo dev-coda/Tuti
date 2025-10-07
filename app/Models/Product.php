@@ -207,16 +207,33 @@ class Product extends Model
         // Vendor discount (highest priority) - with minimum amount check
         if ($this->brand && $this->brand->vendor && $this->brand->vendor->discount > $discount) {
             $vendor = $this->brand->vendor;
-            
+
             // Check if vendor discount should apply based on first purchase rules
             $vendorDiscountApplies = !$enforce_first_purchase || !$has_orders || !$vendor->first_purchase_only;
-            
-            // Check if vendor minimum discount amount is met (if specified and vendorCartTotal is provided)
+
+            // Check if vendor minimum discount amount is met
             $vendorMinimumMet = true;
-            if ($vendor->minimum_discount_amount > 0 && $vendorCartTotal !== null) {
-                $vendorMinimumMet = $vendorCartTotal >= $vendor->minimum_discount_amount;
+            if ($vendor->minimum_discount_amount > 0) {
+                if ($vendorCartTotal !== null) {
+                    // In cart context: check the total cart amount for this vendor
+                    $vendorMinimumMet = $vendorCartTotal >= $vendor->minimum_discount_amount;
+                } else {
+                    // In catalog/home context: check if this individual product's price meets the minimum
+                    // Calculate the product's total price (with tax and package quantity)
+                    $price = $this->price;
+                    $variation = $this->items?->first();
+                    if ($variation) {
+                        $price = $variation->pivot->price;
+                    }
+                    $packageQuantity = $this->package_quantity ?? 1;
+                    $priceWithTax = $this->taxValue() > 0 ? ($price + ($price * $this->taxValue() / 100)) : $price;
+                    $totalProductPrice = $priceWithTax * $packageQuantity;
+
+                    // Only apply discount if product price meets minimum
+                    $vendorMinimumMet = $totalProductPrice >= $vendor->minimum_discount_amount;
+                }
             }
-            
+
             if ($vendorDiscountApplies && $vendorMinimumMet) {
                 $discount = $vendor->discount;
                 $discount_on = 'Vendor';

@@ -141,7 +141,7 @@ class CartController extends Controller
         $alertVendors = [];
         $vendorDiscountAlerts = [];
         $vendorTotals = [];
-        
+
         foreach ($byVendors as $key => $vendor) {
             $total = $vendor->sum(function ($product) {
                 return $product->quantity * $product->calculatedFinalPrice['price'];
@@ -155,7 +155,7 @@ class CartController extends Controller
                 $v->current = $total;
                 $alertVendors[] = $v;
             }
-            
+
             // Check vendor discount minimum requirement (only if vendor has discount > 0 and minimum_discount_amount > 0)
             if ($v->discount > 0 && $v->minimum_discount_amount > 0 && $total < $v->minimum_discount_amount) {
                 $vendorDiscountAlerts[] = [
@@ -166,17 +166,17 @@ class CartController extends Controller
                 ];
             }
         }
-        
+
         // Recalculate products with vendor totals for proper discount application
         $products = collect($products)->map(function ($product) use ($vendorTotals, $has_orders) {
             $vendorTotal = $vendorTotals[$product->vendor_id] ?? 0;
-            
+
             // Recalculate with vendor total for discount qualification
             $finalPrice = $product->getFinalPriceForUser($has_orders, $vendorTotal);
             $product->calculatedFinalPrice = $finalPrice;
             return $product;
         });
-        
+
         // Recalculate total cart value after vendor discount adjustments
         $total_cart = $products->sum(function ($product) {
             return $product->quantity * $product->calculatedFinalPrice['price'];
@@ -587,9 +587,35 @@ class CartController extends Controller
                 }
             }
 
+            // Calculate vendor totals for proper discount application
+            $vendorTotals = [];
+            $productsByVendor = [];
+            foreach ($cart as $key => $row) {
+                $tempProduct = Product::with('brand.vendor')->find($row['product_id']);
+                if ($tempProduct && $tempProduct->brand && $tempProduct->brand->vendor) {
+                    $vendorId = $tempProduct->brand->vendor->id;
+
+                    // Calculate price for this product
+                    $lookupKey = $row['product_id'] . '_' . ($row['variation_id'] ?? 'null');
+                    if (isset($modifiedProductsLookup[$lookupKey])) {
+                        $productPrice = $modifiedProductsLookup[$lookupKey]['new_unit_price'];
+                    } else {
+                        $priceInfo = $tempProduct->getFinalPriceForUser($has_orders);
+                        $productPrice = $priceInfo['price'];
+                    }
+
+                    $productTotal = $productPrice * $row['quantity'];
+
+                    if (!isset($vendorTotals[$vendorId])) {
+                        $vendorTotals[$vendorId] = 0;
+                    }
+                    $vendorTotals[$vendorId] += $productTotal;
+                }
+            }
+
             foreach ($cart as $key => $row) {
                 $id = $row['product_id'];
-                $p = Product::find($id);
+                $p = Product::with('brand.vendor')->find($id);
                 $lookupKey = $id . '_' . ($row['variation_id'] ?? 'null');
 
                 // Check if this product was modified by coupon discount service
@@ -607,8 +633,11 @@ class CartController extends Controller
                         $lineDiscountPercent = (int) ($modProduct['applied_discount_percentage'] ?? 0);
                     }
                 } else {
-                    // Use original product pricing logic
-                    $lineFinal = $p->getFinalPriceForUser($has_orders);
+                    // Use original product pricing logic with vendor total for proper discount
+                    $vendorId = $p->brand && $p->brand->vendor ? $p->brand->vendor->id : null;
+                    $vendorTotal = $vendorId && isset($vendorTotals[$vendorId]) ? $vendorTotals[$vendorId] : null;
+
+                    $lineFinal = $p->getFinalPriceForUser($has_orders, $vendorTotal);
                     $lineDiscountPercent = (int) ($lineFinal['discount'] ?? 0);
                     $unitPrice = $p->finalPrice['originalPrice'];
                 }
