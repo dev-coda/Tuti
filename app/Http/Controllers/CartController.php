@@ -120,8 +120,9 @@ class CartController extends Controller
                 // Use coupon-modified pricing
                 $finalPrice = $product->getFinalPriceWithCoupon($has_orders, $modifiedProductsLookup[$lookupKey]);
             } else {
-                // Use regular pricing
-                $finalPrice = $product->getFinalPriceForUser($has_orders);
+                // Use regular pricing without vendor discount (pass 0 to prevent vendor discount)
+                // This will be recalculated later with proper vendor totals
+                $finalPrice = $product->getFinalPriceForUser($has_orders, 0);
             }
 
             $product->calculatedFinalPrice = $finalPrice;
@@ -168,10 +169,17 @@ class CartController extends Controller
         }
 
         // Recalculate products with vendor totals for proper discount application
-        $products = collect($products)->map(function ($product) use ($vendorTotals, $has_orders) {
+        $products = collect($products)->map(function ($product) use ($vendorTotals, $has_orders, $modifiedProductsLookup) {
             $vendorTotal = $vendorTotals[$product->vendor_id] ?? 0;
 
-            // Recalculate with vendor total for discount qualification
+            // Check if this product was modified by coupon - if so, keep the coupon pricing
+            $lookupKey = $product->id . '_' . ($product->item->id ?? 'null');
+            if (isset($modifiedProductsLookup[$lookupKey])) {
+                // Keep the coupon-modified pricing - don't recalculate
+                return $product;
+            }
+
+            // Recalculate with vendor total for discount qualification (non-coupon products only)
             $finalPrice = $product->getFinalPriceForUser($has_orders, $vendorTotal);
             $product->calculatedFinalPrice = $finalPrice;
             return $product;
@@ -587,9 +595,38 @@ class CartController extends Controller
                 }
             }
 
+            // Calculate vendor totals for proper discount application
+            // Important: Calculate totals WITHOUT vendor discounts first, then check if minimum is met
+            $vendorTotals = [];
+            $productsByVendor = [];
+            foreach ($cart as $key => $row) {
+                $tempProduct = Product::with('brand.vendor')->find($row['product_id']);
+                if ($tempProduct && $tempProduct->brand && $tempProduct->brand->vendor) {
+                    $vendorId = $tempProduct->brand->vendor->id;
+
+                    // Calculate price for this product
+                    $lookupKey = $row['product_id'] . '_' . ($row['variation_id'] ?? 'null');
+                    if (isset($modifiedProductsLookup[$lookupKey])) {
+                        $productPrice = $modifiedProductsLookup[$lookupKey]['new_unit_price'];
+                    } else {
+                        // Pass 0 as vendor total to prevent vendor discount from being applied
+                        // when calculating the vendor total (prevents circular logic)
+                        $priceInfo = $tempProduct->getFinalPriceForUser($has_orders, 0);
+                        $productPrice = $priceInfo['price'];
+                    }
+
+                    $productTotal = $productPrice * $row['quantity'];
+
+                    if (!isset($vendorTotals[$vendorId])) {
+                        $vendorTotals[$vendorId] = 0;
+                    }
+                    $vendorTotals[$vendorId] += $productTotal;
+                }
+            }
+
             foreach ($cart as $key => $row) {
                 $id = $row['product_id'];
-                $p = Product::find($id);
+                $p = Product::with('brand.vendor')->find($id);
                 $lookupKey = $id . '_' . ($row['variation_id'] ?? 'null');
 
                 // Check if this product was modified by coupon discount service
@@ -607,8 +644,11 @@ class CartController extends Controller
                         $lineDiscountPercent = (int) ($modProduct['applied_discount_percentage'] ?? 0);
                     }
                 } else {
-                    // Use original product pricing logic
-                    $lineFinal = $p->getFinalPriceForUser($has_orders);
+                    // Use original product pricing logic with vendor total for proper discount
+                    $vendorId = $p->brand && $p->brand->vendor ? $p->brand->vendor->id : null;
+                    $vendorTotal = $vendorId && isset($vendorTotals[$vendorId]) ? $vendorTotals[$vendorId] : null;
+
+                    $lineFinal = $p->getFinalPriceForUser($has_orders, $vendorTotal);
                     $lineDiscountPercent = (int) ($lineFinal['discount'] ?? 0);
                     $unitPrice = $p->finalPrice['originalPrice'];
                 }
@@ -652,8 +692,17 @@ class CartController extends Controller
 
                 $bonification = $p->bonifications->first();
                 if ($bonification) {
-                    //  floor($product->pivot->quantity / $product->bonifications->first()->buy)
-                    $bonification_quantity = floor($row['quantity'] / $bonification->buy * $bonification->get);
+                    // Calculate total individual items purchased (considering package_quantity)
+                    // Bonifications always work with individual items, not package units
+                    $packageQuantity = $p->package_quantity ?? 1;
+                    $individualItemsPurchased = $row['quantity'] * $packageQuantity;
+
+                    // Calculate bonification based on individual items
+                    // Example: If customer buys 10 packages of 6 items each (60 total items)
+                    // and bonification is "buy 10 get 1 free", they get floor(60/10) * 1 = 6 free items
+                    $bonification_quantity = floor($individualItemsPurchased / $bonification->buy * $bonification->get);
+
+                    // Apply maximum limit
                     if ($bonification_quantity > $bonification->max) {
                         $bonification_quantity = $bonification->max;
                     }
@@ -684,7 +733,10 @@ class CartController extends Controller
                     }
                 } else {
                     // Use original calculation for non-coupon affected products
-                    $lineFinal = $p->getFinalPriceForUser($has_orders);
+                    // Pass vendor total to ensure vendor discount minimum is checked
+                    $vendorId = $p->brand && $p->brand->vendor ? $p->brand->vendor->id : null;
+                    $vendorTotal = $vendorId && isset($vendorTotals[$vendorId]) ? $vendorTotals[$vendorId] : null;
+                    $lineFinal = $p->getFinalPriceForUser($has_orders, $vendorTotal);
                     $lineTotal = $lineFinal['price'] * $row['quantity'];
                     $lineDiscount = $lineFinal['totalDiscount'] * $row['quantity'];
                 }
