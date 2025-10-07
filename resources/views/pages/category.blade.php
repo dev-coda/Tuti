@@ -22,13 +22,13 @@
         </div>
     </div>
     @endif
-    <div class="flex md:flex-row flex-col items-center md:justify-between justify-center gap-3 col-span-12 font-semibold w-full max-w-[90vw]">
-        <ul class="flex  space-x-2 text-gray-500 uppercase">
+    <div class="flex md:flex-row flex-col md:items-center md:justify-between gap-0 md:gap-3 col-span-12 font-semibold w-full max-w-[90vw]">
+        <ul class="flex space-x-2 text-gray-500 uppercase self-start">
             <li><a href="/">Inicio</a></li>
             <li>></li>
             <li><a href=" {{route('category', $params['slug'])}} ">{{$category->name}}</a></li>
         </ul>
-        <div id="filter-sort-dropdowns"
+        <div id="filter-sort-dropdowns" class="self-end"
             data-current-sort="{{ $params['order'] }}"
             data-current-brand-id="{{ $params['brand_id'] ?? 'null' }}"
             data-current-category-id="{{ $params['category_id'] ?? 'null' }}"
