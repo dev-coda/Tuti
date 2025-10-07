@@ -238,15 +238,17 @@ function handleSyncSubmit() {
     const icon = document.getElementById('syncIcon');
     const text = document.getElementById('syncText');
     
-    // Disable button and show loading state
+    // Show loading state temporarily
     button.disabled = true;
     icon.classList.add('animate-spin');
-    text.textContent = 'Sincronizando... (puede tomar varios minutos)';
+    text.textContent = 'Iniciando sincronización...';
     
-    // Warn user not to close the page
-    window.onbeforeunload = function() {
-        return "La sincronización está en curso. ¿Está seguro de que desea salir?";
-    };
+    // Re-enable after a short delay (since it's async)
+    setTimeout(() => {
+        button.disabled = false;
+        icon.classList.remove('animate-spin');
+        text.textContent = 'Sincronizar Inventario';
+    }, 2000);
     
     return true;
 }

@@ -62,17 +62,13 @@ class SettingController extends Controller
 
     public function syncInventory()
     {
-        // Increase execution time limit for inventory sync (can take several minutes)
-        set_time_limit(300); // 5 minutes
-        ini_set('max_execution_time', '300');
-        
-        // Dispatch synchronously to ensure it runs immediately
+        // Dispatch to queue for async processing
         try {
-            SyncProductInventory::dispatchSync();
-            return back()->with('success', 'Sincronización de inventario completada exitosamente');
+            SyncProductInventory::dispatch();
+            return back()->with('success', 'Sincronización de inventario iniciada. El proceso se ejecutará en segundo plano y puede tomar varios minutos.');
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('Inventory sync failed: ' . $e->getMessage());
-            return back()->with('error', 'Error al sincronizar inventario: ' . $e->getMessage());
+            \Illuminate\Support\Facades\Log::error('Inventory sync dispatch failed: ' . $e->getMessage());
+            return back()->with('error', 'Error al iniciar sincronización de inventario: ' . $e->getMessage());
         }
     }
 
