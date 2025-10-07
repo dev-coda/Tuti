@@ -62,8 +62,14 @@ class SettingController extends Controller
 
     public function syncInventory()
     {
-        SyncProductInventory::dispatch();
-        return back()->with('success', 'Sincronización de inventario iniciada');
+        // Dispatch synchronously to ensure it runs immediately
+        try {
+            SyncProductInventory::dispatchSync();
+            return back()->with('success', 'Sincronización de inventario completada exitosamente');
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Inventory sync failed: ' . $e->getMessage());
+            return back()->with('error', 'Error al sincronizar inventario: ' . $e->getMessage());
+        }
     }
 
     /**
