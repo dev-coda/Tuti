@@ -96,7 +96,7 @@
                     <label class="block text-sm font-medium text-gray-700 mb-2">Descripción</label>
                     <div 
                         class="rich-text-editor-mount" 
-                        data-content="{{ htmlspecialchars($product->description ?? '', ENT_QUOTES, 'UTF-8') }}"
+                        data-content="{{ $product->description ?? '' }}"
                         data-name="description"
                         data-placeholder="Escribe la descripción del producto..."
                         data-height="250px"
@@ -112,7 +112,7 @@
                     <label class="block text-sm font-medium text-gray-700 mb-2">Ficha técnica</label>
                     <div 
                         class="rich-text-editor-mount" 
-                        data-content="{{ htmlspecialchars($product->technical_specifications ?? '', ENT_QUOTES, 'UTF-8') }}"
+                        data-content="{{ $product->technical_specifications ?? '' }}"
                         data-name="technical_specifications"
                         data-placeholder="Especificaciones técnicas del producto..."
                         data-height="200px"
@@ -123,7 +123,7 @@
                     <label class="block text-sm font-medium text-gray-700 mb-2">Garantía</label>
                     <div 
                         class="rich-text-editor-mount" 
-                        data-content="{{ htmlspecialchars($product->warranty ?? '', ENT_QUOTES, 'UTF-8') }}"
+                        data-content="{{ $product->warranty ?? '' }}"
                         data-name="warranty"
                         data-placeholder="Información sobre la garantía del producto..."
                         data-height="150px"
@@ -134,7 +134,7 @@
                     <label class="block text-sm font-medium text-gray-700 mb-2">Otra información</label>
                     <div 
                         class="rich-text-editor-mount" 
-                        data-content="{{ htmlspecialchars($product->other_information ?? '', ENT_QUOTES, 'UTF-8') }}"
+                        data-content="{{ $product->other_information ?? '' }}"
                         data-name="other_information"
                         data-placeholder="Información adicional del producto..."
                         data-height="150px"
