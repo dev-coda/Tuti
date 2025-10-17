@@ -27,6 +27,93 @@ use Illuminate\Support\Facades\Log;
 
 class CartController extends Controller
 {
+    /**
+     * Validate and clean cart data
+     * Removes any malformed items from the cart
+     */
+    private function validateCart($cart)
+    {
+        if (!is_array($cart)) {
+            Log::error('Cart is not an array', [
+                'cart_type' => gettype($cart),
+                'user_id' => auth()->id(),
+            ]);
+            return [];
+        }
+
+        $validCart = [];
+        $invalidCount = 0;
+        $invalidReasons = [];
+
+        foreach ($cart as $key => $item) {
+            // Check if item has required keys
+            if (!is_array($item) || !isset($item['product_id']) || !isset($item['quantity'])) {
+                Log::warning('Invalid cart item detected: missing required fields', [
+                    'key' => $key,
+                    'item' => $item,
+                    'user_id' => auth()->id(),
+                    'has_product_id' => isset($item['product_id']) ?? false,
+                    'has_quantity' => isset($item['quantity']) ?? false,
+                ]);
+                $invalidCount++;
+                $invalidReasons[] = 'Producto con datos incompletos';
+                continue;
+            }
+
+            // Validate product_id is numeric
+            if (!is_numeric($item['product_id']) || $item['product_id'] <= 0) {
+                Log::warning('Invalid product_id in cart item', [
+                    'key' => $key,
+                    'product_id' => $item['product_id'],
+                    'user_id' => auth()->id(),
+                ]);
+                $invalidCount++;
+                $invalidReasons[] = 'Producto con ID inválido';
+                continue;
+            }
+
+            // Validate quantity is numeric and positive
+            if (!is_numeric($item['quantity']) || $item['quantity'] <= 0) {
+                Log::warning('Invalid quantity in cart item', [
+                    'key' => $key,
+                    'quantity' => $item['quantity'],
+                    'product_id' => $item['product_id'],
+                    'user_id' => auth()->id(),
+                ]);
+                $invalidCount++;
+                $invalidReasons[] = 'Producto con cantidad inválida';
+                continue;
+            }
+
+            $validCart[] = $item;
+        }
+
+        // Update session if we removed invalid items
+        if ($invalidCount > 0) {
+            if (!empty($validCart)) {
+                session()->put('cart', $validCart);
+                Log::info('Cart cleaned of invalid items', [
+                    'original_count' => count($cart),
+                    'valid_count' => count($validCart),
+                    'invalid_count' => $invalidCount,
+                    'user_id' => auth()->id(),
+                ]);
+
+                // Flash a warning message for the user
+                session()->flash('warning', "Se removieron {$invalidCount} producto(s) inválido(s) de tu carrito.");
+            } else {
+                // All items were invalid
+                Log::warning('All cart items were invalid', [
+                    'original_count' => count($cart),
+                    'invalid_count' => $invalidCount,
+                    'user_id' => auth()->id(),
+                ]);
+            }
+        }
+
+        return $validCart;
+    }
+
     public function cart()
     {
 
@@ -38,6 +125,14 @@ class CartController extends Controller
 
         if (!$cart) {
             return redirect()->route('home');
+        }
+
+        // Validate and clean cart data
+        $cart = $this->validateCart($cart);
+
+        if (empty($cart)) {
+            session()->forget('cart');
+            return redirect()->route('home')->with('error', 'Tu carrito estaba vacío o contenía productos inválidos.');
         }
 
         $user = auth()->user();
@@ -109,6 +204,25 @@ class CartController extends Controller
 
         foreach ($cart as $item) {
             $product = Product::with('brand.vendor', 'variation')->find($item['product_id']);
+
+            // Skip if product not found (might have been deleted)
+            if (!$product) {
+                Log::warning('Product not found in cart', [
+                    'product_id' => $item['product_id'],
+                    'user_id' => auth()->id(),
+                ]);
+                continue;
+            }
+
+            // Skip if product has no brand or vendor
+            if (!$product->brand || !$product->brand->vendor) {
+                Log::warning('Product missing brand or vendor in cart', [
+                    'product_id' => $product->id,
+                    'has_brand' => !is_null($product->brand),
+                    'user_id' => auth()->id(),
+                ]);
+                continue;
+            }
 
             $product->item = $product->items->where('id', $item['variation_id'])->first();
             $product->quantity = $item['quantity'];
@@ -371,6 +485,14 @@ class CartController extends Controller
             return redirect()->route('home')->with('error', 'El carrito está vacío');
         }
 
+        // Validate and clean cart data before processing
+        $cart = $this->validateCart($cart);
+
+        if (empty($cart)) {
+            session()->forget('cart');
+            return redirect()->route('home')->with('error', 'Tu carrito contenía productos inválidos y ha sido limpiado.');
+        }
+
         $observations = $request->observations;
 
         $total = 0;
@@ -626,7 +748,7 @@ class CartController extends Controller
 
             foreach ($cart as $key => $row) {
                 $id = $row['product_id'];
-                $p = Product::with('brand.vendor')->find($id);
+                $p = Product::with('brand.vendor', 'bonifications')->find($id);
                 $lookupKey = $id . '_' . ($row['variation_id'] ?? 'null');
 
                 // Check if this product was modified by coupon discount service
@@ -690,8 +812,9 @@ class CartController extends Controller
                     }
                 }
 
-                $bonification = $p->bonifications->first();
-                if ($bonification) {
+                // Process ALL bonifications that apply to this product
+                // A product can qualify for multiple bonifications simultaneously
+                foreach ($p->bonifications as $bonification) {
                     // Calculate total individual items purchased (considering package_quantity)
                     // Bonifications always work with individual items, not package units
                     $packageQuantity = $p->package_quantity ?? 1;
@@ -701,6 +824,11 @@ class CartController extends Controller
                     // Example: If customer buys 10 packages of 6 items each (60 total items)
                     // and bonification is "buy 10 get 1 free", they get floor(60/10) * 1 = 6 free items
                     $bonification_quantity = floor($individualItemsPurchased / $bonification->buy * $bonification->get);
+
+                    // Skip this bonification if the customer doesn't qualify (quantity = 0)
+                    if ($bonification_quantity <= 0) {
+                        continue;
+                    }
 
                     // Apply maximum limit
                     if ($bonification_quantity > $bonification->max) {
@@ -876,6 +1004,13 @@ class CartController extends Controller
         $cart = session()->get('cart');
         if (!$cart || empty($cart)) {
             return redirect()->route('cart')->with('error', 'El carrito está vacío.');
+        }
+
+        // Validate and clean cart data
+        $cart = $this->validateCart($cart);
+        if (empty($cart)) {
+            session()->forget('cart');
+            return redirect()->route('cart')->with('error', 'Tu carrito contenía productos inválidos.');
         }
 
         // Check if there's already a coupon applied

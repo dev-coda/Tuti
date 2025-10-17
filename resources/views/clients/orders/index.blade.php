@@ -44,49 +44,49 @@
     </form>
 
     <div class="relative overflow-x-auto">
-        <table class="w-full text-sm text-left rtl:text-right text-gray-500 ">
+        <table class="w-full text-xs text-left rtl:text-right text-gray-500 ">
             <thead class="text-xs text-gray-700 uppercase bg-gray-50  ">
                 <tr>
-                    <th scope="col" class="px-6 py-3">ID</th>
-                    <th scope="col" class="px-6 py-3">Fecha</th>
-                    <th scope="col" class="px-6 py-3 text-center">Productos</th>
-                    <th scope="col" class="px-6 py-3 text-center">Unidades</th>
-                    <th class="px-6 py-4">Cliente</th>
-                    <th scope="col" class="px-6 py-3">Estado</th>
-                    <th scope="col" class="px-6 py-3">Total</th>
-                    <th scope="col" class="px-6 py-3"></th>
+                    <th scope="col" class="px-2 py-2 md:px-6 md:py-3">ID</th>
+                    <th scope="col" class="px-2 py-2 md:px-6 md:py-3">Fecha</th>
+                    <th scope="col" class="px-2 py-2 md:px-6 md:py-3 text-center">Productos</th>
+                    <th scope="col" class="px-2 py-2 md:px-6 md:py-3 text-center">Unidades</th>
+                    <th class="px-2 py-2 md:px-6 md:py-4">Cliente</th>
+                    <th scope="col" class="px-2 py-2 md:px-6 md:py-3">Estado</th>
+                    <th scope="col" class="px-2 py-2 md:px-6 md:py-3">Total</th>
+                    <th scope="col" class="px-2 py-2 md:px-6 md:py-3"></th>
                 </tr>
             </thead>
             <tbody>
                 @foreach ($orders as $order)
                     <tr class="bg-white border-b  ">
-                        <td class="px-6 py-4 font-medium text-gray-900 whitespace-nowrap">
+                        <td class="px-2 py-2 md:px-6 md:py-4 font-medium text-gray-900 whitespace-nowrap">
                             {{ $order->id }}
                         </td>
-                        <th scope="row" class="px-6 py-4 font-medium text-gray-900 whitespace-nowrap ">
+                        <th scope="row" class="px-2 py-2 md:px-6 md:py-4 font-medium text-gray-900 whitespace-nowrap ">
                             {{$order->created_at->subHour(5)->format('Y-m-d H:i')}}
                         </th>
-                        <td class="px-6 py-4 text-center">
+                        <td class="px-2 py-2 md:px-6 md:py-4 text-center">
                             {{$order->products_count}}
                         </td>
-                        <td class="px-6 py-4 text-center">
+                        <td class="px-2 py-2 md:px-6 md:py-4 text-center">
                             {{$order->products_sum_quantity ?? 0}}
                         </td>
-                        <td class="px-6 py-4">
+                        <td class="px-2 py-2 md:px-6 md:py-4">
                             {{$order->user->name}}
                         </td>
-                        <td class="px-6 py-4">
+                        <td class="px-2 py-2 md:px-6 md:py-4">
                             <x-order-status :status="$order->status_id" />
                         </td>
-                        <td class="px-6 py-4">
+                        <td class="px-2 py-2 md:px-6 md:py-4">
                             ${{number_format(($order->total+$order->discount) - $order->discount)}}
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="flex flex-row flex-nowrap gap-2 justify-end items-center whitespace-nowrap">
-                                <a href="{{route('clients.orders.show', $order)}}" class="inline-flex items-center justify-center rounded py-1 px-3 text-white bg-secondary text-sm whitespace-nowrap flex-shrink-0">Ver orden</a>
+                        <td class="px-2 py-2 md:px-6 md:py-4 whitespace-nowrap">
+                            <div class="flex flex-row flex-nowrap gap-1 md:gap-2 justify-end items-center whitespace-nowrap">
+                                <a href="{{route('clients.orders.show', $order)}}" class="inline-flex items-center justify-center rounded py-1 px-2 md:px-3 text-white bg-secondary text-xs whitespace-nowrap flex-shrink-0">Ver orden</a>
                                 <form action="{{ route('clients.orders.reorder', $order) }}" method="POST" class="inline">
                                     @csrf
-                                    <button class="inline-flex items-center justify-center rounded py-1 px-3 text-white bg-orange-600 hover:bg-orange-700 text-sm whitespace-nowrap flex-shrink-0">Volver a pedir</button>
+                                    <button class="inline-flex items-center justify-center rounded py-1 px-2 md:px-3 text-white bg-orange-600 hover:bg-orange-700 text-xs whitespace-nowrap flex-shrink-0">Volver a pedir</button>
                                 </form>
                             </div>
                         </td>

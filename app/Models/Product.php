@@ -205,7 +205,7 @@ class Product extends Model
         }
 
         // Vendor discount (highest priority) - with minimum amount check
-        if ($this->brand && $this->brand->vendor && $this->brand->vendor->discount > $discount) {
+        if ($this->brand && $this->brand->vendor && $this->brand->vendor->discount >= $discount) {
             $vendor = $this->brand->vendor;
 
             // Check if vendor discount should apply based on first purchase rules
