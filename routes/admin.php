@@ -118,6 +118,10 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::post('settings/mailer-config', [SettingController::class, 'updateMailer'])->name('settings.mailer.update');
     Route::post('test-email', function (\Illuminate\Http\Request $request) {
         try {
+            $request->validate([
+                'email' => 'required|email'
+            ]);
+
             $email = $request->input('email');
 
             // Update mail configuration from database
@@ -130,9 +134,14 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
                     ->subject('Prueba de Configuración de Correo - Tuti');
             });
 
-            return response()->json(['success' => true]);
+            return response()->json(['success' => true, 'message' => 'Correo enviado exitosamente']);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['success' => false, 'message' => 'Email inválido'], 422);
         } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage()]);
+            \Illuminate\Support\Facades\Log::error('Test email error: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     })->name('test.email');
     Route::resource('banners', BannerController::class);

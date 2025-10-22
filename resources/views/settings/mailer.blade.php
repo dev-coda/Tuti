@@ -435,24 +435,33 @@ document.addEventListener('DOMContentLoaded', function() {
         testEmailBtn.innerHTML = '<svg class="w-4 h-4 mr-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>Enviando...';
 
         // Send test email via AJAX
-        fetch('/admin/test-email', {
+        fetch('/test-email', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'Accept': 'application/json'
             },
             body: JSON.stringify({ email: email })
         })
-        .then(response => response.json())
+        .then(response => {
+            // Check if response is JSON
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                throw new Error('El servidor no devolvió una respuesta JSON. Verifica los logs para más detalles.');
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.success) {
-                showTestResult('Correo de prueba enviado exitosamente', 'success');
+                showTestResult(data.message || 'Correo de prueba enviado exitosamente', 'success');
             } else {
-                showTestResult('Error al enviar correo de prueba: ' + data.message, 'error');
+                showTestResult('Error al enviar correo de prueba: ' + (data.message || 'Error desconocido'), 'error');
             }
         })
         .catch(error => {
-            showTestResult('Error de conexión: ' + error.message, 'error');
+            console.error('Test email error:', error);
+            showTestResult('Error: ' + error.message, 'error');
         })
         .finally(() => {
             // Re-enable button

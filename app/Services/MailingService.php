@@ -33,9 +33,11 @@ class MailingService
             // Only configure Mailgun if the package is available (check composer autoloader)
             $mailgunAvailable = false;
             try {
-                $mailgunAvailable = class_exists('Symfony\Component\Mailer\Bridge\Mailgun\Transport\MailgunTransportFactory', false);
+                // Check if Mailgun transport factory exists (with autoload)
+                $mailgunAvailable = class_exists('Symfony\Component\Mailer\Bridge\Mailgun\Transport\MailgunTransportFactory');
             } catch (\Exception $e) {
                 // Mailgun package not available
+                Log::debug("Mailgun package check failed: " . $e->getMessage());
                 $mailgunAvailable = false;
             }
 
