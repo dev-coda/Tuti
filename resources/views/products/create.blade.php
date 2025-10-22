@@ -153,6 +153,17 @@
             </div>
         </div>
 
+        <div class="p-4 mb-4 bg-white border border-gray-200 rounded-lg shadow-sm 2xl:col-span-2 ">
+            <h3 class="mb-4 text-xl font-semibold ">Imágenes</h3>
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Seleccione una o más imágenes</label>
+                    <input type="file" name="images[]" multiple accept="image/*" class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none focus:border-blue-500 p-2">
+                    <p class="mt-1 text-xs text-gray-500">Puede seleccionar múltiples archivos (máx. 4MB cada uno). Las imágenes se agregarán después de crear el producto.</p>
+                </div>
+            </div>
+        </div>
+
     </div>
 
    

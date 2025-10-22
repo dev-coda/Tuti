@@ -148,6 +148,8 @@ class ProductController extends Controller
             'calculate_package_price' => 'nullable|boolean',
             'safety_stock' => 'nullable|integer|min:0',
             'inventory_opt_out' => 'nullable|boolean',
+            'images' => 'nullable|array',
+            'images.*' => 'image|max:4096',
         ]);
 
         $categories = $request->categories;
@@ -181,8 +183,28 @@ class ProductController extends Controller
             ]);
         }
 
+        // Handle multiple image uploads if provided
+        $uploadedCount = 0;
+        if ($request->hasFile('images')) {
+            $position = 1;
+            foreach ($request->file('images') as $imageFile) {
+                $path = $imageFile->store('products', 'public');
 
-        return to_route('products.edit', $product)->with('success', 'Producto creado');
+                $product->images()->create([
+                    'path' => $path,
+                    'position' => $position++,
+                ]);
+
+                $uploadedCount++;
+            }
+        }
+
+        $message = 'Producto creado';
+        if ($uploadedCount > 0) {
+            $message .= " con {$uploadedCount} imagen(es)";
+        }
+
+        return to_route('products.edit', $product)->with('success', $message);
     }
 
     /**
@@ -369,20 +391,29 @@ class ProductController extends Controller
     public function images(Request $request, Product $product)
     {
         $validate = $request->validate([
-            'image' => 'required|image|max:4096',
+            'images' => 'required',
+            'images.*' => 'image|max:4096',
         ]);
 
-        $path = $validate['image']->store('products', 'public');
-
-        $image = $product->images()->create([
-            'path' => $path,
-        ]);
-
-        // Set position to max(position)+1 within this product
+        $uploadedCount = 0;
         $nextPosition = $product->images()->max('position') ?? 0;
-        $image->update(['position' => $nextPosition + 1]);
 
-        return back()->with('success', 'Imagen cargada');
+        foreach ($request->file('images') as $imageFile) {
+            $path = $imageFile->store('products', 'public');
+
+            $image = $product->images()->create([
+                'path' => $path,
+            ]);
+
+            // Set position to max(position)+1 within this product
+            $nextPosition++;
+            $image->update(['position' => $nextPosition]);
+
+            $uploadedCount++;
+        }
+
+        $message = $uploadedCount === 1 ? 'Imagen cargada' : "{$uploadedCount} imágenes cargadas";
+        return back()->with('success', $message);
     }
 
     public function images_delete(Request $request, Product $product, ProductImage $image)
