@@ -134,8 +134,9 @@ class OrderRepository
 
             // Handle package calculation differently for bonifications vs regular products
             if ($bonification) {
-                // For bonifications, use the product's package quantity, not from the bonification record
-                $effectivePackageQuantity = $productData->calculate_package_price ? ($productData->package_quantity ?? 1) : 1;
+                // For bonifications: always send the exact quantity specified, never multiply by package_quantity
+                // Bonifications are always individual items, not package units
+                $effectivePackageQuantity = 1;
                 $unitPrice = 0; // Bonifications always have 0 price
             } else {
                 // For regular products, use the order product's package quantity
@@ -164,7 +165,8 @@ class OrderRepository
             }
 
             // Calculate quantity with proper fallback handling
-            $qty = $effectivePackageQuantity ? $product->quantity * $effectivePackageQuantity : $product->quantity;
+            // For bonifications, qty is always the exact number specified (not multiplied by package_quantity)
+            $qty = $bonification ? $product->quantity : ($effectivePackageQuantity ? $product->quantity * $effectivePackageQuantity : $product->quantity);
 
             // Add logging for bonification quantity debugging
             if ($bonification) {

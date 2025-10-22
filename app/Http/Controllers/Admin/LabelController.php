@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Http\Controllers\Admin;
+
 use App\Http\Controllers\Controller;
 
 use App\Models\Label;
@@ -17,14 +18,14 @@ class LabelController extends Controller
     public function index(Request $request)
     {
         $labels = Label::query()
-        ->when($request->q, function($query, $q){
-            $query->where('name', 'like', "%{$q}%")->orWhere('description', 'like', "%{$q}%");
-        })
-        ->orderBy('name')
-        ->paginate();
-       
-        $context = compact('labels'); 
-        
+            ->when($request->q, function ($query, $q) {
+                $query->where('name', 'like', "%{$q}%")->orWhere('description', 'like', "%{$q}%");
+            })
+            ->orderBy('name')
+            ->paginate();
+
+        $context = compact('labels');
+
         return view('labels.index', $context);
     }
 
@@ -43,12 +44,12 @@ class LabelController extends Controller
     {
         $validate = $request->validate([
             'name' => [
-                'required', 
+                'required',
                 'max:255',
-                function (string $attribute, $value, Closure $fail){
+                function (string $attribute, $value, Closure $fail) {
                     $slug =  Str::slug($value);
                     $p = Label::where('slug', $slug)->first();
-                    if($p){
+                    if ($p) {
                         $fail('El slug para este nombre ya existe');
                     }
                 },
@@ -58,7 +59,7 @@ class LabelController extends Controller
             'active' => 'nullable|boolean',
         ]);
 
-        if($request->hasFile('image_file')){
+        if ($request->hasFile('image_file')) {
             $validate['image'] = $request->image_file->store('/labels', 'public');
         }
 
@@ -94,7 +95,7 @@ class LabelController extends Controller
     {
         $validate = $request->validate([
             'name' => [
-                'required', 
+                'required',
                 'max:255',
             ],
             'description' => 'nullable',
@@ -102,22 +103,22 @@ class LabelController extends Controller
             'active' => 'nullable|boolean',
             'slug' => [
                 'required',
-                function (string $attribute, $value, Closure $fail) use($label){
+                function (string $attribute, $value, Closure $fail) use ($label) {
                     $slug =  Str::slug($value);
                     $p = Label::whereNot('id', $label->id)->where('slug', $slug)->first();
-                    if($p){
+                    if ($p) {
                         $fail('El slug para este nombre ya existe');
                     }
                 },
             ]
-            
+
         ]);
 
 
-        $slug =  Str::slug($request->name);
+        $slug =  Str::slug($request->slug);
         $validate['slug'] = $slug;
 
-        Label::create($validate);
+        $label->update($validate);
 
         return to_route('labels.index')->with('success', 'La etiqueta actualizada');
     }
@@ -127,7 +128,7 @@ class LabelController extends Controller
      */
     public function destroy(Label $label)
     {
-        if(!$label->products->count()){
+        if (!$label->products->count()) {
             $label->delete();
             return to_route('labels.index')->with('success', 'Etiqueta eliminada');
         }

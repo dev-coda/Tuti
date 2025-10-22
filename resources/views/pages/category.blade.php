@@ -12,23 +12,21 @@
 @section('content')
 <section class="w-full grid xl:grid-cols-12 gap-x-10 xl:gap-y-0 gap-y-2 md:gap-y-10 max-w-[100vw] overflow-hidden">
     @if($category->image)
-    <div class="col-span-12 mb-4 md:mb-10 flex justify-center">
-        <div class="relative w-full max-w-sm sm:max-w-md md:max-w-lg lg:max-w-xl xl:max-w-2xl h-48 sm:h-56 md:h-64 lg:h-72 xl:h-80 overflow-hidden rounded-lg bg-gray-100">
-            <img 
-                src="{{asset('storage/'.$category->image)}}" 
-                alt="{{$category->name}}" 
-                class="w-full h-full object-cover object-center"
-            >
-        </div>
+    <div class="col-span-12 mb-4 md:mb-10 flex justify-center max-w-[90vw]">
+        <img 
+            src="{{asset('storage/'.$category->image)}}" 
+            alt="{{$category->name}}" 
+            class="w-full max-w-full h-auto object-contain md:w-full md:h-64 lg:h-72 xl:h-80 md:object-cover md:rounded-lg"
+        >
     </div>
     @endif
-    <div class="flex md:flex-row flex-col md:items-center md:justify-between gap-0 md:gap-3 col-span-12 font-semibold w-full max-w-[90vw]">
+    <div class="flex md:flex-row flex-col md:items-center md:justify-between gap-3 col-span-12 font-semibold w-full max-w-[90vw]">
         <ul class="flex space-x-2 text-gray-500 uppercase self-start">
             <li><a href="/">Inicio</a></li>
             <li>></li>
             <li><a href=" {{route('category', $params['slug'])}} ">{{$category->name}}</a></li>
         </ul>
-        <div id="filter-sort-dropdowns" class="self-end"
+        <div id="filter-sort-dropdowns" class="self-end md:self-auto"
             data-current-sort="{{ $params['order'] }}"
             data-current-brand-id="{{ $params['brand_id'] ?? 'null' }}"
             data-current-category-id="{{ $params['category_id'] ?? 'null' }}"
