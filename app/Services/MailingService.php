@@ -53,6 +53,9 @@ class MailingService
                     Config::set('services.mailgun.domain', $mailgunDomain);
                     Config::set('services.mailgun.secret', $mailgunSecret);
                     Config::set('services.mailgun.endpoint', $mailgunEndpoint);
+                } else {
+                    Log::warning("Mailgun selected but credentials missing. Domain: " . ($mailgunDomain ? 'set' : 'missing') . ", Secret: " . ($mailgunSecret ? 'set' : 'missing'));
+                    throw new \Exception('Mailgun está seleccionado pero faltan las credenciales (dominio o clave secreta). Por favor configúralas en la sección de Mailgun.');
                 }
             }
 
@@ -66,20 +69,25 @@ class MailingService
             Config::set('mail.mailers.smtp.host', $smtpHost);
             Config::set('mail.mailers.smtp.port', (int)$smtpPort);
             Config::set('mail.mailers.smtp.encryption', $smtpEncryption);
+            Config::set('mail.mailers.smtp.timeout', 30); // 30 second timeout
 
             if ($smtpUsername && $smtpPassword) {
                 Config::set('mail.mailers.smtp.username', $smtpUsername);
                 Config::set('mail.mailers.smtp.password', $smtpPassword);
             }
 
-            // If Mailgun was requested but not available, fallback to SMTP
+            // If Mailgun was requested but not available, throw error
             if ($mailDriver === 'mailgun' && !$mailgunAvailable) {
-                Log::warning("Mailgun package not available, falling back to SMTP");
-                Config::set('mail.default', 'smtp');
+                Log::error("Mailgun selected but package not installed");
+                throw new \Exception('El paquete de Mailgun no está instalado. Ejecuta: composer require symfony/mailgun-mailer symfony/http-client');
             }
         } catch (\Exception $e) {
             Log::error("Failed to update mail configuration: " . $e->getMessage());
-            // Fallback to basic SMTP configuration
+            // If it's a Mailgun configuration error, rethrow it so the user sees it
+            if (strpos($e->getMessage(), 'Mailgun') !== false) {
+                throw $e;
+            }
+            // Otherwise, fallback to basic SMTP configuration
             Config::set('mail.default', 'smtp');
         }
     }

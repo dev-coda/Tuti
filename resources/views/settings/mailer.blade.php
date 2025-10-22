@@ -79,14 +79,16 @@
                                     class="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('mail_mailer') border-red-300 @enderror"
                                     required>
                                 <option value="smtp" {{ ($mailerSettings['mail_mailer']->value ?? 'mailgun') == 'smtp' ? 'selected' : '' }}>SMTP</option>
-                                <option value="mailgun" {{ ($mailerSettings['mail_mailer']->value ?? 'mailgun') == 'mailgun' ? 'selected' : '' }}>Mailgun</option>
+                                <option value="mailgun" {{ ($mailerSettings['mail_mailer']->value ?? 'mailgun') == 'mailgun' ? 'selected' : '' }}>Mailgun API (Recomendado)</option>
                                 <option value="sendmail" {{ ($mailerSettings['mail_mailer']->value ?? 'mailgun') == 'sendmail' ? 'selected' : '' }}>Sendmail</option>
-                                <option value="log" {{ ($mailerSettings['mail_mailer']->value ?? 'mailgun') == 'log' ? 'selected' : '' }}>Log (para pruebas)</option>
+                                <option value="log" {{ ($mailerSettings['mail_mailer']->value ?? 'mailgun') == 'log' ? 'selected' : '' }}>Log (solo pruebas)</option>
                             </select>
                             @error('mail_mailer')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror
-                            <p class="mt-1 text-xs text-gray-500">Selecciona el método de envío de correo</p>
+                            <p class="mt-1 text-xs text-gray-500">
+                                Mailgun API es más confiable que SMTP. Si tienes problemas de conexión con SMTP, usa Mailgun API.
+                            </p>
                         </div>
 
                         <div>
@@ -206,15 +208,33 @@
             <!-- SMTP Configuration -->
             <div id="smtp-config" class="bg-white border border-gray-200 rounded-lg shadow-sm">
                 <div class="p-6 border-b border-gray-200">
-                    <div class="flex items-center">
-                        <div class="flex-shrink-0">
-                            <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"></path>
-                            </svg>
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <div class="flex-shrink-0">
+                                <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"></path>
+                                </svg>
+                            </div>
+                            <div class="ml-3">
+                                <h3 class="text-lg font-medium text-gray-900">Configuración SMTP</h3>
+                                <p class="text-sm text-gray-500">Configuración para servidores SMTP personalizados</p>
+                            </div>
                         </div>
-                        <div class="ml-3">
-                            <h3 class="text-lg font-medium text-gray-900">Configuración SMTP</h3>
-                            <p class="text-sm text-gray-500">Configuración para servidores SMTP personalizados</p>
+                    </div>
+                    <div class="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+                        <div class="flex">
+                            <svg class="w-5 h-5 text-yellow-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+                            </svg>
+                            <div class="ml-3">
+                                <h4 class="text-sm font-medium text-yellow-800">Problemas de conexión SMTP?</h4>
+                                <p class="mt-1 text-xs text-yellow-700">
+                                    Si recibes errores de "Connection timeout", prueba:
+                                    <br>1. Cambiar el puerto a 2525 o 465
+                                    <br>2. Usar Mailgun API en lugar de SMTP
+                                    <br>3. Contactar a tu proveedor de hosting para verificar que los puertos SMTP estén habilitados
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -240,17 +260,18 @@
                             <label for="smtp_port" class="block text-sm font-medium text-gray-700 mb-2">
                                 Puerto SMTP
                             </label>
-                            <input type="number"
-                                   id="smtp_port"
-                                   name="smtp_port"
-                                   value="{{ $mailerSettings['smtp_port']->value ?? '587' }}"
-                                   min="1"
-                                   max="65535"
-                                   class="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('smtp_port') border-red-300 @enderror"
-                                   placeholder="587">
+                            <select id="smtp_port"
+                                    name="smtp_port"
+                                    class="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('smtp_port') border-red-300 @enderror">
+                                <option value="587" {{ ($mailerSettings['smtp_port']->value ?? '587') == '587' ? 'selected' : '' }}>587 (TLS - Recomendado)</option>
+                                <option value="465" {{ ($mailerSettings['smtp_port']->value ?? '587') == '465' ? 'selected' : '' }}>465 (SSL)</option>
+                                <option value="2525" {{ ($mailerSettings['smtp_port']->value ?? '587') == '2525' ? 'selected' : '' }}>2525 (Alternativo)</option>
+                                <option value="25" {{ ($mailerSettings['smtp_port']->value ?? '587') == '25' ? 'selected' : '' }}>25 (Estándar - No recomendado)</option>
+                            </select>
                             @error('smtp_port')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror
+                            <p class="mt-1 text-xs text-gray-500">Si el puerto 587 falla, prueba con 2525 o 465</p>
                         </div>
 
                         <div>
@@ -420,6 +441,21 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Listen for changes
     mailDriverSelect.addEventListener('change', toggleConfigSections);
+
+    // Auto-update encryption based on port selection
+    const smtpPortSelect = document.getElementById('smtp_port');
+    const smtpEncryptionSelect = document.getElementById('smtp_encryption');
+    
+    if (smtpPortSelect && smtpEncryptionSelect) {
+        smtpPortSelect.addEventListener('change', function() {
+            const port = this.value;
+            if (port === '465') {
+                smtpEncryptionSelect.value = 'ssl';
+            } else if (port === '587' || port === '2525') {
+                smtpEncryptionSelect.value = 'tls';
+            }
+        });
+    }
 
     // Test email functionality
     testEmailBtn.addEventListener('click', function() {
