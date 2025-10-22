@@ -204,19 +204,36 @@
                     <hr class="my-4">
 
                     @php
+                    // Calculate subtotal using the original prices
                     $subtotal = $products->sum(function($product){
-                    return $product->calculatedFinalPrice['old'] * $product->quantity;
+                        return $product->calculatedFinalPrice['old'] * $product->quantity;
                     });
 
+                    // Calculate the total after all discounts are applied
+                    // (this is what the user will actually pay)
+                    $totalAfterDiscounts = $products->sum(function($product){
+                        return $product->calculatedFinalPrice['price'] * $product->quantity;
+                    });
 
+                    // For display purposes:
+                    // - If no coupon: show all discounts in the "Descuento" line
+                    // - If coupon: the coupon is shown separately, so "Descuento" shows non-coupon discounts
+                    // But since calculatedFinalPrice already includes all discounts (including coupon),
+                    // we just calculate the total discount as the difference
                     if(!$has_orders)
                     {
-                    $discount = $products->sum(function($product){
-                    return $product->calculatedFinalPrice['old'] * $product->discount/100 * $product->quantity;
-                    });
+                        // If there's a coupon, we want to show it separately
+                        // So we calculate: discount = (subtotal - totalAfterDiscounts) - couponDiscount
+                        // This way "Descuento" shows regular discounts, and coupon shows separately
+                        $totalDiscount = $subtotal - $totalAfterDiscounts;
+                        $couponDiscountAmount = $appliedCoupon ? ($appliedCoupon['discount_amount'] ?? 0) : 0;
+                        
+                        // If there's a coupon, subtract it from total discount to avoid double-counting
+                        // since we'll show it on a separate line
+                        $discount = $appliedCoupon ? ($totalDiscount - $couponDiscountAmount) : $totalDiscount;
                     }
                     else{
-                    $discount = null;
+                        $discount = 0;
                     }
                     @endphp
 
@@ -244,8 +261,8 @@
                     @endif
                     <hr class="my-4">
                     @php
-                        $couponDiscount = $appliedCoupon ? $appliedCoupon['discount_amount'] : 0;
-                        $finalTotal = $subtotal - $discount - $couponDiscount;
+                        // The final total is already calculated with all discounts applied
+                        $finalTotal = $totalAfterDiscounts;
                     @endphp
                     <div class="flex justify-between">
                         <strong>Total</strong>
