@@ -91,11 +91,13 @@ class CouponDiscountService
                 'quantity' => $quantity,
                 'base_price' => $basePrice,
                 'package_quantity' => $packageQuantity,
+                'applied_discount_type' => 'percentage',
                 'applied_discount_percentage' => $finalDiscountPercentage,
                 'existing_discount_percentage' => $existingDiscountPercentage,
                 'coupon_discount_percentage' => $couponPercentage,
                 'coupon_contribution' => $couponContribution,
                 'line_discount_amount' => $lineDiscountAmount,
+                'final_discount_amount' => $lineDiscountAmount,
                 'discount_source' => $finalDiscountPercentage > $existingDiscountPercentage ? 'coupon' : 'existing',
             ];
         }

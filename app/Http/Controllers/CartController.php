@@ -761,7 +761,9 @@ class CartController extends Controller
                     $modProduct = $modifiedProductsLookup[$lookupKey];
 
                     // Use the discount percentage or modified price from coupon service
-                    if ($modProduct['applied_discount_type'] === 'fixed_amount') {
+                    $discountType = $modProduct['applied_discount_type'] ?? 'percentage';
+                    
+                    if ($discountType === 'fixed_amount') {
                         // For fixed amount discounts, use the new unit price
                         $unitPrice = $modProduct['new_unit_price'];
                         $lineDiscountPercent = 0; // Don't use percentage field for fixed amount
@@ -853,8 +855,9 @@ class CartController extends Controller
                 // Calculate line totals based on whether coupon modified the product
                 if (isset($modifiedProductsLookup[$lookupKey])) {
                     $modProduct = $modifiedProductsLookup[$lookupKey];
+                    $discountType = $modProduct['applied_discount_type'] ?? 'percentage';
 
-                    if ($modProduct['applied_discount_type'] === 'fixed_amount') {
+                    if ($discountType === 'fixed_amount') {
                         // For fixed amount: price is already reduced, so total is simply price * quantity * package
                         $lineTotal = $modProduct['new_unit_price'] * $row['quantity'] * ($p->package_quantity ?? 1);
                         $lineDiscount = $modProduct['final_discount_amount'];
@@ -893,11 +896,12 @@ class CartController extends Controller
 
                     if (isset($modifiedProductsLookup[$lookupKey])) {
                         $modProduct = $modifiedProductsLookup[$lookupKey];
+                        $discountType = $modProduct['applied_discount_type'] ?? 'percentage';
 
-                        if ($modProduct['applied_discount_type'] === 'fixed_amount') {
+                        if ($discountType === 'fixed_amount') {
                             $lineTotal = $modProduct['new_unit_price'] * $row['quantity'] * ($p->package_quantity ?? 1);
                             $lineDiscount = $modProduct['final_discount_amount'];
-                        } else if ($modProduct['applied_discount_type'] === 'coupon') {
+                        } else if ($discountType === 'coupon') {
                             // Only apply coupon discount, ignore existing discounts
                             $lineSubtotal = $modProduct['base_price'] * $row['quantity'] * ($p->package_quantity ?? 1);
                             $lineDiscount = $modProduct['coupon_contribution'];

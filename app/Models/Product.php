@@ -293,7 +293,9 @@ class Product extends Model
         }
 
         // Apply coupon-modified pricing
-        if ($couponData['applied_discount_type'] === 'fixed_amount') {
+        $discountType = $couponData['applied_discount_type'] ?? 'percentage';
+        
+        if ($discountType === 'fixed_amount') {
             // For fixed amount coupons, use the modified unit price
             $newUnitPrice = $couponData['new_unit_price'];
             $packageQuantity = $this->package_quantity ?? 1;
