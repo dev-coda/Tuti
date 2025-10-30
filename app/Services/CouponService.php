@@ -190,6 +190,19 @@ class CouponService
      */
     public function recordCouponUsage(Coupon $coupon, User $user, Order $order, float $discountAmount): CouponUsage
     {
+        // Validate inputs
+        if (!$coupon || !$coupon->id) {
+            throw new \Exception('Invalid coupon provided for usage recording');
+        }
+
+        if (!$user || !$user->id) {
+            throw new \Exception('Invalid user provided for coupon usage recording');
+        }
+
+        if (!$order || !$order->id) {
+            throw new \Exception('Invalid order provided for coupon usage recording');
+        }
+
         // Increment coupon usage
         $coupon->incrementUsage();
 

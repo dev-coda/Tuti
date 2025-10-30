@@ -510,7 +510,7 @@ class CartController extends Controller
 
         // Get delivery method from request, default to 'tronex'
         $delivery_method = $request->input('delivery_method', 'tronex');
-        
+
         // Calculate delivery date based on selected method
         $delivery_date = OrderRepository::getDeliveryDateByMethod($delivery_method);
 
@@ -687,11 +687,13 @@ class CartController extends Controller
                     // Coupon application failed
                     session()->forget('applied_coupon');
                     $appliedCoupon = null;
+                    $coupon = null; // Ensure coupon is null when application fails
                 }
             } else {
                 // Coupon is no longer valid
                 session()->forget('applied_coupon');
                 $appliedCoupon = null;
+                $coupon = null; // Ensure coupon is null
             }
         }
 
@@ -762,7 +764,7 @@ class CartController extends Controller
 
                     // Use the discount percentage or modified price from coupon service
                     $discountType = $modProduct['applied_discount_type'] ?? 'percentage';
-                    
+
                     if ($discountType === 'fixed_amount') {
                         // For fixed amount discounts, use the new unit price
                         $unitPrice = $modProduct['new_unit_price'];
@@ -938,7 +940,13 @@ class CartController extends Controller
             // Record coupon usage if coupon was applied
             if ($coupon && $couponDiscount > 0) {
                 $couponService = app(CouponService::class);
-                $couponService->recordCouponUsage($coupon, User::find($user_id), $order, $couponDiscount);
+                $orderUser = User::find($user_id);
+
+                if (!$orderUser) {
+                    throw new \Exception("Usuario no encontrado para registrar uso de cupón. ID: {$user_id}");
+                }
+
+                $couponService->recordCouponUsage($coupon, $orderUser, $order, $couponDiscount);
             }
 
             DB::commit();
@@ -984,7 +992,14 @@ class CartController extends Controller
             return to_route('home')->with('success', 'Compra procesada con exito!');
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Error creating order: ' . $e->getMessage());
+            Log::error('Error creating order: ' . $e->getMessage(), [
+                'exception' => $e,
+                'user_id' => $user_id ?? null,
+                'has_coupon' => isset($coupon) && $coupon ? true : false,
+                'coupon_id' => isset($coupon) && $coupon ? $coupon->id : null,
+                'coupon_discount' => $couponDiscount ?? 0,
+                'trace' => $e->getTraceAsString()
+            ]);
             return to_route('cart')->with('error', 'Error al procesar la orden. Por favor intente nuevamente.');
         }
 
