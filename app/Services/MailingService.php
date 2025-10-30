@@ -51,6 +51,10 @@ class MailingService
                     Config::set('services.mailgun.domain', $mailgunDomain);
                     Config::set('services.mailgun.secret', $mailgunSecret);
                     Config::set('services.mailgun.endpoint', $mailgunEndpoint);
+                } else {
+                    Log::warning("Mailgun selected but credentials missing. Domain: " . ($mailgunDomain ? 'set' : 'missing') . ", Secret: " . ($mailgunSecret ? 'set' : 'missing') . ". Falling back to SMTP.");
+                    // Fallback to SMTP instead of throwing exception
+                    Config::set('mail.default', 'smtp');
                 }
             }
 
@@ -72,7 +76,7 @@ class MailingService
 
             // If Mailgun was requested but not available, fallback to SMTP
             if ($mailDriver === 'mailgun' && !$mailgunAvailable) {
-                Log::warning("Mailgun package not available, falling back to SMTP");
+                Log::warning("Mailgun package not available. Falling back to SMTP. To install: composer require symfony/mailgun-mailer symfony/http-client");
                 Config::set('mail.default', 'smtp');
             }
         } catch (\Exception $e) {

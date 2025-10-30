@@ -19,13 +19,31 @@
         <div class="flex flex-col w-full mb-1">
             <div class="mb-4 flex justify-between">
                 <h1 class="text-xl font-semibold text-gray-900 sm:text-2xl ">Pedidos</h1>
-                <div>
-                    <a href="{{ '/orderexport?from_date=' . (request()->from_date ? request()->from_date : '') . '&to_date=' . (request()->to_date ? request()->to_date : '') . '&brand_id=' . (request()->brand_id ?? '') . '&vendor_id=' . (request()->vendor_id ?? '') }}">
-                        @svg('heroicon-o-arrow-down-on-square', 'w-8 h-8 text-blue-500')
+                <div class="flex items-center gap-3">
+                    <!-- Current export (date range) -->
+                    <a href="{{ '/orderexport?from_date=' . (request()->from_date ? request()->from_date : '') . '&to_date=' . (request()->to_date ? request()->to_date : '') . '&brand_id=' . (request()->brand_id ?? '') . '&vendor_id=' . (request()->vendor_id ?? '') }}"
+                       class="inline-flex items-center px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+                       title="Exportar filtro actual">
+                        @svg('heroicon-o-arrow-down-on-square', 'w-5 h-5 mr-1')
+                        <span class="hidden sm:inline">Exportar Filtro</span>
                     </a>
+                    
+                    <!-- Monthly export button -->
+                    <button onclick="openMonthlyExportModal()"
+                            class="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors"
+                            title="Exportar por mes">
+                        @svg('heroicon-o-calendar', 'w-5 h-5 mr-1')
+                        <span class="hidden sm:inline">Exportar Mes</span>
+                    </button>
+                    
+                    <!-- View exports history -->
+                    <button onclick="openExportsListModal()"
+                            class="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                            title="Ver exportaciones">
+                        @svg('heroicon-o-document-arrow-down', 'w-5 h-5 mr-1')
+                        <span class="hidden sm:inline">Mis Exportaciones</span>
+                    </button>
                 </div>
-
-
             </div>
 
             <div class="flex items-center mb-4 w-full">
@@ -198,14 +216,289 @@
 
     {{ $orders->links() }}
 
+<!-- Monthly Export Modal -->
+<div id="monthlyExportModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-medium text-gray-900">Exportar Pedidos por Mes</h3>
+            <button onclick="closeMonthlyExportModal()" class="text-gray-400 hover:text-gray-600">
+                <span class="text-2xl">&times;</span>
+            </button>
+        </div>
 
+        <form id="monthlyExportForm" class="space-y-4">
+            @csrf
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Año</label>
+                <select name="year" id="exportYear" required
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    @for($y = date('Y'); $y >= 2020; $y--)
+                        <option value="{{ $y }}" {{ $y == date('Y') ? 'selected' : '' }}>{{ $y }}</option>
+                    @endfor
+                </select>
+            </div>
 
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Mes</label>
+                <select name="month" id="exportMonth" required
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    @foreach(['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'] as $index => $month)
+                        <option value="{{ $index + 1 }}" {{ ($index + 1) == date('n') ? 'selected' : '' }}>{{ $month }}</option>
+                    @endforeach
+                </select>
+            </div>
 
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p class="text-sm text-blue-800">
+                    <svg class="inline w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+                    </svg>
+                    La exportación se procesará en segundo plano. Recibirás una notificación cuando esté lista.
+                </p>
+            </div>
 
+            <div class="flex justify-end space-x-2 pt-4">
+                <button type="button" onclick="closeMonthlyExportModal()"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">
+                    Cancelar
+                </button>
+                <button type="submit"
+                        class="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700">
+                    Iniciar Exportación
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
 
+<!-- Exports List Modal -->
+<div id="exportsListModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-10 mx-auto p-5 border w-11/12 max-w-4xl shadow-lg rounded-md bg-white">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-medium text-gray-900">Mis Exportaciones Mensuales</h3>
+            <button onclick="closeExportsListModal()" class="text-gray-400 hover:text-gray-600">
+                <span class="text-2xl">&times;</span>
+            </button>
+        </div>
 
+        <div id="exportsList" class="space-y-2">
+            <!-- Will be populated by JavaScript -->
+            <div class="text-center py-8 text-gray-500">
+                Cargando exportaciones...
+            </div>
+        </div>
 
+        <div class="flex justify-end mt-4">
+            <button onclick="closeExportsListModal()"
+                    class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">
+                Cerrar
+            </button>
+        </div>
+    </div>
+</div>
 
+@endsection
 
+@section('scripts')
+<script>
+// Modal functions
+function openMonthlyExportModal() {
+    document.getElementById('monthlyExportModal').classList.remove('hidden');
+}
 
+function closeMonthlyExportModal() {
+    document.getElementById('monthlyExportModal').classList.add('hidden');
+}
+
+function openExportsListModal() {
+    document.getElementById('exportsListModal').classList.remove('hidden');
+    loadExportsList();
+}
+
+function closeExportsListModal() {
+    document.getElementById('exportsListModal').classList.add('hidden');
+}
+
+// Handle monthly export form submission
+document.getElementById('monthlyExportForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const year = formData.get('year');
+    const month = formData.get('month');
+    
+    const submitButton = this.querySelector('button[type="submit"]');
+    const originalText = submitButton.textContent;
+    submitButton.disabled = true;
+    submitButton.textContent = 'Procesando...';
+    
+    try {
+        const response = await fetch('{{ route("orders.export.monthly") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': formData.get('_token')
+            },
+            body: JSON.stringify({
+                year: parseInt(year),
+                month: parseInt(month)
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Show success message
+            showNotification(data.message, 'success');
+            closeMonthlyExportModal();
+            
+            // Optionally start polling for export status
+            if (data.export_id) {
+                pollExportStatus(data.export_id);
+            }
+        } else {
+            showNotification(data.message || 'Error al iniciar exportación', 'error');
+        }
+    } catch (error) {
+        console.error('Export error:', error);
+        showNotification('Error al procesar la solicitud', 'error');
+    } finally {
+        submitButton.disabled = false;
+        submitButton.textContent = originalText;
+    }
+});
+
+// Load exports list
+async function loadExportsList() {
+    const container = document.getElementById('exportsList');
+    container.innerHTML = '<div class="text-center py-8 text-gray-500">Cargando exportaciones...</div>';
+    
+    try {
+        const response = await fetch('{{ route("admin.exports.list") }}');
+        const exports = await response.json();
+        
+        if (exports.length === 0) {
+            container.innerHTML = `
+                <div class="text-center py-8 text-gray-500">
+                    <svg class="w-12 h-12 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    <p>No tienes exportaciones mensuales aún</p>
+                    <p class="text-sm mt-2">Usa el botón "Exportar Mes" para crear una</p>
+                </div>
+            `;
+            return;
+        }
+        
+        container.innerHTML = exports.map(exp => createExportCard(exp)).join('');
+    } catch (error) {
+        console.error('Error loading exports:', error);
+        container.innerHTML = '<div class="text-center py-8 text-red-500">Error al cargar exportaciones</div>';
+    }
+}
+
+// Create export card HTML
+function createExportCard(exp) {
+    let statusBadge = '';
+    let actionButton = '';
+    
+    if (exp.status === 'completed') {
+        statusBadge = '<span class="px-2 py-1 text-xs font-semibold text-green-800 bg-green-100 rounded-full">✓ Completado</span>';
+        actionButton = `
+            <a href="${exp.download_url}" 
+               class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded hover:bg-blue-700">
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                </svg>
+                Descargar
+            </a>
+        `;
+    } else if (exp.status === 'processing' || exp.status === 'pending') {
+        statusBadge = '<span class="px-2 py-1 text-xs font-semibold text-yellow-800 bg-yellow-100 rounded-full">⏳ Procesando</span>';
+        actionButton = `<span class="text-sm text-gray-500">Preparando archivo...</span>`;
+    } else if (exp.status === 'failed') {
+        statusBadge = '<span class="px-2 py-1 text-xs font-semibold text-red-800 bg-red-100 rounded-full">✗ Error</span>';
+        actionButton = `<span class="text-sm text-red-600">${exp.error_message || 'Error desconocido'}</span>`;
+    }
+    
+    return `
+        <div class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
+            <div class="flex justify-between items-start">
+                <div class="flex-1">
+                    <div class="flex items-center gap-2 mb-2">
+                        <h4 class="text-sm font-semibold text-gray-900">${exp.month_name}</h4>
+                        ${statusBadge}
+                    </div>
+                    <div class="text-xs text-gray-600 space-y-1">
+                        <p>Creado: ${exp.created_at}</p>
+                        ${exp.completed_at ? `<p>Completado: ${exp.completed_at}</p>` : ''}
+                        ${exp.total_records ? `<p>Registros: ${exp.total_records.toLocaleString()}</p>` : ''}
+                        ${exp.file_size && exp.status === 'completed' ? `<p>Tamaño: ${exp.file_size}</p>` : ''}
+                    </div>
+                </div>
+                <div class="ml-4">
+                    ${actionButton}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Poll export status
+function pollExportStatus(exportId) {
+    const pollInterval = setInterval(async () => {
+        try {
+            const response = await fetch(`/exports/${exportId}/status`);
+            const data = await response.json();
+            
+            if (data.is_completed) {
+                clearInterval(pollInterval);
+                showNotification('Exportación completada y lista para descargar', 'success');
+                // Reload exports list if modal is open
+                if (!document.getElementById('exportsListModal').classList.contains('hidden')) {
+                    loadExportsList();
+                }
+            } else if (data.has_failed) {
+                clearInterval(pollInterval);
+                showNotification('Exportación falló: ' + (data.error_message || 'Error desconocido'), 'error');
+            }
+        } catch (error) {
+            console.error('Poll error:', error);
+            clearInterval(pollInterval);
+        }
+    }, 5000); // Poll every 5 seconds
+    
+    // Stop polling after 5 minutes
+    setTimeout(() => clearInterval(pollInterval), 300000);
+}
+
+// Show notification
+function showNotification(message, type = 'info') {
+    const bgColor = type === 'success' ? 'bg-green-100 text-green-700' : 
+                    type === 'error' ? 'bg-red-100 text-red-700' : 
+                    'bg-blue-100 text-blue-700';
+    
+    const notification = document.createElement('div');
+    notification.className = `fixed top-4 right-4 p-4 rounded-lg shadow-lg ${bgColor} z-50 max-w-md`;
+    notification.innerHTML = `
+        <div class="flex items-center">
+            <span class="font-medium">${message}</span>
+            <button onclick="this.parentElement.parentElement.remove()" class="ml-4 text-lg">&times;</button>
+        </div>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => notification.remove(), 5000);
+}
+
+// Close modals on outside click
+document.getElementById('monthlyExportModal').addEventListener('click', function(e) {
+    if (e.target === this) closeMonthlyExportModal();
+});
+
+document.getElementById('exportsListModal').addEventListener('click', function(e) {
+    if (e.target === this) closeExportsListModal();
+});
+</script>
 @endsection

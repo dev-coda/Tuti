@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\BonificationController;
 use App\Http\Controllers\Admin\BrandController;
 use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\ContentController;
+use App\Http\Controllers\Admin\ContentPageController;
 use App\Http\Controllers\Admin\CouponController;
 use App\Http\Controllers\Admin\HolidayController;
 use App\Http\Controllers\Admin\KpiController;
@@ -109,9 +110,43 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
                     ->subject('Prueba de Configuración de Correo - Tuti');
             });
 
-            return response()->json(['success' => true]);
+            return response()->json(['success' => true, 'message' => 'Correo enviado exitosamente']);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['success' => false, 'message' => 'Email inválido'], 422);
+        } catch (\Symfony\Component\Mailer\Exception\HttpTransportException $e) {
+            // Specific handling for Mailgun/HTTP transport errors
+            $errorMessage = $e->getMessage();
+            \Illuminate\Support\Facades\Log::error('Mailgun HTTP error: ' . $errorMessage, [
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            // Parse Mailgun error messages
+            if (strpos($errorMessage, '401') !== false || strpos($errorMessage, 'Forbidden') !== false || strpos($errorMessage, 'Unauthorized') !== false) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Error de autenticación con Mailgun (Código 401). Por favor verifica que: 1) Tu API Key de Mailgun sea correcta, 2) Tu dominio esté verificado en Mailgun, 3) La API Key tenga permisos de envío. Puedes obtener tu API Key en: https://app.mailgun.com/settings/api_security'
+                ], 500);
+            } elseif (strpos($errorMessage, '403') !== false) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Acceso denegado por Mailgun. Verifica que tu API Key tenga permisos para enviar desde este dominio.'
+                ], 500);
+            } else {
+                return response()->json(['success' => false, 'message' => 'Error de Mailgun: ' . $errorMessage], 500);
+            }
         } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage()]);
+            \Illuminate\Support\Facades\Log::error('Test email error: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'class' => get_class($e)
+            ]);
+
+            // Check for common error patterns
+            $errorMessage = $e->getMessage();
+            if (strpos($errorMessage, 'Mailgun') !== false && strpos($errorMessage, 'credenciales') !== false) {
+                return response()->json(['success' => false, 'message' => $errorMessage], 500);
+            }
+
+            return response()->json(['success' => false, 'message' => 'Error al enviar correo: ' . $errorMessage], 500);
         }
     })->name('test.email');
     Route::resource('banners', BannerController::class);
@@ -127,13 +162,17 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::delete('featured-categories/{featuredCategory}/remove-custom-image', [FeaturedCategoryController::class, 'removeCustomImage'])->name('featured-categories.remove-custom-image');
     Route::resource('admins', AdminController::class);
 
-    // Content management routes
+    // Content management routes (Settings-based static content)
     Route::prefix('content')->name('admin.content.')->group(function () {
         Route::get('/', [ContentController::class, 'index'])->name('index');
         Route::get('/{key}/edit', [ContentController::class, 'edit'])->name('edit');
         Route::put('/{key}', [ContentController::class, 'update'])->name('update');
         Route::get('/{key}/show', [ContentController::class, 'show'])->name('show');
     });
+
+    // Content Pages CRUD (Dynamic content pages)
+    Route::resource('content-pages', ContentPageController::class);
+
     Route::resource('sellers', SellerController::class);
 
 
@@ -142,6 +181,12 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::post('/orders/{order}/retry-xml-transmission', [OrderController::class, 'retryXmlTransmission'])->name('orders.retry-xml-transmission');
     Route::post('/orders/{order}/retry-confirmation-email', [OrderController::class, 'retryConfirmationEmail'])->name('orders.retry-confirmation-email');
     Route::post('/orders/{order}/retry-status-email', [OrderController::class, 'retryStatusEmail'])->name('orders.retry-status-email');
+
+    // Monthly exports
+    Route::post('/orders/export-monthly', [OrderController::class, 'exportMonthly'])->name('orders.export.monthly');
+    Route::get('/exports', [OrderController::class, 'getExports'])->name('admin.exports.list');
+    Route::get('/exports/{exportFile}/download', [OrderController::class, 'downloadExport'])->name('admin.exports.download');
+    Route::get('/exports/{exportFile}/status', [OrderController::class, 'checkExportStatus'])->name('admin.exports.status');
     Route::resource('contacts', ContactController::class);
     Route::get('email-templates', [App\Http\Controllers\Admin\EmailTemplateController::class, 'index'])->name('admin.email-templates.index');
     Route::get('email-templates/create', [App\Http\Controllers\Admin\EmailTemplateController::class, 'create'])->name('admin.email-templates.create');

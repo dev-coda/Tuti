@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ContentPage;
 use App\Models\Setting;
 use Illuminate\Http\Request;
 
@@ -43,6 +44,21 @@ class ContentController extends Controller
         return view('content.faq', [
             'title' => 'Preguntas Frecuentes',
             'content' => $content
+        ]);
+    }
+
+    /**
+     * Show dynamic content page by slug
+     */
+    public function showPage($slug)
+    {
+        $page = ContentPage::where('slug', $slug)
+            ->where('enabled', true)
+            ->firstOrFail();
+
+        return view('content.page', [
+            'title' => $page->title,
+            'content' => $page->content
         ]);
     }
 }

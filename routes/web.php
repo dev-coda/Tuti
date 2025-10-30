@@ -35,6 +35,9 @@ Route::get('/terminos-y-condiciones', [ContentController::class, 'terms'])->name
 Route::get('/politicas-de-privacidad', [ContentController::class, 'privacy'])->name('content.privacy');
 Route::get('/preguntas-frecuentes', [ContentController::class, 'faq'])->name('content.faq');
 
+// Dynamic content pages
+Route::get('/contenido/{slug}', [ContentController::class, 'showPage'])->name('contenido.show');
+
 Route::get('/categoria-producto/{slug}', [PageController::class, 'category'])->name('category');
 Route::get('/categoria-producto/{slug}/{slug2?}', [PageController::class, 'category'])->name('category2');
 Route::get('/categoria-producto/{slug}/{slug2?}/{order?}/{category_id?}/{brand_id?}', [PageController::class, 'category'])->name('category3');

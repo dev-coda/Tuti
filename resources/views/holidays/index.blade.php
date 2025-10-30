@@ -64,10 +64,12 @@
                 {{ Aire::select([0=>'Todos', 1=>'Festivo', 2=>'Sábado'], 'type_id')->id("type_id")->value(request()->type_id, 0 ) }}
 
                 <label class="flex items-center space-x-2 cursor-pointer">
+                    <!-- Hidden input to ensure a value is always sent -->
+                    <input type="hidden" name="show_past" value="0">
                     <input type="checkbox"
                            name="show_past"
                            value="1"
-                           {{ request('show_past') ? 'checked' : '' }}
+                           {{ (request()->has('show_past') ? request('show_past') : true) ? 'checked' : '' }}
                            onchange="this.form.submit()"
                            class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50">
                     <span class="text-sm text-gray-700">Mostrar festivos pasados</span>
