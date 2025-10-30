@@ -360,8 +360,21 @@ class CartController extends Controller
             $zone = $user->zones()->orderBy('id')->first();
             $zoneCode = $zone?->code ?? $user->zone;
             $bodega = $zoneCode ? ZoneWarehouse::where('zone_code', $zoneCode)->value('bodega_code') : null;
+
+            // For products with variations, inventory is always stored at the parent product level
+            // All variation items share the same inventory pool
             $available = $bodega ? ($product->inventories()->where('bodega_code', $bodega)->value('available') ?? 0) : 0;
+
             if ($available <= $safety) {
+                \Log::info('Product blocked due to safety stock', [
+                    'product_id' => $product->id,
+                    'product_name' => $product->name,
+                    'has_variation' => !is_null($product->variation_id),
+                    'variation_id_selected' => $request->variation_id,
+                    'available' => $available,
+                    'safety' => $safety,
+                    'bodega' => $bodega
+                ]);
                 return back()->with('error', 'Este producto no está disponible por debajo del stock de seguridad.');
             }
         }
@@ -574,6 +587,8 @@ class CartController extends Controller
         }
 
         // Pre-check inventory and safety stock for each item (only when enabled)
+        // For products with variations, inventory is checked at the parent product level
+        // All variation items of a product share the same inventory pool
         if ($isInventoryEnabled) {
             foreach ($cart as $cartItem) {
                 $product = Product::find($cartItem['product_id']);
@@ -584,18 +599,43 @@ class CartController extends Controller
                 if (!$product->isInventoryManaged()) {
                     continue;
                 }
+                // Always check inventory at the parent product level (not at variation level)
+                // The cartItem['product_id'] is the parent product, even when cartItem['variation_id'] is set
                 $inventory = ProductInventory::where('product_id', $product->id)->where('bodega_code', $bodega)->first();
                 $available = (int) ($inventory?->available ?? 0);
                 $reserved = (int) ($inventory?->reserved ?? 0);
                 $safety = (int) $product->getEffectiveSafetyStock();
 
                 if ($available <= $safety) {
+                    \Log::warning('Order blocked: product below safety stock', [
+                        'product_id' => $product->id,
+                        'product_name' => $product->name,
+                        'has_variation' => !is_null($product->variation_id),
+                        'variation_item_selected' => $cartItem['variation_id'] ?? null,
+                        'available' => $available,
+                        'safety' => $safety,
+                        'bodega' => $bodega
+                    ]);
                     return back()->with('error', "{$product->name} está por debajo del stock de seguridad.");
                 }
                 if ($available <= 5) {
+                    \Log::warning('Order blocked: low inventory', [
+                        'product_id' => $product->id,
+                        'product_name' => $product->name,
+                        'available' => $available,
+                        'bodega' => $bodega
+                    ]);
                     return back()->with('error', "El producto {$product->name} tiene inventario insuficiente en su zona.");
                 }
                 if ($cartItem['quantity'] > ($available - max($reserved, 0))) {
+                    \Log::warning('Order blocked: quantity exceeds available', [
+                        'product_id' => $product->id,
+                        'product_name' => $product->name,
+                        'requested' => $cartItem['quantity'],
+                        'available' => $available,
+                        'reserved' => $reserved,
+                        'bodega' => $bodega
+                    ]);
                     return back()->with('error', "La cantidad solicitada de {$product->name} excede el inventario disponible en su zona.");
                 }
             }
@@ -787,7 +827,11 @@ class CartController extends Controller
                 ]);
 
                 // Decrement inventory (only when enabled)
+                // For products with variations, inventory is decremented from the parent product
+                // All variation items share the same inventory pool
                 if ($isInventoryEnabled && $p->isInventoryManaged()) {
+                    // Always lock and update inventory at parent product level
+                    // $p->id is the parent product ID, even when $row['variation_id'] is set
                     $inventory = ProductInventory::lockForUpdate()->where('product_id', $p->id)->where('bodega_code', $bodega)->first();
                     $current = (int) ($inventory?->available ?? 0);
                     $reserved = (int) ($inventory?->reserved ?? 0);
@@ -795,6 +839,17 @@ class CartController extends Controller
 
                     // Ensure after decrement, available won't go below safety
                     if ($current <= 5 || ($current - (int)$row['quantity']) < $safety || $row['quantity'] > ($current - max($reserved, 0))) {
+                        \Log::error('Order rollback: inventory insufficient during final check', [
+                            'product_id' => $p->id,
+                            'product_name' => $p->name,
+                            'has_variation' => !is_null($p->variation_id),
+                            'variation_item_selected' => $row['variation_id'] ?? null,
+                            'requested' => $row['quantity'],
+                            'available' => $current,
+                            'reserved' => $reserved,
+                            'safety' => $safety,
+                            'bodega' => $bodega
+                        ]);
                         DB::rollBack();
                         return back()->with('error', "Inventario insuficiente para {$p->name} en su zona.");
                     }
@@ -802,6 +857,11 @@ class CartController extends Controller
                         $inventory->update(['available' => $current - (int) $row['quantity']]);
                     } else {
                         // shouldn't happen, but guard
+                        \Log::warning('Creating new inventory record during order', [
+                            'product_id' => $p->id,
+                            'bodega' => $bodega,
+                            'quantity_ordered' => $row['quantity']
+                        ]);
                         ProductInventory::create([
                             'product_id' => $p->id,
                             'bodega_code' => $bodega,

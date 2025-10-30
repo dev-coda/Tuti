@@ -16,8 +16,20 @@ class ProcessOrder implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    /**
+     * The number of times the job may be attempted.
+     */
     public $tries = 3;
-    public $backoff = [60, 300, 900]; // 1 min, 5 min, 15 min
+
+    /**
+     * Retry intervals: 5 minutes, 30 minutes, 2 hours
+     */
+    public $backoff = [300, 1800, 7200]; // 5 min, 30 min, 2 hours
+
+    /**
+     * The maximum number of seconds the job should run before timing out.
+     */
+    public $timeout = 120; // 2 minutes
 
     /**
      * Create a new job instance.
