@@ -54,6 +54,7 @@
                         icon='heroicon-o-document-text'
                         :menu="[
                             'admin.content.index'=>'Gestión de Contenido',
+                            'content-pages.index'=>'Páginas de Contenido',
                             ]" />
 
                     <x-dropdown title='Configuraciones'

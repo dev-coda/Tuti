@@ -352,6 +352,51 @@
                 </div>
                 
                 <div class="p-6">
+                    @php
+                        $mailDriver = $mailerSettings['mail_mailer']->value ?? 'mailgun';
+                        $mailgunDomain = $mailerSettings['mailgun_domain']->value ?? '';
+                        $mailgunSecret = $mailerSettings['mailgun_secret']->value ?? '';
+                        $smtpHost = $mailerSettings['smtp_host']->value ?? '';
+                        $smtpUsername = $mailerSettings['smtp_username']->value ?? '';
+                        $smtpPassword = $mailerSettings['smtp_password']->value ?? '';
+                        
+                        $showMailgunWarning = $mailDriver === 'mailgun' && (empty($mailgunDomain) || empty($mailgunSecret));
+                        $showSmtpWarning = $mailDriver === 'smtp' && (empty($smtpHost) || empty($smtpUsername) || empty($smtpPassword));
+                    @endphp
+                    
+                    @if($showMailgunWarning)
+                        <div class="mb-4 p-4 bg-red-50 border border-red-200 rounded-md">
+                            <div class="flex">
+                                <svg class="w-5 h-5 text-red-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
+                                </svg>
+                                <div class="ml-3">
+                                    <h4 class="text-sm font-medium text-red-800">Credenciales de Mailgun Incompletas</h4>
+                                    <p class="mt-1 text-xs text-red-700">
+                                        Para usar Mailgun, debes configurar tanto el <strong>Dominio</strong> como la <strong>Clave Secreta</strong>. 
+                                        <br>• Obtén tu API Key en: <a href="https://app.mailgun.com/settings/api_security" target="_blank" class="underline">https://app.mailgun.com/settings/api_security</a>
+                                        <br>• Verifica tu dominio en: <a href="https://app.mailgun.com/domains" target="_blank" class="underline">https://app.mailgun.com/domains</a>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    @endif
+                    
+                    @if($showSmtpWarning)
+                        <div class="mb-4 p-4 bg-red-50 border border-red-200 rounded-md">
+                            <div class="flex">
+                                <svg class="w-5 h-5 text-red-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
+                                </svg>
+                                <div class="ml-3">
+                                    <h4 class="text-sm font-medium text-red-800">Credenciales SMTP Incompletas</h4>
+                                    <p class="mt-1 text-xs text-red-700">
+                                        Para usar SMTP, debes configurar el <strong>Servidor</strong>, <strong>Usuario</strong> y <strong>Contraseña</strong>.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    @endif
                     <div class="grid grid-cols-1 gap-6 sm:grid-cols-3">
                         <div class="sm:col-span-2">
                             <label for="test_email" class="block text-sm font-medium text-gray-700 mb-2">

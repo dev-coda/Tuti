@@ -16,13 +16,13 @@ class HolidayController extends Controller
      */
     public function index(Request $request)
     {
+        // Default to showing past holidays unless explicitly set to false
+        $showPast = $request->has('show_past') ? (bool)$request->show_past : true;
+
         $holidays = Holiday::query()
             ->orderBy('date')
-            ->when($request->has('show_past') && $request->show_past, function ($query) {
-                // Show all holidays if show_past parameter is set
-                return $query;
-            }, function ($query) {
-                // Default: show only future holidays
+            ->when(!$showPast, function ($query) {
+                // Only filter to future holidays if show_past is explicitly false
                 return $query->where('date', '>=', now());
             })
             ->when($request->type_id && $request->type_id > 0, function ($query, $type_id) {
@@ -30,7 +30,7 @@ class HolidayController extends Controller
             })
             ->paginate();
 
-        $context = compact('holidays');
+        $context = compact('holidays', 'showPast');
 
         return view('holidays.index', $context);
     }
