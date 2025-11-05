@@ -3,14 +3,30 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Traits\ApiPaginationTrait;
 use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 
 class PreciosApiController extends Controller
 {
+    use ApiPaginationTrait;
+
     /**
      * Display product prices.
+     * 
+     * Query Parameters:
+     * - product_ids: Comma-separated product IDs
+     * - skus: Comma-separated SKUs
+     * - category_id: Filter by category ID
+     * - brand_id: Filter by brand ID
+     * - min_price: Minimum price filter
+     * - max_price: Maximum price filter
+     * - sort_by/order_by: Sort field (price, name, sku, updated_at)
+     * - sort_direction/order: Sort direction (asc, desc)
+     * - per_page: Items per page (default: 50, max: 200)
+     * - limit: Maximum number of items to return (for non-paginated)
+     * - offset: Number of items to skip (for non-paginated)
      */
     public function index(Request $request): JsonResponse
     {
@@ -37,12 +53,26 @@ class PreciosApiController extends Controller
             $query->where('brand_id', $request->get('brand_id'));
         }
 
-        // Pagination
-        $perPage = min($request->get('per_page', 50), 200); // Max 200 items per page for prices
-        $products = $query->paginate($perPage);
+        if ($request->has('min_price')) {
+            $query->where('price', '>=', $request->get('min_price'));
+        }
+
+        if ($request->has('max_price')) {
+            $query->where('price', '<=', $request->get('max_price'));
+        }
+
+        // Apply sorting and pagination/limit-offset
+        $result = $this->applyPaginationAndSorting(
+            $query,
+            ['id', 'sku', 'name', 'price', 'discount', 'updated_at'], // Sortable fields
+            'sku', // Default sort field
+            'asc', // Default direction
+            50, // Default per page
+            200 // Max per page
+        );
 
         // Transform to price-focused format
-        $products->getCollection()->transform(function ($product) {
+        $transformer = function ($product) {
             return [
                 'product_id' => $product->id,
                 'sku' => $product->sku,
@@ -56,17 +86,9 @@ class PreciosApiController extends Controller
                 'calculate_package_price' => $product->calculate_package_price,
                 'updated_at' => $product->updated_at,
             ];
-        });
+        };
 
-        return response()->json([
-            'data' => $products->items(),
-            'pagination' => [
-                'current_page' => $products->currentPage(),
-                'last_page' => $products->lastPage(),
-                'per_page' => $products->perPage(),
-                'total' => $products->total(),
-            ]
-        ]);
+        return $this->jsonResponse($result, $transformer);
     }
 
     /**
