@@ -360,8 +360,21 @@ class CartController extends Controller
             $zone = $user->zones()->orderBy('id')->first();
             $zoneCode = $zone?->code ?? $user->zone;
             $bodega = $zoneCode ? ZoneWarehouse::where('zone_code', $zoneCode)->value('bodega_code') : null;
+
+            // For products with variations, inventory is always stored at the parent product level
+            // All variation items share the same inventory pool
             $available = $bodega ? ($product->inventories()->where('bodega_code', $bodega)->value('available') ?? 0) : 0;
+
             if ($available <= $safety) {
+                \Log::info('Product blocked due to safety stock', [
+                    'product_id' => $product->id,
+                    'product_name' => $product->name,
+                    'has_variation' => !is_null($product->variation_id),
+                    'variation_id_selected' => $request->variation_id,
+                    'available' => $available,
+                    'safety' => $safety,
+                    'bodega' => $bodega
+                ]);
                 return back()->with('error', 'Este producto no está disponible por debajo del stock de seguridad.');
             }
         }
@@ -578,6 +591,8 @@ class CartController extends Controller
         }
 
         // Pre-check inventory and safety stock for each item (only when enabled)
+        // For products with variations, inventory is checked at the parent product level
+        // All variation items of a product share the same inventory pool
         if ($isInventoryEnabled) {
             foreach ($cart as $cartItem) {
                 $product = Product::find($cartItem['product_id']);
@@ -588,18 +603,43 @@ class CartController extends Controller
                 if (!$product->isInventoryManaged()) {
                     continue;
                 }
+                // Always check inventory at the parent product level (not at variation level)
+                // The cartItem['product_id'] is the parent product, even when cartItem['variation_id'] is set
                 $inventory = ProductInventory::where('product_id', $product->id)->where('bodega_code', $bodega)->first();
                 $available = (int) ($inventory?->available ?? 0);
                 $reserved = (int) ($inventory?->reserved ?? 0);
                 $safety = (int) $product->getEffectiveSafetyStock();
 
                 if ($available <= $safety) {
+                    \Log::warning('Order blocked: product below safety stock', [
+                        'product_id' => $product->id,
+                        'product_name' => $product->name,
+                        'has_variation' => !is_null($product->variation_id),
+                        'variation_item_selected' => $cartItem['variation_id'] ?? null,
+                        'available' => $available,
+                        'safety' => $safety,
+                        'bodega' => $bodega
+                    ]);
                     return back()->with('error', "{$product->name} está por debajo del stock de seguridad.");
                 }
                 if ($available <= 5) {
+                    \Log::warning('Order blocked: low inventory', [
+                        'product_id' => $product->id,
+                        'product_name' => $product->name,
+                        'available' => $available,
+                        'bodega' => $bodega
+                    ]);
                     return back()->with('error', "El producto {$product->name} tiene inventario insuficiente en su zona.");
                 }
                 if ($cartItem['quantity'] > ($available - max($reserved, 0))) {
+                    \Log::warning('Order blocked: quantity exceeds available', [
+                        'product_id' => $product->id,
+                        'product_name' => $product->name,
+                        'requested' => $cartItem['quantity'],
+                        'available' => $available,
+                        'reserved' => $reserved,
+                        'bodega' => $bodega
+                    ]);
                     return back()->with('error', "La cantidad solicitada de {$product->name} excede el inventario disponible en su zona.");
                 }
             }
@@ -753,9 +793,41 @@ class CartController extends Controller
                 }
             }
 
+            // First pass: Group cart items by product_id for bonification aggregation
+            // This ensures all variations (same product_id with different variation_id) count together for bonifications
+            // Note: product_id in cart is always the parent product when variations are involved
+            $productQuantities = [];
+            foreach ($cart as $key => $row) {
+                $productId = $row['product_id'];
+                $tempProduct = Product::find($productId);
+                if ($tempProduct) {
+                    if (!isset($productQuantities[$productId])) {
+                        $productQuantities[$productId] = 0;
+                    }
+                    
+                    // Aggregate quantities across all variations of the same product
+                    // If same product appears multiple times with different variation_id, they all count together
+                    $packageQuantity = $tempProduct->package_quantity ?? 1;
+                    $productQuantities[$productId] += $row['quantity'] * $packageQuantity;
+                }
+                // Note: If product not found, it will be caught in the main loop below
+            }
+
             foreach ($cart as $key => $row) {
                 $id = $row['product_id'];
                 $p = Product::with('brand.vendor', 'bonifications')->find($id);
+                
+                // Skip if product not found (might have been deleted)
+                if (!$p) {
+                    Log::warning('Product not found during order processing', [
+                        'product_id' => $id,
+                        'order_id' => $order->id ?? null,
+                        'user_id' => $user_id ?? null,
+                    ]);
+                    DB::rollBack();
+                    return back()->with('error', 'Uno de los productos en tu carrito ya no está disponible.');
+                }
+                
                 $lookupKey = $id . '_' . ($row['variation_id'] ?? 'null');
 
                 // Check if this product was modified by coupon discount service
@@ -796,7 +868,11 @@ class CartController extends Controller
                 ]);
 
                 // Decrement inventory (only when enabled)
+                // For products with variations, inventory is decremented from the parent product
+                // All variation items share the same inventory pool
                 if ($isInventoryEnabled && $p->isInventoryManaged()) {
+                    // Always lock and update inventory at parent product level
+                    // $p->id is the parent product ID, even when $row['variation_id'] is set
                     $inventory = ProductInventory::lockForUpdate()->where('product_id', $p->id)->where('bodega_code', $bodega)->first();
                     $current = (int) ($inventory?->available ?? 0);
                     $reserved = (int) ($inventory?->reserved ?? 0);
@@ -804,6 +880,17 @@ class CartController extends Controller
 
                     // Ensure after decrement, available won't go below safety
                     if ($current <= 5 || ($current - (int)$row['quantity']) < $safety || $row['quantity'] > ($current - max($reserved, 0))) {
+                        \Log::error('Order rollback: inventory insufficient during final check', [
+                            'product_id' => $p->id,
+                            'product_name' => $p->name,
+                            'has_variation' => !is_null($p->variation_id),
+                            'variation_item_selected' => $row['variation_id'] ?? null,
+                            'requested' => $row['quantity'],
+                            'available' => $current,
+                            'reserved' => $reserved,
+                            'safety' => $safety,
+                            'bodega' => $bodega
+                        ]);
                         DB::rollBack();
                         return back()->with('error', "Inventario insuficiente para {$p->name} en su zona.");
                     }
@@ -811,6 +898,11 @@ class CartController extends Controller
                         $inventory->update(['available' => $current - (int) $row['quantity']]);
                     } else {
                         // shouldn't happen, but guard
+                        \Log::warning('Creating new inventory record during order', [
+                            'product_id' => $p->id,
+                            'bodega' => $bodega,
+                            'quantity_ordered' => $row['quantity']
+                        ]);
                         ProductInventory::create([
                             'product_id' => $p->id,
                             'bodega_code' => $bodega,
@@ -822,17 +914,24 @@ class CartController extends Controller
                 }
 
                 // Process ALL bonifications that apply to this product
-                // A product can qualify for multiple bonifications simultaneously
-                foreach ($p->bonifications as $bonification) {
-                    // Calculate total individual items purchased (considering package_quantity)
-                    // Bonifications always work with individual items, not package units
-                    $packageQuantity = $p->package_quantity ?? 1;
-                    $individualItemsPurchased = $row['quantity'] * $packageQuantity;
-
-                    // Calculate bonification based on individual items
-                    // Example: If customer buys 10 packages of 6 items each (60 total items)
-                    // and bonification is "buy 10 get 1 free", they get floor(60/10) * 1 = 6 free items
-                    $bonification_quantity = floor($individualItemsPurchased / $bonification->buy * $bonification->get);
+                // IMPORTANT: For products with variations, bonifications are checked at the product level
+                // and quantities are aggregated across all variations (same product_id, different variation_id)
+                // This ensures that buying 5 Small + 5 Large counts as 10 total for bonification purposes
+                
+                // Get bonifications for this product (product_id in cart is always the parent when variations are involved)
+                $bonificationsToCheck = $p->bonifications;
+                
+                // Process bonifications using aggregated quantities from all variations of this product
+                foreach ($bonificationsToCheck as $bonification) {
+                    // Use aggregated quantity from all cart items with this product_id
+                    // This ensures variations count together for bonifications
+                    $aggregatedIndividualItems = $productQuantities[$id] ?? ($row['quantity'] * ($p->package_quantity ?? 1));
+                    
+                    // Calculate bonification based on aggregated individual items
+                    // Example: If customer buys 5 Small + 5 Large (variations) of a product with package_quantity=6
+                    // Total = (5+5) * 6 = 60 individual items
+                    // If bonification is "buy 10 get 1 free", they get floor(60/10) * 1 = 6 free items
+                    $bonification_quantity = floor($aggregatedIndividualItems / $bonification->buy * $bonification->get);
 
                     // Skip this bonification if the customer doesn't qualify (quantity = 0)
                     if ($bonification_quantity <= 0) {
@@ -844,13 +943,31 @@ class CartController extends Controller
                         $bonification_quantity = $bonification->max;
                     }
 
-                    OrderProductBonification::create([
-                        'bonification_id' => $bonification->id,
-                        'order_product_id' => $orderProduct->id,
-                        'product_id' => $bonification->product_id,
-                        'quantity' => $bonification_quantity,
-                        'order_id' => $order->id,
-                    ]);
+                    // Only create bonification record once per bonification (not per variation)
+                    // Check if we've already created this bonification for this product in this order
+                    $existingBonification = OrderProductBonification::where('order_id', $order->id)
+                        ->where('bonification_id', $bonification->id)
+                        ->where('product_id', $bonification->product_id)
+                        ->first();
+                    
+                    if (!$existingBonification) {
+                        // Create bonification record linked to the first order product of this product
+                        // Find the first order product for this product_id
+                        $firstOrderProductForProduct = OrderProduct::where('order_id', $order->id)
+                            ->where('product_id', $id)
+                            ->first();
+                        
+                        // Use the first order product found, or current one if none found yet
+                        $bonificationOrderProductId = $firstOrderProductForProduct ? $firstOrderProductForProduct->id : $orderProduct->id;
+                        
+                        OrderProductBonification::create([
+                            'bonification_id' => $bonification->id,
+                            'order_product_id' => $bonificationOrderProductId,
+                            'product_id' => $bonification->product_id,
+                            'quantity' => $bonification_quantity,
+                            'order_id' => $order->id,
+                        ]);
+                    }
                 }
 
 

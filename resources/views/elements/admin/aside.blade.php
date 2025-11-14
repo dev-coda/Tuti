@@ -33,6 +33,13 @@
                             <span class="ml-3" sidebar-toggle-item>Promociones</span>
                         </a>
                     </li>
+
+                    <li>
+                        <a href="{{ route('admin.reports.index') }}">
+                            @svg('heroicon-o-document-chart-bar', 'w-6 h-6 text-gray-500')
+                            <span class="ml-3" sidebar-toggle-item>Reportes</span>
+                        </a>
+                    </li>
             
                     <x-dropdown 
                         title='Productos' 

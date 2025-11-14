@@ -39,7 +39,10 @@ class Order extends Model
         'observations',
         'coupon_id',
         'coupon_code',
-        'coupon_discount'
+        'coupon_discount',
+        'processing_attempts',
+        'last_processing_attempt',
+        'manually_retried'
     ];
 
 
@@ -153,5 +156,39 @@ class Order extends Model
     public function couponUsages()
     {
         return $this->hasMany(CouponUsage::class);
+    }
+
+    /**
+     * Increment the processing attempts counter
+     */
+    public function incrementProcessingAttempts(): void
+    {
+        $this->increment('processing_attempts');
+        $this->update(['last_processing_attempt' => now()]);
+    }
+
+    /**
+     * Check if order has exceeded maximum processing attempts
+     */
+    public function hasExceededMaxAttempts(int $maxAttempts = 3): bool
+    {
+        return $this->processing_attempts >= $maxAttempts;
+    }
+
+    /**
+     * Check if order is stuck (pending for too long)
+     */
+    public function isStuck(int $hoursThreshold = 2): bool
+    {
+        return $this->status_id === self::STATUS_PENDING
+            && $this->created_at->diffInHours(now()) >= $hoursThreshold;
+    }
+
+    /**
+     * Mark order as manually retried
+     */
+    public function markAsManuallyRetried(): void
+    {
+        $this->update(['manually_retried' => true]);
     }
 }

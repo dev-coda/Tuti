@@ -35,6 +35,18 @@ class Kernel extends ConsoleKernel
                 SyncProductInventory::dispatch();
             }
         })->dailyAt('02:30');
+
+        // Retry stuck pending orders every hour
+        // This catches orders that failed to process and ensures they get retried
+        $schedule->command('orders:retry-pending --hours=2 --max=20')
+            ->hourly()
+            ->withoutOverlapping()
+            ->runInBackground();
+
+        // Cleanup expired reports daily
+        $schedule->command('reports:cleanup-expired')
+            ->daily()
+            ->withoutOverlapping();
     }
 
     /**

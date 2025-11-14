@@ -75,11 +75,15 @@
                     {{ Aire::select($vendors, 'vendor_id')->value(request()->vendor_id)->groupClass('mb-0') }}
 
                     <div>
-                        <input type="date" name="from_date" value="{{ request()->from_date }}"
+                        <label for="from_date" class="block mb-1 text-xs font-medium text-gray-700 sm:hidden">Desde</label>
+                        <input type="date" name="from_date" id="from_date" value="{{ request()->from_date }}"
+                            placeholder="Fecha desde"
                             class="bg-gray-50 border border-gray-300 text-gray-900 sm:text-sm rounded focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5">
                     </div>
                     <div>
-                        <input type="date" name="to_date" value="{{ request()->to_date }}"
+                        <label for="to_date" class="block mb-1 text-xs font-medium text-gray-700 sm:hidden">Hasta</label>
+                        <input type="date" name="to_date" id="to_date" value="{{ request()->to_date }}"
+                            placeholder="Fecha hasta"
                             class="bg-gray-50 border border-gray-300 text-gray-900 sm:text-sm rounded focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5">
                     </div>
                     {{ Aire::button('Buscar')->variant()->submit() }}
@@ -213,9 +217,40 @@
         </div>
     </div>
 
+    @if($orders->total() > 0)
+        <div class="p-4 bg-white border-t border-gray-200">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <p class="text-sm text-gray-700">
+                    Mostrando 
+                    <span class="font-medium">{{ $orders->firstItem() }}</span> 
+                    a 
+                    <span class="font-medium">{{ $orders->lastItem() }}</span> 
+                    de 
+                    <span class="font-medium">{{ number_format($orders->total(), 0, ',', '.') }}</span> 
+                    resultados
+                </p>
+                <div>
+                    {{ $orders->links() }}
+                </div>
+            </div>
+        </div>
+    @else
+        <div class="p-4 bg-white border-t border-gray-200">
+            <p class="text-sm text-gray-500 text-center">No se encontraron resultados</p>
+        </div>
+    @endif
 
-    {{ $orders->links() }}
+<!-- Monthly Export Modal -->
+<div id="monthlyExportModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-medium text-gray-900">Exportar Pedidos por Mes</h3>
+            <button onclick="closeMonthlyExportModal()" class="text-gray-400 hover:text-gray-600">
+                <span class="text-2xl">&times;</span>
+            </button>
+        </div>
 
+<<<<<<< HEAD
 <!-- Monthly Export Modal -->
 <div id="monthlyExportModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
     <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
@@ -309,7 +344,6 @@ function openMonthlyExportModal() {
 function closeMonthlyExportModal() {
     document.getElementById('monthlyExportModal').classList.add('hidden');
 }
-
 function openExportsListModal() {
     document.getElementById('exportsListModal').classList.remove('hidden');
     loadExportsList();

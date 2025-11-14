@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\Order;
+use App\Models\User;
 use App\Repositories\OrderRepository;
 use App\Services\MailingService;
 use Illuminate\Bus\Queueable;
@@ -12,18 +13,35 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 class ProcessOrderAsync implements ShouldQueue, ShouldBeUnique
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    /**
+     * The number of times the job may be attempted.
+     * After 3 attempts with lengthy intervals, the order is marked as failed.
+     */
     public $tries = 3;
-    public $backoff = [60, 300, 900]; // 1 min, 5 min, 15 min
+
+    /**
+     * Retry intervals: 5 minutes, 30 minutes, 2 hours
+     * These lengthy intervals help handle temporary API/network issues
+     */
+    public $backoff = [300, 1800, 7200]; // 5 min, 30 min, 2 hours
+
+    /**
+     * The maximum number of seconds the job should run before timing out.
+     * Prevents jobs from hanging indefinitely.
+     */
+    public $timeout = 120; // 2 minutes
 
     /**
      * The number of seconds after which the job's unique lock will be released.
+     * Set to 3 hours to allow all retries to complete.
      */
-    public $uniqueFor = 3600; // 1 hour
+    public $uniqueFor = 10800; // 3 hours
 
     /**
      * Create a new job instance.
@@ -47,9 +65,14 @@ class ProcessOrderAsync implements ShouldQueue, ShouldBeUnique
      */
     public function handle(): void
     {
+        // Increment processing attempts tracker
+        $this->order->incrementProcessingAttempts();
+
         Log::info("Starting async order processing for order {$this->order->id}", [
             'order_id' => $this->order->id,
-            'attempt' => $this->attempts()
+            'attempt' => $this->attempts(),
+            'processing_attempts' => $this->order->processing_attempts,
+            'manually_retried' => $this->order->manually_retried
         ]);
 
         // Refresh order from database to get latest status
@@ -111,15 +134,100 @@ class ProcessOrderAsync implements ShouldQueue, ShouldBeUnique
 
     /**
      * Handle a job failure.
+     * Called when all retry attempts have been exhausted.
      */
     public function failed(\Throwable $exception): void
     {
-        Log::error("ProcessOrderAsync job completely failed for order {$this->order->id}", [
+        Log::critical("ProcessOrderAsync job permanently failed for order {$this->order->id}", [
             'order_id' => $this->order->id,
-            'error' => $exception->getMessage()
+            'user_id' => $this->order->user_id,
+            'total' => $this->order->total,
+            'error' => $exception->getMessage(),
+            'trace' => $exception->getTraceAsString(),
+            'created_at' => $this->order->created_at,
+            'attempts_made' => $this->tries
+        ]);
+
+        // Update order with detailed failure information
+        $this->order->update([
+            'status_id' => Order::STATUS_ERROR_WEBSERVICE,
+            'response' => sprintf(
+                'Processing failed permanently after %d attempts over %s. Last error: %s',
+                $this->tries,
+                $this->formatRetryDuration(),
+                $exception->getMessage()
+            )
         ]);
 
         // Send admin notification about failed order processing
-        // You can implement admin notification here if needed
+        $this->sendAdminFailureNotification($exception);
+    }
+
+    /**
+     * Send notification to admins about permanently failed order
+     */
+    private function sendAdminFailureNotification(\Throwable $exception): void
+    {
+        try {
+            $adminEmails = User::where('role', 'admin')
+                ->orWhere('email', 'like', '%@admin.%')
+                ->pluck('email')
+                ->toArray();
+
+            if (empty($adminEmails)) {
+                Log::warning("No admin emails found to notify about failed order {$this->order->id}");
+                return;
+            }
+
+            $subject = "⚠️ Order #{$this->order->id} Failed After Multiple Retries";
+            $message = sprintf(
+                "Order #%d failed to process after %d attempts.\n\n" .
+                    "Order Details:\n" .
+                    "- Order ID: %d\n" .
+                    "- Customer: %s (ID: %d)\n" .
+                    "- Total: $%s\n" .
+                    "- Created: %s\n" .
+                    "- Retry Intervals: 5 min, 30 min, 2 hours\n\n" .
+                    "Error: %s\n\n" .
+                    "Action Required: Please check the order in the admin panel and process it manually.",
+                $this->order->id,
+                $this->tries,
+                $this->order->id,
+                $this->order->user->name ?? 'Unknown',
+                $this->order->user_id,
+                number_format($this->order->total, 2),
+                $this->order->created_at->format('Y-m-d H:i:s'),
+                $exception->getMessage()
+            );
+
+            foreach ($adminEmails as $email) {
+                \Mail::raw($message, function ($mail) use ($email, $subject) {
+                    $mail->to($email)
+                        ->subject($subject);
+                });
+            }
+
+            Log::info("Admin notifications sent for failed order {$this->order->id}", [
+                'recipients' => $adminEmails
+            ]);
+        } catch (\Exception $e) {
+            Log::error("Failed to send admin notification for order {$this->order->id}: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Format the total retry duration for human readability
+     */
+    private function formatRetryDuration(): string
+    {
+        $totalSeconds = array_sum($this->backoff);
+        $hours = floor($totalSeconds / 3600);
+        $minutes = floor(($totalSeconds % 3600) / 60);
+
+        $parts = [];
+        if ($hours > 0) $parts[] = "{$hours} hour" . ($hours > 1 ? 's' : '');
+        if ($minutes > 0) $parts[] = "{$minutes} minute" . ($minutes > 1 ? 's' : '');
+
+        return implode(' and ', $parts) ?: 'less than a minute';
     }
 }

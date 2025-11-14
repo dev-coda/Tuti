@@ -54,9 +54,9 @@ class MailingService
                     Config::set('services.mailgun.secret', $mailgunSecret);
                     Config::set('services.mailgun.endpoint', $mailgunEndpoint);
                 } else {
-                    Log::warning("Mailgun selected but credentials missing. Domain: " . ($mailgunDomain ? 'set' : 'missing') . ", Secret: " . ($mailgunSecret ? 'set' : 'missing') . ". Falling back to log driver.");
-                    // Fallback to log driver instead of throwing exception - allows app to run for development
-                    Config::set('mail.default', 'log');
+                    Log::warning("Mailgun selected but credentials missing. Domain: " . ($mailgunDomain ? 'set' : 'missing') . ", Secret: " . ($mailgunSecret ? 'set' : 'missing') . ". Falling back to SMTP.");
+                    // Fallback to SMTP instead of throwing exception
+                    Config::set('mail.default', 'smtp');
                 }
             }
 
@@ -77,10 +77,10 @@ class MailingService
                 Config::set('mail.mailers.smtp.password', $smtpPassword);
             }
 
-            // If Mailgun was requested but not available, fallback to log driver
+            // If Mailgun was requested but not available, fallback to SMTP
             if ($mailDriver === 'mailgun' && !$mailgunAvailable) {
-                Log::warning("Mailgun selected but package not installed. Falling back to log driver. To install: composer require symfony/mailgun-mailer symfony/http-client");
-                Config::set('mail.default', 'log');
+                Log::warning("Mailgun package not available. Falling back to SMTP. To install: composer require symfony/mailgun-mailer symfony/http-client");
+                Config::set('mail.default', 'smtp');
             }
         } catch (\Exception $e) {
             Log::error("Failed to update mail configuration: " . $e->getMessage());

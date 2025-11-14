@@ -17,7 +17,7 @@ class PedidosApiController extends Controller
     {
         $query = Order::with([
             'user:id,name,email,document',
-            'zone:id,name',
+            'zone:id,zone',
             'seller:id,name,email',
             'coupon:id,code,name',
             'products.product:id,name,sku',
@@ -137,7 +137,7 @@ class PedidosApiController extends Controller
         $order->load([
             'user:id,name,email,document,phone,city_id',
             'user.city:id,name',
-            'zone:id,name',
+            'zone:id,zone',
             'seller:id,name,email',
             'coupon:id,code,name,type,value',
             'products.product:id,name,sku,price',
@@ -209,7 +209,7 @@ class PedidosApiController extends Controller
     public function byCustomer(Request $request, User $customer): JsonResponse
     {
         $query = $customer->orders()->with([
-            'zone:id,name',
+            'zone:id,zone',
             'seller:id,name,email',
             'coupon:id,code,name',
             'products.product:id,name,sku'

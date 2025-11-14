@@ -98,11 +98,22 @@ class Product extends Model
         return $this->hasMany(ProductImage::class)->orderBy('position')->orderBy('id');
     }
 
+    /**
+     * Get inventory records for this product
+     * NOTE: For products with variations, inventory is ALWAYS stored at the parent product level.
+     * All variation items (e.g., Small, Medium, Large) share the same inventory pool.
+     * Never look for inventory on individual variation items.
+     */
     public function inventories()
     {
         return $this->hasMany(ProductInventory::class);
     }
 
+    /**
+     * Get available inventory for a specific warehouse (bodega)
+     * For products with variations, this returns the shared inventory pool
+     * that all variation items draw from.
+     */
     public function getInventoryForBodega(?string $bodegaCode): int
     {
         if (!$bodegaCode) return 0;
@@ -406,7 +417,8 @@ class Product extends Model
         }
 
         // Default opt-out for products with variations
-        if (!empty($this->variation)) {
+        // Check variation_id column directly (always available) instead of relationship
+        if (!empty($this->variation_id)) {
             return false;
         }
 
