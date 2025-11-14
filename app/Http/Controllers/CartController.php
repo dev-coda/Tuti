@@ -786,9 +786,41 @@ class CartController extends Controller
                 }
             }
 
+            // First pass: Group cart items by product_id for bonification aggregation
+            // This ensures all variations (same product_id with different variation_id) count together for bonifications
+            // Note: product_id in cart is always the parent product when variations are involved
+            $productQuantities = [];
+            foreach ($cart as $key => $row) {
+                $productId = $row['product_id'];
+                $tempProduct = Product::find($productId);
+                if ($tempProduct) {
+                    if (!isset($productQuantities[$productId])) {
+                        $productQuantities[$productId] = 0;
+                    }
+                    
+                    // Aggregate quantities across all variations of the same product
+                    // If same product appears multiple times with different variation_id, they all count together
+                    $packageQuantity = $tempProduct->package_quantity ?? 1;
+                    $productQuantities[$productId] += $row['quantity'] * $packageQuantity;
+                }
+                // Note: If product not found, it will be caught in the main loop below
+            }
+
             foreach ($cart as $key => $row) {
                 $id = $row['product_id'];
                 $p = Product::with('brand.vendor', 'bonifications')->find($id);
+                
+                // Skip if product not found (might have been deleted)
+                if (!$p) {
+                    Log::warning('Product not found during order processing', [
+                        'product_id' => $id,
+                        'order_id' => $order->id ?? null,
+                        'user_id' => $user_id ?? null,
+                    ]);
+                    DB::rollBack();
+                    return back()->with('error', 'Uno de los productos en tu carrito ya no está disponible.');
+                }
+                
                 $lookupKey = $id . '_' . ($row['variation_id'] ?? 'null');
 
                 // Check if this product was modified by coupon discount service
@@ -873,17 +905,24 @@ class CartController extends Controller
                 }
 
                 // Process ALL bonifications that apply to this product
-                // A product can qualify for multiple bonifications simultaneously
-                foreach ($p->bonifications as $bonification) {
-                    // Calculate total individual items purchased (considering package_quantity)
-                    // Bonifications always work with individual items, not package units
-                    $packageQuantity = $p->package_quantity ?? 1;
-                    $individualItemsPurchased = $row['quantity'] * $packageQuantity;
-
-                    // Calculate bonification based on individual items
-                    // Example: If customer buys 10 packages of 6 items each (60 total items)
-                    // and bonification is "buy 10 get 1 free", they get floor(60/10) * 1 = 6 free items
-                    $bonification_quantity = floor($individualItemsPurchased / $bonification->buy * $bonification->get);
+                // IMPORTANT: For products with variations, bonifications are checked at the product level
+                // and quantities are aggregated across all variations (same product_id, different variation_id)
+                // This ensures that buying 5 Small + 5 Large counts as 10 total for bonification purposes
+                
+                // Get bonifications for this product (product_id in cart is always the parent when variations are involved)
+                $bonificationsToCheck = $p->bonifications;
+                
+                // Process bonifications using aggregated quantities from all variations of this product
+                foreach ($bonificationsToCheck as $bonification) {
+                    // Use aggregated quantity from all cart items with this product_id
+                    // This ensures variations count together for bonifications
+                    $aggregatedIndividualItems = $productQuantities[$id] ?? ($row['quantity'] * ($p->package_quantity ?? 1));
+                    
+                    // Calculate bonification based on aggregated individual items
+                    // Example: If customer buys 5 Small + 5 Large (variations) of a product with package_quantity=6
+                    // Total = (5+5) * 6 = 60 individual items
+                    // If bonification is "buy 10 get 1 free", they get floor(60/10) * 1 = 6 free items
+                    $bonification_quantity = floor($aggregatedIndividualItems / $bonification->buy * $bonification->get);
 
                     // Skip this bonification if the customer doesn't qualify (quantity = 0)
                     if ($bonification_quantity <= 0) {
@@ -895,13 +934,31 @@ class CartController extends Controller
                         $bonification_quantity = $bonification->max;
                     }
 
-                    OrderProductBonification::create([
-                        'bonification_id' => $bonification->id,
-                        'order_product_id' => $orderProduct->id,
-                        'product_id' => $bonification->product_id,
-                        'quantity' => $bonification_quantity,
-                        'order_id' => $order->id,
-                    ]);
+                    // Only create bonification record once per bonification (not per variation)
+                    // Check if we've already created this bonification for this product in this order
+                    $existingBonification = OrderProductBonification::where('order_id', $order->id)
+                        ->where('bonification_id', $bonification->id)
+                        ->where('product_id', $bonification->product_id)
+                        ->first();
+                    
+                    if (!$existingBonification) {
+                        // Create bonification record linked to the first order product of this product
+                        // Find the first order product for this product_id
+                        $firstOrderProductForProduct = OrderProduct::where('order_id', $order->id)
+                            ->where('product_id', $id)
+                            ->first();
+                        
+                        // Use the first order product found, or current one if none found yet
+                        $bonificationOrderProductId = $firstOrderProductForProduct ? $firstOrderProductForProduct->id : $orderProduct->id;
+                        
+                        OrderProductBonification::create([
+                            'bonification_id' => $bonification->id,
+                            'order_product_id' => $bonificationOrderProductId,
+                            'product_id' => $bonification->product_id,
+                            'quantity' => $bonification_quantity,
+                            'order_id' => $order->id,
+                        ]);
+                    }
                 }
 
 

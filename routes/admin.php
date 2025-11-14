@@ -173,6 +173,15 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     // Content Pages CRUD (Dynamic content pages)
     Route::resource('content-pages', ContentPageController::class);
 
+    // Reports
+    Route::prefix('reports')->name('admin.reports.')->group(function () {
+        Route::get('/', [App\Http\Controllers\Admin\ReportController::class, 'index'])->name('index');
+        Route::post('/generate', [App\Http\Controllers\Admin\ReportController::class, 'generate'])->name('generate');
+        Route::get('/{report}/download', [App\Http\Controllers\Admin\ReportController::class, 'download'])->name('download');
+        Route::get('/{report}/status', [App\Http\Controllers\Admin\ReportController::class, 'status'])->name('status');
+        Route::delete('/{report}', [App\Http\Controllers\Admin\ReportController::class, 'destroy'])->name('destroy');
+    });
+
     Route::resource('sellers', SellerController::class);
 
 

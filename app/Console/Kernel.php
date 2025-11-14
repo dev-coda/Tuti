@@ -42,6 +42,11 @@ class Kernel extends ConsoleKernel
             ->hourly()
             ->withoutOverlapping()
             ->runInBackground();
+
+        // Cleanup expired reports daily
+        $schedule->command('reports:cleanup-expired')
+            ->daily()
+            ->withoutOverlapping();
     }
 
     /**

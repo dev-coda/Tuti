@@ -414,7 +414,8 @@ class Product extends Model
         }
 
         // Default opt-out for products with variations
-        if (!empty($this->variation)) {
+        // Check variation_id column directly (always available) instead of relationship
+        if (!empty($this->variation_id)) {
             return false;
         }
 
