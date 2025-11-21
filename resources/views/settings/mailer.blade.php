@@ -78,8 +78,8 @@
                                     name="mail_mailer"
                                     class="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('mail_mailer') border-red-300 @enderror"
                                     required>
+                                <option value="mailgun" {{ ($mailerSettings['mail_mailer']->value ?? 'mailgun') == 'mailgun' ? 'selected' : '' }}>Mailgun (Recomendado)</option>
                                 <option value="smtp" {{ ($mailerSettings['mail_mailer']->value ?? 'mailgun') == 'smtp' ? 'selected' : '' }}>SMTP</option>
-                                <option value="mailgun" {{ ($mailerSettings['mail_mailer']->value ?? 'mailgun') == 'mailgun' ? 'selected' : '' }}>Mailgun</option>
                                 <option value="sendmail" {{ ($mailerSettings['mail_mailer']->value ?? 'mailgun') == 'sendmail' ? 'selected' : '' }}>Sendmail</option>
                                 <option value="log" {{ ($mailerSettings['mail_mailer']->value ?? 'mailgun') == 'log' ? 'selected' : '' }}>Log (para pruebas)</option>
                             </select>

@@ -30,30 +30,41 @@ class MailingService
             Config::set('mail.from.address', $fromAddress);
             Config::set('mail.from.name', $fromName);
 
-            // Only configure Mailgun if the package is available (check composer autoloader)
-            $mailgunAvailable = false;
-            try {
-                $mailgunAvailable = class_exists('Symfony\Component\Mailer\Bridge\Mailgun\Transport\MailgunTransportFactory', false);
-            } catch (\Exception $e) {
-                // Mailgun package not available
-                $mailgunAvailable = false;
-            }
+            // Configure Mailgun if selected
+            if ($mailDriver === 'mailgun') {
+                // Check if Mailgun packages are available
+                $mailgunAvailable = class_exists('Symfony\Component\Mailer\Bridge\Mailgun\Transport\MailgunTransportFactory');
+                
+                if (!$mailgunAvailable) {
+                    Log::warning("Mailgun selected but symfony/mailgun-mailer package not installed. Falling back to SMTP.");
+                    Config::set('mail.default', 'smtp');
+                    return;
+                }
 
-            if ($mailDriver === 'mailgun' && $mailgunAvailable) {
                 $mailgunDomain = Setting::getByKey('mailgun_domain');
                 $mailgunSecret = Setting::getByKey('mailgun_secret');
                 $mailgunEndpoint = Setting::getByKeyWithDefault('mailgun_endpoint', 'api.mailgun.net');
 
                 if ($mailgunDomain && $mailgunSecret) {
+                    // Configure mail.mailers.mailgun
+                    Config::set('mail.mailers.mailgun.transport', 'mailgun');
                     Config::set('mail.mailers.mailgun.domain', $mailgunDomain);
                     Config::set('mail.mailers.mailgun.secret', $mailgunSecret);
                     Config::set('mail.mailers.mailgun.endpoint', $mailgunEndpoint);
+                    Config::set('mail.mailers.mailgun.scheme', 'https');
+                    
+                    // Configure services.mailgun
                     Config::set('services.mailgun.domain', $mailgunDomain);
                     Config::set('services.mailgun.secret', $mailgunSecret);
                     Config::set('services.mailgun.endpoint', $mailgunEndpoint);
+                    Config::set('services.mailgun.scheme', 'https');
+                    
+                    Log::info("Mailgun configured successfully", [
+                        'domain' => $mailgunDomain,
+                        'endpoint' => $mailgunEndpoint
+                    ]);
                 } else {
                     Log::warning("Mailgun selected but credentials missing. Domain: " . ($mailgunDomain ? 'set' : 'missing') . ", Secret: " . ($mailgunSecret ? 'set' : 'missing') . ". Falling back to SMTP.");
-                    // Fallback to SMTP instead of throwing exception
                     Config::set('mail.default', 'smtp');
                 }
             }
@@ -72,12 +83,6 @@ class MailingService
             if ($smtpUsername && $smtpPassword) {
                 Config::set('mail.mailers.smtp.username', $smtpUsername);
                 Config::set('mail.mailers.smtp.password', $smtpPassword);
-            }
-
-            // If Mailgun was requested but not available, fallback to SMTP
-            if ($mailDriver === 'mailgun' && !$mailgunAvailable) {
-                Log::warning("Mailgun package not available. Falling back to SMTP. To install: composer require symfony/mailgun-mailer symfony/http-client");
-                Config::set('mail.default', 'smtp');
             }
         } catch (\Exception $e) {
             Log::error("Failed to update mail configuration: " . $e->getMessage());
