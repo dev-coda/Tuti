@@ -1,130 +1,324 @@
-# Troubleshooting Email Issues
+# Email Troubleshooting Guide - Automatic Emails Not Firing
 
-## Error: "Unable to send an email: Forbidden (Code 401)"
+## Issue
+- Test emails work ✅
+- Horizon queue is processing jobs ✅
+- But automatic order emails are NOT being sent ❌
 
-This error occurs when Mailgun cannot authenticate your API credentials. Here's how to fix it:
+## Root Causes
 
-### Solution 1: Verify Mailgun Credentials (Recommended)
+### 1. Missing Order Relationships (MOST COMMON - FIXED November 2025)
+The `ProcessOrderAsync` job was refreshing the order from the database without eager-loading the necessary relationships (`products.product`, `user`, `zone`). This caused the email service to fail silently when trying to access `$order->products->product->name`.
 
-1. **Get your Mailgun API Key:**
+**Fix Applied:** The job now properly loads all relationships before sending emails.
 
-    - Go to https://app.mailgun.com/settings/api_security
-    - Copy your **Private API Key** (starts with `key-`)
-    - IMPORTANT: Use the **Private API Key**, NOT the Public API Key
+### 2. Email Templates Missing or Inactive
+Email templates may be missing or inactive in the production database.
 
-2. **Get your Mailgun Domain:**
+## How to Diagnose
 
-    - Go to https://app.mailgun.com/domains
-    - Copy your verified sending domain (e.g., `mg.tuti.com` or `tuti.com`)
-    - Make sure the domain shows as "Verified" with a green checkmark
+### Step 1: Check Production Logs
 
-3. **Update Settings in Tuti:**
-
-    - Navigate to: Settings → Mailer Configuration
-    - Select **Mailgun API** as the Mail Driver
-    - Enter your Mailgun Domain
-    - Enter your Mailgun Secret (API Key)
-    - Select the correct endpoint:
-        - `api.mailgun.net` for US accounts
-        - `api.eu.mailgun.net` for EU accounts
-    - Click **Save Configuration**
-
-4. **Test Again:**
-    - Enter a test email address
-    - Click **Enviar Prueba**
-
-### Solution 2: Switch to SMTP (Alternative)
-
-If you don't have Mailgun or prefer SMTP:
-
-1. **Navigate to:** Settings → Mailer Configuration
-2. **Select** SMTP as the Mail Driver
-3. **Enter SMTP details:**
-    - Server: Your SMTP server (e.g., `smtp.gmail.com`, `smtp.office365.com`)
-    - Port: Usually 587 (TLS) or 465 (SSL)
-    - Username: Your email address
-    - Password: Your email password or app-specific password
-    - Encryption: TLS (recommended)
-4. **Save and test**
-
-#### Common SMTP Providers:
-
-**Gmail:**
-
--   Host: `smtp.gmail.com`
--   Port: 587
--   Encryption: TLS
--   Username: your-email@gmail.com
--   Password: App-specific password (not your regular password)
--   Enable "Less secure app access" or use App Password
-
-**Office 365:**
-
--   Host: `smtp.office365.com`
--   Port: 587
--   Encryption: TLS
--   Username: your-email@company.com
--   Password: Your account password
-
-**Mailgun via SMTP (not recommended, use API instead):**
-
--   Host: `smtp.mailgun.org`
--   Port: 587
--   Username: postmaster@your-domain.com
--   Password: Your Mailgun SMTP password
-
-### Solution 3: Use Log Driver for Testing
-
-For development/testing only:
-
-1. Select **Log** as the Mail Driver
-2. Emails won't be sent but will be written to `storage/logs/laravel.log`
-3. This helps verify your email templates work without actually sending
-
-## Common Issues
-
-### "Mailgun selected but credentials missing"
-
--   Make sure both Domain AND Secret are filled in
--   Check that the values don't have extra spaces
--   Verify you're using the correct API key format
-
-### "Connection timeout" (SMTP)
-
--   Your hosting provider might block SMTP ports
--   Try alternative port (2525 or 465)
--   Consider using Mailgun API instead of SMTP
-
-### "Could not instantiate mail function"
-
--   Your server doesn't have mail functions enabled
--   Use SMTP or Mailgun instead of sendmail
-
-## Checking Your Settings
-
-You can verify your settings are saved correctly by checking the database:
+SSH into your production server and check the Laravel logs:
 
 ```bash
-php artisan tinker
->>> \App\Models\Setting::whereIn('key', ['mail_mailer', 'mailgun_domain', 'mailgun_secret'])->get(['key', 'value']);
+tail -f storage/logs/laravel.log | grep -i email
 ```
 
-## Need More Help?
+Look for these warning messages:
+```
+Email template not found or inactive: order_confirmation
+Email template not found or inactive: order_status_processed
+```
 
-Check the Laravel logs for detailed error messages:
+If you see these warnings, **the templates are missing or inactive**.
+
+### Step 2: Check Email Templates in Database
+
+Connect to your production database and run:
+
+```sql
+-- Check if email templates exist
+SELECT slug, is_active, name FROM email_templates;
+
+-- Check for order-related templates specifically
+SELECT slug, is_active, name 
+FROM email_templates 
+WHERE slug IN ('order_confirmation', 'order_status_pending', 'order_status_processed');
+```
+
+**Expected results:**
+- `order_confirmation` with `is_active = 1`
+- `order_status_pending` with `is_active = 1`
+- `order_status_processed` with `is_active = 1`
+- `order_status_shipped` with `is_active = 1`
+- `order_status_delivered` with `is_active = 1`
+- `order_status_cancelled` with `is_active = 1`
+
+### Step 3: Check Horizon Logs
+
+In your browser, go to:
+```
+https://your-production-url.com/horizon
+```
+
+Check:
+1. **Recent Jobs** - Look for `ProcessOrderAsync` jobs
+2. **Failed Jobs** - Check if any email jobs failed
+3. Click on a completed job to see detailed logs
+
+## Solutions
+
+### Solution 1: Seed Email Templates (Recommended)
+
+If templates are missing, run the seeder in production:
+
+```bash
+php artisan db:seed --class=EmailTemplatesSeeder
+```
+
+This will create all the necessary email templates with default content.
+
+### Solution 2: Activate Templates Manually
+
+If templates exist but are inactive:
+
+```sql
+UPDATE email_templates SET is_active = 1 
+WHERE slug LIKE 'order_%';
+```
+
+### Solution 3: Create Templates via Admin Panel
+
+1. Log in to admin panel
+2. Go to Email Templates section
+3. Create the following templates:
+
+#### Required Templates:
+
+**1. Order Confirmation** (`order_confirmation`)
+- **Slug:** `order_confirmation`
+- **Type:** Order Confirmation
+- **Active:** ✓ Yes
+- **Subject:** `Confirmación de Pedido #{order_id}`
+- **Body:**
+```
+Hola {customer_name},
+
+Gracias por tu pedido #{order_id}.
+
+Total: ${order_total}
+Fecha de entrega estimada: {delivery_date}
+
+Puedes ver tu pedido en: {order_url}
+
+Gracias por tu compra!
+```
+
+**2. Order Status - Processed** (`order_status_processed`)
+- **Slug:** `order_status_processed`
+- **Type:** Order Status
+- **Active:** ✓ Yes
+- **Subject:** `Tu pedido #{order_id} ha sido procesado`
+- **Body:**
+```
+Hola {customer_name},
+
+Tu pedido #{order_id} ha sido procesado exitosamente.
+
+Estado actual: {order_status}
+Total: ${order_total}
+Fecha de entrega: {delivery_date}
+
+Ver pedido: {tracking_url}
+```
+
+**3. Order Status - Pending** (`order_status_pending`)
+- **Slug:** `order_status_pending`
+- **Type:** Order Status
+- **Active:** ✓ Yes
+- **Subject:** `Tu pedido #{order_id} está pendiente`
+
+**4. Order Status - Shipped** (`order_status_shipped`)
+- **Slug:** `order_status_shipped`
+- **Type:** Order Status
+- **Active:** ✓ Yes
+- **Subject:** `Tu pedido #{order_id} ha sido enviado`
+
+**5. Order Status - Delivered** (`order_status_delivered`)
+- **Slug:** `order_status_delivered`
+- **Type:** Order Status
+- **Active:** ✓ Yes
+- **Subject:** `Tu pedido #{order_id} ha sido entregado`
+
+**6. Order Status - Cancelled** (`order_status_cancelled`)
+- **Slug:** `order_status_cancelled`
+- **Type:** Order Status
+- **Active:** ✓ Yes
+- **Subject:** `Tu pedido #{order_id} ha sido cancelado`
+
+## Testing After Fix
+
+### 1. Create a Test Order
+
+Place a test order in production (or staging) and watch the logs:
 
 ```bash
 tail -f storage/logs/laravel.log
 ```
 
-## Testing from Command Line
-
-You can test email from the command line:
-
-```bash
-php artisan tinker
->>> Mail::raw('Test email', function($msg) { $msg->to('test@example.com')->subject('Test'); });
+You should see:
+```
+Starting async order processing for order {id}
+Sending order confirmation email
+Email sent successfully: order_confirmation to customer@email.com
+Sending order status email
+Email sent successfully: order_status_processed to customer@email.com
 ```
 
-Any errors will be displayed immediately.
+### 2. Check Horizon Dashboard
 
+Go to Horizon and verify:
+- `ProcessOrderAsync` job completed successfully
+- No failed jobs
+
+### 3. Check Customer's Email
+
+Verify the customer received both emails:
+- Order confirmation email
+- Order processed status email
+
+## Common Issues & Solutions
+
+### Issue: "Email template not found or inactive"
+
+**Cause:** Template doesn't exist or `is_active = 0`
+
+**Fix:** 
+```bash
+php artisan db:seed --class=EmailTemplatesSeeder
+```
+
+### Issue: Emails sent but not received
+
+**Cause:** Email configuration issue (Mailgun/SMTP)
+
+**Check:**
+```bash
+# Check mail settings in database
+SELECT `key`, `value` FROM settings WHERE `key` LIKE 'mail%';
+```
+
+**Required settings:**
+- `mail_mailer` → `mailgun` or `smtp`
+- `mail_from_address` → Your from email
+- `mail_from_name` → Your company name
+- `mailgun_domain` → Your Mailgun domain
+- `mailgun_secret` → Your Mailgun API key
+
+**Test manually:**
+```bash
+php artisan tinker
+>>> app(\App\Services\MailingService::class)->sendTemplateEmail('order_confirmation', ['customer_email' => 'test@test.com', 'order_id' => 123, 'customer_name' => 'Test', 'order_total' => '100', 'delivery_date' => 'TBD', 'order_url' => 'http://test.com']);
+```
+
+### Issue: Jobs processing but emails still not sending
+
+**Check exception handling in ProcessOrderAsync:**
+
+The job catches email exceptions and continues (lines 104-108 in ProcessOrderAsync.php):
+```php
+} catch (\Exception $e) {
+    // Don't fail the job if email sending fails
+    Log::error("Email sending failed for order {$this->order->id}: " . $e->getMessage());
+}
+```
+
+**Look for these errors in logs:**
+```bash
+grep "Email sending failed" storage/logs/laravel.log
+```
+
+### Issue: Wrong template slug
+
+The system looks for specific slug patterns:
+- `order_confirmation` for new orders
+- `order_status_{status}` for status changes (e.g., `order_status_processed`)
+
+**Verify slugs match exactly:**
+```sql
+SELECT slug FROM email_templates WHERE slug LIKE 'order%';
+```
+
+## Verification Checklist
+
+- [ ] Email templates exist in `email_templates` table
+- [ ] All order-related templates have `is_active = 1`
+- [ ] Template slugs match exactly: `order_confirmation`, `order_status_processed`, etc.
+- [ ] Mail configuration is set in `settings` table or `.env`
+- [ ] Mailgun/SMTP credentials are valid
+- [ ] Horizon is running and processing jobs
+- [ ] No errors in `storage/logs/laravel.log`
+- [ ] Test order successfully sends emails
+
+## Quick Fix Command
+
+Run this in production to ensure everything is set up:
+
+```bash
+# 1. Seed email templates
+php artisan db:seed --class=EmailTemplatesSeeder --force
+
+# 2. Verify templates were created
+php artisan tinker
+>>> \App\Models\EmailTemplate::where('is_active', 1)->pluck('slug');
+# Should show: order_confirmation, order_status_processed, etc.
+
+# 3. Test email sending
+>>> app(\App\Services\MailingService::class)->sendTemplateEmail('order_confirmation', ['customer_email' => 'your-email@test.com', 'order_id' => 999, 'customer_name' => 'Test User', 'order_total' => '100.00', 'delivery_date' => 'TBD', 'order_url' => route('home')]);
+# Should return: true
+
+# 4. Exit tinker
+>>> exit
+```
+
+## Monitoring
+
+Set up monitoring to catch future issues:
+
+1. **Daily check of failed jobs:**
+```bash
+php artisan queue:failed
+```
+
+2. **Monitor email logs:**
+```bash
+grep "Email template not found" storage/logs/laravel.log
+```
+
+3. **Alert on email failures:**
+Add to your monitoring:
+- Alert if log contains "Email sending failed"
+- Alert if no emails sent in last hour during business hours
+
+## Support
+
+If issues persist after following this guide:
+
+1. Export full logs:
+```bash
+tail -n 500 storage/logs/laravel.log > email_debug.log
+```
+
+2. Check Horizon failed jobs:
+```bash
+php artisan horizon:failed
+```
+
+3. Verify database state:
+```sql
+SELECT COUNT(*) FROM email_templates WHERE is_active = 1;
+SELECT * FROM settings WHERE `key` LIKE 'mail%';
+```
+
+Share these outputs for further debugging.

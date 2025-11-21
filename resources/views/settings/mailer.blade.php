@@ -488,7 +488,21 @@ document.addEventListener('DOMContentLoaded', function() {
             },
             body: JSON.stringify({ email: email })
         })
-        .then(response => response.json())
+        .then(response => {
+            // Check if response is JSON before parsing
+            const contentType = response.headers.get('content-type');
+            if (!response.ok) {
+                // If response is not OK, throw an error with status
+                if (contentType && contentType.includes('application/json')) {
+                    return response.json().then(data => {
+                        throw new Error(data.message || `Error ${response.status}: ${response.statusText}`);
+                    });
+                } else {
+                    throw new Error(`Error del servidor (${response.status}): Por favor revise la configuración del correo en la base de datos.`);
+                }
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.success) {
                 showTestResult('Correo de prueba enviado exitosamente', 'success');
@@ -497,7 +511,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         })
         .catch(error => {
-            showTestResult('Error de conexión: ' + error.message, 'error');
+            showTestResult('Error: ' + error.message, 'error');
         })
         .finally(() => {
             // Re-enable button

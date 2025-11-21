@@ -98,6 +98,11 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::post('settings/mailer-config', [SettingController::class, 'updateMailer'])->name('settings.mailer.update');
     Route::post('test-email', function (\Illuminate\Http\Request $request) {
         try {
+            // Validate email input
+            $request->validate([
+                'email' => 'required|email'
+            ]);
+
             $email = $request->input('email');
 
             // Update mail configuration from database
