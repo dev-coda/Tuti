@@ -130,6 +130,12 @@ class MailingService
                 return false;
             }
 
+            // Filter: Block emails to internal Tuti domains
+            if ($this->isInternalTutiEmail($to)) {
+                Log::info("Email blocked (internal Tuti domain): {$templateSlug} to {$to}");
+                return true; // Return true to allow workflow to continue
+            }
+
             // Send the email
             Mail::raw($emailData['body'], function ($message) use ($emailData, $to) {
                 $message->to($to)
@@ -328,5 +334,28 @@ class MailingService
         // You can customize this to get admin emails from settings
         // For now, return a default admin email
         return ['admin@tuti.com'];
+    }
+
+    /**
+     * Check if email is an internal Tuti domain
+     * Blocks emails to @tuti, @tuti.com, @tuti.com.co
+     */
+    private function isInternalTutiEmail(string $email): bool
+    {
+        $email = strtolower(trim($email));
+        
+        $internalDomains = [
+            '@tuti',
+            '@tuti.com',
+            '@tuti.com.co'
+        ];
+
+        foreach ($internalDomains as $domain) {
+            if (str_ends_with($email, $domain)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
