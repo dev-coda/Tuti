@@ -96,6 +96,10 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::post('settings/sync-inventory', [SettingController::class, 'syncInventory'])->name('settings.sync-inventory');
     Route::get('settings/mailer-config', [SettingController::class, 'mailer'])->name('settings.mailer');
     Route::post('settings/mailer-config', [SettingController::class, 'updateMailer'])->name('settings.mailer.update');
+    Route::get('settings/zone-warehouses', [SettingController::class, 'zoneWarehouses'])->name('settings.zone-warehouses');
+    Route::post('settings/zone-warehouses/sync', [SettingController::class, 'syncZoneWarehouses'])->name('settings.zone-warehouses.sync');
+    Route::post('settings/zone-warehouses', [SettingController::class, 'storeZoneWarehouse'])->name('settings.zone-warehouses.store');
+    Route::delete('settings/zone-warehouses/{zoneWarehouse}', [SettingController::class, 'destroyZoneWarehouse'])->name('settings.zone-warehouses.destroy');
     Route::post('test-email', function (\Illuminate\Http\Request $request) {
         try {
             // Validate email input

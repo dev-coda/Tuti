@@ -396,13 +396,8 @@ class PageController extends Controller
             return null;
         }
 
-        // Map via ZoneWarehouse (exact match, then case-insensitive)
-        $bodega = ZoneWarehouse::where('zone_code', $zoneCode)->value('bodega_code');
-        if (!$bodega) {
-            $bodega = ZoneWarehouse::whereRaw('LOWER(zone_code) = ?', [mb_strtolower($zoneCode)])->value('bodega_code');
-        }
-
-        return $bodega ?: null;
+        // Use centralized lookup method
+        return ZoneWarehouse::getBodegaForZone($zoneCode);
     }
 
     /**

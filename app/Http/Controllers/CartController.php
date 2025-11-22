@@ -356,10 +356,10 @@ class CartController extends Controller
         $isInventoryEnabled = ($inventoryEnabled === '1' || $inventoryEnabled === 1 || $inventoryEnabled === true);
         if ($isInventoryEnabled && $product->isInventoryManaged()) {
             $safety = $product->getEffectiveSafetyStock();
-            // Determine user bodega from first zone mapping
+            // Determine user bodega from zone mapping
             $zone = $user->zones()->orderBy('id')->first();
             $zoneCode = $zone?->code ?? $user->zone;
-            $bodega = $zoneCode ? ZoneWarehouse::where('zone_code', $zoneCode)->value('bodega_code') : null;
+            $bodega = ZoneWarehouse::getBodegaForZone($zoneCode);
 
             // For products with variations, inventory is always stored at the parent product level
             // All variation items share the same inventory pool
@@ -529,21 +529,7 @@ class CartController extends Controller
         $zoneId = $request->zone_id ?? session()->get('zone_id');
         $zone = $zoneId ? Zone::find($zoneId) : null;
         $zoneCode = $zone?->code ?? null;
-        $bodega = null;
-        if ($zoneCode && $isInventoryEnabled) {
-            // First try DB mapping
-            $bodega = ZoneWarehouse::where('zone_code', trim((string)$zoneCode))->value('bodega_code');
-            // Fallback to config mapping if DB has no record
-            if (!$bodega) {
-                $mappings = (array) config('zone_warehouses.mappings', []);
-                $mapVal = $mappings[trim((string)$zoneCode)] ?? null;
-                if (is_array($mapVal)) {
-                    $bodega = $mapVal[0] ?? null;
-                } else if (is_string($mapVal)) {
-                    $bodega = $mapVal;
-                }
-            }
-        }
+        $bodega = $isInventoryEnabled ? ZoneWarehouse::getBodegaForZone($zoneCode) : null;
         if ($isInventoryEnabled && !$bodega) {
             // Attempt fallback: choose the first zone of the acting user that has a mapped bodega
             $actingUser = $user;
@@ -553,11 +539,13 @@ class CartController extends Controller
             $fallbackZoneId = null;
             if ($actingUser) {
                 foreach ($actingUser->zones as $candidateZone) {
-                    $candidateCode = trim((string) ($candidateZone?->code));
+                    $candidateCode = $candidateZone?->code ?? $candidateZone?->zone;
                     if (!$candidateCode) continue;
-                    $hasDb = ZoneWarehouse::where('zone_code', $candidateCode)->exists();
-                    $hasCfg = array_key_exists($candidateCode, (array) config('zone_warehouses.mappings', []));
-                    if ($hasDb || $hasCfg) {
+                    
+                    // Check if this zone has a bodega mapping
+                    $hasMapping = ZoneWarehouse::getBodegaForZone($candidateCode) !== null;
+                    
+                    if ($hasMapping) {
                         $fallbackZoneId = $candidateZone->id;
                         break;
                     }
@@ -567,19 +555,8 @@ class CartController extends Controller
                 $zoneId = $fallbackZoneId;
                 session()->put('zone_id', $zoneId);
                 $zone = Zone::find($zoneId);
-                $zoneCode = $zone?->code ?? null;
-                if ($zoneCode) {
-                    $bodega = ZoneWarehouse::where('zone_code', trim((string)$zoneCode))->value('bodega_code');
-                    if (!$bodega) {
-                        $mappings = (array) config('zone_warehouses.mappings', []);
-                        $mapVal = $mappings[trim((string)$zoneCode)] ?? null;
-                        if (is_array($mapVal)) {
-                            $bodega = $mapVal[0] ?? null;
-                        } else if (is_string($mapVal)) {
-                            $bodega = $mapVal;
-                        }
-                    }
-                }
+                $zoneCode = $zone?->code ?? $zone?->zone;
+                $bodega = ZoneWarehouse::getBodegaForZone($zoneCode);
             }
             if (!$bodega) {
                 return back()->with('error', 'No se pudo determinar la bodega para su zona.');
