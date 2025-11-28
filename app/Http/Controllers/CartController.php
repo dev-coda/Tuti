@@ -928,10 +928,40 @@ class CartController extends Controller
                         // Use the first order product found, or current one if none found yet
                         $bonificationOrderProductId = $firstOrderProductForProduct ? $firstOrderProductForProduct->id : $orderProduct->id;
                         
+                        // Determine variation_item_id for the bonification product
+                        // If the bonification product exists in the parent order, use the same variation
+                        // Otherwise, use the first variation for the variable product
+                        $variationItemId = null;
+                        $bonificationProduct = \App\Models\Product::find($bonification->product_id);
+                        
+                        if ($bonificationProduct && $bonificationProduct->variation_id) {
+                            // Check if this product exists in the parent order
+                            $existingOrderProduct = OrderProduct::where('order_id', $order->id)
+                                ->where('product_id', $bonification->product_id)
+                                ->whereNotNull('variation_item_id')
+                                ->first();
+                            
+                            if ($existingOrderProduct) {
+                                // Use the same variation from the parent order
+                                $variationItemId = $existingOrderProduct->variation_item_id;
+                            } else {
+                                // Get the first variation item for this product
+                                $firstVariationItem = $bonificationProduct->items()
+                                    ->wherePivot('enabled', true)
+                                    ->orderBy('id')
+                                    ->first();
+                                
+                                if ($firstVariationItem) {
+                                    $variationItemId = $firstVariationItem->id;
+                                }
+                            }
+                        }
+                        
                         OrderProductBonification::create([
                             'bonification_id' => $bonification->id,
                             'order_product_id' => $bonificationOrderProductId,
                             'product_id' => $bonification->product_id,
+                            'variation_item_id' => $variationItemId,
                             'quantity' => $bonification_quantity,
                             'order_id' => $order->id,
                         ]);
