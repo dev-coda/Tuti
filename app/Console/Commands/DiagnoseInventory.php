@@ -71,24 +71,44 @@ class DiagnoseInventory extends Command
             $this->line("");
         }
 
-        // 3. Check zone-warehouse mapping
+        // 3. Check zone-warehouse mapping (using same method as production)
         $this->info("3. ZONE-WAREHOUSE MAPPING:");
         if ($zoneCode) {
-            $bodega = ZoneWarehouse::where('zone_code', $zoneCode)->value('bodega_code');
-            if (!$bodega) {
-                $bodega = ZoneWarehouse::whereRaw('LOWER(zone_code) = ?', [mb_strtolower($zoneCode)])->value('bodega_code');
-            }
+            // Use the same method that's used in production
+            $bodega = ZoneWarehouse::getBodegaForZone($zoneCode);
 
             if ($bodega) {
                 $this->info("   ✓ Bodega code: {$bodega}");
             } else {
                 $this->error("   PROBLEM: No warehouse mapping found for zone code '{$zoneCode}'");
-                $this->line("   Available zone mappings:");
-                ZoneWarehouse::all()->each(function($zw) {
-                    $this->line("     - zone: {$zw->zone_code} → bodega: {$zw->bodega_code}");
-                });
+                $this->line("");
+                $this->line("   Checking database mappings:");
+                $dbMappings = ZoneWarehouse::all();
+                if ($dbMappings->count() > 0) {
+                    $dbMappings->each(function($zw) {
+                        $this->line("     - zone: {$zw->zone_code} → bodega: {$zw->bodega_code}");
+                    });
+                } else {
+                    $this->warn("     No database mappings found");
+                }
+                $this->line("");
+                $this->line("   Checking config file mappings:");
+                $configMappings = config('zone_warehouses.mappings', []);
+                if (count($configMappings) > 0) {
+                    foreach ($configMappings as $configZone => $configBodega) {
+                        $bodegaVal = is_array($configBodega) ? ($configBodega[0] ?? 'N/A') : $configBodega;
+                        $this->line("     - zone: {$configZone} → bodega: {$bodegaVal}");
+                    }
+                } else {
+                    $this->warn("     No config mappings found (config file may not be loaded)");
+                    $this->line("     Try running: php artisan config:clear && php artisan config:cache");
+                }
+                $this->line("");
                 $this->line("   SOLUTION: Create a zone_warehouses record:");
                 $this->line("   INSERT INTO zone_warehouses (zone_code, bodega_code) VALUES ('{$zoneCode}', 'DESIRED_BODEGA');");
+                $this->line("");
+                $this->line("   Or add to config/zone_warehouses.php:");
+                $this->line("   '{$zoneCode}' => 'DESIRED_BODEGA',");
             }
         } else {
             $this->warn("   Skipped (no zone code)");

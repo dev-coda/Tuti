@@ -528,9 +528,27 @@ class CartController extends Controller
         $isInventoryEnabled = ($inventoryEnabled === '1' || $inventoryEnabled === 1 || $inventoryEnabled === true);
         $zoneId = $request->zone_id ?? session()->get('zone_id');
         $zone = $zoneId ? Zone::find($zoneId) : null;
-        $zoneCode = $zone?->code ?? null;
+        // Check both code and zone fields (zone field is fallback if code is null)
+        $zoneCode = $zone?->code ?? $zone?->zone ?? null;
         $bodega = $isInventoryEnabled ? ZoneWarehouse::getBodegaForZone($zoneCode) : null;
+        
         if ($isInventoryEnabled && !$bodega) {
+            // Log detailed debugging information
+            \Log::warning('Bodega determination failed', [
+                'user_id' => $user->id,
+                'user_email' => $user->email,
+                'zone_id' => $zoneId,
+                'zone_code' => $zoneCode,
+                'zone_object' => $zone ? [
+                    'id' => $zone->id,
+                    'code' => $zone->code,
+                    'zone' => $zone->zone,
+                    'route' => $zone->route,
+                ] : null,
+                'is_seller' => $user->hasRole('seller'),
+                'session_user_id' => session()->get('user_id'),
+            ]);
+            
             // Attempt fallback: choose the first zone of the acting user that has a mapped bodega
             $actingUser = $user;
             if ($user->hasRole('seller')) {
@@ -547,6 +565,10 @@ class CartController extends Controller
                     
                     if ($hasMapping) {
                         $fallbackZoneId = $candidateZone->id;
+                        \Log::info('Found fallback zone with bodega mapping', [
+                            'zone_id' => $fallbackZoneId,
+                            'zone_code' => $candidateCode,
+                        ]);
                         break;
                     }
                 }
@@ -559,6 +581,26 @@ class CartController extends Controller
                 $bodega = ZoneWarehouse::getBodegaForZone($zoneCode);
             }
             if (!$bodega) {
+                // Log final failure with all available mappings for debugging
+                $allMappings = ZoneWarehouse::all()->map(function($zw) {
+                    return ['zone_code' => $zw->zone_code, 'bodega_code' => $zw->bodega_code];
+                })->toArray();
+                $configMappings = config('zone_warehouses.mappings', []);
+                
+                \Log::error('Bodega determination failed - no mapping found', [
+                    'user_id' => $user->id,
+                    'user_email' => $user->email,
+                    'zone_id' => $zoneId,
+                    'zone_code' => $zoneCode,
+                    'acting_user_zones' => $actingUser ? $actingUser->zones->map(function($z) {
+                        return ['id' => $z->id, 'code' => $z->code, 'zone' => $z->zone];
+                    })->toArray() : null,
+                    'db_mappings_count' => count($allMappings),
+                    'db_mappings' => $allMappings,
+                    'config_mappings_count' => count($configMappings),
+                    'config_mappings_keys' => array_keys($configMappings),
+                ]);
+                
                 return back()->with('error', 'No se pudo determinar la bodega para su zona.');
             }
         }
