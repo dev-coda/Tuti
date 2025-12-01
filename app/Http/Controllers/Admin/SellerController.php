@@ -152,13 +152,10 @@ class SellerController extends Controller
                 ]);
                 // Continue anyway - user might still have valid zones from before
             }
-    }
-}
-        
-        
 
-        session()->put('user_id', $user->id);
-        return to_route('cart');
+            session()->put('user_id', $user->id);
+            return to_route('cart');
+        }
 
 
 
