@@ -19,6 +19,7 @@ use App\Models\Coupon;
 use App\Models\CouponUsage;
 use App\Services\CouponService;
 use App\Repositories\OrderRepository;
+use App\Repositories\UserRepository;
 use App\Settings\GeneralSettings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
@@ -515,19 +516,66 @@ class CartController extends Controller
 
         $seller_id = null;
         $user_id = $user->id;
+        $actingUser = $user;
 
         if ($user->hasRole('seller')) {
             $seller_id = $user->id;
             $user_id = session()->get('user_id');
+            $actingUser = User::find($user_id) ?: $user;
+        }
+
+        // Sync rutero data before processing order to ensure we have current data
+        // This handles cases where zone data might have changed in external service
+        if ($actingUser && $actingUser->document) {
+            try {
+                \Log::info('Syncing rutero data before order processing', [
+                    'user_id' => $actingUser->id,
+                    'document' => $actingUser->document,
+                ]);
+                UserRepository::syncUserRuteroData($actingUser);
+                // Reload zones after sync
+                $actingUser->refresh();
+                $actingUser->load('zones');
+            } catch (\Throwable $th) {
+                \Log::warning('Failed to sync rutero data before order processing', [
+                    'user_id' => $actingUser->id,
+                    'error' => $th->getMessage(),
+                ]);
+                // Continue with existing data if sync fails
+            }
         }
 
         $delivery_date = OrderRepository::getBusinessDay();
 
+        // After syncing rutero data, re-determine zone_id if needed
+        // The sync might have updated zones, so we need to ensure zone_id is still valid
+        $zoneId = $request->zone_id ?? session()->get('zone_id');
+        if ($zoneId) {
+            // Verify zone still exists and belongs to acting user
+            $zone = Zone::where('id', $zoneId)
+                ->where('user_id', $actingUser->id)
+                ->first();
+            
+            // If zone doesn't exist or doesn't belong to user, try to find a valid zone
+            if (!$zone && $actingUser->zones->count() > 0) {
+                $zoneId = $actingUser->zones->first()->id;
+                session()->put('zone_id', $zoneId);
+                $zone = Zone::find($zoneId);
+            }
+        } else {
+            // If no zone_id, get first zone from synced zones
+            if ($actingUser->zones->count() > 0) {
+                $zoneId = $actingUser->zones->first()->id;
+                session()->put('zone_id', $zoneId);
+                $zone = Zone::find($zoneId);
+            } else {
+                $zone = null;
+            }
+        }
+
         // Inventory validation based on zone/bodega
         $inventoryEnabled = Setting::getByKey('inventory_enabled');
         $isInventoryEnabled = ($inventoryEnabled === '1' || $inventoryEnabled === 1 || $inventoryEnabled === true);
-        $zoneId = $request->zone_id ?? session()->get('zone_id');
-        $zone = $zoneId ? Zone::find($zoneId) : null;
         // Check both code and zone fields (zone field is fallback if code is null)
         $zoneCode = $zone?->code ?? $zone?->zone ?? null;
         $bodega = $isInventoryEnabled ? ZoneWarehouse::getBodegaForZone($zoneCode) : null;
@@ -550,10 +598,7 @@ class CartController extends Controller
             ]);
             
             // Attempt fallback: choose the first zone of the acting user that has a mapped bodega
-            $actingUser = $user;
-            if ($user->hasRole('seller')) {
-                $actingUser = User::find(session()->get('user_id')) ?: $user;
-            }
+            // Note: $actingUser is already defined above after rutero sync
             $fallbackZoneId = null;
             if ($actingUser) {
                 foreach ($actingUser->zones as $candidateZone) {
@@ -754,11 +799,12 @@ class CartController extends Controller
         DB::beginTransaction();
 
         try {
+            // Use the zone_id determined after rutero sync (ensures current data)
             $order = Order::create([
                 'user_id' => $user_id,
                 'total' => $total,
                 'discount' => $discount,
-                'zone_id' => $request->zone_id,
+                'zone_id' => $zoneId, // Use synced zone_id, not request zone_id
                 'seller_id' => $seller_id,
                 'delivery_date' => $delivery_date,
                 'observations' => $observations,
