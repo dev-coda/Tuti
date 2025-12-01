@@ -550,6 +550,10 @@ class CartController extends Controller
         // After syncing rutero data, re-determine zone_id if needed
         // The sync might have updated zones, so we need to ensure zone_id is still valid
         $zoneId = $request->zone_id ?? session()->get('zone_id');
+        
+        // Reload zones to ensure we have fresh data after sync
+        $actingUser->load('zones');
+        
         if ($zoneId) {
             // Verify zone still exists and belongs to acting user
             $zone = Zone::where('id', $zoneId)
@@ -576,8 +580,25 @@ class CartController extends Controller
         // Inventory validation based on zone/bodega
         $inventoryEnabled = Setting::getByKey('inventory_enabled');
         $isInventoryEnabled = ($inventoryEnabled === '1' || $inventoryEnabled === 1 || $inventoryEnabled === true);
+        
         // Check both code and zone fields (zone field is fallback if code is null)
         $zoneCode = $zone?->code ?? $zone?->zone ?? null;
+        
+        \Log::info('Zone determination after rutero sync', [
+            'user_id' => $actingUser->id,
+            'zone_id' => $zoneId,
+            'zone_code' => $zoneCode,
+            'zone_object' => $zone ? [
+                'id' => $zone->id,
+                'code' => $zone->code,
+                'zone' => $zone->zone,
+                'route' => $zone->route,
+            ] : null,
+            'all_zones' => $actingUser->zones->map(function($z) {
+                return ['id' => $z->id, 'code' => $z->code, 'zone' => $z->zone];
+            })->toArray(),
+        ]);
+        
         $bodega = $isInventoryEnabled ? ZoneWarehouse::getBodegaForZone($zoneCode) : null;
         
         if ($isInventoryEnabled && !$bodega) {
@@ -598,12 +619,37 @@ class CartController extends Controller
             ]);
             
             // Attempt fallback: choose the first zone of the acting user that has a mapped bodega
-            // Note: $actingUser is already defined above after rutero sync
+            // Reload zones to ensure we have the latest data after sync
+            $actingUser->refresh();
+            $actingUser->load('zones');
+            
             $fallbackZoneId = null;
-            if ($actingUser) {
+            if ($actingUser && $actingUser->zones->count() > 0) {
+                \Log::info('Attempting fallback zone selection', [
+                    'user_id' => $actingUser->id,
+                    'zones_count' => $actingUser->zones->count(),
+                    'available_zones' => $actingUser->zones->map(function($z) {
+                        $code = $z->code ?? $z->zone;
+                        $bodega = ZoneWarehouse::getBodegaForZone($code);
+                        return [
+                            'id' => $z->id,
+                            'code' => $z->code,
+                            'zone' => $z->zone,
+                            'has_bodega' => !is_null($bodega),
+                            'bodega' => $bodega,
+                        ];
+                    })->toArray(),
+                ]);
+                
                 foreach ($actingUser->zones as $candidateZone) {
                     $candidateCode = $candidateZone?->code ?? $candidateZone?->zone;
-                    if (!$candidateCode) continue;
+                    if (!$candidateCode) {
+                        \Log::debug('Skipping zone without code', [
+                            'zone_id' => $candidateZone->id,
+                            'zone_field' => $candidateZone->zone,
+                        ]);
+                        continue;
+                    }
                     
                     // Check if this zone has a bodega mapping
                     $hasMapping = ZoneWarehouse::getBodegaForZone($candidateCode) !== null;
@@ -613,6 +659,7 @@ class CartController extends Controller
                         \Log::info('Found fallback zone with bodega mapping', [
                             'zone_id' => $fallbackZoneId,
                             'zone_code' => $candidateCode,
+                            'bodega' => ZoneWarehouse::getBodegaForZone($candidateCode),
                         ]);
                         break;
                     }
@@ -624,6 +671,12 @@ class CartController extends Controller
                 $zone = Zone::find($zoneId);
                 $zoneCode = $zone?->code ?? $zone?->zone;
                 $bodega = ZoneWarehouse::getBodegaForZone($zoneCode);
+                
+                \Log::info('Using fallback zone', [
+                    'zone_id' => $zoneId,
+                    'zone_code' => $zoneCode,
+                    'bodega' => $bodega,
+                ]);
             }
             if (!$bodega) {
                 // Log final failure with all available mappings for debugging

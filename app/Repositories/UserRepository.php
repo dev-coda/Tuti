@@ -207,32 +207,40 @@ class UserRepository
         try {
             $data = self::getCustomRuteroId($user->document);
             
+            \Log::info('Rutero sync - data received', [
+                'user_id' => $user->id,
+                'document' => $user->document,
+                'has_data' => !is_null($data),
+                'has_routes' => isset($data['routes']),
+                'routes_count' => isset($data['routes']) ? count($data['routes']) : 0,
+                'routes_sample' => isset($data['routes']) && count($data['routes']) > 0 ? [
+                    'first_route' => $data['routes'][0] ?? null,
+                ] : null,
+            ]);
+            
             if ($data && isset($data['routes'])) {
-                $existingZones = $user->zones()->get()->keyBy('id');
+                $existingZones = $user->zones()->orderBy('id')->get();
                 $newRoutes = $data['routes'];
 
-                foreach ($newRoutes as $index => $route) {
-                    $zoneToUpdate = $existingZones->values()->get($index) ?? null;
+                // Delete all existing zones and recreate with fresh data
+                // This ensures we have the most current data and avoids index mismatches
+                $user->zones()->delete();
 
-                    if ($zoneToUpdate) {
-                        // Update existing zone with fresh data
-                        $zoneToUpdate->update([
-                            'route' => $route['route'],
-                            'zone' => $route['zone'],
-                            'day' => $route['day'],
-                            'address' => $route['address'],
-                            'code' => $route['code'],
-                        ]);
-                    } else {
-                        // Create new zone with fresh data
-                        $user->zones()->create([
-                            'route' => $route['route'],
-                            'zone' => $route['zone'],
-                            'day' => $route['day'],
-                            'address' => $route['address'],
-                            'code' => $route['code'],
-                        ]);
-                    }
+                $syncedZones = [];
+                foreach ($newRoutes as $route) {
+                    $zone = $user->zones()->create([
+                        'route' => $route['route'] ?? null,
+                        'zone' => $route['zone'] ?? null,
+                        'day' => $route['day'] ?? null,
+                        'address' => $route['address'] ?? null,
+                        'code' => $route['code'] ?? null,
+                    ]);
+                    $syncedZones[] = [
+                        'id' => $zone->id,
+                        'code' => $zone->code,
+                        'zone' => $zone->zone,
+                        'route' => $zone->route,
+                    ];
                 }
 
                 // Update user name if available
@@ -242,10 +250,13 @@ class UserRepository
                 }
 
                 $user->refresh();
+                $user->load('zones');
+                
                 \Log::info('Rutero data synced successfully', [
                     'user_id' => $user->id,
                     'document' => $user->document,
                     'zones_count' => $user->zones()->count(),
+                    'synced_zones' => $syncedZones,
                 ]);
 
                 return true;

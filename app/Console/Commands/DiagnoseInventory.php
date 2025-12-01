@@ -10,25 +10,25 @@ use Illuminate\Console\Command;
 
 class DiagnoseInventory extends Command
 {
-    protected $signature = 'inventory:diagnose {user_email?}';
-    protected $description = 'Diagnose inventory availability issues for a user';
+    protected $signature = 'inventory:diagnose {document?}';
+    protected $description = 'Diagnose inventory availability issues for a user by document';
 
     public function handle()
     {
-        $userEmail = $this->argument('user_email');
+        $document = $this->argument('document');
         
-        if (!$userEmail) {
-            $userEmail = $this->ask('Enter user email to diagnose');
+        if (!$document) {
+            $document = $this->ask('Enter client document to diagnose');
         }
 
-        $user = User::where('email', $userEmail)->first();
+        $user = User::where('document', $document)->first();
 
         if (!$user) {
-            $this->error("User not found: {$userEmail}");
+            $this->error("User not found with document: {$document}");
             return 1;
         }
 
-        $this->info("=== INVENTORY DIAGNOSTIC FOR {$user->name} ({$user->email}) ===\n");
+        $this->info("=== INVENTORY DIAGNOSTIC FOR {$user->name} (Document: {$user->document}, Email: {$user->email}) ===\n");
 
         // 1. Check user zones
         $this->info("1. USER ZONES:");

@@ -51,8 +51,9 @@ Added debug logging at each step of bodega lookup:
 
 ### Step 1: Run Diagnostic Command
 ```bash
-php artisan inventory:diagnose user@example.com
+php artisan inventory:diagnose 123456789
 ```
+Replace `123456789` with the client's document number.
 
 This will show:
 - User's zones and zone codes
@@ -165,7 +166,7 @@ php artisan config:cache
 - [ ] Check `zone_warehouses` table has required mappings
 - [ ] Test with a real user order
 - [ ] Monitor logs for any remaining issues
-- [ ] Run diagnostic command for affected users: `php artisan inventory:diagnose user@email.com`
+- [ ] Run diagnostic command for affected users: `php artisan inventory:diagnose DOCUMENT_NUMBER`
 
 ## Monitoring
 
