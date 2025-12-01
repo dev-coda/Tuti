@@ -359,7 +359,9 @@ class CartController extends Controller
             $safety = $product->getEffectiveSafetyStock();
             // Determine user bodega from zone mapping
             $zone = $user->zones()->orderBy('id')->first();
-            $zoneCode = $zone?->code ?? $user->zone;
+            // Use zone field only (actual zone number like "933")
+            // Note: code field contains CustRuteroID and should NOT be used for zone determination
+            $zoneCode = $zone?->zone ?? $user->zone;
             $bodega = ZoneWarehouse::getBodegaForZone($zoneCode);
 
             // For products with variations, inventory is always stored at the parent product level
@@ -581,8 +583,9 @@ class CartController extends Controller
         $inventoryEnabled = Setting::getByKey('inventory_enabled');
         $isInventoryEnabled = ($inventoryEnabled === '1' || $inventoryEnabled === 1 || $inventoryEnabled === true);
         
-        // Check both code and zone fields (zone field is fallback if code is null)
-        $zoneCode = $zone?->code ?? $zone?->zone ?? null;
+        // Use zone field only (actual zone number like "933")
+        // Note: code field contains CustRuteroID and should NOT be used for zone determination
+        $zoneCode = $zone?->zone ?? null;
         
         \Log::info('Zone determination after rutero sync', [
             'user_id' => $actingUser->id,
@@ -629,12 +632,14 @@ class CartController extends Controller
                     'user_id' => $actingUser->id,
                     'zones_count' => $actingUser->zones->count(),
                     'available_zones' => $actingUser->zones->map(function($z) {
-                        $code = $z->code ?? $z->zone;
-                        $bodega = ZoneWarehouse::getBodegaForZone($code);
+                        // Use zone field only (actual zone number like "933")
+                        // Note: code field contains CustRuteroID and should NOT be used for zone determination
+                        $zoneCode = $z->zone;
+                        $bodega = $zoneCode ? ZoneWarehouse::getBodegaForZone($zoneCode) : null;
                         return [
                             'id' => $z->id,
-                            'code' => $z->code,
-                            'zone' => $z->zone,
+                            'code' => $z->code, // CustRuteroID (not used for bodega mapping)
+                            'zone' => $z->zone, // Actual zone number (used for bodega mapping)
                             'has_bodega' => !is_null($bodega),
                             'bodega' => $bodega,
                         ];
@@ -642,9 +647,11 @@ class CartController extends Controller
                 ]);
                 
                 foreach ($actingUser->zones as $candidateZone) {
-                    $candidateCode = $candidateZone?->code ?? $candidateZone?->zone;
+                    // Use zone field only (actual zone number like "933")
+                    // Note: code field contains CustRuteroID and should NOT be used for zone determination
+                    $candidateCode = $candidateZone?->zone;
                     if (!$candidateCode) {
-                        \Log::debug('Skipping zone without code', [
+                        \Log::debug('Skipping zone without zone field', [
                             'zone_id' => $candidateZone->id,
                             'zone_field' => $candidateZone->zone,
                         ]);
@@ -669,7 +676,9 @@ class CartController extends Controller
                 $zoneId = $fallbackZoneId;
                 session()->put('zone_id', $zoneId);
                 $zone = Zone::find($zoneId);
-                $zoneCode = $zone?->code ?? $zone?->zone;
+                // Use zone field only (actual zone number like "933")
+                // Note: code field contains CustRuteroID and should NOT be used for zone determination
+                $zoneCode = $zone?->zone;
                 $bodega = ZoneWarehouse::getBodegaForZone($zoneCode);
                 
                 \Log::info('Using fallback zone', [

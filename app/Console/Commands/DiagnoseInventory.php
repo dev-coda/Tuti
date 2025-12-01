@@ -47,19 +47,17 @@ class DiagnoseInventory extends Command
         }
         $this->line("");
 
-        // 2. Determine zone code (using same logic as PageController)
+        // 2. Determine zone code (using same logic as CartController)
+        // Use zone field only (actual zone number like "933")
+        // Note: code field contains CustRuteroID and should NOT be used for zone determination
         $this->info("2. ZONE CODE DETERMINATION:");
         $zoneCode = $user->zone ?? null;
         $this->line("   Step 1 - user->zone: " . ($zoneCode ?? 'NULL'));
 
         if (!$zoneCode) {
-            $zoneCode = $user->zones()->orderBy('id')->value('code');
-            $this->line("   Step 2 - zones()->code: " . ($zoneCode ?? 'NULL'));
-        }
-        
-        if (!$zoneCode) {
+            // Use zone field only (actual zone number like "933")
             $zoneCode = $user->zones()->orderBy('id')->value('zone');
-            $this->line("   Step 3 - zones()->zone: " . ($zoneCode ?? 'NULL'));
+            $this->line("   Step 2 - zones()->zone (actual zone number): " . ($zoneCode ?? 'NULL'));
         }
 
         if (!$zoneCode) {
