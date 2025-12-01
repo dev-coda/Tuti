@@ -265,35 +265,4 @@ class UserRepository
             return false;
         }
     }
-
-
-
-
-        // if(!empty($aListRuteros->aRoute)){
-        //     $address = $aListRuteros->aDetail->aListDetailsRuteros->aAddress->__toString();
-        //     $name = $aListRuteros->aDetail->aListDetailsRuteros->aName->__toString();
-        //     $route = $aListRuteros->aRoute->__toString();
-        //     $zone = $aListRuteros->aZona->__toString();
-        //     $day = $aListRuteros->aDiaRecorrido->__toString();
-        //     $aCustRuteroID = $aListRuteros->aDetail->aListDetailsRuteros-> aCustRuteroID->__toString();
-        //     $day = explode('- ', $day)[0];
-
-        //     return [
-        //         'zone' => $zone,
-        //         'route' => $route,
-        //         'code' => $aCustRuteroID,
-        //         'day' => $day,
-        //         'address' => $address,
-        //         'name' => $name
-        //     ];
-
-        // }else{
-        //     return null;
-        // }
-
-
-
-
-
-    }
 }
