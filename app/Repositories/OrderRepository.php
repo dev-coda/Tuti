@@ -803,28 +803,31 @@ class OrderRepository
      * Calculate delivery date for Express method (orden express)
      * Promises delivery in 2 business days from order date
      * Considers holidays, Sundays, and working Saturdays
-     * Ensures delivery date is at least tomorrow
+     * 
+     * For express delivery, we count exactly 2 business days starting from tomorrow
+     * Example: Order placed Monday → delivered Wednesday (Tuesday + Wednesday = 2 business days)
      */
     public static function getExpressDeliveryDate()
     {
-        // Get 2 business days ahead (daysAhead=1 means 2 business days ahead)
-        // daysAhead=0 → 1 business day ahead
-        // daysAhead=1 → 2 business days ahead
-        $deliveryDate = self::getBusinessDay(1);
-        $deliveryDateCarbon = Carbon::parse($deliveryDate)->startOfDay();
-        $tomorrow = now()->startOfDay()->addDay();
+        // Start counting from tomorrow (orders placed today can't be delivered today)
+        $startDate = now()->startOfDay()->addDay();
         
-        // Ensure delivery date is at least tomorrow
-        if ($deliveryDateCarbon->lt($tomorrow)) {
-            // If calculated date is today or past, use tomorrow (or next business day if tomorrow is not a business day)
-            if (self::isBussinessDay($tomorrow)) {
-                return $tomorrow->format('Y-m-d');
-            } else {
-                return self::getBusinessDay(0);
+        // Count exactly 2 business days from tomorrow
+        // We need to find 2 business days, so we use daysAhead=1
+        // (daysAhead=1 means: find 2 business days where businessDaysFound > 1)
+        $now = $startDate->copy();
+        $businessDaysFound = 0;
+        $targetBusinessDays = 2; // Exactly 2 business days
+        
+        while ($businessDaysFound < $targetBusinessDays) {
+            $now = $now->addDay();
+            
+            if (self::isBussinessDay($now)) {
+                $businessDaysFound++;
             }
         }
         
-        return $deliveryDate;
+        return $now->format('Y-m-d');
     }
 
     /**
