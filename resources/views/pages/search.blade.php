@@ -37,6 +37,32 @@
 
 
 <section class="w-full grid grid-cols-1 gap-x-10 xl:gap-y-0 gap-y-2 md:gap-y-10">
+    @php
+        $vacationModeEnabled = \App\Models\Setting::getByKey('vacation_mode_enabled');
+        $isVacationMode = ($vacationModeEnabled === '1' || $vacationModeEnabled === 1 || $vacationModeEnabled === true);
+        $vacationDate = \App\Models\Setting::getByKey('vacation_mode_date');
+        $formattedVacationDate = $vacationDate ? \Carbon\Carbon::parse($vacationDate)->locale('es')->isoFormat('D [de] MMMM [de] YYYY') : 'pronto';
+    @endphp
+
+    @if($isVacationMode)
+    <div class="mb-6">
+        <div class="bg-orange-50 border-l-4 border-orange-400 p-4 rounded-lg shadow-sm">
+            <div class="flex items-start">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-orange-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                <div class="ml-3 flex-1">
+                    <p class="text-sm text-orange-700">
+                        <span class="font-semibold">Tuti está de vacaciones.</span> Te esperamos nuevamente <span class="font-medium">{{ $formattedVacationDate }}</span>. ¡Gracias!
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+    @endif
+
     @if (count($products) == 0)
     <h1 class="text-2xl font-bold mt-5">No se encontraron resultados</h1>
     @else
