@@ -85,6 +85,28 @@ Route::get('/categories/featured', [CategoriesApiController::class, 'featured'])
 Route::get('/categories/most-popular', [CategoriesApiController::class, 'mostPopular']);
 Route::get('/categories/section-title', [CategoriesApiController::class, 'getSectionTitle']);
 
+// Vacation mode check endpoint
+Route::get('/vacation-mode', function () {
+    $vacationModeEnabled = \App\Models\Setting::getByKey('vacation_mode_enabled');
+    $isVacationMode = ($vacationModeEnabled === '1' || $vacationModeEnabled === 1 || $vacationModeEnabled === true);
+    $vacationDate = \App\Models\Setting::getByKey('vacation_mode_date');
+    
+    if ($isVacationMode && $vacationDate) {
+        $formattedDate = \Carbon\Carbon::parse($vacationDate)->locale('es')->isoFormat('D [de] MMMM [de] YYYY');
+        $message = "Tuti está de vacaciones. Te esperamos nuevamente {$formattedDate}. ¡Gracias!";
+    } else {
+        $formattedDate = null;
+        $message = null;
+    }
+    
+    return response()->json([
+        'enabled' => $isVacationMode,
+        'date' => $vacationDate,
+        'formatted_date' => $formattedDate,
+        'message' => $message,
+    ]);
+});
+
 // Delivery date calculation endpoint
 Route::get('/delivery-date/{method}', function ($method) {
     $zone = null;

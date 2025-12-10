@@ -260,4 +260,40 @@ class SettingController extends Controller
         $zoneWarehouse->delete();
         return back()->with('success', 'Asignación eliminada exitosamente');
     }
+
+    /**
+     * Update vacation mode settings
+     */
+    public function updateVacationMode(Request $request)
+    {
+        $validated = $request->validate([
+            'vacation_mode_enabled' => 'nullable|in:1',
+            'vacation_mode_date' => 'nullable|date',
+        ]);
+
+        // Update vacation mode enabled setting
+        $enabled = isset($validated['vacation_mode_enabled']) ? '1' : '0';
+        Setting::updateOrCreate(
+            ['key' => 'vacation_mode_enabled'],
+            [
+                'name' => 'Modo Vacaciones',
+                'value' => $enabled,
+                'show' => false,
+            ]
+        );
+
+        // Update vacation mode date if provided
+        if (isset($validated['vacation_mode_date'])) {
+            Setting::updateOrCreate(
+                ['key' => 'vacation_mode_date'],
+                [
+                    'name' => 'Fecha de Regreso de Vacaciones',
+                    'value' => $validated['vacation_mode_date'],
+                    'show' => false,
+                ]
+            );
+        }
+
+        return back()->with('success', 'Configuración de modo vacaciones actualizada exitosamente');
+    }
 }

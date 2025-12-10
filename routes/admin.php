@@ -118,6 +118,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
 
     Route::resource('settings', SettingController::class)->except(['show']);
     Route::post('settings/sync-inventory', [SettingController::class, 'syncInventory'])->name('settings.sync-inventory');
+    Route::post('settings/update-vacation-mode', [SettingController::class, 'updateVacationMode'])->name('settings.update-vacation-mode');
     Route::get('settings/mailer-config', [SettingController::class, 'mailer'])->name('settings.mailer');
     Route::post('settings/mailer-config', [SettingController::class, 'updateMailer'])->name('settings.mailer.update');
     Route::get('settings/zone-warehouses', [SettingController::class, 'zoneWarehouses'])->name('settings.zone-warehouses');

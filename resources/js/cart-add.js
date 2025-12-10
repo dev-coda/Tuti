@@ -124,7 +124,7 @@
                 // Dispatch cart update event
                 window.dispatchEvent(new CustomEvent('cart:updated'));
             } else {
-                // Show error toast - handle both 400 and other error responses
+                // Show error toast - handle both 400, 403 (vacation mode) and other error responses
                 const errorMessage = data.message || data.error || 'Error al agregar el producto';
                 showToast(errorMessage, 'error', 5000);
             }

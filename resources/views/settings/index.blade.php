@@ -29,6 +29,41 @@
         </div>
     </div>
 
+    <!-- Vacation Mode Settings -->
+    <div class="col-span-full mb-6">
+        <div class="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">Modo Vacaciones</h3>
+            <form action="{{ route('settings.update-vacation-mode') }}" method="POST" id="vacationModeForm">
+                @csrf
+                <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+                    <div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" name="vacation_mode_enabled" value="1" 
+                                   class="sr-only peer" 
+                                   @checked(\App\Models\Setting::getByKey('vacation_mode_enabled') == '1')
+                                   onchange="document.getElementById('vacationModeForm').submit()">
+                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                            <span class="ml-3 text-sm font-medium text-gray-900">Modo Vacaciones</span>
+                        </label>
+                        <p class="mt-2 text-xs text-gray-500">Cuando está activado, los usuarios no podrán agregar productos al carrito ni realizar pedidos.</p>
+                    </div>
+                    <div>
+                        <label for="vacation_mode_date" class="block text-sm font-medium text-gray-700 mb-2">
+                            Fecha de Regreso
+                        </label>
+                        <input type="date" 
+                               name="vacation_mode_date" 
+                               id="vacation_mode_date"
+                               value="{{ \App\Models\Setting::getByKey('vacation_mode_date') }}"
+                               class="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                               onchange="document.getElementById('vacationModeForm').submit()">
+                        <p class="mt-1 text-xs text-gray-500">Fecha en que Tuti regresará de vacaciones.</p>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Quick Actions -->
     <div class="col-span-full mb-6">
         <div class="bg-white border border-gray-200 rounded-lg shadow-sm p-6">

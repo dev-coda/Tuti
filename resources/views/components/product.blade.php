@@ -2,6 +2,10 @@
 @php
     $inventoryEnabled = \App\Models\Setting::getByKey('inventory_enabled');
     $showInventory = ($inventoryEnabled === '1' || $inventoryEnabled === 1 || $inventoryEnabled === true);
+    $vacationModeEnabled = \App\Models\Setting::getByKey('vacation_mode_enabled');
+    $isVacationMode = ($vacationModeEnabled === '1' || $vacationModeEnabled === 1 || $vacationModeEnabled === true);
+    $vacationDate = \App\Models\Setting::getByKey('vacation_mode_date');
+    $formattedVacationDate = $vacationDate ? \Carbon\Carbon::parse($vacationDate)->locale('es')->isoFormat('D [de] MMMM [de] YYYY') : 'pronto';
 @endphp
 <div class=" rounded flex flex-col p-2 md:p-6 max-w-[90vw]">
     <div class="flex w-full items-center justify-center py-1 md:py-2 text-gray-400 flex-grow relative">
@@ -57,7 +61,7 @@
         <p>(Und. x) ${{ currency($product->final_price['perItemPrice']) }}</p>
         @endif
     </div>
-    <form action="{{ route('cart.add', $product->id) }}" method="POST" class="w-full flex justify-center">
+    <form action="{{ route('cart.add', $product->id) }}" method="POST" class="w-full flex flex-col items-center">
         @csrf
         <input type="hidden" name="quantity" value="{{ $product->step ?? 1 }}">
         @if($product->variation_id)
@@ -68,11 +72,20 @@
                 <input type="hidden" name="variation_id" value="{{ $firstVariation->id }}">
             @endif
         @endif
-        <button type="submit" data-add-to-cart data-product-id="{{ $product->id }}" class="bg-secondary p-1 md:p-2 mt-2 md:mt-4 text-white hover:bg-gray2 flex px-2 md:px-4 text-lg md:text-xl font-semibold rounded-full items-center justify-center w-40 md:w-52 mx-auto">
+        <button type="submit" 
+                data-add-to-cart 
+                data-product-id="{{ $product->id }}" 
+                @if($isVacationMode) disabled @endif
+                class="bg-secondary p-1 md:p-2 mt-2 md:mt-4 text-white hover:bg-gray2 flex px-2 md:px-4 text-lg md:text-xl font-semibold rounded-full items-center justify-center w-40 md:w-52 mx-auto disabled:opacity-50 disabled:cursor-not-allowed">
             <span>¡Lo quiero! </span>
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" />
             </svg>
         </button>
+        @if($isVacationMode)
+            <p class="text-xs text-gray-600 text-center mt-2 max-w-xs">
+                Tuti está de vacaciones. Te esperamos nuevamente {{ $formattedVacationDate }}. ¡Gracias!
+            </p>
+        @endif
     </form>
 </div>

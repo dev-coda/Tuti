@@ -340,7 +340,24 @@ class CartController extends Controller
     #TODO crear plugin de agregar al carrito
     public function add(Request $request, Product $product)
     {
-
+        // Check vacation mode
+        $vacationModeEnabled = Setting::getByKey('vacation_mode_enabled');
+        $isVacationMode = ($vacationModeEnabled === '1' || $vacationModeEnabled === 1 || $vacationModeEnabled === true);
+        
+        if ($isVacationMode) {
+            $vacationDate = Setting::getByKey('vacation_mode_date');
+            $formattedDate = $vacationDate ? \Carbon\Carbon::parse($vacationDate)->locale('es')->isoFormat('D [de] MMMM [de] YYYY') : 'pronto';
+            $message = "Tuti está de vacaciones. Te esperamos nuevamente {$formattedDate}. ¡Gracias!";
+            
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $message
+                ], 403);
+            }
+            
+            return redirect()->back()->with('error', $message);
+        }
 
         $user = auth()->user();
         if (!$user) {
@@ -525,6 +542,16 @@ class CartController extends Controller
 
     public function processOrder(Request $request)
     {
+        // Check vacation mode
+        $vacationModeEnabled = Setting::getByKey('vacation_mode_enabled');
+        $isVacationMode = ($vacationModeEnabled === '1' || $vacationModeEnabled === 1 || $vacationModeEnabled === true);
+        
+        if ($isVacationMode) {
+            $vacationDate = Setting::getByKey('vacation_mode_date');
+            $formattedDate = $vacationDate ? \Carbon\Carbon::parse($vacationDate)->locale('es')->isoFormat('D [de] MMMM [de] YYYY') : 'pronto';
+            $message = "Tuti está de vacaciones. Te esperamos nuevamente {$formattedDate}. ¡Gracias!";
+            return redirect()->route('cart')->with('error', $message);
+        }
 
         //   dd($request->all());
         $cart = session()->get('cart');
