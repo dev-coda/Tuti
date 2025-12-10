@@ -109,14 +109,19 @@ toastInitApp.use(Toast, {
 });
 
 // Mount toast initialization component
+let toastInitialized = false;
 function initToast() {
+    if (toastInitialized) return;
+    
     if (document.body) {
         const toastEl = document.createElement("div");
+        toastEl.id = "toast-container";
         toastEl.style.display = "none";
         document.body.appendChild(toastEl);
         toastInitApp.mount(toastEl);
+        toastInitialized = true;
     } else {
-        document.addEventListener('DOMContentLoaded', initToast);
+        document.addEventListener('DOMContentLoaded', initToast, { once: true });
     }
 }
 
