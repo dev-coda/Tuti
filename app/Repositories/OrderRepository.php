@@ -804,26 +804,50 @@ class OrderRepository
      * Promises delivery in 2 business days from order date
      * Considers holidays, Sundays, and working Saturdays
      * 
-     * For express delivery, we count exactly 2 business days starting from tomorrow
+     * For express delivery, we count exactly 2 business days starting from today
      * Example: Order placed Monday → delivered Wednesday (Tuesday + Wednesday = 2 business days)
      */
     public static function getExpressDeliveryDate()
     {
-        // Start counting from tomorrow (orders placed today can't be delivered today)
-        $startDate = now()->startOfDay()->addDay();
+        // Start counting from today
+        $startDate = now()->startOfDay();
+        $tomorrow = $startDate->copy()->addDay();
         
-        // Count exactly 2 business days from tomorrow
-        // We need to find 2 business days, so we use daysAhead=1
-        // (daysAhead=1 means: find 2 business days where businessDaysFound > 1)
+        // Count exactly 2 business days starting from today
+        // We start from today and count forward, skipping non-business days
         $now = $startDate->copy();
         $businessDaysFound = 0;
         $targetBusinessDays = 2; // Exactly 2 business days
         
+        // Count 2 business days starting from today
+        // (even though we can't deliver today, we count it as part of the 2-day period)
         while ($businessDaysFound < $targetBusinessDays) {
-            $now = $now->addDay();
-            
             if (self::isBussinessDay($now)) {
                 $businessDaysFound++;
+            }
+            // If we've found our 2 business days, break
+            if ($businessDaysFound >= $targetBusinessDays) {
+                break;
+            }
+            // Move to next day
+            $now = $now->addDay();
+        }
+        
+        // Ensure delivery date is at least tomorrow
+        $deliveryDate = Carbon::parse($now->format('Y-m-d'))->startOfDay();
+        if ($deliveryDate->lt($tomorrow)) {
+            // If calculated date is today, count 2 business days from tomorrow instead
+            $now = $tomorrow->copy();
+            $businessDaysFound = 0;
+            
+            while ($businessDaysFound < $targetBusinessDays) {
+                if (self::isBussinessDay($now)) {
+                    $businessDaysFound++;
+                }
+                if ($businessDaysFound >= $targetBusinessDays) {
+                    break;
+                }
+                $now = $now->addDay();
             }
         }
         

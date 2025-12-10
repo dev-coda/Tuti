@@ -221,17 +221,27 @@
 
         // Convert session flash messages to toast notifications
         @if(session('success'))
-            window.addEventListener('DOMContentLoaded', function() {
-                setTimeout(function() {
-                    if (window.showToast) {
-                        window.showToast('{{ session('success') }}', 'success', 5000);
-                    } else {
-                        window.dispatchEvent(new CustomEvent('toast:show', {
-                            detail: { message: '{{ session('success') }}', type: 'success', duration: 5000 }
-                        }));
-                    }
-                }, 100);
-            });
+            (function() {
+                let toastShown = false;
+                function showSuccessToast() {
+                    if (toastShown) return;
+                    toastShown = true;
+                    setTimeout(function() {
+                        if (window.showToast) {
+                            window.showToast('{{ session('success') }}', 'success', 5000);
+                        } else {
+                            window.dispatchEvent(new CustomEvent('toast:show', {
+                                detail: { message: '{{ session('success') }}', type: 'success', duration: 5000 }
+                            }));
+                        }
+                    }, 100);
+                }
+                if (document.readyState === 'loading') {
+                    window.addEventListener('DOMContentLoaded', showSuccessToast, { once: true });
+                } else {
+                    showSuccessToast();
+                }
+            })();
         @endif
 
         @if(session('error'))
