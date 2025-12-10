@@ -25,7 +25,7 @@ class Tag extends Model
      */
     public function products()
     {
-        return $this->belongsToMany(Product::class);
+        return $this->belongsToMany(Product::class, 'tag_product', 'tag_id', 'product_id');
     }
 
     /**
@@ -33,7 +33,7 @@ class Tag extends Model
      */
     public function categories()
     {
-        return $this->belongsToMany(Category::class);
+        return $this->belongsToMany(Category::class, 'tag_category', 'tag_id', 'category_id');
     }
 
     /**
@@ -41,7 +41,7 @@ class Tag extends Model
      */
     public function brands()
     {
-        return $this->belongsToMany(Brand::class);
+        return $this->belongsToMany(Brand::class, 'tag_brand', 'tag_id', 'brand_id');
     }
 
     /**
@@ -49,7 +49,7 @@ class Tag extends Model
      */
     public function bonifications()
     {
-        return $this->belongsToMany(Bonification::class);
+        return $this->belongsToMany(Bonification::class, 'tag_bonification', 'tag_id', 'bonification_id');
     }
 
     /**

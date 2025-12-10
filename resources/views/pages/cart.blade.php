@@ -457,7 +457,7 @@
                     }
                 } else {
                     // Inactive state - gray
-                    option.classList.remove('border-orange-500', 'bg-orange-50', 'shadow-md');
+                    option.classList.remove('border-orange-500', 'bg-orange-500', 'bg-orange-50', 'shadow-md');
                     option.classList.add('border-gray-300', 'bg-gray-50');
                     
                     // Update icon
