@@ -37,6 +37,9 @@ class OrdersExport implements FromQuery, WithMapping, WithHeadings, withChunkRea
             $query->whereBetween('created_at', [$this->from_date, $this->to_date]);
         }
 
+        // Filter by status to match KPI section (only include processed, shipped, and delivered orders)
+        $query->whereIn('status_id', [Order::STATUS_PROCESSED, Order::STATUS_SHIPPED, Order::STATUS_DELIVERED]);
+
         if (!empty($this->brand_id)) {
             $brandId = (int) $this->brand_id;
             $query->whereHas('products.product', function ($q) use ($brandId) {

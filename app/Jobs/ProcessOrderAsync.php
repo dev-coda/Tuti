@@ -76,7 +76,9 @@ class ProcessOrderAsync implements ShouldQueue, ShouldBeUnique
         ]);
 
         // Refresh order from database to get latest status
+        // Load relationships needed for email sending
         $this->order->refresh();
+        $this->order->load(['products.product', 'user', 'zone']);
 
         // Skip if already successfully processed
         if ($this->order->status_id === Order::STATUS_PROCESSED) {

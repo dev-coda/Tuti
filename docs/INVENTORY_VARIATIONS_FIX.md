@@ -40,6 +40,29 @@ This design allows:
 -   **Flexible Management**: Admins manage inventory once at the parent level
 -   **Accurate Tracking**: Inventory decrements from a single source of truth
 
+## Inventory Management Control for Variations
+
+As of November 2025, products with variations now support the standard `inventory_opt_out` setting. This means:
+
+-   **By default**, products with variations WILL have inventory managed (if global inventory is enabled)
+-   **To disable inventory tracking** for a product with variations, check the "Excluir de gestión de inventario" checkbox in the product edit form
+-   This gives admins full control over which variation products track inventory and which don't
+
+### When to Exclude Variations from Inventory
+
+Consider disabling inventory management for:
+- Products with unlimited availability
+- Digital products or services
+- Products where you want to always allow orders regardless of stock
+- Pre-order items
+
+### When to Enable Inventory for Variations
+
+Keep inventory management enabled for:
+- Physical products with limited stock
+- Products where you need to track availability per warehouse
+- Products that need safety stock thresholds
+
 ## The Fix
 
 ### Changes Made
@@ -257,6 +280,12 @@ To verify variations work correctly:
 
 ## Version History
 
+-   **2025-11-20**: Allow inventory management for products with variations
+    -   Removed automatic exclusion of products with variations from inventory management
+    -   Products with variations now respect the `inventory_opt_out` checkbox setting
+    -   Admins can now choose whether to manage inventory for products with variations on a per-product basis
+    -   Updated documentation to reflect this change
+
 -   **2025-10-30**: Initial fix - Added comprehensive logging and documentation
     -   Clarified that inventory is always at parent product level
     -   Added logging for all inventory-related failures
@@ -264,4 +293,4 @@ To verify variations work correctly:
 
 ---
 
-**Note**: This fix does not change the underlying logic, which was already correct. It adds clarity, logging, and documentation to prevent confusion and enable better debugging.
+**Note**: Products with variations can now have inventory managed if desired. Use the "Excluir de gestión de inventario" checkbox in the product edit form to control this behavior for each product individually.
