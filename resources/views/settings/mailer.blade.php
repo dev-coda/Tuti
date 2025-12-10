@@ -78,8 +78,8 @@
                                     name="mail_mailer"
                                     class="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('mail_mailer') border-red-300 @enderror"
                                     required>
+                                <option value="mailgun" {{ ($mailerSettings['mail_mailer']->value ?? 'mailgun') == 'mailgun' ? 'selected' : '' }}>Mailgun (Recomendado)</option>
                                 <option value="smtp" {{ ($mailerSettings['mail_mailer']->value ?? 'mailgun') == 'smtp' ? 'selected' : '' }}>SMTP</option>
-                                <option value="mailgun" {{ ($mailerSettings['mail_mailer']->value ?? 'mailgun') == 'mailgun' ? 'selected' : '' }}>Mailgun</option>
                                 <option value="sendmail" {{ ($mailerSettings['mail_mailer']->value ?? 'mailgun') == 'sendmail' ? 'selected' : '' }}>Sendmail</option>
                                 <option value="log" {{ ($mailerSettings['mail_mailer']->value ?? 'mailgun') == 'log' ? 'selected' : '' }}>Log (para pruebas)</option>
                             </select>
@@ -480,7 +480,7 @@ document.addEventListener('DOMContentLoaded', function() {
         testEmailBtn.innerHTML = '<svg class="w-4 h-4 mr-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>Enviando...';
 
         // Send test email via AJAX
-        fetch('/admin/test-email', {
+        fetch('{{ route('test.email') }}', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -488,7 +488,21 @@ document.addEventListener('DOMContentLoaded', function() {
             },
             body: JSON.stringify({ email: email })
         })
-        .then(response => response.json())
+        .then(response => {
+            // Check if response is JSON before parsing
+            const contentType = response.headers.get('content-type');
+            if (!response.ok) {
+                // If response is not OK, throw an error with status
+                if (contentType && contentType.includes('application/json')) {
+                    return response.json().then(data => {
+                        throw new Error(data.message || `Error ${response.status}: ${response.statusText}`);
+                    });
+                } else {
+                    throw new Error(`Error del servidor (${response.status}): Por favor revise la configuración del correo en la base de datos.`);
+                }
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.success) {
                 showTestResult('Correo de prueba enviado exitosamente', 'success');
@@ -497,7 +511,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         })
         .catch(error => {
-            showTestResult('Error de conexión: ' + error.message, 'error');
+            showTestResult('Error: ' + error.message, 'error');
         })
         .finally(() => {
             // Re-enable button

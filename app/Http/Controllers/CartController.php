@@ -19,6 +19,7 @@ use App\Models\Coupon;
 use App\Models\CouponUsage;
 use App\Services\CouponService;
 use App\Repositories\OrderRepository;
+use App\Repositories\UserRepository;
 use App\Settings\GeneralSettings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
@@ -356,10 +357,12 @@ class CartController extends Controller
         $isInventoryEnabled = ($inventoryEnabled === '1' || $inventoryEnabled === 1 || $inventoryEnabled === true);
         if ($isInventoryEnabled && $product->isInventoryManaged()) {
             $safety = $product->getEffectiveSafetyStock();
-            // Determine user bodega from first zone mapping
+            // Determine user bodega from zone mapping
             $zone = $user->zones()->orderBy('id')->first();
-            $zoneCode = $zone?->code ?? $user->zone;
-            $bodega = $zoneCode ? ZoneWarehouse::where('zone_code', $zoneCode)->value('bodega_code') : null;
+            // Use zone field only (actual zone number like "933")
+            // Note: code field contains CustRuteroID and should NOT be used for zone determination
+            $zoneCode = $zone?->zone ?? $user->zone;
+            $bodega = ZoneWarehouse::getBodegaForZone($zoneCode);
 
             // For products with variations, inventory is always stored at the parent product level
             // All variation items share the same inventory pool
@@ -515,50 +518,156 @@ class CartController extends Controller
 
         $seller_id = null;
         $user_id = $user->id;
+        $actingUser = $user;
 
         if ($user->hasRole('seller')) {
             $seller_id = $user->id;
             $user_id = session()->get('user_id');
+            $actingUser = User::find($user_id) ?: $user;
+        }
+
+        // Sync rutero data before processing order to ensure we have current data
+        // This handles cases where zone data might have changed in external service
+        if ($actingUser && $actingUser->document) {
+            try {
+                \Log::info('Syncing rutero data before order processing', [
+                    'user_id' => $actingUser->id,
+                    'document' => $actingUser->document,
+                ]);
+                UserRepository::syncUserRuteroData($actingUser);
+                // Reload zones after sync
+                $actingUser->refresh();
+                $actingUser->load('zones');
+            } catch (\Throwable $th) {
+                \Log::warning('Failed to sync rutero data before order processing', [
+                    'user_id' => $actingUser->id,
+                    'error' => $th->getMessage(),
+                ]);
+                // Continue with existing data if sync fails
+            }
         }
 
         $delivery_date = OrderRepository::getBusinessDay();
 
+        // After syncing rutero data, re-determine zone_id if needed
+        // The sync might have updated zones, so we need to ensure zone_id is still valid
+        $zoneId = $request->zone_id ?? session()->get('zone_id');
+        
+        // Reload zones to ensure we have fresh data after sync
+        $actingUser->load('zones');
+        
+        if ($zoneId) {
+            // Verify zone still exists and belongs to acting user
+            $zone = Zone::where('id', $zoneId)
+                ->where('user_id', $actingUser->id)
+                ->first();
+            
+            // If zone doesn't exist or doesn't belong to user, try to find a valid zone
+            if (!$zone && $actingUser->zones->count() > 0) {
+                $zoneId = $actingUser->zones->first()->id;
+                session()->put('zone_id', $zoneId);
+                $zone = Zone::find($zoneId);
+            }
+        } else {
+            // If no zone_id, get first zone from synced zones
+            if ($actingUser->zones->count() > 0) {
+                $zoneId = $actingUser->zones->first()->id;
+                session()->put('zone_id', $zoneId);
+                $zone = Zone::find($zoneId);
+            } else {
+                $zone = null;
+            }
+        }
+
         // Inventory validation based on zone/bodega
         $inventoryEnabled = Setting::getByKey('inventory_enabled');
         $isInventoryEnabled = ($inventoryEnabled === '1' || $inventoryEnabled === 1 || $inventoryEnabled === true);
-        $zoneId = $request->zone_id ?? session()->get('zone_id');
-        $zone = $zoneId ? Zone::find($zoneId) : null;
-        $zoneCode = $zone?->code ?? null;
-        $bodega = null;
-        if ($zoneCode && $isInventoryEnabled) {
-            // First try DB mapping
-            $bodega = ZoneWarehouse::where('zone_code', trim((string)$zoneCode))->value('bodega_code');
-            // Fallback to config mapping if DB has no record
-            if (!$bodega) {
-                $mappings = (array) config('zone_warehouses.mappings', []);
-                $mapVal = $mappings[trim((string)$zoneCode)] ?? null;
-                if (is_array($mapVal)) {
-                    $bodega = $mapVal[0] ?? null;
-                } else if (is_string($mapVal)) {
-                    $bodega = $mapVal;
-                }
-            }
-        }
+        
+        // Use zone field only (actual zone number like "933")
+        // Note: code field contains CustRuteroID and should NOT be used for zone determination
+        $zoneCode = $zone?->zone ?? null;
+        
+        \Log::info('Zone determination after rutero sync', [
+            'user_id' => $actingUser->id,
+            'zone_id' => $zoneId,
+            'zone_code' => $zoneCode,
+            'zone_object' => $zone ? [
+                'id' => $zone->id,
+                'code' => $zone->code,
+                'zone' => $zone->zone,
+                'route' => $zone->route,
+            ] : null,
+            'all_zones' => $actingUser->zones->map(function($z) {
+                return ['id' => $z->id, 'code' => $z->code, 'zone' => $z->zone];
+            })->toArray(),
+        ]);
+        
+        $bodega = $isInventoryEnabled ? ZoneWarehouse::getBodegaForZone($zoneCode) : null;
+        
         if ($isInventoryEnabled && !$bodega) {
+            // Log detailed debugging information
+            \Log::warning('Bodega determination failed', [
+                'user_id' => $user->id,
+                'user_email' => $user->email,
+                'zone_id' => $zoneId,
+                'zone_code' => $zoneCode,
+                'zone_object' => $zone ? [
+                    'id' => $zone->id,
+                    'code' => $zone->code,
+                    'zone' => $zone->zone,
+                    'route' => $zone->route,
+                ] : null,
+                'is_seller' => $user->hasRole('seller'),
+                'session_user_id' => session()->get('user_id'),
+            ]);
+            
             // Attempt fallback: choose the first zone of the acting user that has a mapped bodega
-            $actingUser = $user;
-            if ($user->hasRole('seller')) {
-                $actingUser = User::find(session()->get('user_id')) ?: $user;
-            }
+            // Reload zones to ensure we have the latest data after sync
+            $actingUser->refresh();
+            $actingUser->load('zones');
+            
             $fallbackZoneId = null;
-            if ($actingUser) {
+            if ($actingUser && $actingUser->zones->count() > 0) {
+                \Log::info('Attempting fallback zone selection', [
+                    'user_id' => $actingUser->id,
+                    'zones_count' => $actingUser->zones->count(),
+                    'available_zones' => $actingUser->zones->map(function($z) {
+                        // Use zone field only (actual zone number like "933")
+                        // Note: code field contains CustRuteroID and should NOT be used for zone determination
+                        $zoneCode = $z->zone;
+                        $bodega = $zoneCode ? ZoneWarehouse::getBodegaForZone($zoneCode) : null;
+                        return [
+                            'id' => $z->id,
+                            'code' => $z->code, // CustRuteroID (not used for bodega mapping)
+                            'zone' => $z->zone, // Actual zone number (used for bodega mapping)
+                            'has_bodega' => !is_null($bodega),
+                            'bodega' => $bodega,
+                        ];
+                    })->toArray(),
+                ]);
+                
                 foreach ($actingUser->zones as $candidateZone) {
-                    $candidateCode = trim((string) ($candidateZone?->code));
-                    if (!$candidateCode) continue;
-                    $hasDb = ZoneWarehouse::where('zone_code', $candidateCode)->exists();
-                    $hasCfg = array_key_exists($candidateCode, (array) config('zone_warehouses.mappings', []));
-                    if ($hasDb || $hasCfg) {
+                    // Use zone field only (actual zone number like "933")
+                    // Note: code field contains CustRuteroID and should NOT be used for zone determination
+                    $candidateCode = $candidateZone?->zone;
+                    if (!$candidateCode) {
+                        \Log::debug('Skipping zone without zone field', [
+                            'zone_id' => $candidateZone->id,
+                            'zone_field' => $candidateZone->zone,
+                        ]);
+                        continue;
+                    }
+                    
+                    // Check if this zone has a bodega mapping
+                    $hasMapping = ZoneWarehouse::getBodegaForZone($candidateCode) !== null;
+                    
+                    if ($hasMapping) {
                         $fallbackZoneId = $candidateZone->id;
+                        \Log::info('Found fallback zone with bodega mapping', [
+                            'zone_id' => $fallbackZoneId,
+                            'zone_code' => $candidateCode,
+                            'bodega' => ZoneWarehouse::getBodegaForZone($candidateCode),
+                        ]);
                         break;
                     }
                 }
@@ -567,21 +676,38 @@ class CartController extends Controller
                 $zoneId = $fallbackZoneId;
                 session()->put('zone_id', $zoneId);
                 $zone = Zone::find($zoneId);
-                $zoneCode = $zone?->code ?? null;
-                if ($zoneCode) {
-                    $bodega = ZoneWarehouse::where('zone_code', trim((string)$zoneCode))->value('bodega_code');
-                    if (!$bodega) {
-                        $mappings = (array) config('zone_warehouses.mappings', []);
-                        $mapVal = $mappings[trim((string)$zoneCode)] ?? null;
-                        if (is_array($mapVal)) {
-                            $bodega = $mapVal[0] ?? null;
-                        } else if (is_string($mapVal)) {
-                            $bodega = $mapVal;
-                        }
-                    }
-                }
+                // Use zone field only (actual zone number like "933")
+                // Note: code field contains CustRuteroID and should NOT be used for zone determination
+                $zoneCode = $zone?->zone;
+                $bodega = ZoneWarehouse::getBodegaForZone($zoneCode);
+                
+                \Log::info('Using fallback zone', [
+                    'zone_id' => $zoneId,
+                    'zone_code' => $zoneCode,
+                    'bodega' => $bodega,
+                ]);
             }
             if (!$bodega) {
+                // Log final failure with all available mappings for debugging
+                $allMappings = ZoneWarehouse::all()->map(function($zw) {
+                    return ['zone_code' => $zw->zone_code, 'bodega_code' => $zw->bodega_code];
+                })->toArray();
+                $configMappings = config('zone_warehouses.mappings', []);
+                
+                \Log::error('Bodega determination failed - no mapping found', [
+                    'user_id' => $user->id,
+                    'user_email' => $user->email,
+                    'zone_id' => $zoneId,
+                    'zone_code' => $zoneCode,
+                    'acting_user_zones' => $actingUser ? $actingUser->zones->map(function($z) {
+                        return ['id' => $z->id, 'code' => $z->code, 'zone' => $z->zone];
+                    })->toArray() : null,
+                    'db_mappings_count' => count($allMappings),
+                    'db_mappings' => $allMappings,
+                    'config_mappings_count' => count($configMappings),
+                    'config_mappings_keys' => array_keys($configMappings),
+                ]);
+                
                 return back()->with('error', 'No se pudo determinar la bodega para su zona.');
             }
         }
@@ -735,11 +861,12 @@ class CartController extends Controller
         DB::beginTransaction();
 
         try {
+            // Use the zone_id determined after rutero sync (ensures current data)
             $order = Order::create([
                 'user_id' => $user_id,
                 'total' => $total,
                 'discount' => $discount,
-                'zone_id' => $request->zone_id,
+                'zone_id' => $zoneId, // Use synced zone_id, not request zone_id
                 'seller_id' => $seller_id,
                 'delivery_date' => $delivery_date,
                 'observations' => $observations,
@@ -951,10 +1078,40 @@ class CartController extends Controller
                         // Use the first order product found, or current one if none found yet
                         $bonificationOrderProductId = $firstOrderProductForProduct ? $firstOrderProductForProduct->id : $orderProduct->id;
                         
+                        // Determine variation_item_id for the bonification product
+                        // If the bonification product exists in the parent order, use the same variation
+                        // Otherwise, use the first variation for the variable product
+                        $variationItemId = null;
+                        $bonificationProduct = \App\Models\Product::find($bonification->product_id);
+                        
+                        if ($bonificationProduct && $bonificationProduct->variation_id) {
+                            // Check if this product exists in the parent order
+                            $existingOrderProduct = OrderProduct::where('order_id', $order->id)
+                                ->where('product_id', $bonification->product_id)
+                                ->whereNotNull('variation_item_id')
+                                ->first();
+                            
+                            if ($existingOrderProduct) {
+                                // Use the same variation from the parent order
+                                $variationItemId = $existingOrderProduct->variation_item_id;
+                            } else {
+                                // Get the first variation item for this product
+                                $firstVariationItem = $bonificationProduct->items()
+                                    ->wherePivot('enabled', true)
+                                    ->orderBy('id')
+                                    ->first();
+                                
+                                if ($firstVariationItem) {
+                                    $variationItemId = $firstVariationItem->id;
+                                }
+                            }
+                        }
+                        
                         OrderProductBonification::create([
                             'bonification_id' => $bonification->id,
                             'order_product_id' => $bonificationOrderProductId,
                             'product_id' => $bonification->product_id,
+                            'variation_item_id' => $variationItemId,
                             'quantity' => $bonification_quantity,
                             'order_id' => $order->id,
                         ]);

@@ -603,8 +603,11 @@ return (int) ($category?->safety_stock ?? 0);
 2. product.inventory_opt_out = true
 3. category.inventory_opt_out = true  
 4. category.name = 'OFERTAS' (case insensitive)
-5. product.variation_id != null (productos con variaciones)
 ```
+
+**Nota:** Los productos con variaciones ahora respetan la configuración `inventory_opt_out` 
+del producto individual, en lugar de ser excluidos automáticamente. Esto permite controlar 
+la gestión de inventario para productos con variaciones de forma granular.
 
 #### Verificación
 ```php
@@ -613,7 +616,6 @@ Product.isInventoryManaged():
 - Verificar exclusión a nivel producto
 - Verificar exclusión a nivel categoría
 - Verificar nombre de categoría 'OFERTAS'
-- Verificar si tiene variaciones
 ```
 
 ### Determinación de Bodega por Usuario

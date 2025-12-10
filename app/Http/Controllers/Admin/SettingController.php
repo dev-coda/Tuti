@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Setting;
+use App\Models\ZoneWarehouse;
 use Illuminate\Http\Request;
 use App\Jobs\SyncProductInventory;
 
@@ -143,5 +144,98 @@ class SettingController extends Controller
         ];
 
         return $names[$key] ?? ucfirst(str_replace('_', ' ', $key));
+    }
+
+    /**
+     * Show zone warehouse mappings
+     */
+    public function zoneWarehouses()
+    {
+        // Get mappings from database
+        $dbMappings = ZoneWarehouse::orderBy('zone_code')->get();
+        
+        // Get mappings from config
+        $configMappings = collect(config('zone_warehouses.mappings', []))
+            ->map(function($bodega, $zone) {
+                return [
+                    'zone_code' => $zone,
+                    'bodega_code' => is_array($bodega) ? $bodega[0] : $bodega,
+                    'source' => 'config'
+                ];
+            });
+
+        // Combine both sources
+        $allMappings = $dbMappings->map(function($mapping) {
+            return [
+                'zone_code' => $mapping->zone_code,
+                'bodega_code' => $mapping->bodega_code,
+                'source' => 'database',
+                'id' => $mapping->id
+            ];
+        })->concat($configMappings->values())
+        ->unique(function($item) {
+            return $item['zone_code'] . '-' . $item['bodega_code'];
+        })
+        ->sortBy('zone_code')
+        ->values();
+
+        // Group by bodega for stats
+        $bodegas = $allMappings->groupBy('bodega_code')->map(function($group) {
+            return $group->count();
+        })->sortDesc();
+
+        return view('settings.zone-warehouses', compact('allMappings', 'bodegas', 'dbMappings'));
+    }
+
+    /**
+     * Sync zone warehouses from config to database
+     */
+    public function syncZoneWarehouses()
+    {
+        $mappings = (array) config('zone_warehouses.mappings', []);
+        $count = 0;
+
+        foreach ($mappings as $zone => $bodegas) {
+            $bodegaList = is_array($bodegas) ? $bodegas : [$bodegas];
+            foreach ($bodegaList as $bodega) {
+                if (!$zone || !$bodega) {
+                    continue;
+                }
+                ZoneWarehouse::updateOrCreate([
+                    'zone_code' => trim((string) $zone),
+                    'bodega_code' => trim((string) $bodega),
+                ], []);
+                $count++;
+            }
+        }
+
+        return back()->with('success', "Sincronizadas {$count} asignaciones zona-bodega desde configuración");
+    }
+
+    /**
+     * Store a new zone warehouse mapping
+     */
+    public function storeZoneWarehouse(Request $request)
+    {
+        $validated = $request->validate([
+            'zone_code' => 'required|string|max:50',
+            'bodega_code' => 'required|string|max:50',
+        ]);
+
+        ZoneWarehouse::updateOrCreate([
+            'zone_code' => $validated['zone_code'],
+            'bodega_code' => $validated['bodega_code'],
+        ], []);
+
+        return back()->with('success', 'Asignación creada exitosamente');
+    }
+
+    /**
+     * Delete a zone warehouse mapping
+     */
+    public function destroyZoneWarehouse(ZoneWarehouse $zoneWarehouse)
+    {
+        $zoneWarehouse->delete();
+        return back()->with('success', 'Asignación eliminada exitosamente');
     }
 }

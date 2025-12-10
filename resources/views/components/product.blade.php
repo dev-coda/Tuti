@@ -27,8 +27,9 @@
         @auth
             @php
                 $available = $product->getInventoryForBodega($bodegaCode);
+                $isManaged = $product->isInventoryManaged();
             @endphp
-            @if($showInventory)
+            @if($showInventory && $isManaged)
                 @if($available <= 0)
                     <p class="text-xs text-red-600">Producto no disponible para tu ubicación</p>
                 @else
@@ -36,8 +37,11 @@
                 @endif
             @endif
         @else
-            @php $mdtat = $product->getInventoryForMdtat(); @endphp
-            @if($showInventory)
+            @php 
+                $mdtat = $product->getInventoryForMdtat();
+                $isManaged = $product->isInventoryManaged();
+            @endphp
+            @if($showInventory && $isManaged)
                 <p class="text-xs text-gray-600">Inventario (MDTAT): {{ $mdtat }}</p>
             @endif
         @endauth

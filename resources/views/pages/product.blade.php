@@ -59,11 +59,12 @@
                 @php
                     $inventoryEnabled = \App\Models\Setting::getByKey('inventory_enabled');
                     $showInventory = ($inventoryEnabled === '1' || $inventoryEnabled === 1 || $inventoryEnabled === true);
+                    $isManaged = $product->isInventoryManaged();
                     $available = auth()->check() ? $product->getInventoryForBodega($bodegaCode ?? null) : $product->getInventoryForMdtat();
                     $invForTag = $product->inventories->firstWhere('bodega_code', (auth()->check() ? ($bodegaCode ?? null) : 'MDTAT'));
                     $reserved = (int) ($invForTag?->reserved ?? 0);
                 @endphp
-                @if($showInventory && ($available - $reserved) < 10 && ($available - $reserved) > 0)
+                @if($showInventory && $isManaged && ($available - $reserved) < 10 && ($available - $reserved) > 0)
                     <span class="ml-2 inline-flex items-center text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-700">últimas unidades disponibles</span>
                 @endif
             </div>
@@ -72,16 +73,18 @@
 
             @endif
             @auth
-                @if($showInventory && $available <= 0)
+                @if($showInventory && $isManaged && $available <= 0)
                     <p class="text-sm text-red-600">Producto no disponible para tu ubicación</p>
                 @else
-                    @if($showInventory)
+                    @if($showInventory && $isManaged)
                         <p class="text-sm {{ $available > 5 ? 'text-green-600' : 'text-red-600' }}">Inventario: {{ $available }}</p>
                         <p class="text-sm text-gray-600">Inventario (MDTAT): {{ $available }}</p>
                     @endif
                 @endif
             @else
-                <p class="text-sm text-gray-600">Inventario (MDTAT): {{ $available }}</p>
+                @if($showInventory && $isManaged)
+                    <p class="text-sm text-gray-600">Inventario (MDTAT): {{ $available }}</p>
+                @endif
             @endauth
             <div class="flex items-baseline gap-2">
                 <span class="text-orange-500 font-semibold text-3xl">${{ currency($product->final_price['price']) }}</span>

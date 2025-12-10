@@ -41,9 +41,16 @@ class UserRepository
         ];
     }
 
+    /**
+     * Get rutero data from external service
+     * If zone is provided and doesn't match, retries without zone parameter
+     * 
+     * @param string $document
+     * @param string|null $zone Optional zone code. If provided and doesn't match, will retry without it
+     * @return array|null Returns rutero data with routes and name, or null if not found
+     */
     public static function getCustomRuteroId($document, $zone = null)
     {
-
         $token = Setting::where('key', 'microsoft_token')->first();
 
         //check if updated_at is grander than 30 minutes
@@ -54,9 +61,35 @@ class UserRepository
         }
 
         $token = $token->value;
+        $originalZone = $zone;
         $zone = $zone ?? '';
 
-        //901703447
+        // Try with zone first if provided
+        $result = self::fetchRuteroData($document, $zone, $token);
+        
+        // If zone was provided and result is null, retry without zone
+        // This handles cases where zone no longer matches in external service
+        if ($originalZone !== null && $result === null) {
+            \Log::info('Rutero not found with zone, retrying without zone', [
+                'document' => $document,
+                'zone' => $originalZone,
+            ]);
+            $result = self::fetchRuteroData($document, '', $token);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Internal method to fetch rutero data from SOAP service
+     * 
+     * @param string $document
+     * @param string $zone Zone code (empty string if not filtering by zone)
+     * @param string $token Microsoft token
+     * @return array|null
+     */
+    private static function fetchRuteroData($document, $zone, $token)
+    {
         $body = '<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:dat="http://schemas.microsoft.com/dynamics/2013/01/datacontracts" xmlns:tem="http://tempuri.org" xmlns:dyn="http://schemas.datacontract.org/2004/07/Dynamics.AX.Application">
             <soapenv:Header>
                 <dat:CallContext>
@@ -83,7 +116,6 @@ class UserRepository
 
         info($body);
 
-
         $response = Http::withHeaders([
             'Content-Type' => 'text/xml;charset=UTF-8',
             'SOAPAction' => 'http://tempuri.org/DWSSalesForce/getRuteros',
@@ -95,32 +127,21 @@ class UserRepository
         $data = $response->body();
 
         $xmlString = preg_replace('/<(\/)?(s|a):/', '<$1$2', $data);
-        // libxml_use_internal_errors(true);
         $xml = simplexml_load_string($xmlString);
-
-
-        //info('xml ' . $xml);
-
-
 
         //convert $data into an object
         $xml = simplexml_load_string($xmlString, 'SimpleXMLElement', LIBXML_NOCDATA);
 
-
         try {
-            // $aListRuteros = $xml->sBody->getRuterosResponse->result->agetRuterosResult->aListRuteros;
             info('try');
             $addresses = $xml->sBody->getRuterosResponse->result->agetRuterosResult;
 
             $json = json_encode($addresses);
-
             $array = json_decode($json, TRUE);
 
-            // info('array ' . $array);
             $aListRuteros = $array['aListRuteros'];
             info('aListRuteros');
             info($aListRuteros);
-            // info('Alist ' . $aListRuteros);
         } catch (\Throwable $th) {
             info('catch' . $th->getMessage());
             return null;
@@ -130,18 +151,12 @@ class UserRepository
             return null;
         }
 
-
         $items = [];
         $name = '';
-        //info($aListRuteros->length());
         info('AlistRuteros');
         info(count($aListRuteros));
 
         foreach ($aListRuteros as $key => $rutero) {
-
-
-            //    try {
-
             $aListDetailsRuteros = $aListRuteros['aDetail']['aListDetailsRuteros'];
 
             $data = [
@@ -158,24 +173,11 @@ class UserRepository
             } else if ('aDetail' === $key) {
                 $items[] = self::processData($aListDetailsRuteros, $data);
             }
-
-
-
-
-            //   } catch (\Throwable $th) {
-            //     info('error '.$key);
-            //     info($th->getMessage());
-            //     info($rutero);
-
-            //     continue;
-            //   }
         }
 
         $items = collect($items);
 
-
         if ($items->count()) {
-
             $name = $items->first()['name'] ?? 'Sin Nombre';
 
             $data = [
@@ -187,35 +189,91 @@ class UserRepository
         } else {
             return null;
         }
+    }
 
+    /**
+     * Sync rutero data for a user and update their zones
+     * This ensures we have current rutero data before processing orders
+     * 
+     * @param \App\Models\User $user
+     * @return bool True if sync was successful, false otherwise
+     */
+    public static function syncUserRuteroData($user)
+    {
+        if (!$user || !$user->document) {
+            return false;
+        }
 
+        try {
+            $data = self::getCustomRuteroId($user->document);
+            
+            \Log::info('Rutero sync - data received', [
+                'user_id' => $user->id,
+                'document' => $user->document,
+                'has_data' => !is_null($data),
+                'has_routes' => isset($data['routes']),
+                'routes_count' => isset($data['routes']) ? count($data['routes']) : 0,
+                'routes_sample' => isset($data['routes']) && count($data['routes']) > 0 ? [
+                    'first_route' => $data['routes'][0] ?? null,
+                ] : null,
+            ]);
+            
+            if ($data && isset($data['routes'])) {
+                $existingZones = $user->zones()->orderBy('id')->get();
+                $newRoutes = $data['routes'];
 
+                // Delete all existing zones and recreate with fresh data
+                // This ensures we have the most current data and avoids index mismatches
+                $user->zones()->delete();
 
-        // if(!empty($aListRuteros->aRoute)){
-        //     $address = $aListRuteros->aDetail->aListDetailsRuteros->aAddress->__toString();
-        //     $name = $aListRuteros->aDetail->aListDetailsRuteros->aName->__toString();
-        //     $route = $aListRuteros->aRoute->__toString();
-        //     $zone = $aListRuteros->aZona->__toString();
-        //     $day = $aListRuteros->aDiaRecorrido->__toString();
-        //     $aCustRuteroID = $aListRuteros->aDetail->aListDetailsRuteros-> aCustRuteroID->__toString();
-        //     $day = explode('- ', $day)[0];
+                $syncedZones = [];
+                foreach ($newRoutes as $route) {
+                    $zone = $user->zones()->create([
+                        'route' => $route['route'] ?? null,
+                        'zone' => $route['zone'] ?? null,
+                        'day' => $route['day'] ?? null,
+                        'address' => $route['address'] ?? null,
+                        'code' => $route['code'] ?? null,
+                    ]);
+                    $syncedZones[] = [
+                        'id' => $zone->id,
+                        'code' => $zone->code,
+                        'zone' => $zone->zone,
+                        'route' => $zone->route,
+                    ];
+                }
 
-        //     return [
-        //         'zone' => $zone,
-        //         'route' => $route,
-        //         'code' => $aCustRuteroID,
-        //         'day' => $day,
-        //         'address' => $address,
-        //         'name' => $name
-        //     ];
+                // Update user name if available
+                if (isset($data['name']) && $data['name'] !== 'Sin Nombre') {
+                    $user->name = $data['name'];
+                    $user->save();
+                }
 
-        // }else{
-        //     return null;
-        // }
+                $user->refresh();
+                $user->load('zones');
+                
+                \Log::info('Rutero data synced successfully', [
+                    'user_id' => $user->id,
+                    'document' => $user->document,
+                    'zones_count' => $user->zones()->count(),
+                    'synced_zones' => $syncedZones,
+                ]);
 
-
-
-
-
+                return true;
+            } else {
+                \Log::warning('Rutero data sync returned no routes', [
+                    'user_id' => $user->id,
+                    'document' => $user->document,
+                ]);
+                return false;
+            }
+        } catch (\Throwable $th) {
+            \Log::error('Failed to sync rutero data', [
+                'user_id' => $user->id,
+                'document' => $user->document,
+                'error' => $th->getMessage(),
+            ]);
+            return false;
+        }
     }
 }

@@ -34,6 +34,8 @@ class OrdersMonthlyExport implements FromQuery, WithMapping, WithHeadings, WithC
         return Order::query()
             ->with(['user', 'seller', 'zone', 'products.product'])
             ->whereBetween('created_at', [$startDate, $endDate])
+            // Filter by status to match KPI section (only include processed, shipped, and delivered orders)
+            ->whereIn('status_id', [Order::STATUS_PROCESSED, Order::STATUS_SHIPPED, Order::STATUS_DELIVERED])
             ->orderBy('created_at', 'desc');
     }
 

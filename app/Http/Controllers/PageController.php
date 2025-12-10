@@ -384,10 +384,8 @@ class PageController extends Controller
         // Try explicit user->zone first (commonly set for sellers)
         $zoneCode = $user->zone ?? null;
 
-        // Fallback to first related zone's code, then zone name
-        if (!$zoneCode) {
-            $zoneCode = $user->zones()->orderBy('id')->value('code');
-        }
+        // Fallback to first related zone's zone field (actual zone number)
+        // Note: code field contains CustRuteroID and should NOT be used for zone determination
         if (!$zoneCode) {
             $zoneCode = $user->zones()->orderBy('id')->value('zone');
         }
@@ -396,13 +394,8 @@ class PageController extends Controller
             return null;
         }
 
-        // Map via ZoneWarehouse (exact match, then case-insensitive)
-        $bodega = ZoneWarehouse::where('zone_code', $zoneCode)->value('bodega_code');
-        if (!$bodega) {
-            $bodega = ZoneWarehouse::whereRaw('LOWER(zone_code) = ?', [mb_strtolower($zoneCode)])->value('bodega_code');
-        }
-
-        return $bodega ?: null;
+        // Use centralized lookup method
+        return ZoneWarehouse::getBodegaForZone($zoneCode);
     }
 
     /**

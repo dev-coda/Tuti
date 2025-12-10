@@ -30,30 +30,41 @@ class MailingService
             Config::set('mail.from.address', $fromAddress);
             Config::set('mail.from.name', $fromName);
 
-            // Only configure Mailgun if the package is available (check composer autoloader)
-            $mailgunAvailable = false;
-            try {
-                $mailgunAvailable = class_exists('Symfony\Component\Mailer\Bridge\Mailgun\Transport\MailgunTransportFactory', false);
-            } catch (\Exception $e) {
-                // Mailgun package not available
-                $mailgunAvailable = false;
-            }
+            // Configure Mailgun if selected
+            if ($mailDriver === 'mailgun') {
+                // Check if Mailgun packages are available
+                $mailgunAvailable = class_exists('Symfony\Component\Mailer\Bridge\Mailgun\Transport\MailgunTransportFactory');
+                
+                if (!$mailgunAvailable) {
+                    Log::warning("Mailgun selected but symfony/mailgun-mailer package not installed. Falling back to SMTP.");
+                    Config::set('mail.default', 'smtp');
+                    return;
+                }
 
-            if ($mailDriver === 'mailgun' && $mailgunAvailable) {
                 $mailgunDomain = Setting::getByKey('mailgun_domain');
                 $mailgunSecret = Setting::getByKey('mailgun_secret');
                 $mailgunEndpoint = Setting::getByKeyWithDefault('mailgun_endpoint', 'api.mailgun.net');
 
                 if ($mailgunDomain && $mailgunSecret) {
+                    // Configure mail.mailers.mailgun
+                    Config::set('mail.mailers.mailgun.transport', 'mailgun');
                     Config::set('mail.mailers.mailgun.domain', $mailgunDomain);
                     Config::set('mail.mailers.mailgun.secret', $mailgunSecret);
                     Config::set('mail.mailers.mailgun.endpoint', $mailgunEndpoint);
+                    Config::set('mail.mailers.mailgun.scheme', 'https');
+                    
+                    // Configure services.mailgun
                     Config::set('services.mailgun.domain', $mailgunDomain);
                     Config::set('services.mailgun.secret', $mailgunSecret);
                     Config::set('services.mailgun.endpoint', $mailgunEndpoint);
+                    Config::set('services.mailgun.scheme', 'https');
+                    
+                    Log::info("Mailgun configured successfully", [
+                        'domain' => $mailgunDomain,
+                        'endpoint' => $mailgunEndpoint
+                    ]);
                 } else {
                     Log::warning("Mailgun selected but credentials missing. Domain: " . ($mailgunDomain ? 'set' : 'missing') . ", Secret: " . ($mailgunSecret ? 'set' : 'missing') . ". Falling back to SMTP.");
-                    // Fallback to SMTP instead of throwing exception
                     Config::set('mail.default', 'smtp');
                 }
             }
@@ -72,12 +83,6 @@ class MailingService
             if ($smtpUsername && $smtpPassword) {
                 Config::set('mail.mailers.smtp.username', $smtpUsername);
                 Config::set('mail.mailers.smtp.password', $smtpPassword);
-            }
-
-            // If Mailgun was requested but not available, fallback to SMTP
-            if ($mailDriver === 'mailgun' && !$mailgunAvailable) {
-                Log::warning("Mailgun package not available. Falling back to SMTP. To install: composer require symfony/mailgun-mailer symfony/http-client");
-                Config::set('mail.default', 'smtp');
             }
         } catch (\Exception $e) {
             Log::error("Failed to update mail configuration: " . $e->getMessage());
@@ -125,6 +130,12 @@ class MailingService
                 return false;
             }
 
+            // Filter: Block emails to internal Tuti domains
+            if ($this->isInternalTutiEmail($to)) {
+                Log::info("Email blocked (internal Tuti domain): {$templateSlug} to {$to}");
+                return true; // Return true to allow workflow to continue
+            }
+
             // Send the email
             Mail::raw($emailData['body'], function ($message) use ($emailData, $to) {
                 $message->to($to)
@@ -148,20 +159,44 @@ class MailingService
      */
     public function sendOrderStatusEmail(Order $order, string $newStatus)
     {
-        $templateSlug = "order_status_{$newStatus}";
+        try {
+            // Ensure user relationship is loaded
+            if (!$order->relationLoaded('user')) {
+                $order->load('user');
+            }
 
-        $data = [
-            'order_id' => $order->id,
-            'order_status' => $this->getStatusLabel($newStatus),
-            'customer_name' => $order->user->name,
-            'customer_email' => $order->user->email,
-            'order_total' => number_format($order->total, 2),
-            'order_date' => $order->created_at->format('d/m/Y'),
-            'delivery_date' => $order->delivery_date ?? 'Pendiente',
-            'tracking_url' => route('orders.show', $order->id),
-        ];
+            if (!$order->user) {
+                Log::error("Cannot send order status email - no user for order {$order->id}");
+                return false;
+            }
 
-        return $this->sendTemplateEmail($templateSlug, $data);
+            $templateSlug = "order_status_{$newStatus}";
+
+            $data = [
+                'order_id' => $order->id,
+                'order_status' => $this->getStatusLabel($newStatus),
+                'customer_name' => $order->user->name ?? 'Cliente',
+                'customer_email' => $order->user->email ?? null,
+                'order_total' => number_format($order->total, 2),
+                'order_date' => $order->created_at->format('d/m/Y'),
+                'delivery_date' => $order->delivery_date ?? 'Pendiente',
+                'tracking_url' => route('orders.show', $order->id),
+            ];
+
+            if (!$data['customer_email']) {
+                Log::error("Cannot send order status email - no customer email for order {$order->id}");
+                return false;
+            }
+
+            return $this->sendTemplateEmail($templateSlug, $data);
+        } catch (\Exception $e) {
+            Log::error("Error preparing order status email for order {$order->id}: " . $e->getMessage(), [
+                'order_id' => $order->id,
+                'status' => $newStatus,
+                'trace' => $e->getTraceAsString()
+            ]);
+            return false;
+        }
     }
 
     /**
@@ -169,25 +204,55 @@ class MailingService
      */
     public function sendOrderConfirmationEmail(Order $order)
     {
-        $products = $order->products->map(function ($item) {
-            return [
-                'name' => $item->product->name,
-                'quantity' => $item->quantity,
-                'price' => number_format($item->price, 2),
+        try {
+            // Ensure relationships are loaded
+            if (!$order->relationLoaded('products')) {
+                $order->load('products.product');
+            }
+            if (!$order->relationLoaded('user')) {
+                $order->load('user');
+            }
+
+            $products = $order->products->map(function ($item) {
+                if (!$item->product) {
+                    Log::warning("OrderProduct {$item->id} has no product relationship loaded");
+                    return [
+                        'name' => 'Producto no disponible',
+                        'quantity' => $item->quantity,
+                        'price' => number_format($item->price, 2),
+                    ];
+                }
+                
+                return [
+                    'name' => $item->product->name,
+                    'quantity' => $item->quantity,
+                    'price' => number_format($item->price, 2),
+                ];
+            })->toArray();
+
+            $data = [
+                'order_id' => $order->id,
+                'customer_name' => $order->user->name ?? 'Cliente',
+                'customer_email' => $order->user->email ?? null,
+                'order_total' => number_format($order->total, 2),
+                'order_products' => $products,
+                'delivery_date' => $order->delivery_date ?? 'Pendiente',
+                'order_url' => route('orders.show', $order->id),
             ];
-        })->toArray();
 
-        $data = [
-            'order_id' => $order->id,
-            'customer_name' => $order->user->name,
-            'customer_email' => $order->user->email,
-            'order_total' => number_format($order->total, 2),
-            'order_products' => $products,
-            'delivery_date' => $order->delivery_date ?? 'Pendiente',
-            'order_url' => route('orders.show', $order->id),
-        ];
+            if (!$data['customer_email']) {
+                Log::error("Cannot send order confirmation email - no customer email for order {$order->id}");
+                return false;
+            }
 
-        return $this->sendTemplateEmail('order_confirmation', $data);
+            return $this->sendTemplateEmail('order_confirmation', $data);
+        } catch (\Exception $e) {
+            Log::error("Error preparing order confirmation email for order {$order->id}: " . $e->getMessage(), [
+                'order_id' => $order->id,
+                'trace' => $e->getTraceAsString()
+            ]);
+            return false;
+        }
     }
 
     /**
@@ -269,5 +334,28 @@ class MailingService
         // You can customize this to get admin emails from settings
         // For now, return a default admin email
         return ['admin@tuti.com'];
+    }
+
+    /**
+     * Check if email is an internal Tuti domain
+     * Blocks emails to @tuti, @tuti.com, @tuti.com.co
+     */
+    private function isInternalTutiEmail(string $email): bool
+    {
+        $email = strtolower(trim($email));
+        
+        $internalDomains = [
+            '@tuti',
+            '@tuti.com',
+            '@tuti.com.co'
+        ];
+
+        foreach ($internalDomains as $domain) {
+            if (str_ends_with($email, $domain)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

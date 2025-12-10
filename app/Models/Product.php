@@ -413,11 +413,9 @@ class Product extends Model
             }
         }
 
-        // Default opt-out for products with variations
-        // Check variation_id column directly (always available) instead of relationship
-        if (!empty($this->variation_id)) {
-            return false;
-        }
+        // Products with variations now respect the inventory_opt_out setting
+        // instead of being excluded by default. This allows users to control
+        // whether variations have inventory managed on a per-product basis.
 
         return true;
     }

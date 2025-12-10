@@ -259,7 +259,10 @@ class OrderController extends Controller
                         $startDate = Carbon::createFromDate($year, $month, 1)->startOfMonth();
                         $endDate = Carbon::createFromDate($year, $month, 1)->endOfMonth();
 
-                        $totalRecords = Order::whereBetween('created_at', [$startDate, $endDate])->count();
+                        // Count only orders matching the export filter (processed, shipped, delivered)
+                        $totalRecords = Order::whereBetween('created_at', [$startDate, $endDate])
+                            ->whereIn('status_id', [Order::STATUS_PROCESSED, Order::STATUS_SHIPPED, Order::STATUS_DELIVERED])
+                            ->count();
 
                         $exportFile->markAsCompleted($totalRecords);
                     }

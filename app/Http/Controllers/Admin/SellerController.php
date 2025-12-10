@@ -108,7 +108,7 @@ class SellerController extends Controller
         $zone = $request->zone ?? null;
         $user = User::whereDocument($document)->first();
         if (!$user) {
-
+            // Try with zone first, if fails will retry without zone automatically
             $data = UserRepository::getCustomRuteroId($document, $zone);
 
             if ($data) {
@@ -134,53 +134,28 @@ class SellerController extends Controller
                     ]);
                 }
 
-
                 session()->put('user_id', $user->id);
                 return to_route('cart');
-
-
             } else {
                 return back()->with('error', 'No se encontró el rutero');
             }
-
         } else {
-            // Usuario ya existe, actualizar zonas
-        $data = UserRepository::getCustomRuteroId($document, $zone);
+            // Usuario ya existe, sincronizar zonas con datos actuales
+            // This will automatically retry without zone if zone doesn't match
+            $syncSuccess = UserRepository::syncUserRuteroData($user);
+            
+            if (!$syncSuccess) {
+                \Log::warning('Failed to sync rutero data for existing user', [
+                    'user_id' => $user->id,
+                    'document' => $document,
+                    'zone' => $zone,
+                ]);
+                // Continue anyway - user might still have valid zones from before
+            }
 
-        if ($data) {
-            $existingZones = $user->zones()->get();
-            $newRoutes = $data['routes'];
-
-            foreach ($newRoutes as $index => $route) {
-                $zoneToUpdate = $existingZones[$index] ?? null;
-
-                if ($zoneToUpdate) {
-                    // Si existe zona en ese índice, actualizar
-                    $zoneToUpdate->update([
-                        'route' => $route['route'],
-                        'zone' => $route['zone'],
-                        'day' => $route['day'],
-                        'address' => $route['address'],
-                        'code' => $route['code'],
-                    ]);
-                } else {
-                    // Si no existe, crear nueva
-                    $user->zones()->create([
-                        'route' => $route['route'],
-                        'zone' => $route['zone'],
-                        'day' => $route['day'],
-                        'address' => $route['address'],
-                        'code' => $route['code'],
-                    ]);
-                }
+            session()->put('user_id', $user->id);
+            return to_route('cart');
         }
-    }
-}
-        
-        
-
-        session()->put('user_id', $user->id);
-        return to_route('cart');
 
 
 
