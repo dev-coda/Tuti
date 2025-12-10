@@ -219,23 +219,35 @@
         }, 100);
         @endif
 
+        // Global registry to track shown flash messages (prevents duplicates)
+        if (!window._shownFlashMessages) {
+            window._shownFlashMessages = new Set();
+        }
+
         // Convert session flash messages to toast notifications
         @if(session('success'))
             (function() {
-                let toastShown = false;
+                const message = '{{ session('success') }}';
+                const messageKey = 'success:' + message;
+                
                 function showSuccessToast() {
-                    if (toastShown) return;
-                    toastShown = true;
+                    // Check if this exact message has already been shown
+                    if (window._shownFlashMessages.has(messageKey)) {
+                        return;
+                    }
+                    window._shownFlashMessages.add(messageKey);
+                    
                     setTimeout(function() {
                         if (window.showToast) {
-                            window.showToast('{{ session('success') }}', 'success', 5000);
+                            window.showToast(message, 'success', 5000);
                         } else {
                             window.dispatchEvent(new CustomEvent('toast:show', {
-                                detail: { message: '{{ session('success') }}', type: 'success', duration: 5000 }
+                                detail: { message: message, type: 'success', duration: 5000 }
                             }));
                         }
                     }, 100);
                 }
+                
                 if (document.readyState === 'loading') {
                     window.addEventListener('DOMContentLoaded', showSuccessToast, { once: true });
                 } else {
@@ -245,45 +257,96 @@
         @endif
 
         @if(session('error'))
-            window.addEventListener('DOMContentLoaded', function() {
-                setTimeout(function() {
-                    if (window.showToast) {
-                        window.showToast('{{ session('error') }}', 'error', 5000);
-                    } else {
-                        window.dispatchEvent(new CustomEvent('toast:show', {
-                            detail: { message: '{{ session('error') }}', type: 'error', duration: 5000 }
-                        }));
+            (function() {
+                const message = '{{ session('error') }}';
+                const messageKey = 'error:' + message;
+                
+                function showErrorToast() {
+                    // Check if this exact message has already been shown
+                    if (window._shownFlashMessages.has(messageKey)) {
+                        return;
                     }
-                }, 100);
-            });
+                    window._shownFlashMessages.add(messageKey);
+                    
+                    setTimeout(function() {
+                        if (window.showToast) {
+                            window.showToast(message, 'error', 5000);
+                        } else {
+                            window.dispatchEvent(new CustomEvent('toast:show', {
+                                detail: { message: message, type: 'error', duration: 5000 }
+                            }));
+                        }
+                    }, 100);
+                }
+                
+                if (document.readyState === 'loading') {
+                    window.addEventListener('DOMContentLoaded', showErrorToast, { once: true });
+                } else {
+                    showErrorToast();
+                }
+            })();
         @endif
 
         @if(session('warning'))
-            window.addEventListener('DOMContentLoaded', function() {
-                setTimeout(function() {
-                    if (window.showToast) {
-                        window.showToast('{{ session('warning') }}', 'warning', 5000);
-                    } else {
-                        window.dispatchEvent(new CustomEvent('toast:show', {
-                            detail: { message: '{{ session('warning') }}', type: 'warning', duration: 5000 }
-                        }));
+            (function() {
+                const message = '{{ session('warning') }}';
+                const messageKey = 'warning:' + message;
+                
+                function showWarningToast() {
+                    // Check if this exact message has already been shown
+                    if (window._shownFlashMessages.has(messageKey)) {
+                        return;
                     }
-                }, 100);
-            });
+                    window._shownFlashMessages.add(messageKey);
+                    
+                    setTimeout(function() {
+                        if (window.showToast) {
+                            window.showToast(message, 'warning', 5000);
+                        } else {
+                            window.dispatchEvent(new CustomEvent('toast:show', {
+                                detail: { message: message, type: 'warning', duration: 5000 }
+                            }));
+                        }
+                    }, 100);
+                }
+                
+                if (document.readyState === 'loading') {
+                    window.addEventListener('DOMContentLoaded', showWarningToast, { once: true });
+                } else {
+                    showWarningToast();
+                }
+            })();
         @endif
 
         @if(session('info'))
-            window.addEventListener('DOMContentLoaded', function() {
-                setTimeout(function() {
-                    if (window.showToast) {
-                        window.showToast('{{ session('info') }}', 'info', 5000);
-                    } else {
-                        window.dispatchEvent(new CustomEvent('toast:show', {
-                            detail: { message: '{{ session('info') }}', type: 'info', duration: 5000 }
-                        }));
+            (function() {
+                const message = '{{ session('info') }}';
+                const messageKey = 'info:' + message;
+                
+                function showInfoToast() {
+                    // Check if this exact message has already been shown
+                    if (window._shownFlashMessages.has(messageKey)) {
+                        return;
                     }
-                }, 100);
-            });
+                    window._shownFlashMessages.add(messageKey);
+                    
+                    setTimeout(function() {
+                        if (window.showToast) {
+                            window.showToast(message, 'info', 5000);
+                        } else {
+                            window.dispatchEvent(new CustomEvent('toast:show', {
+                                detail: { message: message, type: 'info', duration: 5000 }
+                            }));
+                        }
+                    }, 100);
+                }
+                
+                if (document.readyState === 'loading') {
+                    window.addEventListener('DOMContentLoaded', showInfoToast, { once: true });
+                } else {
+                    showInfoToast();
+                }
+            })();
         @endif
     </script>
 

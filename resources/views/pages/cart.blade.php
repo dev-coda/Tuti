@@ -302,10 +302,10 @@
                                     <label class="block mb-2 text-sm font-medium text-gray-900">
                                         Elige un método de entrega
                                     </label>
-                                    <div class="flex gap-3">
+                                    <div class="flex flex-col md:flex-row gap-3">
                                         <!-- Tronex Option -->
                                         <button type="button" 
-                                            class="delivery-option flex-1 p-4 rounded-lg border-2 transition-all duration-300 flex items-start space-x-3"
+                                            class="delivery-option flex-1 p-4 rounded-lg border-2 transition-all duration-300 flex items-start space-x-3 w-full"
                                             data-method="tronex"
                                             id="delivery-option-tronex">
                                             <div class="flex-shrink-0">
@@ -324,7 +324,7 @@
 
                                         <!-- Express Option -->
                                         <button type="button" 
-                                            class="delivery-option flex-1 p-4 rounded-lg border-2 transition-all duration-300 flex items-start space-x-3"
+                                            class="delivery-option flex-1 p-4 rounded-lg border-2 transition-all duration-300 flex items-start space-x-3 w-full"
                                             data-method="express"
                                             id="delivery-option-express">
                                             <div class="flex-shrink-0">

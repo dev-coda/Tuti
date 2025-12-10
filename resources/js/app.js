@@ -106,6 +106,8 @@ toastInitApp.use(Toast, {
     duration: 5000,
     dismissible: true,
     pauseOnHover: true,
+    maxToasts: 5, // Limit number of toasts shown at once
+    newestOnTop: true,
 });
 
 // Mount toast initialization component
