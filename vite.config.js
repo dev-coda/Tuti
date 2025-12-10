@@ -14,6 +14,7 @@ export default defineConfig({
                 "resources/css/app.css",
                 "resources/css/seller.css",
                 "resources/js/app.js",
+                "resources/js/cart-add.js",
             ],
             refresh: false,
         }),
