@@ -47,9 +47,9 @@ Keep this terminal open. The worker will process jobs as they come in.
 2. Copy the supervisor config:
 
     ```bash
-    sudo cp supervisor-queue-worker.conf /usr/local/etc/supervisor.d/tuti-queue-worker.conf
+    sudo cp docs/scripts/supervisor-queue-worker.conf /usr/local/etc/supervisor.d/tuti-queue-worker.conf
     # or on Linux:
-    sudo cp supervisor-queue-worker.conf /etc/supervisor/conf.d/tuti-queue-worker.conf
+    sudo cp docs/scripts/supervisor-queue-worker.conf /etc/supervisor/conf.d/tuti-queue-worker.conf
     ```
 
 3. Update the config file paths if needed:

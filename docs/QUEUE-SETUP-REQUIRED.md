@@ -4,7 +4,7 @@
 
 **Master branch uses Laravel Horizon with Redis** for queue management. This is the recommended setup.
 
-👉 **See [HORIZON-SETUP.md](HORIZON-SETUP.md) for complete Horizon setup instructions.**
+👉 **See [HORIZON-SETUP.md](docs/HORIZON-SETUP.md) for complete Horizon setup instructions.**
 
 ---
 
@@ -57,7 +57,7 @@ Keep this terminal open. The worker will process jobs as they arrive.
 
 **For Production (using Supervisor):**
 
-See `README-QUEUE.md` for complete supervisor setup instructions.
+See `docs/README-QUEUE.md` for complete supervisor setup instructions.
 
 ## Why This is Required
 

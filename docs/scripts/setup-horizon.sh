@@ -93,6 +93,6 @@ echo "   ${YELLOW}http://your-domain/horizon${NC}"
 echo ""
 echo "3. Test inventory sync - it should now work without timeout!"
 echo ""
-echo "For production deployment with Supervisor, see HORIZON-SETUP.md"
+echo "For production deployment with Supervisor, see docs/HORIZON-SETUP.md"
 echo ""
 

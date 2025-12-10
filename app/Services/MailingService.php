@@ -34,7 +34,7 @@ class MailingService
             if ($mailDriver === 'mailgun') {
                 // Check if Mailgun packages are available
                 $mailgunAvailable = class_exists('Symfony\Component\Mailer\Bridge\Mailgun\Transport\MailgunTransportFactory');
-                
+
                 if (!$mailgunAvailable) {
                     Log::warning("Mailgun selected but symfony/mailgun-mailer package not installed. Falling back to SMTP.");
                     Config::set('mail.default', 'smtp');
@@ -52,13 +52,13 @@ class MailingService
                     Config::set('mail.mailers.mailgun.secret', $mailgunSecret);
                     Config::set('mail.mailers.mailgun.endpoint', $mailgunEndpoint);
                     Config::set('mail.mailers.mailgun.scheme', 'https');
-                    
+
                     // Configure services.mailgun
                     Config::set('services.mailgun.domain', $mailgunDomain);
                     Config::set('services.mailgun.secret', $mailgunSecret);
                     Config::set('services.mailgun.endpoint', $mailgunEndpoint);
                     Config::set('services.mailgun.scheme', 'https');
-                    
+
                     Log::info("Mailgun configured successfully", [
                         'domain' => $mailgunDomain,
                         'endpoint' => $mailgunEndpoint
@@ -223,7 +223,7 @@ class MailingService
                         'price' => number_format($item->price, 2),
                     ];
                 }
-                
+
                 return [
                     'name' => $item->product->name,
                     'quantity' => $item->quantity,
@@ -344,7 +344,7 @@ class MailingService
     private function isInternalTutiEmail(string $email): bool
     {
         $email = strtolower(trim($email));
-        
+
         $internalDomains = [
             '@tuti',
             '@tuti.com',

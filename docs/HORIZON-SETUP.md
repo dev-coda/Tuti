@@ -257,5 +257,5 @@ php artisan horizon
 
 - [Laravel Horizon Documentation](https://laravel.com/docs/horizon)
 - [Redis Documentation](https://redis.io/docs/)
-- Existing `README-QUEUE.md` for basic queue setup
+- Existing `docs/README-QUEUE.md` for basic queue setup
 
