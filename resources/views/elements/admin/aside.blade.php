@@ -45,6 +45,7 @@
                         'vendors'=>'Proveedores', 
                         'categories'=>'Categorías', 
                         'labels'=>'Etiquetas', 
+                        'tags'=>'Etiquetas de Productos',
                         'variations'=>'Variaciones', 
                         'bonifications'=>'Bonificaciones',
                         'coupons'=>'Cupones',

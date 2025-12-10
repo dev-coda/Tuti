@@ -20,7 +20,7 @@
                     >
                         <div class="rounded flex flex-col p-6 max-w-[90vw]">
                             <div
-                                class="flex w-full items-center justify-center py-2 text-gray-400 flex-grow"
+                                class="flex w-full items-center justify-center py-2 text-gray-400 flex-grow relative"
                             >
                                 <a
                                     :href="product.url"
@@ -30,6 +30,12 @@
                                     }"
                                 >
                                 </a>
+                                <div
+                                    v-if="product.tag"
+                                    class="absolute top-2 right-2 z-10 px-2 py-1 text-xs font-semibold text-white bg-orange-600 rounded shadow-lg"
+                                >
+                                    {{ product.tag.content }}
+                                </div>
                             </div>
 
                             <div class="p-2 flex flex-col">

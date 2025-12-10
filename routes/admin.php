@@ -28,6 +28,7 @@ use App\Http\Controllers\Admin\ContactController;
 use App\Http\Controllers\Admin\SellerController;
 use App\Http\Controllers\Admin\FeaturedProductController;
 use App\Http\Controllers\Admin\FeaturedCategoryController;
+use App\Http\Controllers\Admin\TagController;
 use Illuminate\Support\Facades\Route;
 
 
@@ -87,6 +88,8 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('categories/{category}/highlights/search', [ProductHighlightController::class, 'search'])->name('categories.highlights.search');
     Route::post('categories/{category}/highlights/reorder', [ProductHighlightController::class, 'reorder'])->name('categories.highlights.reorder');
     Route::resource('labels', LabelController::class);
+    Route::resource('tags', TagController::class);
+    Route::post('tags/{tag}/toggle', [TagController::class, 'toggle'])->name('tags.toggle');
     Route::resource('vendors', VendorController::class);
     Route::resource('bonifications', BonificationController::class);
     Route::resource('coupons', CouponController::class);

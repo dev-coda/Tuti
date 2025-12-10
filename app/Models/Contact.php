@@ -17,9 +17,19 @@ class Contact extends Model
         parent::boot();
 
         static::created(function ($contact) {
-            // Send admin notification email for new contact
-            $mailingService = app(MailingService::class);
-            $mailingService->sendContactFormNotification($contact);
+            // Dispatch email job asynchronously (non-blocking)
+            try {
+                $queueConnection = config('queue.default');
+                if ($queueConnection === 'sync') {
+                    $queueConnection = 'database';
+                }
+
+                \App\Jobs\SendContactFormEmail::dispatch($contact)
+                    ->onConnection($queueConnection)
+                    ->onQueue('emails');
+            } catch (\Exception $e) {
+                \Log::error("Failed to dispatch contact form email for contact {$contact->id}: " . $e->getMessage());
+            }
         });
     }
 

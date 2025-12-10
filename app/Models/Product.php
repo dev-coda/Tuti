@@ -183,6 +183,22 @@ class Product extends Model
         return $this->belongsToMany(Bonification::class);
     }
 
+    /**
+     * Tags for this product
+     */
+    public function tags()
+    {
+        return $this->belongsToMany(Tag::class);
+    }
+
+    /**
+     * Get the active tag for this product (lowest priority)
+     */
+    public function getActiveTag(): ?Tag
+    {
+        return Tag::getTagForProduct($this);
+    }
+
     public function getImageAttribute()
     {
         return $this->images->first()?->path;

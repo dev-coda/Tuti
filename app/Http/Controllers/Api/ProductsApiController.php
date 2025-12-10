@@ -92,6 +92,7 @@ class ProductsApiController extends Controller
 
         $mappedProducts = $products->map(function ($product) {
             $finalPrice = $product->finalPrice;
+            $tag = $product->getActiveTag();
             return [
                 'id' => $product->id,
                 'name' => $product->name,
@@ -106,6 +107,10 @@ class ProductsApiController extends Controller
                 ] : null,
                 'category' => $product->category ? [
                     'name' => $product->category->name
+                ] : null,
+                'tag' => $tag ? [
+                    'content' => $tag->content,
+                    'priority' => $tag->priority
                 ] : null,
                 'final_price' => [
                     'price' => $finalPrice['price'],
@@ -168,6 +173,7 @@ class ProductsApiController extends Controller
 
         $mappedProducts = $products->map(function ($product) {
             $finalPrice = $product->finalPrice;
+            $tag = $product->getActiveTag();
             return [
                 'id' => $product->id,
                 'name' => $product->name,
@@ -182,6 +188,10 @@ class ProductsApiController extends Controller
                 ] : null,
                 'category' => $product->category ? [
                     'name' => $product->category->name
+                ] : null,
+                'tag' => $tag ? [
+                    'content' => $tag->content,
+                    'priority' => $tag->priority
                 ] : null,
                 'final_price' => [
                     'price' => $finalPrice['price'],

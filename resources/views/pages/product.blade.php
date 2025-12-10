@@ -30,9 +30,10 @@
         <div class="flex justify-center">
             <div class="w-full max-w-md">
                 <!-- Main Image -->
-                <div class="w-full mb-4">
+                <div class="w-full mb-4 relative">
                     @if($product->images->first())
                     <img id="mainProductImage" src="{{asset('storage/'.$product->images->first()->path)}}" alt="{{ $product->name }}" class="w-full h-full object-contain aspect-square rounded-lg">
+                    <x-product-tag :product="$product" />
                     @endif
                 </div>
 

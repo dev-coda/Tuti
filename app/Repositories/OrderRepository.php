@@ -541,14 +541,28 @@ class OrderRepository
 
     /**
      * Send order status email manually (after XML transmission)
+     * Dispatches email job asynchronously
      */
     private static function sendOrderStatusEmail($order, $status)
     {
         try {
-            $mailingService = app(\App\Services\MailingService::class);
-            $mailingService->sendOrderStatusEmail($order, $status);
+            // Determine queue connection
+            $queueConnection = config('queue.default');
+            if ($queueConnection === 'sync') {
+                $queueConnection = 'database';
+            }
+
+            // Dispatch email job asynchronously
+            \App\Jobs\SendOrderEmail::dispatch($order, 'status', $status)
+                ->onConnection($queueConnection)
+                ->onQueue('emails');
+
+            Log::info("Order status email job dispatched for order {$order->id}", [
+                'status' => $status,
+                'queue_connection' => $queueConnection,
+            ]);
         } catch (\Exception $e) {
-            Log::error("Failed to send order status email for order {$order->id}: " . $e->getMessage());
+            Log::error("Failed to dispatch order status email for order {$order->id}: " . $e->getMessage());
         }
     }
 

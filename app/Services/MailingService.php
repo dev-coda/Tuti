@@ -16,12 +16,13 @@ class MailingService
 {
     /**
      * Update mail configuration from database settings
+     * Enforces Mailgun-only configuration
      */
     public function updateMailConfiguration(): void
     {
         try {
-            // Update mail driver
-            $mailDriver = Setting::getByKeyWithDefault('mail_mailer', 'smtp');
+            // Force Mailgun - no SMTP fallback
+            $mailDriver = 'mailgun';
             Config::set('mail.default', $mailDriver);
 
             // Update from address and name
@@ -30,65 +31,46 @@ class MailingService
             Config::set('mail.from.address', $fromAddress);
             Config::set('mail.from.name', $fromName);
 
-            // Configure Mailgun if selected
-            if ($mailDriver === 'mailgun') {
-                // Check if Mailgun packages are available
-                $mailgunAvailable = class_exists('Symfony\Component\Mailer\Bridge\Mailgun\Transport\MailgunTransportFactory');
+            // Configure Mailgun (required)
+            // Check if Mailgun packages are available
+            $mailgunAvailable = class_exists('Symfony\Component\Mailer\Bridge\Mailgun\Transport\MailgunTransportFactory');
 
-                if (!$mailgunAvailable) {
-                    Log::warning("Mailgun selected but symfony/mailgun-mailer package not installed. Falling back to SMTP.");
-                    Config::set('mail.default', 'smtp');
-                    return;
-                }
-
-                $mailgunDomain = Setting::getByKey('mailgun_domain');
-                $mailgunSecret = Setting::getByKey('mailgun_secret');
-                $mailgunEndpoint = Setting::getByKeyWithDefault('mailgun_endpoint', 'api.mailgun.net');
-
-                if ($mailgunDomain && $mailgunSecret) {
-                    // Configure mail.mailers.mailgun
-                    Config::set('mail.mailers.mailgun.transport', 'mailgun');
-                    Config::set('mail.mailers.mailgun.domain', $mailgunDomain);
-                    Config::set('mail.mailers.mailgun.secret', $mailgunSecret);
-                    Config::set('mail.mailers.mailgun.endpoint', $mailgunEndpoint);
-                    Config::set('mail.mailers.mailgun.scheme', 'https');
-
-                    // Configure services.mailgun
-                    Config::set('services.mailgun.domain', $mailgunDomain);
-                    Config::set('services.mailgun.secret', $mailgunSecret);
-                    Config::set('services.mailgun.endpoint', $mailgunEndpoint);
-                    Config::set('services.mailgun.scheme', 'https');
-
-                    Log::info("Mailgun configured successfully", [
-                        'domain' => $mailgunDomain,
-                        'endpoint' => $mailgunEndpoint
-                    ]);
-                } else {
-                    Log::warning("Mailgun selected but credentials missing. Domain: " . ($mailgunDomain ? 'set' : 'missing') . ", Secret: " . ($mailgunSecret ? 'set' : 'missing') . ". Falling back to SMTP.");
-                    Config::set('mail.default', 'smtp');
-                }
+            if (!$mailgunAvailable) {
+                Log::error("Mailgun package (symfony/mailgun-mailer) not installed. Email sending will fail.");
+                throw new \Exception("Mailgun package not installed. Please install symfony/mailgun-mailer package.");
             }
 
-            // Update SMTP configuration
-            $smtpHost = Setting::getByKeyWithDefault('smtp_host', 'smtp.mailgun.org');
-            $smtpPort = Setting::getByKeyWithDefault('smtp_port', '587');
-            $smtpUsername = Setting::getByKey('smtp_username');
-            $smtpPassword = Setting::getByKey('smtp_password');
-            $smtpEncryption = Setting::getByKeyWithDefault('smtp_encryption', 'tls');
+            $mailgunDomain = Setting::getByKey('mailgun_domain');
+            $mailgunSecret = Setting::getByKey('mailgun_secret');
+            $mailgunEndpoint = Setting::getByKeyWithDefault('mailgun_endpoint', 'api.mailgun.net');
 
-            Config::set('mail.mailers.smtp.host', $smtpHost);
-            Config::set('mail.mailers.smtp.port', (int)$smtpPort);
-            Config::set('mail.mailers.smtp.encryption', $smtpEncryption);
-            Config::set('mail.mailers.smtp.timeout', 30); // 30 second timeout
-
-            if ($smtpUsername && $smtpPassword) {
-                Config::set('mail.mailers.smtp.username', $smtpUsername);
-                Config::set('mail.mailers.smtp.password', $smtpPassword);
+            if (!$mailgunDomain || !$mailgunSecret) {
+                Log::error("Mailgun credentials missing. Domain: " . ($mailgunDomain ? 'set' : 'missing') . ", Secret: " . ($mailgunSecret ? 'set' : 'missing'));
+                // Don't throw exception during bootstrap - let it fail gracefully when actually sending
+                // This allows the app to boot even if Mailgun isn't configured yet
+                return;
             }
+
+            // Configure mail.mailers.mailgun
+            Config::set('mail.mailers.mailgun.transport', 'mailgun');
+            Config::set('mail.mailers.mailgun.domain', $mailgunDomain);
+            Config::set('mail.mailers.mailgun.secret', $mailgunSecret);
+            Config::set('mail.mailers.mailgun.endpoint', $mailgunEndpoint);
+            Config::set('mail.mailers.mailgun.scheme', 'https');
+
+            // Configure services.mailgun
+            Config::set('services.mailgun.domain', $mailgunDomain);
+            Config::set('services.mailgun.secret', $mailgunSecret);
+            Config::set('services.mailgun.endpoint', $mailgunEndpoint);
+            Config::set('services.mailgun.scheme', 'https');
+
+            Log::info("Mailgun configured successfully", [
+                'domain' => $mailgunDomain,
+                'endpoint' => $mailgunEndpoint
+            ]);
         } catch (\Exception $e) {
             Log::error("Failed to update mail configuration: " . $e->getMessage());
-            // Fallback to log driver for development/testing purposes
-            Config::set('mail.default', 'log');
+            // Don't throw during bootstrap - configuration will be checked when actually sending emails
         }
     }
 
@@ -100,6 +82,20 @@ class MailingService
         try {
             // Update mail configuration from database settings
             $this->updateMailConfiguration();
+
+            // Verify Mailgun is properly configured before sending
+            $mailDriver = config('mail.default');
+            if ($mailDriver !== 'mailgun') {
+                Log::error("Mail driver is not set to mailgun. Current driver: {$mailDriver}");
+                throw new \Exception("Mailgun is not properly configured. Please configure Mailgun in settings.");
+            }
+
+            $mailgunDomain = config('services.mailgun.domain');
+            $mailgunSecret = config('services.mailgun.secret');
+            if (!$mailgunDomain || !$mailgunSecret) {
+                Log::error("Mailgun credentials not configured");
+                throw new \Exception("Mailgun credentials not configured. Please set mailgun_domain and mailgun_secret in settings.");
+            }
 
             $template = EmailTemplate::where('slug', $templateSlug)
                 ->where('is_active', true)

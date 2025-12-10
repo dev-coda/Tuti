@@ -5,7 +5,6 @@ namespace App\Jobs;
 use App\Models\Order;
 use App\Models\User;
 use App\Repositories\OrderRepository;
-use App\Services\MailingService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -109,21 +108,35 @@ class ProcessOrderAsync implements ShouldQueue, ShouldBeUnique
 
             Log::info("XML transmission completed for order {$this->order->id}");
 
-            // Step 2: Send emails after successful XML transmission
+            // Step 2: Dispatch email jobs asynchronously (non-blocking)
+            // This ensures order processing completes even if emails fail
             try {
-                $mailingService = app(MailingService::class);
+                // Determine queue connection
+                $queueConnection = config('queue.default');
+                if ($queueConnection === 'sync') {
+                    $queueConnection = 'database';
+                }
 
-                // Send order confirmation email
-                $mailingService->sendOrderConfirmationEmail($this->order);
+                // Dispatch order confirmation email job
+                SendOrderEmail::dispatch($this->order, 'confirmation')
+                    ->onConnection($queueConnection)
+                    ->onQueue('emails');
 
-                // Send order status email (processed)
-                $mailingService->sendOrderStatusEmail($this->order, 'processed');
+                // Dispatch order status email job (processed)
+                SendOrderEmail::dispatch($this->order, 'status', 'processed')
+                    ->onConnection($queueConnection)
+                    ->onQueue('emails');
 
-                Log::info("Emails sent successfully for order {$this->order->id}");
+                Log::info("Email jobs dispatched for order {$this->order->id}", [
+                    'queue_connection' => $queueConnection,
+                ]);
             } catch (\Exception $e) {
-                // Don't fail the job if email sending fails
+                // Don't fail the job if email dispatch fails
                 // Emails are not critical to order processing
-                Log::error("Email sending failed for order {$this->order->id}: " . $e->getMessage());
+                Log::error("Failed to dispatch email jobs for order {$this->order->id}: " . $e->getMessage(), [
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                ]);
             }
 
             Log::info("Order {$this->order->id} processed successfully via async job");
