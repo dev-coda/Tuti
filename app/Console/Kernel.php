@@ -32,7 +32,15 @@ class Kernel extends ConsoleKernel
             $syncEnabled = Setting::getByKeyWithDefault('inventory_sync_enabled', '1');
             $inventoryEnabled = Setting::getByKeyWithDefault('inventory_enabled', '1');
             if (($syncEnabled === '1' || $syncEnabled === 1 || $syncEnabled === true) && ($inventoryEnabled === '1' || $inventoryEnabled === 1 || $inventoryEnabled === true)) {
-                SyncProductInventory::dispatch();
+                $queueConnection = config('queue.default');
+                // If queue is set to 'sync', use 'redis' instead to ensure async processing with Horizon
+                if ($queueConnection === 'sync') {
+                    $queueConnection = 'redis';
+                }
+                
+                SyncProductInventory::dispatch()
+                    ->onConnection($queueConnection)
+                    ->onQueue('inventory');
             }
         })->dailyAt('02:30');
 

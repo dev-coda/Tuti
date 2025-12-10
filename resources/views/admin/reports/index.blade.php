@@ -3,13 +3,39 @@
 @section('content')
 
     @if(session('success'))
-        <div class="p-4 mb-4 text-sm text-green-700 bg-green-100 rounded-lg" role="alert">
+        <script>
+            window.addEventListener('DOMContentLoaded', function() {
+                setTimeout(function() {
+                    if (window.showToast) {
+                        window.showToast('{{ session('success') }}', 'success', 5000);
+                    } else {
+                        window.dispatchEvent(new CustomEvent('toast:show', {
+                            detail: { message: '{{ session('success') }}', type: 'success', duration: 5000 }
+                        }));
+                    }
+                }, 100);
+            });
+        </script>
+        <div class="hidden p-4 mb-4 text-sm text-green-700 bg-green-100 rounded-lg" role="alert">
             <span class="font-medium">{{ session('success') }}</span>
         </div>
     @endif
 
     @if(session('error'))
-        <div class="p-4 mb-4 text-sm text-red-700 bg-red-100 rounded-lg" role="alert">
+        <script>
+            window.addEventListener('DOMContentLoaded', function() {
+                setTimeout(function() {
+                    if (window.showToast) {
+                        window.showToast('{{ session('error') }}', 'error', 5000);
+                    } else {
+                        window.dispatchEvent(new CustomEvent('toast:show', {
+                            detail: { message: '{{ session('error') }}', type: 'error', duration: 5000 }
+                        }));
+                    }
+                }, 100);
+            });
+        </script>
+        <div class="hidden p-4 mb-4 text-sm text-red-700 bg-red-100 rounded-lg" role="alert">
             <span class="font-medium">{{ session('error') }}</span>
         </div>
     @endif

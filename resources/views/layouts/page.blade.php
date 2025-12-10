@@ -12,7 +12,7 @@
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet">
 
     <!-- Scripts -->
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @vite(['resources/css/app.css', 'resources/js/app.js', 'resources/js/cart-add.js'])
 
     @php
     $categories = App\Models\Category::active()->whereNull('parent_id')->with(['children' => function ($query) {
@@ -217,6 +217,63 @@
         window.setTimeout(function() {
             document.dispatchEvent(new Event('cart:updated'));
         }, 100);
+        @endif
+
+        // Convert session flash messages to toast notifications
+        @if(session('success'))
+            window.addEventListener('DOMContentLoaded', function() {
+                setTimeout(function() {
+                    if (window.showToast) {
+                        window.showToast('{{ session('success') }}', 'success', 5000);
+                    } else {
+                        window.dispatchEvent(new CustomEvent('toast:show', {
+                            detail: { message: '{{ session('success') }}', type: 'success', duration: 5000 }
+                        }));
+                    }
+                }, 100);
+            });
+        @endif
+
+        @if(session('error'))
+            window.addEventListener('DOMContentLoaded', function() {
+                setTimeout(function() {
+                    if (window.showToast) {
+                        window.showToast('{{ session('error') }}', 'error', 5000);
+                    } else {
+                        window.dispatchEvent(new CustomEvent('toast:show', {
+                            detail: { message: '{{ session('error') }}', type: 'error', duration: 5000 }
+                        }));
+                    }
+                }, 100);
+            });
+        @endif
+
+        @if(session('warning'))
+            window.addEventListener('DOMContentLoaded', function() {
+                setTimeout(function() {
+                    if (window.showToast) {
+                        window.showToast('{{ session('warning') }}', 'warning', 5000);
+                    } else {
+                        window.dispatchEvent(new CustomEvent('toast:show', {
+                            detail: { message: '{{ session('warning') }}', type: 'warning', duration: 5000 }
+                        }));
+                    }
+                }, 100);
+            });
+        @endif
+
+        @if(session('info'))
+            window.addEventListener('DOMContentLoaded', function() {
+                setTimeout(function() {
+                    if (window.showToast) {
+                        window.showToast('{{ session('info') }}', 'info', 5000);
+                    } else {
+                        window.dispatchEvent(new CustomEvent('toast:show', {
+                            detail: { message: '{{ session('info') }}', type: 'info', duration: 5000 }
+                        }));
+                    }
+                }, 100);
+            });
         @endif
     </script>
 

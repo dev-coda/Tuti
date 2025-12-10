@@ -193,6 +193,19 @@ return [
             'timeout' => 60,
             'nice' => 0,
         ],
+        'supervisor-inventory' => [
+            'connection' => 'redis',
+            'queue' => ['inventory'],
+            'balance' => 'auto',
+            'autoScalingStrategy' => 'time',
+            'maxProcesses' => 1,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 256, // Higher memory for inventory sync
+            'tries' => 3,
+            'timeout' => 600, // 10 minutes timeout
+            'nice' => 0,
+        ],
     ],
 
     'environments' => [

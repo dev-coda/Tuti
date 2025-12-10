@@ -63,9 +63,25 @@ class SettingController extends Controller
 
     public function syncInventory()
     {
-        // Dispatch to queue for async processing
+        // Dispatch to queue for async processing with Horizon
+        // Force Redis queue even if default is 'sync'
         try {
-            SyncProductInventory::dispatch();
+            $queueConnection = config('queue.default');
+            
+            // If queue is set to 'sync', use 'redis' instead to ensure async processing with Horizon
+            if ($queueConnection === 'sync') {
+                $queueConnection = 'redis';
+            }
+            
+            SyncProductInventory::dispatch()
+                ->onConnection($queueConnection)
+                ->onQueue('inventory');
+            
+            \Illuminate\Support\Facades\Log::info('Inventory sync job dispatched', [
+                'connection' => $queueConnection,
+                'queue' => 'inventory'
+            ]);
+            
             return back()->with('success', 'Sincronización de inventario iniciada. El proceso se ejecutará en segundo plano y puede tomar varios minutos.');
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('Inventory sync dispatch failed: ' . $e->getMessage());

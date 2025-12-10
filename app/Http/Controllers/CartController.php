@@ -378,6 +378,14 @@ class CartController extends Controller
                     'safety' => $safety,
                     'bodega' => $bodega
                 ]);
+                
+                if ($request->expectsJson() || $request->ajax()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Este producto no está disponible por debajo del stock de seguridad.'
+                    ], 400);
+                }
+                
                 return back()->with('error', 'Este producto no está disponible por debajo del stock de seguridad.');
             }
         }
@@ -395,6 +403,14 @@ class CartController extends Controller
                 "variation_id" => $request->variation_id,
             ];
             session()->put('cart', $cart);
+            
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Producto agregado al carrito exitosamente!'
+                ]);
+            }
+            
             return redirect()->back()
                 ->with('success', 'Producto agregado al carrito exitosamente!')
                 ->with('cart_updated', true);
@@ -416,6 +432,14 @@ class CartController extends Controller
                 "variation_id" => $request->variation_id,
             ];
             session()->put('cart', $cart);
+            
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Producto agregado al carrito exitosamente!'
+                ]);
+            }
+            
             return redirect()->back()
                 ->with('success', 'Producto agregado al carrito exitosamente!')
                 ->with('cart_updated', true);
@@ -426,6 +450,14 @@ class CartController extends Controller
 
 
         session()->put('cart', $cart);
+        
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Producto agregado al carrito exitosamente!'
+            ]);
+        }
+        
         return redirect()->back()
             ->with('success', 'Producto agregado al carrito exitosamente!')
             ->with('cart_updated', true);

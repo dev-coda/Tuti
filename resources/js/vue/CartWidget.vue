@@ -129,6 +129,14 @@ const toggleCart = async () => {
     }
 };
 
+// Open cart (exposed for external use)
+const openCart = async () => {
+    if (!isOpen.value) {
+        isOpen.value = true;
+        await fetchCartItems();
+    }
+};
+
 // Close cart dropdown
 const closeCart = () => {
     isOpen.value = false;
@@ -190,6 +198,14 @@ onMounted(async () => {
 
     // Ensure cleanup runs on component unmount
     onUnmounted(cleanup);
+});
+
+// Expose methods for external use (must be after function definitions)
+defineExpose({
+    toggleCart,
+    openCart,
+    closeCart,
+    fetchCartItems,
 });
 </script>
 

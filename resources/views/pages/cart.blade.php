@@ -68,43 +68,60 @@
     <div class="">
 
         @if($alertVendors)
-        <div class="space-y-2 mb-5">
-            @foreach ($alertVendors as $alert)
-            <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-                El vendor <strong>{{$alert->name}}</strong> requiere una compra mínima de <strong>${{currency($alert->minimum_purchase)}}</strong> para realizar el pedido compra <strong>${{currency($alert->minimum_purchase - $alert->current)}}</strong> completar esta compra.
-            </div>
-            @endforeach
-        </div>
+        <script>
+            window.addEventListener('DOMContentLoaded', function() {
+                setTimeout(function() {
+                    @foreach ($alertVendors as $alert)
+                    const message{{ $loop->index }} = 'El vendor <strong>{{$alert->name}}</strong> requiere una compra mínima de <strong>${{currency($alert->minimum_purchase)}}</strong> para realizar el pedido. Compra <strong>${{currency($alert->minimum_purchase - $alert->current)}}</strong> más para completar esta compra.';
+                    if (window.showToast) {
+                        window.showToast(message{{ $loop->index }}, 'error', 8000);
+                    } else {
+                        window.dispatchEvent(new CustomEvent('toast:show', {
+                            detail: { message: message{{ $loop->index }}, type: 'error', duration: 8000 }
+                        }));
+                    }
+                    @endforeach
+                }, 500);
+            });
+        </script>
         @endif
 
         @if($vendorDiscountAlerts)
-        <div class="space-y-2 mb-5">
-            @foreach ($vendorDiscountAlerts as $alert)
-            <div class="bg-blue-100 border border-blue-400 text-blue-700 px-4 py-3 rounded relative" role="alert">
-                Agrega <strong>${{currency($alert['needed_amount'])}}</strong> en productos <strong>{{$alert['vendor']->name}}</strong> para recibir un descuento de <strong>{{$alert['discount_percentage']}}%</strong>.
-            </div>
-            @endforeach
-        </div>
+        <script>
+            window.addEventListener('DOMContentLoaded', function() {
+                setTimeout(function() {
+                    @foreach ($vendorDiscountAlerts as $alert)
+                    const discountMessage{{ $loop->index }} = 'Agrega <strong>${{currency($alert['needed_amount'])}}</strong> en productos <strong>{{$alert['vendor']->name}}</strong> para recibir un descuento de <strong>{{$alert['discount_percentage']}}%</strong>.';
+                    if (window.showToast) {
+                        window.showToast(discountMessage{{ $loop->index }}, 'info', 8000);
+                    } else {
+                        window.dispatchEvent(new CustomEvent('toast:show', {
+                            detail: { message: discountMessage{{ $loop->index }}, type: 'info', duration: 8000 }
+                        }));
+                    }
+                    @endforeach
+                }, 700);
+            });
+        </script>
         @endif
 
         <div class="">
 
-            @if($alertVendors)
-                <div class="space-y-2 mb-5">
-                    @foreach ($alertVendors as $alert)
-                        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-                            El vendor <strong>{{$alert->name}}</strong> requiere una compra mínima de <strong>${{currency($alert->minimum_purchase)}}</strong> para realizar el pedido compra <strong>${{currency($alert->minimum_purchase - $alert->current)}}</strong> completar esta compra.
-                        </div>
-                    @endforeach  
-                </div> 
-            @endif   
-    
             @if($alertTotal)
-                <div class="space-y-2 mb-5">
-                        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-                            El valor de compra mínima es de <strong>${{currency($min_amount)}}.
-                        </div>
-                </div> 
+            <script>
+                window.addEventListener('DOMContentLoaded', function() {
+                    setTimeout(function() {
+                        const totalMessage = 'El valor de compra mínima es de <strong>${{currency($min_amount)}}</strong>.';
+                        if (window.showToast) {
+                            window.showToast(totalMessage, 'error', 8000);
+                        } else {
+                            window.dispatchEvent(new CustomEvent('toast:show', {
+                                detail: { message: totalMessage, type: 'error', duration: 8000 }
+                            }));
+                        }
+                    }, 900);
+                });
+            </script>
             @endif  
 
         <div class="border rounded p-5">

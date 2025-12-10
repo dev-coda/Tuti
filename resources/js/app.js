@@ -17,6 +17,10 @@ window.Alpine = Alpine;
 Alpine.start();
 
 import { createApp } from "vue";
+import Toast from "vue-toast-notification";
+import { useToast } from "vue-toast-notification";
+// Import CSS for vue-toast-notification
+import "vue-toast-notification/dist/theme-sugar.css";
 
 // Make Vue globally available
 window.Vue = { createApp };
@@ -47,8 +51,76 @@ const menuApp = createApp(MobileMenu);
 menuApp.mount("#mobile-menu");
 
 // Mount CartWidget component
-const cartApp = createApp(CartWidget);
-cartApp.mount("#cart-widget");
+const cartWidgetEl = document.getElementById("cart-widget");
+if (cartWidgetEl) {
+    const cartApp = createApp(CartWidget);
+    const cartInstance = cartApp.mount("#cart-widget");
+    // Expose cart methods globally
+    if (cartInstance) {
+        window.openCart = () => {
+            if (cartInstance.openCart) {
+                cartInstance.openCart();
+            } else if (cartInstance.toggleCart) {
+                cartInstance.toggleCart();
+            }
+        };
+    }
+}
+
+// Initialize vue-toast-notification globally
+// Create a Vue app component that initializes Toast
+const ToastInitComponent = {
+    setup() {
+        const toast = useToast();
+        
+        // Expose toast methods globally
+        window.showToast = (message, type = 'info', duration = 5000) => {
+            const options = {
+                duration: duration,
+                position: 'bottom-right',
+            };
+            
+            switch (type) {
+                case 'success':
+                    toast.success(message, options);
+                    break;
+                case 'error':
+                    toast.error(message, options);
+                    break;
+                case 'warning':
+                    toast.warning(message, options);
+                    break;
+                default:
+                    toast.info(message, options);
+            }
+        };
+        
+        return {};
+    }
+};
+
+// Create app and use Toast plugin
+const toastInitApp = createApp(ToastInitComponent);
+toastInitApp.use(Toast, {
+    position: 'bottom-right',
+    duration: 5000,
+    dismissible: true,
+    pauseOnHover: true,
+});
+
+// Mount toast initialization component
+function initToast() {
+    if (document.body) {
+        const toastEl = document.createElement("div");
+        toastEl.style.display = "none";
+        document.body.appendChild(toastEl);
+        toastInitApp.mount(toastEl);
+    } else {
+        document.addEventListener('DOMContentLoaded', initToast);
+    }
+}
+
+initToast();
 
 // Mount FeaturedProducts component
 const featuredProductsApp = createApp(FeaturedProducts);

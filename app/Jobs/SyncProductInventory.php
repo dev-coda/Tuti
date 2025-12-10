@@ -26,7 +26,32 @@ class SyncProductInventory implements ShouldQueue
      *
      * @var int
      */
-    public $timeout = 300;
+    public $timeout = 600; // Increased to 10 minutes for large syncs
+
+    /**
+     * The number of times the job may be attempted.
+     *
+     * @var int
+     */
+    public $tries = 3;
+
+    /**
+     * The number of seconds to wait before retrying the job.
+     *
+     * @var int
+     */
+    public $backoff = [60, 300, 600]; // 1 min, 5 min, 10 min
+
+    /**
+     * Create a new job instance.
+     */
+    public function __construct()
+    {
+        // Force Redis queue connection for async processing with Horizon
+        // This ensures the job runs async even if default queue is 'sync'
+        $this->onConnection('redis');
+        $this->onQueue('inventory');
+    }
 
     public function handle(): void
     {
