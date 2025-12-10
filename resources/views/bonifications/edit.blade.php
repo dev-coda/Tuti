@@ -24,6 +24,16 @@
                 {{ Aire::input('max', "Cantidad maxima bonificada")->groupClass('col-span-3')->helpText('Cantidad de veces que se da la bonificación') }}
                 
                 {{ Aire::select($products_free, 'product_id', 'Producto')->groupClass('col-span-6 sm:col-span-3') }}
+
+                <div class="col-span-6">
+                    <div class="flex items-center">
+                        {{ Aire::checkbox('allow_discounts', 'Permitir descuentos y cupones')->value(1) }}
+                        <span class="ml-2 text-sm text-gray-600">
+                            Si está habilitado, los descuentos y cupones se aplicarán junto con esta bonificación. 
+                            Por defecto, las bonificaciones bloquean todos los descuentos.
+                        </span>
+                    </div>
+                </div>
                 
             
 

@@ -87,7 +87,22 @@ Route::get('/categories/section-title', [CategoriesApiController::class, 'getSec
 
 // Delivery date calculation endpoint
 Route::get('/delivery-date/{method}', function ($method) {
-    $deliveryDate = OrderRepository::getDeliveryDateByMethod($method);
+    $zone = null;
+    
+    // Get zone from session if user is authenticated
+    if (auth()->check()) {
+        $zoneId = session()->get('zone_id');
+        if ($zoneId) {
+            $zone = \App\Models\Zone::find($zoneId);
+        }
+    }
+    
+    // Also check if zone_id is provided in query string (for zone selection changes)
+    if (!$zone && request()->has('zone_id')) {
+        $zone = \App\Models\Zone::find(request()->get('zone_id'));
+    }
+    
+    $deliveryDate = OrderRepository::getDeliveryDateByMethod($method, $zone);
     $date = Carbon::parse($deliveryDate);
     
     // Spanish days and months

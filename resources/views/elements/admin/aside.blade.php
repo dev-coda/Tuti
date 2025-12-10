@@ -21,13 +21,6 @@
                     </li>
 
                     <li>
-                        <a href="{{ route('admin.kpi.index') }}">
-                            @svg('heroicon-o-chart-bar', 'w-6 h-6 text-gray-500')
-                            <span class="ml-3" sidebar-toggle-item>KPIs</span>
-                        </a>
-                    </li>
-
-                    <li>
                         <a href="{{ route('promociones.index') }}">
                             @svg('heroicon-o-sparkles', 'w-6 h-6 text-gray-500')
                             <span class="ml-3" sidebar-toggle-item>Promociones</span>

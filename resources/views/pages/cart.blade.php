@@ -280,23 +280,52 @@
                             <div class="pt-5 space-y-4">
                                 {{ Aire::select($zones, 'zone_id', 'Dirección')->id('states')->value(session('zone_id'))}}
 
-                                <!-- Delivery Method Selection -->
-                                {{ Aire::select([
-                                    'express' => 'Envío Express',
-                                    'tronex' => 'Envío Tronex'
-                                ], 'delivery_method', 'Método de Envío')
-                                    ->id('delivery_method')
-                                    ->value('tronex')
-                                }}
+                                <!-- Delivery Method Selection - Elegant Toggle -->
+                                <div>
+                                    <label class="block mb-2 text-sm font-medium text-gray-900">
+                                        Elige un método de entrega
+                                    </label>
+                                    <div class="flex gap-3">
+                                        <!-- Tronex Option -->
+                                        <button type="button" 
+                                            class="delivery-option flex-1 p-4 rounded-lg border-2 transition-all duration-300 flex items-start space-x-3"
+                                            data-method="tronex"
+                                            id="delivery-option-tronex">
+                                            <div class="flex-shrink-0">
+                                                <div class="w-12 h-12 rounded-full border-2 flex items-center justify-center delivery-icon-bg">
+                                                    <svg class="w-6 h-6 delivery-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                                                    </svg>
+                                                </div>
+                                            </div>
+                                            <div class="flex-1 text-left">
+                                                <div class="font-semibold text-lg delivery-title">Vendedor Tronex</div>
+                                                <div class="text-sm delivery-subtitle mt-1">Entrega durante la visita</div>
+                                                <div class="text-xs delivery-date mt-1" id="delivery-date-tronex">Calculando...</div>
+                                            </div>
+                                        </button>
 
-                                <!-- Delivery Date Preview -->
-                                <div class="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                                    <div class="text-sm text-gray-700">
-                                        <strong id="delivery-method-name">Envío Tronex</strong>
-                                        <p id="delivery-method-description" class="text-gray-600 mt-1">
-                                            Entrega en la próxima ruta asignada (<span id="delivery-date">Calculando...</span>)
-                                        </p>
+                                        <!-- Express Option -->
+                                        <button type="button" 
+                                            class="delivery-option flex-1 p-4 rounded-lg border-2 transition-all duration-300 flex items-start space-x-3"
+                                            data-method="express"
+                                            id="delivery-option-express">
+                                            <div class="flex-shrink-0">
+                                                <div class="w-12 h-12 rounded-full border-2 flex items-center justify-center delivery-icon-bg">
+                                                    <svg class="w-6 h-6 delivery-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                                                    </svg>
+                                                </div>
+                                            </div>
+                                            <div class="flex-1 text-left">
+                                                <div class="font-semibold text-lg delivery-title">Entrega en 48h</div>
+                                                <div class="text-sm delivery-subtitle mt-1">Compra mínima $80.000</div>
+                                                <div class="text-xs delivery-date mt-1" id="delivery-date-express">Calculando...</div>
+                                            </div>
+                                        </button>
                                     </div>
+                                    <!-- Hidden input for form submission -->
+                                    <input type="hidden" name="delivery_method" id="delivery_method" value="tronex">
                                 </div>
 
                                 {{Aire::textarea('observations', 'Observaciones')->placeholder('Información adicional')->rows(3)}}
@@ -362,48 +391,133 @@
             quantityInput.val(quantity)
         })
 
-        // Delivery method change handler
-        const deliveryMethodSelect = document.getElementById('delivery_method');
+        // Delivery method toggle handler
+        const deliveryOptions = document.querySelectorAll('.delivery-option');
+        const deliveryMethodInput = document.getElementById('delivery_method');
+        const zoneSelect = document.getElementById('states');
         
-        function updateDeliveryInfo() {
-            const method = deliveryMethodSelect ? deliveryMethodSelect.value : 'tronex';
-            const deliveryMethodName = document.getElementById('delivery-method-name');
-            const deliveryMethodDescription = document.getElementById('delivery-method-description');
-            
-            if (!deliveryMethodName || !deliveryMethodDescription) return;
-            
-            // Update method name and description
-            if (method === 'express') {
-                deliveryMethodName.textContent = 'Envío Express';
-                deliveryMethodDescription.innerHTML = '2 días hábiles desde la fecha de pedido (<span id="delivery-date">Calculando...</span>)';
-            } else {
-                deliveryMethodName.textContent = 'Envío Tronex';
-                deliveryMethodDescription.innerHTML = 'Entrega en la próxima ruta asignada (<span id="delivery-date">Calculando...</span>)';
+        function updateDeliveryOption(method) {
+            // Update hidden input
+            if (deliveryMethodInput) {
+                deliveryMethodInput.value = method;
             }
             
-            // Fetch calculated delivery date from server
-            fetch(`/api/delivery-date/${method}`)
+            // Update UI for both options
+            deliveryOptions.forEach(option => {
+                const optionMethod = option.getAttribute('data-method');
+                const isActive = optionMethod === method;
+                
+                if (isActive) {
+                    // Active state - orange background with white text
+                    option.classList.remove('border-gray-300', 'bg-gray-50');
+                    option.classList.add('border-orange-500', 'bg-orange-500', 'shadow-md');
+                    
+                    // Update icon
+                    const iconBg = option.querySelector('.delivery-icon-bg');
+                    const icon = option.querySelector('.delivery-icon');
+                    if (iconBg && icon) {
+                        iconBg.classList.remove('border-gray-400', 'bg-white');
+                        iconBg.classList.add('border-orange-500', 'bg-white');
+                        icon.classList.remove('text-gray-600');
+                        icon.classList.add('text-orange-600');
+                    }
+                    
+                    // Update text colors
+                    const title = option.querySelector('.delivery-title');
+                    const subtitle = option.querySelector('.delivery-subtitle');
+                    const date = option.querySelector('.delivery-date');
+                    if (title) {
+                        title.classList.remove('text-gray-700');
+                        title.classList.add('text-white');
+                    }
+                    if (subtitle) {
+                        subtitle.classList.remove('text-gray-500');
+                        subtitle.classList.add('text-white');
+                    }
+                    if (date) {
+                        date.classList.remove('text-gray-400');
+                        date.classList.add('text-white');
+                    }
+                } else {
+                    // Inactive state - gray
+                    option.classList.remove('border-orange-500', 'bg-orange-50', 'shadow-md');
+                    option.classList.add('border-gray-300', 'bg-gray-50');
+                    
+                    // Update icon
+                    const iconBg = option.querySelector('.delivery-icon-bg');
+                    const icon = option.querySelector('.delivery-icon');
+                    if (iconBg && icon) {
+                        iconBg.classList.remove('border-orange-500', 'bg-white');
+                        iconBg.classList.add('border-gray-400', 'bg-white');
+                        icon.classList.remove('text-orange-600');
+                        icon.classList.add('text-gray-600');
+                    }
+                    
+                    // Update text colors
+                    const title = option.querySelector('.delivery-title');
+                    const subtitle = option.querySelector('.delivery-subtitle');
+                    const date = option.querySelector('.delivery-date');
+                    if (title) {
+                        title.classList.remove('text-white');
+                        title.classList.add('text-gray-700');
+                    }
+                    if (subtitle) {
+                        subtitle.classList.remove('text-white');
+                        subtitle.classList.add('text-gray-500');
+                    }
+                    if (date) {
+                        date.classList.remove('text-white');
+                        date.classList.add('text-gray-400');
+                    }
+                }
+            });
+            
+            // Fetch delivery date for selected method
+            fetchDeliveryDate(method);
+        }
+        
+        function fetchDeliveryDate(method) {
+            const zoneId = zoneSelect ? zoneSelect.value : null;
+            let url = `/api/delivery-date/${method}`;
+            if (zoneId) {
+                url += `?zone_id=${zoneId}`;
+            }
+            
+            fetch(url)
                 .then(response => response.json())
                 .then(data => {
-                    const dateSpan = document.getElementById('delivery-date');
-                    if (dateSpan && data.date) {
-                        dateSpan.textContent = data.date;
+                    const dateElement = document.getElementById(`delivery-date-${method}`);
+                    if (dateElement && data.date) {
+                        dateElement.textContent = data.date;
                     }
                 })
                 .catch(error => {
                     console.error('Error fetching delivery date:', error);
-                    const dateSpan = document.getElementById('delivery-date');
-                    if (dateSpan) {
-                        dateSpan.textContent = 'Error al calcular fecha';
+                    const dateElement = document.getElementById(`delivery-date-${method}`);
+                    if (dateElement) {
+                        dateElement.textContent = 'Error al calcular fecha';
                     }
                 });
         }
-
-        // Initialize delivery info on page load
-        if (deliveryMethodSelect) {
-            updateDeliveryInfo();
-            deliveryMethodSelect.addEventListener('change', updateDeliveryInfo);
+        
+        // Add click handlers to delivery options
+        deliveryOptions.forEach(option => {
+            option.addEventListener('click', function() {
+                const method = this.getAttribute('data-method');
+                updateDeliveryOption(method);
+            });
+        });
+        
+        // Update delivery date when zone changes
+        if (zoneSelect) {
+            zoneSelect.addEventListener('change', function() {
+                const currentMethod = deliveryMethodInput ? deliveryMethodInput.value : 'tronex';
+                fetchDeliveryDate(currentMethod);
+            });
         }
+        
+        // Initialize with default method (tronex)
+        updateDeliveryOption('tronex');
     })
 </script>
 

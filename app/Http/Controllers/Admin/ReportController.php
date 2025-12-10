@@ -22,6 +22,58 @@ class ReportController extends Controller
                 'name' => 'Reporte de Correos Electrónicos de Usuarios',
                 'description' => 'Estadísticas sobre correos electrónicos de usuarios registrados',
                 'has_filters' => false,
+                'type' => 'async',
+            ],
+            'users_export' => [
+                'name' => 'Exportar Usuarios',
+                'description' => 'Exporta todos los usuarios registrados en formato Excel',
+                'has_filters' => false,
+                'type' => 'direct',
+                'url' => '/admin/userexport',
+            ],
+            'sellers_export' => [
+                'name' => 'Exportar Vendedores',
+                'description' => 'Exporta todos los vendedores en formato Excel',
+                'has_filters' => false,
+                'type' => 'direct',
+                'url' => '/admin/sellerexport',
+            ],
+            'products_export' => [
+                'name' => 'Exportar Productos',
+                'description' => 'Exporta todos los productos en formato Excel',
+                'has_filters' => false,
+                'type' => 'direct',
+                'url' => '/admin/productexport',
+            ],
+            'contacts_export' => [
+                'name' => 'Exportar Interesados',
+                'description' => 'Exporta todos los contactos/interesados en formato Excel',
+                'has_filters' => false,
+                'type' => 'direct',
+                'url' => '/admin/contactexport',
+            ],
+            'orders_export' => [
+                'name' => 'Exportar Pedidos',
+                'description' => 'Exporta pedidos filtrados por rango de fechas, marca y/o proveedor en formato Excel',
+                'has_filters' => true,
+                'type' => 'direct',
+                'url' => '/admin/orderexport',
+                'filters' => ['from_date', 'to_date', 'brand_id', 'vendor_id'],
+            ],
+            'holidays_export' => [
+                'name' => 'Exportar Festivos',
+                'description' => 'Exporta todos los festivos y sábados configurados en formato CSV',
+                'has_filters' => false,
+                'type' => 'direct',
+                'url' => '/admin/holidays-export',
+            ],
+            'kpi_export' => [
+                'name' => 'Exportar KPIs',
+                'description' => 'Exporta métricas de KPIs por rango de fechas en formato CSV',
+                'has_filters' => true,
+                'type' => 'direct',
+                'url' => '/admin/kpi/export',
+                'filters' => ['start_date', 'end_date'],
             ],
         ];
     }
@@ -39,23 +91,24 @@ class ReportController extends Controller
             ->orderBy('created_at', 'desc')
             ->paginate(15);
 
+        // Get brands and vendors for orders export filter
+        $brands = \App\Models\Brand::orderBy('name')->pluck('name', 'id')->prepend('Todas las marcas', '');
+        $vendors = \App\Models\Vendor::orderBy('name')->pluck('name', 'id')->prepend('Todos los proveedores', '');
+
         return view('admin.reports.index', [
             'availableReports' => $availableReports,
             'reports' => $reports,
             'selectedReportType' => $request->get('report_type'),
+            'brands' => $brands,
+            'vendors' => $vendors,
         ]);
     }
 
     /**
-     * Generate a new report
+     * Generate a new report or redirect to direct export
      */
     public function generate(Request $request)
     {
-        $request->validate([
-            'report_type' => 'required|string|in:' . Report::TYPE_USER_EMAIL,
-        ]);
-
-        $user = auth()->user();
         $reportType = $request->get('report_type');
         $availableReports = $this->getAvailableReports();
 
@@ -63,23 +116,55 @@ class ReportController extends Controller
             return back()->with('error', 'Tipo de reporte no válido.');
         }
 
-        // Get report generator to get name
-        $reportGenerator = new UserEmailReport();
+        $reportConfig = $availableReports[$reportType];
 
-        // Create report record
-        $report = Report::create([
-            'user_id' => $user->id,
-            'type' => $reportType,
-            'name' => $reportGenerator->getName(),
-            'status' => Report::STATUS_PENDING,
-            'filters' => $request->except(['report_type', '_token']),
-            'expires_at' => now()->addWeek(),
-        ]);
+        // Handle direct exports (immediate download)
+        if ($reportConfig['type'] === 'direct' && isset($reportConfig['url'])) {
+            // Build query string for filters
+            $queryParams = [];
+            if (isset($reportConfig['filters'])) {
+                foreach ($reportConfig['filters'] as $filter) {
+                    if ($request->has($filter) && $request->get($filter) !== '') {
+                        $queryParams[$filter] = $request->get($filter);
+                    }
+                }
+            }
+            
+            $url = url($reportConfig['url']);
+            if (!empty($queryParams)) {
+                $url .= '?' . http_build_query($queryParams);
+            }
+            return redirect($url);
+        }
 
-        // Dispatch job to generate report
-        GenerateUserEmailReport::dispatch($report);
+        // Handle async reports (User Email Report)
+        if ($reportType === Report::TYPE_USER_EMAIL) {
+            $request->validate([
+                'report_type' => 'required|string|in:' . Report::TYPE_USER_EMAIL,
+            ]);
 
-        return back()->with('success', 'El reporte se está generando. Podrás descargarlo cuando esté listo.');
+            $user = auth()->user();
+
+            // Get report generator to get name
+            $reportGenerator = new UserEmailReport();
+
+            // Create report record
+            $report = Report::create([
+                'user_id' => $user->id,
+                'type' => $reportType,
+                'name' => $reportGenerator->getName(),
+                'status' => Report::STATUS_PENDING,
+                'filters' => $request->except(['report_type', '_token']),
+                'expires_at' => now()->addWeek(),
+            ]);
+
+            // Dispatch job to generate report
+            GenerateUserEmailReport::dispatch($report);
+
+            return back()->with('success', 'El reporte se está generando. Podrás descargarlo cuando esté listo.');
+        }
+
+        return back()->with('error', 'Tipo de reporte no válido.');
     }
 
     /**

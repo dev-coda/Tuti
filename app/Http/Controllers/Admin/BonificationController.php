@@ -44,9 +44,12 @@ class BonificationController extends Controller
             'buy' => 'required|integer',
             'get' => 'required|integer|lte:buy',
             'max'=>   'required|integer|min:1',
-            'product_id'=>'required|exists:products,id'
+            'product_id'=>'required|exists:products,id',
+            'allow_discounts' => 'boolean'
         ]);
-        
+
+        // Handle checkbox: if not present, set to false
+        $validate['allow_discounts'] = $request->has('allow_discounts') ? (bool)$request->input('allow_discounts') : false;
 
         $bonification = Bonification::create($validate);
 
@@ -85,8 +88,12 @@ class BonificationController extends Controller
             'buy' => 'required|integer',
             'get' => 'required|integer|lte:buy',
             'max'=>   'required|integer|min:1',
-            'product_id'=>'required|exists:products,id'
+            'product_id'=>'required|exists:products,id',
+            'allow_discounts' => 'boolean'
         ]);
+
+        // Handle checkbox: if not present, set to false
+        $validate['allow_discounts'] = $request->has('allow_discounts') ? (bool)$request->input('allow_discounts') : false;
 
         $bonification->update($validate);
 

@@ -550,8 +550,33 @@ class CartController extends Controller
         // Get delivery method from request, default to 'tronex'
         $delivery_method = $request->input('delivery_method', 'tronex');
 
-        // Calculate delivery date based on selected method
-        $delivery_date = OrderRepository::getDeliveryDateByMethod($delivery_method);
+        // Calculate delivery date based on selected method and zone
+        $delivery_date = OrderRepository::getDeliveryDateByMethod($delivery_method, $zone);
+        
+        // For Tronex orders, check if order should be delayed
+        $scheduledTransmissionDate = null;
+        $orderStatus = Order::STATUS_PENDING;
+        
+        if ($delivery_method === Order::DELIVERY_METHOD_TRONEX && $zone) {
+            $sellerVisitDate = OrderRepository::getTronexSellerVisitDate($zone);
+            if ($sellerVisitDate) {
+                $today = now();
+                $isTodaySellerVisitDay = $today->format('Y-m-d') === $sellerVisitDate->format('Y-m-d');
+                
+                if (!$isTodaySellerVisitDay) {
+                    // Order should be delayed until seller visit day
+                    $orderStatus = Order::STATUS_WAITING;
+                    $scheduledTransmissionDate = $sellerVisitDate->format('Y-m-d');
+                    
+                    Log::info('Order will be delayed until seller visit day', [
+                        'seller_visit_date' => $scheduledTransmissionDate,
+                        'today' => $today->format('Y-m-d'),
+                        'zone_id' => $zone->id,
+                        'route' => $zone->route,
+                    ]);
+                }
+            }
+        }
 
         // After syncing rutero data, re-determine zone_id if needed
         // The sync might have updated zones, so we need to ensure zone_id is still valid
@@ -863,6 +888,62 @@ class CartController extends Controller
             }
         }
 
+        // Check if bonifications block discounts BEFORE processing order
+        // Rule: If ANY product qualifies for a bonification with allow_discounts=false, block ALL discounts
+        $bonificationsBlockDiscounts = false;
+        $productQuantitiesForBonificationCheck = [];
+        
+        // First, aggregate quantities by product_id (same as bonification logic)
+        foreach ($cart as $row) {
+            $productId = $row['product_id'];
+            $tempProduct = Product::find($productId);
+            if ($tempProduct) {
+                if (!isset($productQuantitiesForBonificationCheck[$productId])) {
+                    $productQuantitiesForBonificationCheck[$productId] = 0;
+                }
+                $packageQuantity = $tempProduct->package_quantity ?? 1;
+                $productQuantitiesForBonificationCheck[$productId] += $row['quantity'] * $packageQuantity;
+            }
+        }
+        
+        // Check each product for bonifications that block discounts
+        foreach ($cart as $row) {
+            $productId = $row['product_id'];
+            $product = Product::with('bonifications')->find($productId);
+            
+            if ($product && $product->bonifications->count() > 0) {
+                $aggregatedIndividualItems = $productQuantitiesForBonificationCheck[$productId] ?? 0;
+                
+                foreach ($product->bonifications as $bonification) {
+                    // Check if customer qualifies for this bonification
+                    $bonification_quantity = floor($aggregatedIndividualItems / $bonification->buy * $bonification->get);
+                    
+                    if ($bonification_quantity > 0) {
+                        // Customer qualifies for this bonification
+                        // If this bonification blocks discounts, set flag
+                        if (!$bonification->allow_discounts) {
+                            $bonificationsBlockDiscounts = true;
+                            break 2; // Break out of both loops
+                        }
+                    }
+                }
+            }
+        }
+        
+        // If bonifications block discounts, clear all discount-related data
+        if ($bonificationsBlockDiscounts) {
+            // Clear coupon discount
+            $couponDiscount = 0;
+            $coupon = null;
+            $couponResult = null;
+            $modifiedProductsLookup = [];
+            session()->forget('applied_coupon');
+            Log::info('Bonifications block discounts - clearing all discounts', [
+                'user_id' => $user_id,
+                'cart_items' => count($cart)
+            ]);
+        }
+
         // Use database transaction to ensure atomicity
         DB::beginTransaction();
 
@@ -872,6 +953,7 @@ class CartController extends Controller
                 'user_id' => $user_id,
                 'total' => $total,
                 'discount' => $discount,
+                'status_id' => $orderStatus,
                 'zone_id' => $zoneId, // Use synced zone_id, not request zone_id
                 'seller_id' => $seller_id,
                 'delivery_date' => $delivery_date,
@@ -880,6 +962,7 @@ class CartController extends Controller
                 'coupon_id' => $coupon ? $coupon->id : null,
                 'coupon_code' => $coupon ? $coupon->code : null,
                 'coupon_discount' => $couponDiscount,
+                'scheduled_transmission_date' => $scheduledTransmissionDate,
             ]);
 
             // Create a lookup for modified products from coupon discount service
@@ -957,8 +1040,14 @@ class CartController extends Controller
                 
                 $lookupKey = $id . '_' . ($row['variation_id'] ?? 'null');
 
-                // Check if this product was modified by coupon discount service
-                if (isset($modifiedProductsLookup[$lookupKey])) {
+                // If bonifications block discounts, skip all discount logic
+                if ($bonificationsBlockDiscounts) {
+                    // No discounts allowed - use base price only
+                    $variation = $p->items->where('id', $row['variation_id'])->first();
+                    $unitPrice = $variation ? $variation->pivot->price : $p->price;
+                    $lineDiscountPercent = 0;
+                } elseif (isset($modifiedProductsLookup[$lookupKey])) {
+                    // Check if this product was modified by coupon discount service
                     $modProduct = $modifiedProductsLookup[$lookupKey];
 
                     // Use the discount percentage or modified price from coupon service
@@ -975,6 +1064,7 @@ class CartController extends Controller
                     }
                 } else {
                     // Use original product pricing logic with vendor total for proper discount
+                    // Product model will check bonification allow_discounts internally
                     $vendorId = $p->brand && $p->brand->vendor ? $p->brand->vendor->id : null;
                     $vendorTotal = $vendorId && isset($vendorTotals[$vendorId]) ? $vendorTotals[$vendorId] : null;
 
@@ -1258,12 +1348,20 @@ class CartController extends Controller
                 }
             }
 
-            // Dispatch job on the appropriate connection
-            \App\Jobs\ProcessOrderAsync::dispatch($order)->onConnection($queueConnection);
+            // Only dispatch job immediately if order is not waiting
+            if ($orderStatus !== Order::STATUS_WAITING) {
+                // Dispatch job on the appropriate connection
+                \App\Jobs\ProcessOrderAsync::dispatch($order)->onConnection($queueConnection);
+                Log::info("Order {$order->id} created successfully, async processing dispatched on {$queueConnection} queue");
+            } else {
+                Log::info("Order {$order->id} created with STATUS_WAITING, will be processed on {$scheduledTransmissionDate}");
+            }
 
-            Log::info("Order {$order->id} created successfully, async processing dispatched on {$queueConnection} queue");
+            $successMessage = $orderStatus === Order::STATUS_WAITING 
+                ? "Compra procesada con éxito! Tu pedido será enviado el {$scheduledTransmissionDate}."
+                : 'Compra procesada con exito!';
 
-            return to_route('home')->with('success', 'Compra procesada con exito!');
+            return to_route('home')->with('success', $successMessage);
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error creating order: ' . $e->getMessage(), [

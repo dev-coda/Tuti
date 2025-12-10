@@ -47,6 +47,12 @@ class Kernel extends ConsoleKernel
         $schedule->command('reports:cleanup-expired')
             ->daily()
             ->withoutOverlapping();
+
+        // Process waiting orders daily (orders scheduled for transmission)
+        $schedule->command('orders:process-waiting')
+            ->daily()
+            ->withoutOverlapping()
+            ->runInBackground();
     }
 
     /**

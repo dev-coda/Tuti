@@ -14,7 +14,12 @@ class Bonification extends Model
         'buy',
         'get',
         'product_id',
-        'max'
+        'max',
+        'allow_discounts'
+    ];
+
+    protected $casts = [
+        'allow_discounts' => 'boolean',
     ];
 
 

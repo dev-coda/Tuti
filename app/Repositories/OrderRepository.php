@@ -5,6 +5,9 @@ namespace App\Repositories;
 use App\Models\Holiday;
 use App\Models\Order;
 use App\Models\Setting;
+use App\Models\RouteCycle;
+use App\Models\DeliveryCalendar;
+use App\Models\Zone;
 use App\Jobs\SendOrderEmail;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -403,45 +406,57 @@ class OrderRepository
         return $response;
     }
 
+    /**
+     * Calculate a business day N days ahead from today
+     * 
+     * @param int $daysAhead Number of business days ahead (0 = next business day, 1 = 2 business days ahead, etc.)
+     * @return string Date in Y-m-d format
+     */
     public static function getBusinessDay($daysAhead = 0)
     {
-
+        // Get current time adjusted for timezone (subtract 5 hours for Colombia timezone)
         $now = now();
-        $hour = $now->subHours(5)->hour;
+        $hour = $now->copy()->subHours(5)->hour;
         $closing_time = (int) Setting::getByKey('closing_time');
 
-
+        // If current hour is after closing time, start from tomorrow
         if ($closing_time <= $hour) {
             $now = now()->addDay();
+        } else {
+            $now = now();
         }
 
-
-
-        //while 10 times
+        // Find the required number of business days ahead
         $i = 0;
         $businessDaysFound = 0;
-        while (True):
+        while (true) {
             $now = $now->addDay();
 
             $i++;
-            if ($i > 20) { // Increased limit to accommodate multiple business days
+            if ($i > 30) { // Safety limit to prevent infinite loops
                 break;
             }
 
             if (self::isBussinessDay($now)) {
                 $businessDaysFound++;
+                // If we've found enough business days (daysAhead + 1), we're done
+                // daysAhead=0 means we want the next business day (1 business day found)
+                // daysAhead=1 means we want 2 business days ahead (2 business days found)
                 if ($businessDaysFound > $daysAhead) {
                     break;
                 }
             }
-
-
-        endwhile;
+        }
 
         return $now->format('Y-m-d');
+    }
 
-
-
+    /**
+     * OLD IMPLEMENTATION - REMOVED (dead code)
+     * This code was unreachable and has been removed.
+     * The current implementation uses getBusinessDay() above.
+     */
+    /*
         //     $now = now();
 
         //     //current hour
@@ -562,32 +577,207 @@ class OrderRepository
     }
 
     /**
-     * Calculate delivery date for Tronex method (next available route date)
-     * For now, defaults to next business day
+     * Get the seller visit date for Tronex method
+     * 
+     * @param Zone|null $zone The user's zone
+     * @return Carbon|null Seller visit date, or null if cannot be determined
      */
-    public static function getTronexDeliveryDate()
+    public static function getTronexSellerVisitDate(?Zone $zone = null): ?Carbon
     {
-        return self::getBusinessDay(0);
+        // If no zone provided, try to get from session
+        if (!$zone && auth()->check()) {
+            $zoneId = session()->get('zone_id');
+            if ($zoneId) {
+                $zone = Zone::find($zoneId);
+            }
+        }
+
+        // If still no zone, return null
+        if (!$zone || !$zone->route) {
+            return null;
+        }
+
+        $route = $zone->route;
+        $travelDays = $zone->day; // Format: "5-Viernes" or just "5"
+
+        // Step 1: Get cycle for route
+        $cycle = RouteCycle::getCycleForRoute($route);
+        if (!$cycle) {
+            return null;
+        }
+
+        // Step 2: Find next available week for this cycle
+        $nextWeek = DeliveryCalendar::getNextAvailableWeek($cycle);
+        if (!$nextWeek) {
+            return null;
+        }
+
+        // Step 3: Parse TravelDays to get weekday
+        $weekdayName = null;
+        if (strpos($travelDays, '-') !== false) {
+            $parts = explode('-', $travelDays);
+            $weekdayName = trim($parts[1] ?? '');
+        }
+
+        // Map Spanish weekday names to Carbon dayOfWeek
+        $weekdayMap = [
+            'domingo' => Carbon::SUNDAY,
+            'lunes' => Carbon::MONDAY,
+            'martes' => Carbon::TUESDAY,
+            'miercoles' => Carbon::WEDNESDAY,
+            'miércoles' => Carbon::WEDNESDAY,
+            'jueves' => Carbon::THURSDAY,
+            'viernes' => Carbon::FRIDAY,
+            'sabado' => Carbon::SATURDAY,
+            'sábado' => Carbon::SATURDAY,
+        ];
+
+        $targetDayOfWeek = null;
+        if ($weekdayName) {
+            $weekdayNameLower = strtolower($weekdayName);
+            $targetDayOfWeek = $weekdayMap[$weekdayNameLower] ?? null;
+        }
+
+        // If we couldn't parse weekday, try to use the day number as day of week
+        if (!$targetDayOfWeek && is_numeric($travelDays)) {
+            $dayNum = (int) $travelDays;
+            if ($dayNum >= 0 && $dayNum <= 6) {
+                $targetDayOfWeek = $dayNum;
+            }
+        }
+
+        // Step 4: Find the matching weekday in the week range
+        if ($targetDayOfWeek !== null) {
+            $startDate = Carbon::parse($nextWeek->start_date);
+            $endDate = Carbon::parse($nextWeek->end_date);
+            
+            $currentDate = $startDate->copy();
+            while ($currentDate->lte($endDate)) {
+                if ($currentDate->dayOfWeek === $targetDayOfWeek) {
+                    return $currentDate;
+                }
+                $currentDate->addDay();
+            }
+        }
+
+        // If we couldn't find the seller visit date, return start of week
+        return Carbon::parse($nextWeek->start_date);
     }
 
     /**
-     * Calculate delivery date for Express method (2 business days from order date)
+     * Calculate delivery date for Tronex method (next available route date)
+     * 
+     * Logic:
+     * 1. Get user's route from their zone
+     * 2. Map route to cycle (A/B/C)
+     * 3. Find next available week for that cycle
+     * 4. Match TravelDays weekday with weekday in that week
+     * 5. Seller visit day = matched weekday
+     * 6. Delivery date = seller visit day + 1 business day
+     * 
+     * @param Zone|null $zone The user's zone (optional, will try to get from session if not provided)
+     * @return string Delivery date in Y-m-d format
+     */
+    public static function getTronexDeliveryDate(?Zone $zone = null): string
+    {
+        // If no zone provided, try to get from session
+        if (!$zone && auth()->check()) {
+            $zoneId = session()->get('zone_id');
+            if ($zoneId) {
+                $zone = Zone::find($zoneId);
+            }
+        }
+
+        // If still no zone, fallback to next business day
+        if (!$zone || !$zone->route) {
+            Log::warning('No zone or route found for Tronex delivery date calculation, using fallback');
+            return self::getBusinessDay(0);
+        }
+
+        // Use the helper method to get seller visit date
+        $sellerVisitDate = self::getTronexSellerVisitDate($zone);
+        
+        if (!$sellerVisitDate) {
+            Log::warning('Could not determine seller visit date, using fallback');
+            return self::getBusinessDay(0);
+        }
+
+        // Step 5: Delivery date = seller visit date + 1 business day
+        // But first check if today is the seller visit day
+        $today = now();
+        $isTodaySellerVisitDay = $today->format('Y-m-d') === $sellerVisitDate->format('Y-m-d');
+        
+        if ($isTodaySellerVisitDay) {
+            // If order is placed on seller visit day, delivery is next business day
+            return self::getBusinessDay(0);
+        } else {
+            // If order is placed before seller visit day, delivery is seller visit day + 1 business day
+            // We need to calculate business day from seller visit date
+            $deliveryDate = self::getBusinessDayFromDate($sellerVisitDate, 0);
+            return $deliveryDate;
+        }
+    }
+
+    /**
+     * Calculate business day from a specific date
+     * 
+     * @param Carbon $fromDate Starting date
+     * @param int $daysAhead Number of business days ahead
+     * @return string Date in Y-m-d format
+     */
+    private static function getBusinessDayFromDate(Carbon $fromDate, int $daysAhead = 0): string
+    {
+        $now = $fromDate->copy();
+        
+        // Find the required number of business days ahead
+        $i = 0;
+        $businessDaysFound = 0;
+        while (true) {
+            $now = $now->addDay();
+
+            $i++;
+            if ($i > 30) {
+                break;
+            }
+
+            if (self::isBussinessDay($now)) {
+                $businessDaysFound++;
+                if ($businessDaysFound > $daysAhead) {
+                    break;
+                }
+            }
+        }
+
+        return $now->format('Y-m-d');
+    }
+
+    /**
+     * Calculate delivery date for Express method (orden express)
+     * Promises delivery in 2 business days from order date
+     * Considers holidays, Sundays, and working Saturdays
      */
     public static function getExpressDeliveryDate()
     {
-        return self::getBusinessDay(1); // 2 business days ahead (0 = next, 1 = day after next)
+        // Get 2 business days ahead (daysAhead=1 means 2 business days ahead)
+        // daysAhead=0 → 1 business day ahead
+        // daysAhead=1 → 2 business days ahead
+        return self::getBusinessDay(1);
     }
 
     /**
      * Calculate delivery date based on delivery method
+     * 
+     * @param string $method Delivery method ('express' or 'tronex')
+     * @param Zone|null $zone User's zone (optional, for Tronex calculation)
+     * @return string Delivery date in Y-m-d format
      */
-    public static function getDeliveryDateByMethod($method)
+    public static function getDeliveryDateByMethod(string $method, ?Zone $zone = null): string
     {
         if ($method === 'express') {
             return self::getExpressDeliveryDate();
         }
         
-        return self::getTronexDeliveryDate();
+        return self::getTronexDeliveryDate($zone);
     }
 
     /**

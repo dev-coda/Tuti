@@ -42,7 +42,8 @@ class Order extends Model
         'coupon_discount',
         'processing_attempts',
         'last_processing_attempt',
-        'manually_retried'
+        'manually_retried',
+        'scheduled_transmission_date',
     ];
 
 
@@ -53,6 +54,7 @@ class Order extends Model
     const STATUS_CANCELLED = 6;
     const STATUS_ERROR = 2;
     const STATUS_ERROR_WEBSERVICE = 3;
+    const STATUS_WAITING = 7; // En espera - waiting for seller visit day
 
     const DELIVERY_METHOD_EXPRESS = 'express';
     const DELIVERY_METHOD_TRONEX = 'tronex';
@@ -70,6 +72,7 @@ class Order extends Model
             self::STATUS_CANCELLED => 'cancelled',
             self::STATUS_ERROR => 'error',
             self::STATUS_ERROR_WEBSERVICE => 'error',
+            self::STATUS_WAITING => 'waiting',
         ];
 
         return $statusMap[$statusId] ?? 'unknown';

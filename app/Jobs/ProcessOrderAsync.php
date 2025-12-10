@@ -86,6 +86,23 @@ class ProcessOrderAsync implements ShouldQueue, ShouldBeUnique
             return;
         }
 
+        // Check if order is waiting for scheduled transmission date
+        if ($this->order->status_id === Order::STATUS_WAITING && $this->order->scheduled_transmission_date) {
+            $scheduledDate = \Carbon\Carbon::parse($this->order->scheduled_transmission_date);
+            $today = \Carbon\Carbon::today();
+            
+            if ($scheduledDate->gt($today)) {
+                Log::info("Order {$this->order->id} is waiting for scheduled transmission date {$this->order->scheduled_transmission_date}, skipping");
+                // Release job to retry tomorrow
+                $this->release(86400); // 24 hours
+                return;
+            }
+            
+            // Scheduled date has arrived, update status to pending
+            $this->order->update(['status_id' => Order::STATUS_PENDING]);
+            Log::info("Order {$this->order->id} scheduled transmission date has arrived, processing now");
+        }
+
         try {
             // Step 1: Process XML transmission
             OrderRepository::presalesOrder($this->order);
