@@ -535,6 +535,9 @@
         
         // Initialize with default method (tronex)
         updateDeliveryOption('tronex');
+        
+        // Also fetch delivery date for express method immediately
+        fetchDeliveryDate('express');
     })
 </script>
 

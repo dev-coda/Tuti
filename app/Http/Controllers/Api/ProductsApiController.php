@@ -97,6 +97,7 @@ class ProductsApiController extends Controller
                 'id' => $product->id,
                 'name' => $product->name,
                 'sku' => $product->sku,
+                'step' => $product->step ?? 1,
                 'price' => $finalPrice['price'],
                 'image' => $product->images->first()
                     ? asset('storage/' . $product->images->first()->path)
@@ -178,6 +179,7 @@ class ProductsApiController extends Controller
                 'id' => $product->id,
                 'name' => $product->name,
                 'sku' => $product->sku,
+                'step' => $product->step ?? 1,
                 'price' => $finalPrice['price'],
                 'image' => $product->images->first()
                     ? asset('storage/' . $product->images->first()->path)

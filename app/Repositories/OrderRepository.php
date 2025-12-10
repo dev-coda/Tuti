@@ -620,13 +620,7 @@ class OrderRepository
             return null;
         }
 
-        // Step 2: Find next available week for this cycle
-        $nextWeek = DeliveryCalendar::getNextAvailableWeek($cycle);
-        if (!$nextWeek) {
-            return null;
-        }
-
-        // Step 3: Parse TravelDays to get weekday
+        // Step 2: Parse TravelDays to get weekday
         $weekdayName = null;
         if (strpos($travelDays, '-') !== false) {
             $parts = explode('-', $travelDays);
@@ -660,22 +654,55 @@ class OrderRepository
             }
         }
 
-        // Step 4: Find the matching weekday in the week range
-        if ($targetDayOfWeek !== null) {
-            $startDate = Carbon::parse($nextWeek->start_date);
-            $endDate = Carbon::parse($nextWeek->end_date);
+        if (!$targetDayOfWeek) {
+            return null;
+        }
+
+        // Step 3: Find the matching weekday in the ciclo system
+        // Keep iterating through weeks until we find a date that's at least tomorrow
+        $today = now()->startOfDay();
+        $tomorrow = $today->copy()->addDay();
+        $fromDate = $tomorrow; // Start searching from tomorrow
+        
+        // Keep looking through weeks until we find a valid future date
+        $maxIterations = 52; // Safety limit: max 1 year of weeks
+        $iteration = 0;
+        
+        while ($iteration < $maxIterations) {
+            // Find next available week for this cycle starting from our search date
+            $nextWeek = DeliveryCalendar::getNextAvailableWeek($cycle, $fromDate);
             
+            if (!$nextWeek) {
+                // No more weeks available, return null
+                return null;
+            }
+            
+            $startDate = Carbon::parse($nextWeek->start_date)->startOfDay();
+            $endDate = Carbon::parse($nextWeek->end_date)->startOfDay();
+            
+            // Find the matching weekday in this week
             $currentDate = $startDate->copy();
             while ($currentDate->lte($endDate)) {
                 if ($currentDate->dayOfWeek === $targetDayOfWeek) {
-                    return $currentDate;
+                    // Check if this date is at least tomorrow
+                    if ($currentDate->gte($tomorrow)) {
+                        // Found a valid future date!
+                        return $currentDate;
+                    }
+                    // Date is today or past, break to try next week
+                    break;
                 }
                 $currentDate->addDay();
             }
+            
+            // If we didn't find a valid date in this week, move to the next week
+            // Start searching from the day after this week ends
+            $fromDate = $endDate->copy()->addDay();
+            $iteration++;
         }
-
-        // If we couldn't find the seller visit date, return start of week
-        return Carbon::parse($nextWeek->start_date);
+        
+        // If we've exhausted all weeks, return null
+        return null;
     }
 
     /**
@@ -717,19 +744,26 @@ class OrderRepository
         }
 
         // Step 5: Delivery date = seller visit date + 1 business day
-        // But first check if today is the seller visit day
-        $today = now();
-        $isTodaySellerVisitDay = $today->format('Y-m-d') === $sellerVisitDate->format('Y-m-d');
+        // The seller visit date is already guaranteed to be at least tomorrow (from getTronexSellerVisitDate)
+        // So we just need to add 1 business day to it
+        $deliveryDate = self::getBusinessDayFromDate($sellerVisitDate, 0);
+        $deliveryDateCarbon = Carbon::parse($deliveryDate)->startOfDay();
+        $tomorrow = now()->startOfDay()->addDay();
         
-        if ($isTodaySellerVisitDay) {
-            // If order is placed on seller visit day, delivery is next business day
-            return self::getBusinessDay(0);
-        } else {
-            // If order is placed before seller visit day, delivery is seller visit day + 1 business day
-            // We need to calculate business day from seller visit date
-            $deliveryDate = self::getBusinessDayFromDate($sellerVisitDate, 0);
-            return $deliveryDate;
+        // Double-check: ensure delivery date is at least tomorrow
+        // This is a safety check in case getBusinessDayFromDate somehow returns today
+        if ($deliveryDateCarbon->lt($tomorrow)) {
+            // If calculated date is today or past, find the next business day from tomorrow
+            // This respects the business day logic while ensuring it's in the future
+            if (self::isBussinessDay($tomorrow)) {
+                return $tomorrow->format('Y-m-d');
+            } else {
+                // Tomorrow is not a business day, so get the next business day
+                return self::getBusinessDay(0);
+            }
         }
+        
+        return $deliveryDate;
     }
 
     /**
@@ -769,13 +803,28 @@ class OrderRepository
      * Calculate delivery date for Express method (orden express)
      * Promises delivery in 2 business days from order date
      * Considers holidays, Sundays, and working Saturdays
+     * Ensures delivery date is at least tomorrow
      */
     public static function getExpressDeliveryDate()
     {
         // Get 2 business days ahead (daysAhead=1 means 2 business days ahead)
         // daysAhead=0 → 1 business day ahead
         // daysAhead=1 → 2 business days ahead
-        return self::getBusinessDay(1);
+        $deliveryDate = self::getBusinessDay(1);
+        $deliveryDateCarbon = Carbon::parse($deliveryDate)->startOfDay();
+        $tomorrow = now()->startOfDay()->addDay();
+        
+        // Ensure delivery date is at least tomorrow
+        if ($deliveryDateCarbon->lt($tomorrow)) {
+            // If calculated date is today or past, use tomorrow (or next business day if tomorrow is not a business day)
+            if (self::isBussinessDay($tomorrow)) {
+                return $tomorrow->format('Y-m-d');
+            } else {
+                return self::getBusinessDay(0);
+            }
+        }
+        
+        return $deliveryDate;
     }
 
     /**
