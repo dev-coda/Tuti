@@ -16,6 +16,8 @@ class DatabaseSeeder extends Seeder
             AdminUserSeeder::class,
             MailerSettingsSeeder::class,
             EmailTemplatesSeeder::class,
+            DeliveryCalendarSeeder::class,
+            RouteCycleSeeder::class,
         ]);
 
         // \App\Models\User::factory(10)->create();

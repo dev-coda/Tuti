@@ -4,7 +4,6 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use App\Models\RouteCycle;
-use Illuminate\Support\Facades\File;
 
 class RouteCycleSeeder extends Seeder
 {
@@ -13,54 +12,50 @@ class RouteCycleSeeder extends Seeder
      */
     public function run(): void
     {
-        $csvPath = database_path('../docs/Hoja de cálculo sin título - Hoja 1.csv');
+        // Clear existing data
+        RouteCycle::truncate();
         
-        if (!File::exists($csvPath)) {
-            $this->command->error("CSV file not found: {$csvPath}");
+        $csvPath = base_path('docs/Hoja de cálculo sin título - Hoja 1.csv');
+        
+        if (!file_exists($csvPath)) {
+            $this->command->error('Route cycles CSV file not found at: ' . $csvPath);
             return;
         }
-
-        $lines = File::lines($csvPath);
-        $processed = [];
-        $duplicates = 0;
-
+        
+        $lines = file($csvPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        
+        $imported = 0;
+        $uniqueRoutes = [];
+        
         foreach ($lines as $line) {
-            $line = trim($line);
-            if (empty($line)) {
-                continue;
-            }
-
-            $parts = explode(',', $line);
+            $parts = str_getcsv($line);
+            
             if (count($parts) < 2) {
                 continue;
             }
-
+            
             $route = trim($parts[0]);
-            $cycle = strtoupper(trim($parts[1]));
-
-            // Skip if cycle is not A, B, or C
+            $cycle = trim($parts[1]);
+            
+            // Skip if we've already imported this route (there are duplicates in the file)
+            if (isset($uniqueRoutes[$route])) {
+                continue;
+            }
+            
+            // Validate cycle
             if (!in_array($cycle, ['A', 'B', 'C'])) {
                 continue;
             }
-
-            // Track duplicates
-            if (isset($processed[$route])) {
-                $duplicates++;
-                $this->command->warn("Duplicate route found: {$route} (keeping first: {$processed[$route]})");
-                continue;
-            }
-
-            RouteCycle::updateOrCreate(
-                ['route' => $route],
-                ['cycle' => $cycle]
-            );
-
-            $processed[$route] = $cycle;
+            
+            RouteCycle::create([
+                'route' => $route,
+                'cycle' => $cycle,
+            ]);
+            
+            $uniqueRoutes[$route] = true;
+            $imported++;
         }
-
-        $this->command->info("Seeded " . count($processed) . " route cycles");
-        if ($duplicates > 0) {
-            $this->command->warn("Skipped {$duplicates} duplicate routes");
-        }
+        
+        $this->command->info('Imported ' . $imported . ' route cycle entries');
     }
 }
