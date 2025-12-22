@@ -35,7 +35,7 @@
             <h3 class="text-lg font-medium text-gray-900 mb-4">Modo Vacaciones</h3>
             <form action="{{ route('settings.update-vacation-mode') }}" method="POST" id="vacationModeForm">
                 @csrf
-                <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <div class="grid grid-cols-1 gap-6 md:grid-cols-3">
                     <div>
                         <label class="relative inline-flex items-center cursor-pointer">
                             <input type="checkbox" name="vacation_mode_enabled" value="1" 
@@ -45,7 +45,19 @@
                             <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                             <span class="ml-3 text-sm font-medium text-gray-900">Modo Vacaciones</span>
                         </label>
-                        <p class="mt-2 text-xs text-gray-500">Cuando está activado, los usuarios no podrán agregar productos al carrito ni realizar pedidos.</p>
+                        <p class="mt-2 text-xs text-gray-500">Cuando está activado, los usuarios no podrán agregar productos al carrito ni realizar pedidos durante el rango de fechas.</p>
+                    </div>
+                    <div>
+                        <label for="vacation_mode_from_date" class="block text-sm font-medium text-gray-700 mb-2">
+                            Fecha de Inicio
+                        </label>
+                        <input type="date" 
+                               name="vacation_mode_from_date" 
+                               id="vacation_mode_from_date"
+                               value="{{ \App\Models\Setting::getByKey('vacation_mode_from_date') }}"
+                               class="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                               onchange="document.getElementById('vacationModeForm').submit()">
+                        <p class="mt-1 text-xs text-gray-500">Fecha en que inician las vacaciones.</p>
                     </div>
                     <div>
                         <label for="vacation_mode_date" class="block text-sm font-medium text-gray-700 mb-2">
@@ -61,6 +73,36 @@
                     </div>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Delivery Dates Section -->
+    <div class="col-span-full mb-6">
+        <div class="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">Fechas de Entrega</h3>
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2">
+                <a href="{{ route('delivery-calendars.index') }}" 
+                   class="inline-flex items-center px-4 py-3 text-sm font-medium text-orange-700 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100 focus:ring-2 focus:ring-orange-500">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                    <div>
+                        <div class="font-medium">Calendario de Entrega</div>
+                        <div class="text-xs text-orange-600">Gestionar semanas y ciclos</div>
+                    </div>
+                </a>
+
+                <a href="{{ route('route-cycles.index') }}" 
+                   class="inline-flex items-center px-4 py-3 text-sm font-medium text-teal-700 bg-teal-50 border border-teal-200 rounded-lg hover:bg-teal-100 focus:ring-2 focus:ring-teal-500">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path>
+                    </svg>
+                    <div>
+                        <div class="font-medium">Ciclos de Rutas</div>
+                        <div class="text-xs text-teal-600">Asignar ciclos a rutas</div>
+                    </div>
+                </a>
+            </div>
         </div>
     </div>
 

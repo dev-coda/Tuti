@@ -85,25 +85,17 @@ Route::get('/categories/featured', [CategoriesApiController::class, 'featured'])
 Route::get('/categories/most-popular', [CategoriesApiController::class, 'mostPopular']);
 Route::get('/categories/section-title', [CategoriesApiController::class, 'getSectionTitle']);
 
-// Vacation mode check endpoint
+// Vacation mode check endpoint (checks date range)
 Route::get('/vacation-mode', function () {
-    $vacationModeEnabled = \App\Models\Setting::getByKey('vacation_mode_enabled');
-    $isVacationMode = ($vacationModeEnabled === '1' || $vacationModeEnabled === 1 || $vacationModeEnabled === true);
-    $vacationDate = \App\Models\Setting::getByKey('vacation_mode_date');
-    
-    if ($isVacationMode && $vacationDate) {
-        $formattedDate = \Carbon\Carbon::parse($vacationDate)->locale('es')->isoFormat('D [de] MMMM [de] YYYY');
-        $message = "Tuti está de vacaciones. Te esperamos nuevamente {$formattedDate}. ¡Gracias!";
-    } else {
-        $formattedDate = null;
-        $message = null;
-    }
+    $vacationInfo = \App\Models\Setting::getVacationModeInfo();
     
     return response()->json([
-        'enabled' => $isVacationMode,
-        'date' => $vacationDate,
-        'formatted_date' => $formattedDate,
-        'message' => $message,
+        'enabled' => $vacationInfo['enabled'],
+        'active' => $vacationInfo['active'], // True if currently within vacation date range
+        'from_date' => $vacationInfo['from_date'],
+        'date' => $vacationInfo['to_date'],
+        'formatted_date' => $vacationInfo['formatted_date'],
+        'message' => $vacationInfo['message'],
     ]);
 });
 

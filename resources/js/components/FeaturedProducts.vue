@@ -170,8 +170,9 @@ export default {
                 const response = await fetch("/api/vacation-mode");
                 if (response.ok) {
                     const data = await response.json();
+                    // Use 'active' to check if vacation mode is currently in effect (within date range)
                     this.vacationMode = {
-                        enabled: data.enabled || false,
+                        enabled: data.active || false,
                         message: data.message || null,
                     };
                 }
@@ -213,17 +214,27 @@ export default {
             }
         },
         async addToCart(product) {
-            if (this.addingToCart === product.id) return;
+            console.log('[FeaturedProducts] addToCart called for product:', product.id, product.name);
+            
+            if (this.addingToCart === product.id) {
+                console.log('[FeaturedProducts] Already adding this product, ignoring');
+                return;
+            }
             
             // Check vacation mode
             if (this.vacationMode.enabled) {
+                console.log('[FeaturedProducts] Vacation mode is enabled, showing message');
                 if (window.showToast && typeof window.showToast === 'function') {
                     window.showToast(this.vacationMode.message, 'error', 5000);
+                } else {
+                    console.error('[FeaturedProducts] window.showToast not available for vacation message');
+                    alert(this.vacationMode.message);
                 }
                 return;
             }
             
             this.addingToCart = product.id;
+            console.log('[FeaturedProducts] Starting add to cart request');
             
             try {
                 const csrfToken = document.querySelector('meta[name="csrf-token"]');
@@ -233,6 +244,8 @@ export default {
                 
                 const formData = new FormData();
                 formData.append('quantity', product.step || 1);
+                
+                console.log('[FeaturedProducts] Sending POST to /carrito/agregrar/' + product.id);
                 
                 const response = await fetch(`/carrito/agregrar/${product.id}`, {
                     method: 'POST',
@@ -244,19 +257,25 @@ export default {
                     body: formData
                 });
                 
+                console.log('[FeaturedProducts] Response status:', response.status);
+                
                 const contentType = response.headers.get("content-type");
                 if (!contentType || !contentType.includes("application/json")) {
                     const text = await response.text();
-                    console.error('Non-JSON response:', text.substring(0, 200));
-                    throw new Error('El servidor respondió con un formato no esperado');
+                    console.error('[FeaturedProducts] Non-JSON response:', text.substring(0, 200));
+                    throw new Error('Error al procesar la solicitud. Por favor intenta de nuevo.');
                 }
                 
                 const data = await response.json();
+                console.log('[FeaturedProducts] Response data:', data);
                 
                 if (response.ok && data.success) {
+                    console.log('[FeaturedProducts] Product added successfully');
                     // Show success toast
                     if (window.showToast && typeof window.showToast === 'function') {
                         window.showToast('Producto agregado', 'success', 3000);
+                    } else {
+                        console.error('[FeaturedProducts] window.showToast not available');
                     }
                     
                     // Open cart modal if it exists
@@ -271,14 +290,21 @@ export default {
                 } else {
                     // Show error toast
                     const errorMessage = data.message || data.error || 'Error al agregar el producto';
+                    console.log('[FeaturedProducts] Error from server:', errorMessage);
                     if (window.showToast && typeof window.showToast === 'function') {
                         window.showToast(errorMessage, 'error', 5000);
+                    } else {
+                        console.error('[FeaturedProducts] window.showToast not available for error');
+                        alert(errorMessage);
                     }
                 }
             } catch (error) {
-                console.error('Error adding to cart:', error);
+                console.error('[FeaturedProducts] Error adding to cart:', error);
                 if (window.showToast && typeof window.showToast === 'function') {
-                    window.showToast('Error al agregar el producto: ' + error.message, 'error', 5000);
+                    window.showToast(error.message || 'Error al agregar el producto', 'error', 5000);
+                } else {
+                    console.error('[FeaturedProducts] window.showToast not available');
+                    alert(error.message || 'Error al agregar el producto');
                 }
             } finally {
                 this.addingToCart = null;

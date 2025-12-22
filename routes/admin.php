@@ -29,6 +29,8 @@ use App\Http\Controllers\Admin\SellerController;
 use App\Http\Controllers\Admin\FeaturedProductController;
 use App\Http\Controllers\Admin\FeaturedCategoryController;
 use App\Http\Controllers\Admin\TagController;
+use App\Http\Controllers\Admin\DeliveryCalendarController;
+use App\Http\Controllers\Admin\RouteCycleController;
 use Illuminate\Support\Facades\Route;
 
 
@@ -125,6 +127,10 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::post('settings/zone-warehouses/sync', [SettingController::class, 'syncZoneWarehouses'])->name('settings.zone-warehouses.sync');
     Route::post('settings/zone-warehouses', [SettingController::class, 'storeZoneWarehouse'])->name('settings.zone-warehouses.store');
     Route::delete('settings/zone-warehouses/{zoneWarehouse}', [SettingController::class, 'destroyZoneWarehouse'])->name('settings.zone-warehouses.destroy');
+    
+    // Delivery Dates Management
+    Route::resource('delivery-calendars', DeliveryCalendarController::class);
+    Route::resource('route-cycles', RouteCycleController::class);
     Route::post('test-email', function (\Illuminate\Http\Request $request) {
         try {
             // Validate email input

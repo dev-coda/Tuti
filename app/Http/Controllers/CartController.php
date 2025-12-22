@@ -340,14 +340,11 @@ class CartController extends Controller
     #TODO crear plugin de agregar al carrito
     public function add(Request $request, Product $product)
     {
-        // Check vacation mode
-        $vacationModeEnabled = Setting::getByKey('vacation_mode_enabled');
-        $isVacationMode = ($vacationModeEnabled === '1' || $vacationModeEnabled === 1 || $vacationModeEnabled === true);
+        // Check vacation mode (active based on date range)
+        $vacationInfo = Setting::getVacationModeInfo();
         
-        if ($isVacationMode) {
-            $vacationDate = Setting::getByKey('vacation_mode_date');
-            $formattedDate = $vacationDate ? \Carbon\Carbon::parse($vacationDate)->locale('es')->isoFormat('D [de] MMMM [de] YYYY') : 'pronto';
-            $message = "Tuti está de vacaciones. Te esperamos nuevamente {$formattedDate}. ¡Gracias!";
+        if ($vacationInfo['active']) {
+            $message = $vacationInfo['message'] ?? "Tuti está de vacaciones. Te esperamos pronto. ¡Gracias!";
             
             if ($request->expectsJson() || $request->ajax()) {
                 return response()->json([
@@ -359,20 +356,19 @@ class CartController extends Controller
             return redirect()->back()->with('error', $message);
         }
 
-        $user = auth()->user();
-        if (!$user) {
-            return redirect()->route('login');
-        }
-
         $request->validate([
             'variation_id' => 'nullable|numeric',
             'quantity' => 'required|numeric',
         ]);
 
-        // Enforce safety stock only when inventory management is enabled
+        // Get user if authenticated (optional for cart operations)
+        $user = auth()->user();
+
+        // Enforce safety stock only when inventory management is enabled AND user is authenticated
+        // (We need user's zone to determine the bodega for inventory check)
         $inventoryEnabled = Setting::getByKey('inventory_enabled');
         $isInventoryEnabled = ($inventoryEnabled === '1' || $inventoryEnabled === 1 || $inventoryEnabled === true);
-        if ($isInventoryEnabled && $product->isInventoryManaged()) {
+        if ($isInventoryEnabled && $product->isInventoryManaged() && $user) {
             $safety = $product->getEffectiveSafetyStock();
             // Determine user bodega from zone mapping
             $zone = $user->zones()->orderBy('id')->first();
@@ -504,16 +500,87 @@ class CartController extends Controller
 
     public function update(Request $request)
     {
+        $cart = session()->get('cart', []);
+        
+        // Handle single item AJAX update
+        if ($request->expectsJson() || $request->ajax()) {
+            $cartKey = (int) $request->input('cart_key');
+            $quantity = (int) $request->input('quantity');
+            
+            if (!isset($cart[$cartKey])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Item not found in cart',
+                    'debug' => [
+                        'cart_key' => $cartKey,
+                        'cart_keys' => array_keys($cart),
+                    ]
+                ], 404);
+            }
+            
+            if ($quantity < 1) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'La cantidad debe ser al menos 1'
+                ], 400);
+            }
+            
+            // Get the product to check step
+            $product = Product::find($cart[$cartKey]['product_id']);
+            if ($product && $product->step > 1) {
+                // Round to nearest step
+                $quantity = max($product->step, round($quantity / $product->step) * $product->step);
+            }
+            
+            $cart[$cartKey]['quantity'] = $quantity;
+            session()->put('cart', $cart);
+            
+            // Calculate new totals
+            $subtotal = 0;
+            $discount = 0;
+            
+            foreach ($cart as $item) {
+                $prod = Product::find($item['product_id']);
+                if ($prod) {
+                    $itemSubtotal = $prod->price * $item['quantity'];
+                    $subtotal += $itemSubtotal;
+                    
+                    // Calculate discount if applicable
+                    if ($prod->discount_percentage > 0) {
+                        $discount += $itemSubtotal * ($prod->discount_percentage / 100);
+                    }
+                }
+            }
+            
+            // Check for coupon discount
+            $couponDiscount = 0;
+            $couponCode = session('coupon_code');
+            if ($couponCode) {
+                $coupon = Coupon::where('code', $couponCode)->first();
+                if ($coupon && $coupon->is_active) {
+                    if ($coupon->type === 'percentage') {
+                        $couponDiscount = ($subtotal - $discount) * ($coupon->value / 100);
+                    } else {
+                        $couponDiscount = $coupon->value;
+                    }
+                }
+            }
+            
+            $total = $subtotal - $discount - $couponDiscount;
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Cantidad actualizada',
+                'quantity' => $quantity,
+                'subtotal' => number_format($subtotal, 0, ',', '.'),
+                'discount' => number_format($discount, 0, ',', '.'),
+                'coupon_discount' => number_format($couponDiscount, 0, ',', '.'),
+                'total' => number_format($total, 0, ',', '.'),
+            ]);
+        }
 
-        // dd($request->all());
-
-        $cart = session()->get('cart');
-
-
-
+        // Handle batch update (original behavior)
         $items = $request->items;
-
-
 
         foreach ($items as $key => $item) {
             $cart[$key]['quantity'] = $item;
@@ -523,33 +590,16 @@ class CartController extends Controller
         return redirect()->back()
             ->with('success', 'Carrito actualizado exitosamente!')
             ->with('cart_updated', true);
-
-        // $request->validate([
-        //     'product_id' => 'required|numeric',
-        //     'quantity' => 'required|numeric',
-        // ]);
-
-        // $cart = session()->get('cart');
-
-        // if(isset($cart[$request->product_id])) {
-        //     $cart[$request->product_id]['quantity'] = $request->quantity;
-        //     session()->put('cart', $cart);
-        // }
-
-        // return redirect()->back()->with('success', 'Producto actualizado exitosamente!');
     }
 
 
     public function processOrder(Request $request)
     {
-        // Check vacation mode
-        $vacationModeEnabled = Setting::getByKey('vacation_mode_enabled');
-        $isVacationMode = ($vacationModeEnabled === '1' || $vacationModeEnabled === 1 || $vacationModeEnabled === true);
+        // Check vacation mode (active based on date range)
+        $vacationInfo = Setting::getVacationModeInfo();
         
-        if ($isVacationMode) {
-            $vacationDate = Setting::getByKey('vacation_mode_date');
-            $formattedDate = $vacationDate ? \Carbon\Carbon::parse($vacationDate)->locale('es')->isoFormat('D [de] MMMM [de] YYYY') : 'pronto';
-            $message = "Tuti está de vacaciones. Te esperamos nuevamente {$formattedDate}. ¡Gracias!";
+        if ($vacationInfo['active']) {
+            $message = $vacationInfo['message'] ?? "Tuti está de vacaciones. Te esperamos pronto. ¡Gracias!";
             return redirect()->route('cart')->with('error', $message);
         }
 
@@ -1100,6 +1150,9 @@ class CartController extends Controller
                 $lookupKey = $id . '_' . ($row['variation_id'] ?? 'null');
 
                 // If bonifications block discounts, skip all discount logic
+                $orderDiscountType = 'percentage'; // Default
+                $flatDiscountAmount = 0;
+                
                 if ($bonificationsBlockDiscounts) {
                     // No discounts allowed - use base price only
                     $variation = $p->items->where('id', $row['variation_id'])->first();
@@ -1114,8 +1167,12 @@ class CartController extends Controller
 
                     if ($discountType === 'fixed_amount') {
                         // For fixed amount discounts, use the new unit price
-                        $unitPrice = $modProduct['new_unit_price'];
-                        $lineDiscountPercent = 0; // Don't use percentage field for fixed amount
+                        // Store the original price, and track the flat discount separately
+                        $unitPrice = $modProduct['base_price']; // Store base price
+                        $lineDiscountPercent = 0; // No percentage for fixed amount
+                        $orderDiscountType = 'fixed_amount';
+                        // Calculate per-unit flat discount for XML
+                        $flatDiscountAmount = $modProduct['unit_price_reduction'] ?? 0;
                     } else {
                         // For percentage discounts, use the applied percentage
                         $unitPrice = $modProduct['base_price'];
@@ -1141,6 +1198,8 @@ class CartController extends Controller
                     'variation_item_id' => $row['variation_id'] ?? null,
                     'percentage' => $lineDiscountPercent,
                     'package_quantity' => $p->package_quantity ?? 1,
+                    'discount_type' => $orderDiscountType,
+                    'flat_discount_amount' => $flatDiscountAmount,
                 ]);
 
                 // Decrement inventory (only when enabled)

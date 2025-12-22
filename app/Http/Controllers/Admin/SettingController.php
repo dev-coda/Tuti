@@ -268,6 +268,7 @@ class SettingController extends Controller
     {
         $validated = $request->validate([
             'vacation_mode_enabled' => 'nullable|in:1',
+            'vacation_mode_from_date' => 'nullable|date',
             'vacation_mode_date' => 'nullable|date',
         ]);
 
@@ -282,7 +283,19 @@ class SettingController extends Controller
             ]
         );
 
-        // Update vacation mode date if provided
+        // Update vacation mode from date if provided
+        if (isset($validated['vacation_mode_from_date'])) {
+            Setting::updateOrCreate(
+                ['key' => 'vacation_mode_from_date'],
+                [
+                    'name' => 'Fecha de Inicio de Vacaciones',
+                    'value' => $validated['vacation_mode_from_date'],
+                    'show' => false,
+                ]
+            );
+        }
+
+        // Update vacation mode date (return date) if provided
         if (isset($validated['vacation_mode_date'])) {
             Setting::updateOrCreate(
                 ['key' => 'vacation_mode_date'],

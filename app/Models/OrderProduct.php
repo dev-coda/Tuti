@@ -19,6 +19,8 @@ class OrderProduct extends Model
         'is_bonification',
         'percentage',
         'package_quantity',
+        'discount_type',
+        'flat_discount_amount',
     ];
 
 

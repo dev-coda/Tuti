@@ -193,6 +193,19 @@ return [
             'timeout' => 60,
             'nice' => 0,
         ],
+        'supervisor-emails' => [
+            'connection' => 'redis',
+            'queue' => ['emails'],
+            'balance' => 'auto',
+            'autoScalingStrategy' => 'time',
+            'maxProcesses' => 2, // Process emails in parallel
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 128,
+            'tries' => 3, // Retry emails up to 3 times
+            'timeout' => 60,
+            'nice' => 0,
+        ],
         'supervisor-inventory' => [
             'connection' => 'redis',
             'queue' => ['inventory'],

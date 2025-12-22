@@ -65,6 +65,8 @@
                             'settings.mailer'=>'Configuración de Correo',
                             'admin.email-templates.index'=>'Plantillas de Correo',
                             'holidays.index'=>'Festivos y Sabados',
+                            'delivery-calendars.index'=>'Calendario de Entrega',
+                            'route-cycles.index'=>'Ciclos de Rutas',
                             'banners.index'=>'Banners',
                             'featured-products.index'=>'Productos Destacados',
                             'featured-categories.index'=>'Categorías Destacadas',

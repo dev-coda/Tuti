@@ -136,15 +136,40 @@ class OrderRepository
             $vendor_type = $productData->brand->vendor->vendor_type;
 
             // Handle package calculation differently for bonifications vs regular products
+            // Also handle flat discount type by applying it to unit price instead of percentage field
+            $discountType = $product->discount_type ?? 'percentage';
+            $flatDiscountAmount = (float) ($product->flat_discount_amount ?? 0);
+            $discountPercentage = (int) $product->percentage;
+            
             if ($bonification) {
                 // For bonifications: always send the exact quantity specified, never multiply by package_quantity
                 // Bonifications are always individual items, not package units
                 $effectivePackageQuantity = 1;
                 $unitPrice = 0; // Bonifications always have 0 price
+                $discountPercentage = 0; // No discount on bonifications
             } else {
                 // For regular products, use the order product's package quantity
                 $effectivePackageQuantity = $productData->calculate_package_price ? $product->package_quantity : 1;
-                $unitPrice = $effectivePackageQuantity ? parseCurrency($product->price / $effectivePackageQuantity) : parseCurrency($product->price);
+                $baseUnitPrice = $effectivePackageQuantity ? parseCurrency($product->price / $effectivePackageQuantity) : parseCurrency($product->price);
+                
+                // Handle flat discount: apply it to unit price, set percentage to 0
+                if ($discountType === 'fixed_amount' && $flatDiscountAmount > 0) {
+                    // Apply flat discount to unit price
+                    $unitPrice = parseCurrency(max(0, $baseUnitPrice - $flatDiscountAmount));
+                    $discountPercentage = 0; // No percentage when using flat amount
+                    
+                    Log::channel('soap')->info('Applying flat discount to unit price', [
+                        'order_id' => $order->id,
+                        'product_id' => $product->product_id,
+                        'base_unit_price' => $baseUnitPrice,
+                        'flat_discount' => $flatDiscountAmount,
+                        'final_unit_price' => $unitPrice,
+                    ]);
+                } else {
+                    // Use base price and percentage discount
+                    $unitPrice = $baseUnitPrice;
+                    // discountPercentage is already set from $product->percentage
+                }
             }
 
             // Use cached data instead of making individual queries
@@ -184,7 +209,7 @@ class OrderRepository
                 ]);
             }
             $productList .= '<dyn:listDetails>
-                            <dyn:discount>' . (int) $product->percentage . '</dyn:discount>
+                            <dyn:discount>' . $discountPercentage . '</dyn:discount>
                             <dyn:itemId>' . $sku . '</dyn:itemId>
                             <dyn:qty>' . $qty . '</dyn:qty>
                             <dyn:qtyCust>' . $qty . '</dyn:qtyCust>

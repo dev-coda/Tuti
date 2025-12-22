@@ -125,10 +125,9 @@
 
         <div>
             @php
-                $vacationModeEnabled = \App\Models\Setting::getByKey('vacation_mode_enabled');
-                $isVacationMode = ($vacationModeEnabled === '1' || $vacationModeEnabled === 1 || $vacationModeEnabled === true);
-                $vacationDate = \App\Models\Setting::getByKey('vacation_mode_date');
-                $formattedVacationDate = $vacationDate ? \Carbon\Carbon::parse($vacationDate)->locale('es')->isoFormat('D [de] MMMM [de] YYYY') : 'pronto';
+                $vacationInfo = \App\Models\Setting::getVacationModeInfo();
+                $isVacationMode = $vacationInfo['active'];
+                $formattedVacationDate = $vacationInfo['formatted_date'] ?? 'pronto';
             @endphp
 
             <button type="submit" 

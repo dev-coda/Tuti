@@ -67,67 +67,77 @@ if (cartWidgetEl) {
     }
 }
 
-// Initialize vue-toast-notification globally
-// Create a Vue app component that initializes Toast
-const ToastInitComponent = {
-    setup() {
-        const toast = useToast();
-        
-        // Expose toast methods globally
-        window.showToast = (message, type = 'info', duration = 5000) => {
-            const options = {
-                duration: duration,
-                position: 'bottom-right',
+// Initialize vue-toast-notification globally FIRST before any other components
+// This ensures window.showToast is available for all components
+let toastInstance = null;
+
+function initializeToast() {
+    if (toastInstance) return toastInstance;
+    
+    // Create a minimal app just to install the Toast plugin and get the instance
+    const toastApp = createApp({
+        setup() {
+            const toast = useToast();
+            toastInstance = toast;
+            
+            // Expose toast methods globally immediately
+            window.showToast = (message, type = 'info', duration = 5000) => {
+                const options = {
+                    duration: duration,
+                    position: 'bottom-right',
+                };
+                
+                switch (type) {
+                    case 'success':
+                        toast.success(message, options);
+                        break;
+                    case 'error':
+                        toast.error(message, options);
+                        break;
+                    case 'warning':
+                        toast.warning(message, options);
+                        break;
+                    default:
+                        toast.info(message, options);
+                }
             };
             
-            switch (type) {
-                case 'success':
-                    toast.success(message, options);
-                    break;
-                case 'error':
-                    toast.error(message, options);
-                    break;
-                case 'warning':
-                    toast.warning(message, options);
-                    break;
-                default:
-                    toast.info(message, options);
-            }
-        };
-        
-        return {};
-    }
-};
-
-// Create app and use Toast plugin
-const toastInitApp = createApp(ToastInitComponent);
-toastInitApp.use(Toast, {
-    position: 'bottom-right',
-    duration: 5000,
-    dismissible: true,
-    pauseOnHover: true,
-    maxToasts: 5, // Limit number of toasts shown at once
-    newestOnTop: true,
-});
-
-// Mount toast initialization component
-let toastInitialized = false;
-function initToast() {
-    if (toastInitialized) return;
+            console.log('Toast initialized successfully, window.showToast is now available');
+            
+            return {};
+        }
+    });
     
+    toastApp.use(Toast, {
+        position: 'bottom-right',
+        duration: 5000,
+        dismissible: true,
+        pauseOnHover: true,
+        maxToasts: 5,
+        newestOnTop: true,
+    });
+    
+    // Mount to a hidden element
+    const toastEl = document.createElement("div");
+    toastEl.id = "toast-container";
+    toastEl.style.display = "none";
+    
+    // Ensure body exists before mounting
     if (document.body) {
-        const toastEl = document.createElement("div");
-        toastEl.id = "toast-container";
-        toastEl.style.display = "none";
         document.body.appendChild(toastEl);
-        toastInitApp.mount(toastEl);
-        toastInitialized = true;
+        toastApp.mount(toastEl);
     } else {
-        document.addEventListener('DOMContentLoaded', initToast, { once: true });
+        document.addEventListener('DOMContentLoaded', () => {
+            document.body.appendChild(toastEl);
+            toastApp.mount(toastEl);
+        }, { once: true });
     }
+    
+    return toastInstance;
 }
 
-initToast();
+// Initialize toast IMMEDIATELY (synchronously) before anything else
+initializeToast();
 
 // Mount FeaturedProducts component
 const featuredProductsApp = createApp(FeaturedProducts);

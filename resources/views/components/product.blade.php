@@ -2,10 +2,9 @@
 @php
     $inventoryEnabled = \App\Models\Setting::getByKey('inventory_enabled');
     $showInventory = ($inventoryEnabled === '1' || $inventoryEnabled === 1 || $inventoryEnabled === true);
-    $vacationModeEnabled = \App\Models\Setting::getByKey('vacation_mode_enabled');
-    $isVacationMode = ($vacationModeEnabled === '1' || $vacationModeEnabled === 1 || $vacationModeEnabled === true);
-    $vacationDate = \App\Models\Setting::getByKey('vacation_mode_date');
-    $formattedVacationDate = $vacationDate ? \Carbon\Carbon::parse($vacationDate)->locale('es')->isoFormat('D [de] MMMM [de] YYYY') : 'pronto';
+    $vacationInfo = \App\Models\Setting::getVacationModeInfo();
+    $isVacationMode = $vacationInfo['active'];
+    $formattedVacationDate = $vacationInfo['formatted_date'] ?? 'pronto';
 @endphp
 <div class=" rounded flex flex-col p-2 md:p-6 max-w-[90vw]">
     <div class="flex w-full items-center justify-center py-1 md:py-2 text-gray-400 flex-grow relative">
