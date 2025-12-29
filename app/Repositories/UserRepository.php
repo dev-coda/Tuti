@@ -229,25 +229,57 @@ class UserRepository
                 $existingZones = $user->zones()->orderBy('id')->get();
                 $newRoutes = $data['routes'];
 
-                // Delete all existing zones and recreate with fresh data
-                // This ensures we have the most current data and avoids index mismatches
-                $user->zones()->delete();
-
+                // Update existing zones or create new ones (don't delete - they may be referenced by orders)
                 $syncedZones = [];
-                foreach ($newRoutes as $route) {
-                    $zone = $user->zones()->create([
-                        'route' => $route['route'] ?? null,
-                        'zone' => $route['zone'] ?? null,
-                        'day' => $route['day'] ?? null,
-                        'address' => $route['address'] ?? null,
-                        'code' => $route['code'] ?? null,
-                    ]);
+                $processedZoneIds = [];
+                
+                foreach ($newRoutes as $index => $route) {
+                    // Try to match by code first, then by index position
+                    $existingZone = $existingZones->firstWhere('code', $route['code'] ?? null);
+                    
+                    if (!$existingZone && isset($existingZones[$index])) {
+                        $existingZone = $existingZones[$index];
+                    }
+                    
+                    if ($existingZone) {
+                        // Update existing zone
+                        $existingZone->update([
+                            'route' => $route['route'] ?? null,
+                            'zone' => $route['zone'] ?? null,
+                            'day' => $route['day'] ?? null,
+                            'address' => $route['address'] ?? null,
+                            'code' => $route['code'] ?? null,
+                        ]);
+                        $zone = $existingZone;
+                        $processedZoneIds[] = $existingZone->id;
+                    } else {
+                        // Create new zone
+                        $zone = $user->zones()->create([
+                            'route' => $route['route'] ?? null,
+                            'zone' => $route['zone'] ?? null,
+                            'day' => $route['day'] ?? null,
+                            'address' => $route['address'] ?? null,
+                            'code' => $route['code'] ?? null,
+                        ]);
+                        $processedZoneIds[] = $zone->id;
+                    }
+                    
                     $syncedZones[] = [
                         'id' => $zone->id,
                         'code' => $zone->code,
                         'zone' => $zone->zone,
                         'route' => $zone->route,
                     ];
+                }
+                
+                // Only delete zones that are NOT referenced by any orders
+                $zonesToDelete = $existingZones->whereNotIn('id', $processedZoneIds);
+                foreach ($zonesToDelete as $zoneToDelete) {
+                    // Check if zone is referenced by orders
+                    $hasOrders = \App\Models\Order::where('zone_id', $zoneToDelete->id)->exists();
+                    if (!$hasOrders) {
+                        $zoneToDelete->delete();
+                    }
                 }
 
                 // Update user name if available
