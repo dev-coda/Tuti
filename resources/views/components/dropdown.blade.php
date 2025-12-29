@@ -27,9 +27,13 @@
         @foreach ($menu as $key => $item)
             <li>
                 @php
-                    // If the route key already contains a dot notation suffix (like .index, .mailer, etc.), use it as-is
-                    // Otherwise, append .index to maintain backward compatibility
-                    $routeName = (substr_count($key, '.') >= 1 && (str_ends_with($key, '.index') || str_ends_with($key, '.mailer'))) 
+                    // If the route key already contains a dot notation suffix, use it as-is
+                    // Check if it has more than one dot OR ends with specific suffixes
+                    $routeName = (substr_count($key, '.') >= 2 || 
+                                 str_ends_with($key, '.index') || 
+                                 str_ends_with($key, '.mailer') ||
+                                 str_ends_with($key, '.inventory-logs') ||
+                                 str_ends_with($key, '.zone-warehouses'))
                         ? $key 
                         : $key . '.index';
                 @endphp
