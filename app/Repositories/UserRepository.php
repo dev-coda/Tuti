@@ -116,11 +116,18 @@ class UserRepository
 
         info($body);
 
+        $resourceUrl = config('microsoft.resource');
+
+        if (empty($resourceUrl)) {
+            \Log::error('CRITICAL: Microsoft resource URL is not configured in UserRepository::fetchRuteroData');
+            return null;
+        }
+
         $response = Http::withHeaders([
             'Content-Type' => 'text/xml;charset=UTF-8',
             'SOAPAction' => 'http://tempuri.org/DWSSalesForce/getRuteros',
             'Authorization' => "Bearer {$token}"
-        ])->send('POST', env('MICROSOFT_RESOURCE_URL') . '/soap/services/DIITDWSSalesForceGroup', [
+        ])->send('POST', $resourceUrl . '/soap/services/DIITDWSSalesForceGroup', [
             'body' => $body
         ]);
         info($response);

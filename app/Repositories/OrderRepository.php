@@ -261,12 +261,47 @@ class OrderRepository
         $token = Setting::getByKey('microsoft_token');
         $resource_url = config('microsoft.resource');
 
+        // Validate required configuration before making SOAP request
+        if (empty($resource_url)) {
+            Log::channel('soap')->error('CRITICAL: Microsoft resource URL is not configured', [
+                'order_id' => $order_id,
+                'config_value' => $resource_url,
+                'env_value' => env('MICROSOFT_RESOURCE_URL'),
+            ]);
+            
+            // Update order with error status
+            $order->withoutEvents(function () use ($order, $body) {
+                $order->update([
+                    'status_id' => Order::STATUS_ERROR,
+                    'request' => $body,
+                    'response' => 'Error: Microsoft resource URL not configured. Run: php artisan config:cache'
+                ]);
+            });
+            return;
+        }
+
+        if (empty($token)) {
+            Log::channel('soap')->error('CRITICAL: Microsoft token is missing', [
+                'order_id' => $order_id,
+            ]);
+            
+            $order->withoutEvents(function () use ($order, $body) {
+                $order->update([
+                    'status_id' => Order::STATUS_ERROR,
+                    'request' => $body,
+                    'response' => 'Error: Microsoft token is missing'
+                ]);
+            });
+            return;
+        }
+
         Log::channel('soap')->info('Sending SOAP request', [
             'order_id' => $order_id,
             'url' => $resource_url . '/soap/services/DIITDWSSalesForceGroup?=null',
             'zone' => $zone,
             'code' => $code,
-            'delivery_date' => $delivery_date
+            'delivery_date' => $delivery_date,
+            'has_token' => !empty($token),
         ]);
 
         try {
