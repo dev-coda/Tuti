@@ -58,6 +58,23 @@ class OrderRepository
         $user = $order->user;
         $zone = $order->zone;
 
+        // Check if zone exists - required for order processing
+        if (!$zone) {
+            Log::channel('soap')->error('Order processing failed - zone is null', [
+                'order_id' => $order->id,
+                'zone_id' => $order->zone_id,
+                'user_id' => $order->user_id,
+            ]);
+            
+            $order->withoutEvents(function () use ($order) {
+                $order->update([
+                    'status_id' => Order::STATUS_ERROR,
+                    'response' => 'Error: La zona del pedido no existe. Por favor contacte al administrador.'
+                ]);
+            });
+            return;
+        }
+
         // Remove the heavy eager loading that was causing performance issues
         // $order->load('products.product.brand.vendor');
 
