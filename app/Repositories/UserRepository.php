@@ -232,15 +232,15 @@ class UserRepository
                 // Update existing zones or create new ones (don't delete - they may be referenced by orders)
                 $syncedZones = [];
                 $processedZoneIds = [];
-                
+
                 foreach ($newRoutes as $index => $route) {
                     // Try to match by code first, then by index position
                     $existingZone = $existingZones->firstWhere('code', $route['code'] ?? null);
-                    
+
                     if (!$existingZone && isset($existingZones[$index])) {
                         $existingZone = $existingZones[$index];
                     }
-                    
+
                     if ($existingZone) {
                         // Update existing zone
                         $existingZone->update([
@@ -263,7 +263,7 @@ class UserRepository
                         ]);
                         $processedZoneIds[] = $zone->id;
                     }
-                    
+
                     $syncedZones[] = [
                         'id' => $zone->id,
                         'code' => $zone->code,
@@ -271,7 +271,7 @@ class UserRepository
                         'route' => $zone->route,
                     ];
                 }
-                
+
                 // Only delete zones that are NOT referenced by any orders
                 $zonesToDelete = $existingZones->whereNotIn('id', $processedZoneIds);
                 foreach ($zonesToDelete as $zoneToDelete) {
