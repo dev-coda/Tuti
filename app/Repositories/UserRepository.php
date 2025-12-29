@@ -66,7 +66,7 @@ class UserRepository
 
         // Try with zone first if provided
         $result = self::fetchRuteroData($document, $zone, $token);
-        
+
         // If zone was provided and result is null, retry without zone
         // This handles cases where zone no longer matches in external service
         if ($originalZone !== null && $result === null) {
@@ -120,9 +120,9 @@ class UserRepository
             'Content-Type' => 'text/xml;charset=UTF-8',
             'SOAPAction' => 'http://tempuri.org/DWSSalesForce/getRuteros',
             'Authorization' => "Bearer {$token}"
-        ])->send('POST', env('MICROSOFT_RESOURCE_URL', 'https://uattrx.sandbox.operations.dynamixs.com/').'/soap/services/DIITDWSSalesForceGroup', [
-                    'body' => $body
-                ]);
+        ])->send('POST', env('MICROSOFT_RESOURCE_URL') . '/soap/services/DIITDWSSalesForceGroup', [
+            'body' => $body
+        ]);
         info($response);
         $data = $response->body();
 
@@ -206,7 +206,7 @@ class UserRepository
 
         try {
             $data = self::getCustomRuteroId($user->document);
-            
+
             \Log::info('Rutero sync - data received', [
                 'user_id' => $user->id,
                 'document' => $user->document,
@@ -217,7 +217,7 @@ class UserRepository
                     'first_route' => $data['routes'][0] ?? null,
                 ] : null,
             ]);
-            
+
             if ($data && isset($data['routes'])) {
                 $existingZones = $user->zones()->orderBy('id')->get();
                 $newRoutes = $data['routes'];
@@ -251,7 +251,7 @@ class UserRepository
 
                 $user->refresh();
                 $user->load('zones');
-                
+
                 \Log::info('Rutero data synced successfully', [
                     'user_id' => $user->id,
                     'document' => $user->document,
