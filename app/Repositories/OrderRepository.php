@@ -913,7 +913,7 @@ class OrderRepository
     /**
      * Refresh Microsoft token for XML transmission
      */
-    private static function refreshMicrosoftToken()
+    public static function refreshMicrosoftToken()
     {
         $client_id = config('microsoft.client_id');
         $client_secret = config('microsoft.client_secret');

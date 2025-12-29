@@ -103,12 +103,15 @@ class ProcessOrderAsync implements ShouldQueue, ShouldBeUnique
         }
 
         try {
-            // Step 1: Process XML transmission
+            // Step 1: Ensure Microsoft token is fresh before processing
+            OrderRepository::refreshMicrosoftToken();
+            
+            // Step 2: Process XML transmission
             OrderRepository::presalesOrder($this->order);
 
             Log::info("XML transmission completed for order {$this->order->id}");
 
-            // Step 2: Dispatch email jobs asynchronously (non-blocking)
+            // Step 3: Dispatch email jobs asynchronously (non-blocking)
             // This ensures order processing completes even if emails fail
             try {
                 // Determine queue connection
