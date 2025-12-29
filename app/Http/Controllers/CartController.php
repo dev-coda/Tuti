@@ -656,38 +656,7 @@ class CartController extends Controller
             }
         }
 
-        // Get delivery method from request, default to 'tronex'
-        $delivery_method = $request->input('delivery_method', 'tronex');
-
-        // Calculate delivery date based on selected method and zone
-        $delivery_date = OrderRepository::getDeliveryDateByMethod($delivery_method, $zone);
-        
-        // For Tronex orders, check if order should be delayed
-        $scheduledTransmissionDate = null;
-        $orderStatus = Order::STATUS_PENDING;
-        
-        if ($delivery_method === Order::DELIVERY_METHOD_TRONEX && $zone) {
-            $sellerVisitDate = OrderRepository::getTronexSellerVisitDate($zone);
-            if ($sellerVisitDate) {
-                $today = now();
-                $isTodaySellerVisitDay = $today->format('Y-m-d') === $sellerVisitDate->format('Y-m-d');
-                
-                if (!$isTodaySellerVisitDay) {
-                    // Order should be delayed until seller visit day
-                    $orderStatus = Order::STATUS_WAITING;
-                    $scheduledTransmissionDate = $sellerVisitDate->format('Y-m-d');
-                    
-                    Log::info('Order will be delayed until seller visit day', [
-                        'seller_visit_date' => $scheduledTransmissionDate,
-                        'today' => $today->format('Y-m-d'),
-                        'zone_id' => $zone->id,
-                        'route' => $zone->route,
-                    ]);
-                }
-            }
-        }
-
-        // After syncing rutero data, re-determine zone_id if needed
+        // After syncing rutero data, determine zone_id
         // The sync might have updated zones, so we need to ensure zone_id is still valid
         $zoneId = $request->zone_id ?? session()->get('zone_id');
         
@@ -847,6 +816,37 @@ class CartController extends Controller
                 ]);
                 
                 return back()->with('error', 'No se pudo determinar la bodega para su zona.');
+            }
+        }
+
+        // Get delivery method from request, default to 'tronex'
+        $delivery_method = $request->input('delivery_method', 'tronex');
+
+        // Calculate delivery date based on selected method and zone
+        $delivery_date = OrderRepository::getDeliveryDateByMethod($delivery_method, $zone);
+        
+        // For Tronex orders, check if order should be delayed
+        $scheduledTransmissionDate = null;
+        $orderStatus = Order::STATUS_PENDING;
+        
+        if ($delivery_method === Order::DELIVERY_METHOD_TRONEX && $zone) {
+            $sellerVisitDate = OrderRepository::getTronexSellerVisitDate($zone);
+            if ($sellerVisitDate) {
+                $today = now();
+                $isTodaySellerVisitDay = $today->format('Y-m-d') === $sellerVisitDate->format('Y-m-d');
+                
+                if (!$isTodaySellerVisitDay) {
+                    // Order should be delayed until seller visit day
+                    $orderStatus = Order::STATUS_WAITING;
+                    $scheduledTransmissionDate = $sellerVisitDate->format('Y-m-d');
+                    
+                    Log::info('Order will be delayed until seller visit day', [
+                        'seller_visit_date' => $scheduledTransmissionDate,
+                        'today' => $today->format('Y-m-d'),
+                        'zone_id' => $zone->id,
+                        'route' => $zone->route,
+                    ]);
+                }
             }
         }
 

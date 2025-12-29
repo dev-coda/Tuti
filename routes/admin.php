@@ -130,7 +130,14 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     
     // Delivery Dates Management
     Route::resource('delivery-calendars', DeliveryCalendarController::class);
+    Route::get('delivery-calendars-import', [DeliveryCalendarController::class, 'showImport'])->name('delivery-calendars.import');
+    Route::post('delivery-calendars-import', [DeliveryCalendarController::class, 'import'])->name('delivery-calendars.import.store');
+    Route::get('delivery-calendars-template', [DeliveryCalendarController::class, 'exportTemplate'])->name('delivery-calendars.template');
+    
     Route::resource('route-cycles', RouteCycleController::class);
+    Route::get('route-cycles-import', [RouteCycleController::class, 'showImport'])->name('route-cycles.import');
+    Route::post('route-cycles-import', [RouteCycleController::class, 'import'])->name('route-cycles.import.store');
+    Route::get('route-cycles-template', [RouteCycleController::class, 'exportTemplate'])->name('route-cycles.template');
     Route::post('test-email', function (\Illuminate\Http\Request $request) {
         try {
             // Validate email input

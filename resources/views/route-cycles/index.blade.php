@@ -24,6 +24,14 @@
                     class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 font-bold rounded-lg text-sm px-5 py-2.5">
                     ➕ Nueva ruta
                 </a>
+                <a href="{{ route('route-cycles.import') }}"
+                    class="text-white bg-purple-600 hover:bg-purple-700 focus:ring-4 focus:ring-purple-300 font-bold rounded-lg text-sm px-5 py-2.5">
+                    📤 Importar CSV
+                </a>
+                <a href="{{ route('route-cycles.template') }}"
+                    class="text-white bg-indigo-600 hover:bg-indigo-700 focus:ring-4 focus:ring-indigo-300 font-bold rounded-lg text-sm px-5 py-2.5">
+                    📥 Descargar Plantilla
+                </a>
             </div>
         </div>
     </div>
