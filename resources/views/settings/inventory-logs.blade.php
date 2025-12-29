@@ -31,6 +31,27 @@
         </div>
     </div>
 
+    {{-- Migration Warning --}}
+    @if(!$tableExists)
+    <div class="col-span-full mb-4">
+        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <div class="flex items-start">
+                <svg class="w-5 h-5 text-yellow-600 mr-3 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                </svg>
+                <div>
+                    <h4 class="text-sm font-semibold text-yellow-800">Migración Pendiente</h4>
+                    <p class="text-sm text-yellow-700 mt-1">
+                        La tabla <code class="bg-yellow-100 px-1 rounded">inventory_sync_logs</code> no existe. 
+                        Ejecuta <code class="bg-yellow-100 px-1 rounded">php artisan migrate</code> para crearla.
+                        Los logs de archivo se muestran a continuación como alternativa.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+    @endif
+
     {{-- Logs Display --}}
     <div class="col-span-full">
         @if($logs->isEmpty())
@@ -133,6 +154,63 @@
                 @endforeach
             </div>
         @endif
+    </div>
+
+    {{-- File-based Logs Section --}}
+    <div class="col-span-full mt-6">
+        <div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+            <div class="px-6 py-4 bg-gray-50 border-b border-gray-200">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-semibold text-gray-900">Logs del Servidor (laravel.log)</h3>
+                    <span class="text-xs text-gray-500">Últimas entradas relacionadas con inventario</span>
+                </div>
+            </div>
+            <div class="p-4">
+                @if(!empty($fileLogs))
+                    <div class="bg-gray-900 rounded-lg p-4 max-h-96 overflow-auto">
+                        @foreach($fileLogs as $logEntry)
+                            <pre class="text-xs font-mono mb-2 whitespace-pre-wrap {{ 
+                                str_contains($logEntry, 'error') || str_contains($logEntry, 'ERROR') 
+                                    ? 'text-red-400' 
+                                    : (str_contains($logEntry, 'warning') || str_contains($logEntry, 'WARNING') 
+                                        ? 'text-yellow-400' 
+                                        : 'text-green-400') 
+                            }}">{{ $logEntry }}</pre>
+                        @endforeach
+                    </div>
+                @else
+                    <div class="text-center py-8">
+                        <svg class="w-10 h-10 mx-auto text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        <p class="text-gray-500 text-sm">No se encontraron logs de inventario en el archivo de log.</p>
+                        <p class="text-gray-400 text-xs mt-1">Ejecuta una sincronización para generar logs.</p>
+                    </div>
+                @endif
+            </div>
+        </div>
+    </div>
+
+    {{-- Trigger Sync Button --}}
+    <div class="col-span-full mt-6">
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h4 class="text-sm font-semibold text-blue-800">Ejecutar Sincronización Manual</h4>
+                    <p class="text-sm text-blue-600 mt-1">Dispara un nuevo proceso de sincronización de inventario.</p>
+                </div>
+                <form action="{{ route('settings.sync-inventory') }}" method="POST" class="inline">
+                    @csrf
+                    <button type="submit" 
+                            class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                        </svg>
+                        Sincronizar Ahora
+                    </button>
+                </form>
+            </div>
+        </div>
     </div>
 </div>
 @endsection

@@ -266,18 +266,73 @@ class SettingController extends Controller
      */
     public function inventoryLogs()
     {
-        // Get the latest sync run (all bodegas from the most recent sync)
-        $logs = \App\Models\InventorySyncLog::getLatestSyncRun();
+        $logs = collect();
+        $tableExists = false;
         
-        // If no logs, try to get the last 10 individual logs
-        if ($logs->isEmpty()) {
-            $logs = \App\Models\InventorySyncLog::latest()->take(10)->get();
+        // Check if the inventory_sync_logs table exists
+        try {
+            $tableExists = \Illuminate\Support\Facades\Schema::hasTable('inventory_sync_logs');
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::warning('Could not check if inventory_sync_logs table exists: ' . $e->getMessage());
         }
+        
+        if ($tableExists) {
+            // Get the latest sync run (all bodegas from the most recent sync)
+            $logs = \App\Models\InventorySyncLog::getLatestSyncRun();
+            
+            // If no logs, try to get the last 20 individual logs
+            if ($logs->isEmpty()) {
+                $logs = \App\Models\InventorySyncLog::latest()->take(20)->get();
+            }
+        }
+        
+        // Also try to get recent logs from the Laravel log file
+        $fileLogs = $this->getRecentInventoryLogsFromFile();
         
         return view('settings.inventory-logs', [
             'logs' => $logs,
+            'fileLogs' => $fileLogs,
+            'tableExists' => $tableExists,
             'lastSync' => \App\Models\Setting::getByKey('inventory_last_synced_at'),
         ]);
+    }
+    
+    /**
+     * Parse recent inventory-related logs from the Laravel log file
+     */
+    private function getRecentInventoryLogsFromFile(): array
+    {
+        $logs = [];
+        $logFile = storage_path('logs/laravel.log');
+        
+        if (!file_exists($logFile)) {
+            return $logs;
+        }
+        
+        try {
+            // Read the last 200KB of the log file
+            $fileSize = filesize($logFile);
+            $readSize = min($fileSize, 200000);
+            
+            $handle = fopen($logFile, 'r');
+            if ($handle) {
+                fseek($handle, max(0, $fileSize - $readSize));
+                $content = fread($handle, $readSize);
+                fclose($handle);
+                
+                // Find inventory-related log entries
+                $pattern = '/\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\].*(?:INVENTORY|inventory|Inventory|bodega|SyncProductInventory).*(?:\n(?!\[\d{4}).*?)*/i';
+                preg_match_all($pattern, $content, $matches);
+                
+                // Take last 50 matches
+                $logs = array_slice($matches[0] ?? [], -50);
+                $logs = array_reverse($logs); // Most recent first
+            }
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::warning('Could not read inventory logs from file: ' . $e->getMessage());
+        }
+        
+        return $logs;
     }
 
     /**

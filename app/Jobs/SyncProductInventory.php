@@ -56,27 +56,44 @@ class SyncProductInventory implements ShouldQueue
 
     public function handle(): void
     {
+        Log::info('=== INVENTORY SYNC JOB STARTED ===', [
+            'timestamp' => now()->toDateTimeString(),
+            'job_id' => $this->job ? $this->job->getJobId() : 'N/A',
+        ]);
+
         // Respect inventory enabled setting
         $inventoryEnabled = Setting::getByKeyWithDefault('inventory_enabled', '1');
         if (!($inventoryEnabled === '1' || $inventoryEnabled === 1 || $inventoryEnabled === true)) {
+            Log::info('Inventory sync skipped - inventory is disabled');
             return;
         }
+        
         $tokenSetting = Setting::where('key', 'microsoft_token')->first();
         if (!$tokenSetting) {
-            Log::warning('Missing microsoft_token setting.');
+            Log::warning('Inventory sync failed - Missing microsoft_token setting.');
+            $this->logToDatabase(null, 'error', 'Missing microsoft_token setting');
             return;
         }
 
+        Log::info('Token found, checking freshness...', [
+            'token_updated_at' => $tokenSetting->updated_at->toDateTimeString(),
+            'minutes_since_update' => $tokenSetting->updated_at->diffInMinutes(now()),
+        ]);
+
         if ($tokenSetting->updated_at->diffInMinutes(now()) > 2) {
             try {
+                Log::info('Token is stale, refreshing...');
                 Artisan::call('app:get-token');
                 $tokenSetting = Setting::where('key', 'microsoft_token')->first();
                 if (!$tokenSetting) {
-                    Log::error('Failed to refresh microsoft token - token setting not found after refresh');
+                    Log::error('Inventory sync failed - Token setting not found after refresh');
+                    $this->logToDatabase(null, 'error', 'Token setting not found after refresh');
                     return;
                 }
+                Log::info('Token refreshed successfully');
             } catch (Exception $e) {
-                Log::error('Failed to refresh microsoft token: ' . $e->getMessage());
+                Log::error('Inventory sync failed - Token refresh error: ' . $e->getMessage());
+                $this->logToDatabase(null, 'error', 'Token refresh error: ' . $e->getMessage());
                 return;
             }
         }
@@ -85,11 +102,18 @@ class SyncProductInventory implements ShouldQueue
 
         $bodegas = ZoneWarehouse::query()->select('bodega_code')->distinct()->pluck('bodega_code');
         if ($bodegas->isEmpty()) {
-            Log::warning('No bodegas found for inventory sync');
+            Log::warning('Inventory sync failed - No bodegas found for inventory sync');
+            $this->logToDatabase(null, 'error', 'No bodegas configured in zone_warehouses table');
             return;
         }
 
+        Log::info('Starting inventory sync for bodegas', [
+            'bodegas' => $bodegas->toArray(),
+            'count' => $bodegas->count(),
+        ]);
+
         foreach ($bodegas as $bodega) {
+            Log::info("Processing bodega: {$bodega}");
             $body = $this->buildSoapBody($bodega);
 
             try {
@@ -101,44 +125,39 @@ class SyncProductInventory implements ShouldQueue
                     'body' => $body,
                 ]);
 
+                Log::info("SOAP response received for bodega {$bodega}", [
+                    'status' => $response->status(),
+                    'body_length' => strlen($response->body()),
+                ]);
+
                 if (!$response->successful()) {
-                    Log::error("Inventory sync HTTP request failed for bodega {$bodega}: " . $response->status() . " - " . $response->body());
-                    
-                    // Log the failed request
-                    InventorySyncLog::create([
-                        'bodega_code' => $bodega,
-                        'status' => 'error',
-                        'error_message' => 'HTTP request failed: ' . $response->status(),
+                    $errorMsg = "HTTP request failed with status {$response->status()}";
+                    Log::error("Inventory sync error for bodega {$bodega}: {$errorMsg}", [
+                        'response_body' => substr($response->body(), 0, 1000),
                     ]);
                     
+                    $this->logToDatabase($bodega, 'error', $errorMsg, null, $response->body());
                     continue;
                 }
 
                 $xmlString = preg_replace('/<(\/)?(s|a):/', '<$1$2', $response->body());
                 $xml = @simplexml_load_string($xmlString);
                 if (!$xml) {
-                    Log::warning("Inventory SOAP parse failed for bodega {$bodega}. Response: " . substr($response->body(), 0, 500));
-                    
-                    // Log the failed parse
-                    InventorySyncLog::create([
-                        'bodega_code' => $bodega,
-                        'soap_response' => $response->body(),
-                        'status' => 'error',
-                        'error_message' => 'Failed to parse SOAP XML response',
+                    $errorMsg = 'Failed to parse SOAP XML response';
+                    Log::warning("Inventory sync error for bodega {$bodega}: {$errorMsg}", [
+                        'response_preview' => substr($response->body(), 0, 500),
                     ]);
                     
+                    $this->logToDatabase($bodega, 'error', $errorMsg, null, $response->body());
                     continue;
                 }
+                
+                Log::info("SOAP XML parsed successfully for bodega {$bodega}");
             } catch (Exception $e) {
-                Log::error("Inventory sync HTTP error for bodega {$bodega}: " . $e->getMessage());
+                $errorMsg = "HTTP/Connection error: " . $e->getMessage();
+                Log::error("Inventory sync error for bodega {$bodega}: {$errorMsg}");
                 
-                // Log the HTTP error
-                InventorySyncLog::create([
-                    'bodega_code' => $bodega,
-                    'status' => 'error',
-                    'error_message' => $e->getMessage(),
-                ]);
-                
+                $this->logToDatabase($bodega, 'error', $errorMsg);
                 continue;
             }
 
@@ -146,8 +165,17 @@ class SyncProductInventory implements ShouldQueue
 
             // Aggregate totals per SKU for this bodega, excluding specific WMS locations
             $aggregatedBySku = [];
+            $itemCount = is_array($items) || $items instanceof \Traversable ? count($items) : 0;
+            
+            Log::info("Found {$itemCount} inventory items in SOAP response for bodega {$bodega}");
+            
             if (empty($items)) {
-                Log::info("No inventory items found for bodega {$bodega}");
+                Log::info("No inventory items found for bodega {$bodega} - this may indicate all products should be set to 0");
+                $this->logToDatabase($bodega, 'warning', 'No inventory items in SOAP response', [
+                    'skus_received' => 0,
+                    'products_updated' => 0,
+                    'products_set_to_zero' => 0,
+                ], $response->body());
                 continue;
             }
             
@@ -242,35 +270,25 @@ class SyncProductInventory implements ShouldQueue
                     'products_updated' => count($updatedProductIdsForBodega),
                     'products_set_to_zero' => $setToZeroCount,
                     'total_managed_products' => $managedProducts->count(),
-                    'skus_in_response' => array_keys($aggregatedBySku),
                 ]);
                 
                 // Store sync log with full SOAP response
-                InventorySyncLog::create([
-                    'bodega_code' => $bodega,
+                $this->logToDatabase($bodega, 'success', null, [
                     'skus_received' => count($aggregatedBySku),
                     'products_updated' => count($updatedProductIdsForBodega),
                     'products_set_to_zero' => $setToZeroCount,
                     'skus_in_response' => array_keys($aggregatedBySku),
-                    'soap_response' => isset($response) ? $response->body() : null, // Store full XML response
-                    'status' => 'success',
-                ]);
+                ], isset($response) ? $response->body() : null);
                 
                 DB::commit();
             } catch (Exception $e) {
                 DB::rollBack();
-                Log::error("Inventory sync error for bodega {$bodega}: " . $e->getMessage());
+                $errorMsg = "Database error during inventory update: " . $e->getMessage();
+                Log::error("Inventory sync error for bodega {$bodega}: {$errorMsg}", [
+                    'trace' => $e->getTraceAsString(),
+                ]);
                 
-                // Log the error in database
-                try {
-                    InventorySyncLog::create([
-                        'bodega_code' => $bodega,
-                        'status' => 'error',
-                        'error_message' => $e->getMessage(),
-                    ]);
-                } catch (Exception $logException) {
-                    Log::error("Failed to log inventory sync error: " . $logException->getMessage());
-                }
+                $this->logToDatabase($bodega, 'error', $errorMsg);
             }
         }
 
@@ -280,8 +298,40 @@ class SyncProductInventory implements ShouldQueue
                 ['key' => 'inventory_last_synced_at'],
                 ['name' => 'Inventario - última sincronización', 'value' => now()->toDateTimeString(), 'show' => true]
             );
+            Log::info('=== INVENTORY SYNC JOB COMPLETED ===', [
+                'timestamp' => now()->toDateTimeString(),
+            ]);
         } catch (Exception $e) {
             Log::error('Failed to update inventory sync timestamp: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Helper method to log sync results to database (with error handling)
+     */
+    private function logToDatabase(?string $bodega, string $status, ?string $errorMessage = null, ?array $stats = null, ?string $soapResponse = null): void
+    {
+        try {
+            InventorySyncLog::create([
+                'bodega_code' => $bodega ?? 'GENERAL',
+                'skus_received' => $stats['skus_received'] ?? 0,
+                'products_updated' => $stats['products_updated'] ?? 0,
+                'products_set_to_zero' => $stats['products_set_to_zero'] ?? 0,
+                'skus_in_response' => $stats['skus_in_response'] ?? null,
+                'soap_response' => $soapResponse,
+                'status' => $status,
+                'error_message' => $errorMessage,
+            ]);
+        } catch (Exception $e) {
+            // If DB logging fails (e.g., table doesn't exist), log to file instead
+            Log::warning("Could not write to inventory_sync_logs table: " . $e->getMessage());
+            Log::info("Inventory sync log (DB write failed)", [
+                'bodega_code' => $bodega,
+                'status' => $status,
+                'error_message' => $errorMessage,
+                'skus_received' => $stats['skus_received'] ?? 0,
+                'products_updated' => $stats['products_updated'] ?? 0,
+            ]);
         }
     }
 
