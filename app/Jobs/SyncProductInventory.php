@@ -88,6 +88,9 @@ class SyncProductInventory implements ShouldQueue
             return;
         }
 
+        // Track which products were updated during sync (to set others to 0)
+        $updatedProductIds = [];
+
         foreach ($bodegas as $bodega) {
             $body = $this->buildSoapBody($bodega);
 
@@ -177,6 +180,9 @@ class SyncProductInventory implements ShouldQueue
                             'physical' => (int) ($totals['physical'] ?? 0),
                             'reserved' => (int) ($totals['reserved'] ?? 0),
                         ]);
+                        
+                        // Track that this product was updated for this bodega
+                        $updatedProductIds[] = $product->id . '-' . $bodega;
                     }
                 }
                 DB::commit();
@@ -184,6 +190,40 @@ class SyncProductInventory implements ShouldQueue
                 DB::rollBack();
                 Log::error('Inventory sync error: ' . $e->getMessage());
             }
+        }
+
+        // Set inventory to 0 for products that weren't returned in SOAP response
+        // Only for products that have inventory management enabled
+        try {
+            $managedProducts = Product::where('inventory_opt_out', false)
+                ->orWhereNull('inventory_opt_out')
+                ->get();
+            
+            foreach ($bodegas as $bodega) {
+                foreach ($managedProducts as $product) {
+                    $key = $product->id . '-' . $bodega;
+                    
+                    // If this product-bodega combination wasn't updated, set inventory to 0
+                    if (!in_array($key, $updatedProductIds)) {
+                        ProductInventory::updateOrCreate([
+                            'product_id' => $product->id,
+                            'bodega_code' => $bodega,
+                        ], [
+                            'available' => 0,
+                            'physical' => 0,
+                            'reserved' => 0,
+                        ]);
+                    }
+                }
+            }
+            
+            Log::info('Set inventory to 0 for products not in SOAP response', [
+                'total_managed_products' => $managedProducts->count(),
+                'updated_products' => count(array_unique($updatedProductIds)),
+                'bodegas' => $bodegas->toArray(),
+            ]);
+        } catch (Exception $e) {
+            Log::error('Error setting zero inventory for missing products: ' . $e->getMessage());
         }
 
         // Update last sync timestamp setting
