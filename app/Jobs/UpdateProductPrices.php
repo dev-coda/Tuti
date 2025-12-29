@@ -66,7 +66,7 @@ class UpdateProductPrices implements ShouldQueue
             'Authorization' => "Bearer {$token}",
             'Content-Type' => 'text/xml; charset=utf-8',
             'Accept' => 'text/xml, application/xml'
-        ])->send('POST', env('MICROSOFT_RESOURCE_URL') . '/soap/services/DIITDWSSalesForceGroup', [
+        ])->send('POST', config('microsoft.resource') . '/soap/services/DIITDWSSalesForceGroup', [
             'body' => $body
         ]);
 
