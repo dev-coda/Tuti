@@ -24,3 +24,27 @@
         Error webservice
     </span>
 @endif
+
+@if($status == 4)
+    <span class='inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium leading-4 bg-blue-100 text-blue-800'>
+        Enviado
+    </span>
+@endif
+
+@if($status == 5)
+    <span class='inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium leading-4 bg-green-100 text-green-800'>
+        Entregado
+    </span>
+@endif
+
+@if($status == 6)
+    <span class='inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium leading-4 bg-gray-100 text-gray-800'>
+        Cancelado
+    </span>
+@endif
+
+@if($status == 7)
+    <span class='inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium leading-4 bg-purple-100 text-purple-800'>
+        En espera
+    </span>
+@endif
