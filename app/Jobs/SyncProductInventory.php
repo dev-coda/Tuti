@@ -83,6 +83,108 @@ class SyncProductInventory implements ShouldQueue
 
         $token = $tokenSetting->value;
 
+        $bodegas = ZoneWarehouse::query()->select('bodega_code')->distinct()->pluck('bodega_code');
+        if ($bodegas->isEmpty()) {
+            Log::warning('No bodegas found for inventory sync');
+            return;
+        }
+
+        foreach ($bodegas as $bodega) {
+            $body = $this->buildSoapBody($bodega);
+
+            try {
+                $response = Http::withHeaders([
+                    'Content-Type' => 'text/xml;charset=UTF-8',
+                    'SOAPAction' => 'http://tempuri.org/DWSSalesForce/obtenerExistenciaDeInventarioEspecifica',
+                    'Authorization' => "Bearer {$token}",
+                ])->timeout(30)->send('POST', env('MICROSOFT_RESOURCE_URL', 'https://uattrx.sandbox.operations.dynamics.com/') . '/soap/services/DIITDWSSalesForceGroup', [
+                    'body' => $body,
+                ]);
+
+                if (!$response->successful()) {
+                    Log::error("Inventory sync HTTP request failed for bodega {$bodega}: " . $response->status() . " - " . $response->body());
+                    
+                    // Log the failed request
+                    InventorySyncLog::create([
+                        'bodega_code' => $bodega,
+                        'status' => 'error',
+                        'error_message' => 'HTTP request failed: ' . $response->status(),
+                    ]);
+                    
+                    continue;
+                }
+
+                $xmlString = preg_replace('/<(\/)?(s|a):/', '<$1$2', $response->body());
+                $xml = @simplexml_load_string($xmlString);
+                if (!$xml) {
+                    Log::warning("Inventory SOAP parse failed for bodega {$bodega}. Response: " . substr($response->body(), 0, 500));
+                    
+                    // Log the failed parse
+                    InventorySyncLog::create([
+                        'bodega_code' => $bodega,
+                        'soap_response' => $response->body(),
+                        'status' => 'error',
+                        'error_message' => 'Failed to parse SOAP XML response',
+                    ]);
+                    
+                    continue;
+                }
+            } catch (Exception $e) {
+                Log::error("Inventory sync HTTP error for bodega {$bodega}: " . $e->getMessage());
+                
+                // Log the HTTP error
+                InventorySyncLog::create([
+                    'bodega_code' => $bodega,
+                    'status' => 'error',
+                    'error_message' => $e->getMessage(),
+                ]);
+                
+                continue;
+            }
+
+            $items = $xml->sBody->obtenerExistenciaDeInventarioEspecificaResponse->result->aobtenerExistenciaDeInventarioEspecificaResult->aListItemExists ?? [];
+
+            // Aggregate totals per SKU for this bodega, excluding specific WMS locations
+            $aggregatedBySku = [];
+            if (empty($items)) {
+                Log::info("No inventory items found for bodega {$bodega}");
+                continue;
+            }
+            
+            foreach ($items as $item) {
+                $sku = trim((string) ($item->aItemId ?? ''));
+                if ($sku === '') {
+                    continue;
+                }
+
+                $wmsLocation = strtoupper(trim((string) ($item->aWMSLocation ?? $item->awMSLocation ?? $item->aWmsLocation ?? '')));
+                if ($wmsLocation === 'EMPAQUE' || $wmsLocation === 'SALIDA') {
+                    // Skip excluded locations
+                    continue;
+                }
+
+                $avail = (int) ((string) ($item->aAvailPhysical ?? '0'));
+                $phys = (int) ((string) ($item->aPhysicalInvent ?? '0'));
+                $resv = (int) ((string) ($item->aReservPhysical ?? '0'));
+
+                if (!isset($aggregatedBySku[$sku])) {
+                    $aggregatedBySku[$sku] = [
+                        'available' => 0,
+                        'physical' => 0,
+                        'reserved' => 0,
+                    ];
+                }
+
+                $aggregatedBySku[$sku]['available'] += $avail;
+                $aggregatedBySku[$sku]['physical'] += $phys;
+                $aggregatedBySku[$sku]['reserved'] += $resv;
+            }
+
+            if (empty($aggregatedBySku)) {
+                Log::info("No valid inventory data to sync for bodega {$bodega}");
+                continue;
+            }
+
             DB::beginTransaction();
             try {
                 // Track which product IDs were updated for THIS specific bodega
