@@ -61,11 +61,25 @@ class SettingController extends Controller
         return to_route('settings.index')->with('success', 'Texto actualizado');
     }
 
-    public function syncInventory()
+    public function syncInventory(Request $request)
     {
-        // Dispatch to queue for async processing with Horizon
-        // Force Redis queue even if default is 'sync'
+        // Check if user wants to run synchronously (for testing/debugging)
+        $runSync = $request->has('sync') || $request->query('sync') === '1';
+        
         try {
+            if ($runSync) {
+                // Run synchronously - useful for testing when Horizon isn't running
+                \Illuminate\Support\Facades\Log::info('Inventory sync job running SYNCHRONOUSLY');
+                
+                $job = new SyncProductInventory();
+                $job->handle();
+                
+                \Illuminate\Support\Facades\Log::info('Inventory sync job completed synchronously');
+                
+                return back()->with('success', 'Sincronización de inventario completada exitosamente.');
+            }
+            
+            // Dispatch to queue for async processing with Horizon
             $queueConnection = config('queue.default');
             
             // If queue is set to 'sync', use 'redis' instead to ensure async processing with Horizon
@@ -82,10 +96,12 @@ class SettingController extends Controller
                 'queue' => 'inventory'
             ]);
             
-            return back()->with('success', 'Sincronización de inventario iniciada. El proceso se ejecutará en segundo plano y puede tomar varios minutos.');
+            return back()->with('success', 'Sincronización de inventario iniciada. El proceso se ejecutará en segundo plano. Nota: Asegúrate de que Horizon esté ejecutándose (php artisan horizon).');
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('Inventory sync dispatch failed: ' . $e->getMessage());
-            return back()->with('error', 'Error al iniciar sincronización de inventario: ' . $e->getMessage());
+            \Illuminate\Support\Facades\Log::error('Inventory sync failed: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
+            return back()->with('error', 'Error al sincronizar inventario: ' . $e->getMessage());
         }
     }
 
