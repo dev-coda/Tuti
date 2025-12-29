@@ -64,6 +64,7 @@
                             'settings.index'=>'Configuraciones',
                             'settings.mailer'=>'Configuración de Correo',
                             'admin.email-templates.index'=>'Plantillas de Correo',
+                            'settings.inventory-logs'=>'Logs de Inventario',
                             'holidays.index'=>'Festivos y Sabados',
                             'delivery-calendars.index'=>'Calendario de Entrega',
                             'route-cycles.index'=>'Ciclos de Rutas',

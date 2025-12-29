@@ -262,6 +262,25 @@ class SettingController extends Controller
     }
 
     /**
+     * Show inventory sync logs
+     */
+    public function inventoryLogs()
+    {
+        // Get the latest sync run (all bodegas from the most recent sync)
+        $logs = \App\Models\InventorySyncLog::getLatestSyncRun();
+        
+        // If no logs, try to get the last 10 individual logs
+        if ($logs->isEmpty()) {
+            $logs = \App\Models\InventorySyncLog::latest()->take(10)->get();
+        }
+        
+        return view('settings.inventory-logs', [
+            'logs' => $logs,
+            'lastSync' => \App\Models\Setting::getByKey('inventory_last_synced_at'),
+        ]);
+    }
+
+    /**
      * Update vacation mode settings
      */
     public function updateVacationMode(Request $request)

@@ -6,6 +6,7 @@ use App\Models\Product;
 use App\Models\ProductInventory;
 use App\Models\Setting;
 use App\Models\ZoneWarehouse;
+use App\Models\InventorySyncLog;
 use Exception;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -82,87 +83,11 @@ class SyncProductInventory implements ShouldQueue
 
         $token = $tokenSetting->value;
 
-        $bodegas = ZoneWarehouse::query()->select('bodega_code')->distinct()->pluck('bodega_code');
-        if ($bodegas->isEmpty()) {
-            Log::warning('No bodegas found for inventory sync');
-            return;
-        }
-
-        // Track which products were updated during sync (to set others to 0)
-        $updatedProductIds = [];
-
-        foreach ($bodegas as $bodega) {
-            $body = $this->buildSoapBody($bodega);
-
-            try {
-                $response = Http::withHeaders([
-                    'Content-Type' => 'text/xml;charset=UTF-8',
-                    'SOAPAction' => 'http://tempuri.org/DWSSalesForce/obtenerExistenciaDeInventarioEspecifica',
-                    'Authorization' => "Bearer {$token}",
-                ])->timeout(30)->send('POST', env('MICROSOFT_RESOURCE_URL', 'https://uattrx.sandbox.operations.dynamics.com/') . '/soap/services/DIITDWSSalesForceGroup', [
-                    'body' => $body,
-                ]);
-
-                if (!$response->successful()) {
-                    Log::error("Inventory sync HTTP request failed for bodega {$bodega}: " . $response->status() . " - " . $response->body());
-                    continue;
-                }
-
-                $xmlString = preg_replace('/<(\/)?(s|a):/', '<$1$2', $response->body());
-                $xml = @simplexml_load_string($xmlString);
-                if (!$xml) {
-                    Log::warning("Inventory SOAP parse failed for bodega {$bodega}. Response: " . substr($response->body(), 0, 500));
-                    continue;
-                }
-            } catch (Exception $e) {
-                Log::error("Inventory sync HTTP error for bodega {$bodega}: " . $e->getMessage());
-                continue;
-            }
-
-            $items = $xml->sBody->obtenerExistenciaDeInventarioEspecificaResponse->result->aobtenerExistenciaDeInventarioEspecificaResult->aListItemExists ?? [];
-
-            // Aggregate totals per SKU for this bodega, excluding specific WMS locations
-            $aggregatedBySku = [];
-            if (empty($items)) {
-                Log::info("No inventory items found for bodega {$bodega}");
-                continue;
-            }
-            foreach ($items as $item) {
-                $sku = trim((string) ($item->aItemId ?? ''));
-                if ($sku === '') {
-                    continue;
-                }
-
-                $wmsLocation = strtoupper(trim((string) ($item->aWMSLocation ?? $item->awMSLocation ?? $item->aWmsLocation ?? '')));
-                if ($wmsLocation === 'EMPAQUE' || $wmsLocation === 'SALIDA') {
-                    // Skip excluded locations
-                    continue;
-                }
-
-                $avail = (int) ((string) ($item->aAvailPhysical ?? '0'));
-                $phys = (int) ((string) ($item->aPhysicalInvent ?? '0'));
-                $resv = (int) ((string) ($item->aReservPhysical ?? '0'));
-
-                if (!isset($aggregatedBySku[$sku])) {
-                    $aggregatedBySku[$sku] = [
-                        'available' => 0,
-                        'physical' => 0,
-                        'reserved' => 0,
-                    ];
-                }
-
-                $aggregatedBySku[$sku]['available'] += $avail;
-                $aggregatedBySku[$sku]['physical'] += $phys;
-                $aggregatedBySku[$sku]['reserved'] += $resv;
-            }
-
-            if (empty($aggregatedBySku)) {
-                Log::info("No valid inventory data to sync for bodega {$bodega}");
-                continue;
-            }
-
             DB::beginTransaction();
             try {
+                // Track which product IDs were updated for THIS specific bodega
+                $updatedProductIdsForBodega = [];
+                
                 foreach ($aggregatedBySku as $sku => $totals) {
                     // Find ALL products with this SKU (handles duplicate SKUs)
                     $products = Product::where('sku', $sku)->get();
@@ -181,30 +106,22 @@ class SyncProductInventory implements ShouldQueue
                             'reserved' => (int) ($totals['reserved'] ?? 0),
                         ]);
                         
-                        // Track that this product was updated for this bodega
-                        $updatedProductIds[] = $product->id . '-' . $bodega;
+                        // Track that this product was updated for THIS bodega
+                        $updatedProductIdsForBodega[] = $product->id;
                     }
                 }
-                DB::commit();
-            } catch (Exception $e) {
-                DB::rollBack();
-                Log::error('Inventory sync error: ' . $e->getMessage());
-            }
-        }
-
-        // Set inventory to 0 for products that weren't returned in SOAP response
-        // Only for products that have inventory management enabled
-        try {
-            $managedProducts = Product::where('inventory_opt_out', false)
-                ->orWhereNull('inventory_opt_out')
-                ->get();
-            
-            foreach ($bodegas as $bodega) {
+                
+                // Now set inventory to 0 for products NOT in this bodega's SOAP response
+                // Only for products that have inventory management enabled
+                $managedProducts = Product::where(function($query) {
+                    $query->where('inventory_opt_out', false)
+                          ->orWhereNull('inventory_opt_out');
+                })->get();
+                
+                $setToZeroCount = 0;
                 foreach ($managedProducts as $product) {
-                    $key = $product->id . '-' . $bodega;
-                    
-                    // If this product-bodega combination wasn't updated, set inventory to 0
-                    if (!in_array($key, $updatedProductIds)) {
+                    // If this product was NOT in the SOAP response for this bodega, set to 0
+                    if (!in_array($product->id, $updatedProductIdsForBodega)) {
                         ProductInventory::updateOrCreate([
                             'product_id' => $product->id,
                             'bodega_code' => $bodega,
@@ -213,17 +130,46 @@ class SyncProductInventory implements ShouldQueue
                             'physical' => 0,
                             'reserved' => 0,
                         ]);
+                        $setToZeroCount++;
                     }
                 }
+                
+                Log::info("Inventory sync completed for bodega {$bodega}", [
+                    'bodega' => $bodega,
+                    'skus_received' => count($aggregatedBySku),
+                    'products_updated' => count($updatedProductIdsForBodega),
+                    'products_set_to_zero' => $setToZeroCount,
+                    'total_managed_products' => $managedProducts->count(),
+                    'skus_in_response' => array_keys($aggregatedBySku),
+                ]);
+                
+                // Store sync log with full SOAP response
+                InventorySyncLog::create([
+                    'bodega_code' => $bodega,
+                    'skus_received' => count($aggregatedBySku),
+                    'products_updated' => count($updatedProductIdsForBodega),
+                    'products_set_to_zero' => $setToZeroCount,
+                    'skus_in_response' => array_keys($aggregatedBySku),
+                    'soap_response' => isset($response) ? $response->body() : null, // Store full XML response
+                    'status' => 'success',
+                ]);
+                
+                DB::commit();
+            } catch (Exception $e) {
+                DB::rollBack();
+                Log::error("Inventory sync error for bodega {$bodega}: " . $e->getMessage());
+                
+                // Log the error in database
+                try {
+                    InventorySyncLog::create([
+                        'bodega_code' => $bodega,
+                        'status' => 'error',
+                        'error_message' => $e->getMessage(),
+                    ]);
+                } catch (Exception $logException) {
+                    Log::error("Failed to log inventory sync error: " . $logException->getMessage());
+                }
             }
-            
-            Log::info('Set inventory to 0 for products not in SOAP response', [
-                'total_managed_products' => $managedProducts->count(),
-                'updated_products' => count(array_unique($updatedProductIds)),
-                'bodegas' => $bodegas->toArray(),
-            ]);
-        } catch (Exception $e) {
-            Log::error('Error setting zero inventory for missing products: ' . $e->getMessage());
         }
 
         // Update last sync timestamp setting
