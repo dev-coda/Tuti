@@ -129,11 +129,19 @@ class Coupon extends Model
     {
         // Check if user is in the exclusion list
         if ($this->isUserExcluded($user)) {
+            \Log::debug('Coupon: User excluded', [
+                'coupon_id' => $this->id,
+                'user_id' => $user->id,
+            ]);
             return false;
         }
 
         // Check if product is specifically excluded
         if ($this->except_product_ids && in_array($product->id, $this->except_product_ids)) {
+            \Log::debug('Coupon: Product excluded', [
+                'coupon_id' => $this->id,
+                'product_id' => $product->id,
+            ]);
             return false;
         }
 
@@ -141,46 +149,122 @@ class Coupon extends Model
         if ($this->except_category_ids) {
             $productCategoryIds = $product->categories->pluck('id')->toArray();
             if (!empty(array_intersect($productCategoryIds, $this->except_category_ids))) {
+                \Log::debug('Coupon: Product category excluded', [
+                    'coupon_id' => $this->id,
+                    'product_id' => $product->id,
+                    'category_ids' => $productCategoryIds,
+                ]);
                 return false;
             }
         }
 
         // Check brand exclusions
         if ($this->except_brand_ids && in_array($product->brand_id, $this->except_brand_ids)) {
+            \Log::debug('Coupon: Product brand excluded', [
+                'coupon_id' => $this->id,
+                'product_id' => $product->id,
+                'brand_id' => $product->brand_id,
+            ]);
             return false;
         }
 
         // Check vendor exclusions
         if ($this->except_vendor_ids && $product->brand && in_array($product->brand->vendor_id, $this->except_vendor_ids)) {
+            \Log::debug('Coupon: Product vendor excluded', [
+                'coupon_id' => $this->id,
+                'product_id' => $product->id,
+                'vendor_id' => $product->brand->vendor_id,
+            ]);
             return false;
         }
 
         // Now check if it applies based on the coupon's applies_to setting
+        // IMPORTANT: applies_to_ids is stored as JSON and may contain mixed types
+        // We normalize IDs to integers for proper comparison
+        $appliesIds = $this->applies_to_ids ?? [];
+        
         switch ($this->applies_to) {
             case self::APPLIES_TO_CART:
                 return true; // Applies to entire cart
 
             case self::APPLIES_TO_PRODUCT:
-                return $this->applies_to_ids && in_array($product->id, $this->applies_to_ids);
+                if (empty($appliesIds)) return false;
+                $normalizedIds = array_map('intval', $appliesIds);
+                $matches = in_array((int) $product->id, $normalizedIds, true);
+                \Log::debug('Coupon: APPLIES_TO_PRODUCT check', [
+                    'coupon_id' => $this->id,
+                    'product_id' => $product->id,
+                    'applies_to_ids' => $normalizedIds,
+                    'matches' => $matches,
+                ]);
+                return $matches;
 
             case self::APPLIES_TO_CATEGORY:
-                if (!$this->applies_to_ids) return false;
-                $productCategoryIds = $product->categories->pluck('id')->toArray();
-                return !empty(array_intersect($productCategoryIds, $this->applies_to_ids));
+                if (empty($appliesIds)) return false;
+                $normalizedIds = array_map('intval', $appliesIds);
+                $productCategoryIds = $product->categories->pluck('id')->map(fn($id) => (int) $id)->toArray();
+                $matches = !empty(array_intersect($productCategoryIds, $normalizedIds));
+                \Log::debug('Coupon: APPLIES_TO_CATEGORY check', [
+                    'coupon_id' => $this->id,
+                    'product_id' => $product->id,
+                    'product_category_ids' => $productCategoryIds,
+                    'applies_to_ids' => $normalizedIds,
+                    'matches' => $matches,
+                ]);
+                return $matches;
 
             case self::APPLIES_TO_BRAND:
-                return $this->applies_to_ids && in_array($product->brand_id, $this->applies_to_ids);
+                if (empty($appliesIds) || !$product->brand_id) {
+                    \Log::debug('Coupon: APPLIES_TO_BRAND - empty applies_ids or no brand_id', [
+                        'coupon_id' => $this->id,
+                        'product_id' => $product->id,
+                        'product_brand_id' => $product->brand_id,
+                        'applies_ids_empty' => empty($appliesIds),
+                    ]);
+                    return false;
+                }
+                $normalizedIds = array_map('intval', $appliesIds);
+                $matches = in_array((int) $product->brand_id, $normalizedIds, true);
+                \Log::debug('Coupon: APPLIES_TO_BRAND check', [
+                    'coupon_id' => $this->id,
+                    'product_id' => $product->id,
+                    'product_brand_id' => $product->brand_id,
+                    'applies_to_ids' => $normalizedIds,
+                    'matches' => $matches,
+                ]);
+                return $matches;
 
             case self::APPLIES_TO_VENDOR:
-                return $this->applies_to_ids && $product->brand && in_array($product->brand->vendor_id, $this->applies_to_ids);
+                if (empty($appliesIds) || !$product->brand || !$product->brand->vendor_id) {
+                    \Log::debug('Coupon: APPLIES_TO_VENDOR - empty applies_ids or no vendor', [
+                        'coupon_id' => $this->id,
+                        'product_id' => $product->id,
+                        'has_brand' => (bool) $product->brand,
+                        'vendor_id' => $product->brand?->vendor_id,
+                        'applies_ids_empty' => empty($appliesIds),
+                    ]);
+                    return false;
+                }
+                $normalizedIds = array_map('intval', $appliesIds);
+                $matches = in_array((int) $product->brand->vendor_id, $normalizedIds, true);
+                \Log::debug('Coupon: APPLIES_TO_VENDOR check', [
+                    'coupon_id' => $this->id,
+                    'product_id' => $product->id,
+                    'product_vendor_id' => $product->brand->vendor_id,
+                    'applies_to_ids' => $normalizedIds,
+                    'matches' => $matches,
+                ]);
+                return $matches;
 
             case self::APPLIES_TO_CUSTOMER:
-                return $this->applies_to_ids && in_array($user->id, $this->applies_to_ids);
+                if (empty($appliesIds)) return false;
+                $normalizedIds = array_map('intval', $appliesIds);
+                return in_array((int) $user->id, $normalizedIds, true);
 
             case self::APPLIES_TO_CUSTOMER_TYPE:
-                if (!$this->applies_to_ids) return false;
+                if (empty($appliesIds)) return false;
                 $userRoles = $user->roles->pluck('name')->toArray();
-                return !empty(array_intersect($userRoles, $this->applies_to_ids));
+                return !empty(array_intersect($userRoles, $appliesIds));
 
             default:
                 return false;

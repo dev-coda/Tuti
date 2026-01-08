@@ -26,7 +26,7 @@
                 <table class="min-w-full divide-y divide-gray-200 table-fixed ">
                     <thead class="bg-gray-100">
                         <tr>
-                           
+
                             <th scope="col"
                                 class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
                                 Nombre
@@ -34,18 +34,32 @@
 
                             <th scope="col"
                                 class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
-                                Email
+                                Razón Social
                             </th>
 
                             <th scope="col"
                                 class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
-                                Puede comprar?
+                                Teléfono
                             </th>
 
-                           
                             <th scope="col"
                                 class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
-                                
+                                Tipo de Cliente
+                            </th>
+
+                            <th scope="col"
+                                class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
+                                Saldo
+                            </th>
+
+                            <th scope="col"
+                                class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
+                                Estado
+                            </th>
+
+                            <th scope="col"
+                                class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
+
                             </th>
                         </tr>
                     </thead>
@@ -61,20 +75,38 @@
                                      <small class="text-xs  text-slate-500">
                                         {{ $user->document }}
                                     </small>
-                                   
+
                                 </a>
                             </td>
 
-                            <td class="p-4 text-base  text-gray-900 whitespace-nowra">
-                                {{$user->email}}
+                            <td class="p-4 text-sm text-gray-900 whitespace-nowrap">
+                                {{ $user->business_name ?: '-' }}
                             </td>
 
-                            <td class="p-4 text-base  text-gray-900 whitespace-nowra">
-                                {{$user->code ? 'Si' : 'No'}}
+                            <td class="p-4 text-sm text-gray-900 whitespace-nowrap">
+                                {{ $user->phone ?: $user->mobile_phone ?: '-' }}
                             </td>
-                           
-                           
-                          
+
+                            <td class="p-4 text-sm text-gray-900 whitespace-nowrap">
+                                {{ $user->customer_type ?: '-' }}
+                            </td>
+
+                            <td class="p-4 text-sm text-gray-900 whitespace-nowrap">
+                                ${{ number_format($user->balance ?? 0, 0, ',', '.') }}
+                            </td>
+
+                            <td class="p-4 text-sm text-gray-900 whitespace-nowrap">
+                                @if($user->is_locked)
+                                    <span class="px-2 py-1 text-xs font-semibold text-white bg-red-500 rounded">Bloqueado</span>
+                                @elseif($user->customer_status == 'No')
+                                    <span class="px-2 py-1 text-xs font-semibold text-white bg-yellow-500 rounded">Inactivo</span>
+                                @else
+                                    <span class="px-2 py-1 text-xs font-semibold text-white bg-green-500 rounded">Activo</span>
+                                @endif
+                            </td>
+
+
+
 
                             <td class="p-4 space-x-2 whitespace-nowrap text-end">
                                 <a href="{{ route('users.edit', $user) }}"

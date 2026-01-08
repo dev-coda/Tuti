@@ -8,11 +8,23 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
+use App\Notifications\ResetPasswordNotification;
 
 class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable;
     use HasRoles;
+
+    /**
+     * Send the password reset notification.
+     *
+     * @param  string  $token
+     * @return void
+     */
+    public function sendPasswordResetNotification($token)
+    {
+        $this->notify(new ResetPasswordNotification($token));
+    }
 
     /**
      * The attributes that are mass assignable.
@@ -30,7 +42,23 @@ class User extends Authenticatable
         'phone',
         'status_id',
         'terms_accepted',
-        'zone'
+        'zone',
+        // New fields from getRuteros API
+        'mobile_phone',
+        'whatsapp',
+        'business_name',
+        'account_num',
+        'city_code',
+        'county_id',
+        'customer_type',
+        'price_group',
+        'tax_group',
+        'line_discount',
+        'balance',
+        'quota_value',
+        'customer_status',
+        'is_locked',
+        'order_sequence'
     ];
 
     const PENDING = 1;

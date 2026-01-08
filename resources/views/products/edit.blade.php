@@ -141,6 +141,31 @@
                     ></div>
                 </div>
 
+                <div class="col-span-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">PDF de Especificaciones</label>
+                    <div class="space-y-3">
+                        @if($product->specifications_pdf)
+                            <div class="flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 text-green-600">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                                </svg>
+                                <div class="flex-1">
+                                    <p class="text-sm font-medium text-green-800">PDF cargado</p>
+                                    <a href="{{ asset('storage/'.$product->specifications_pdf) }}" target="_blank" class="text-xs text-green-600 hover:underline">Ver PDF actual</a>
+                                </div>
+                                <label class="flex items-center gap-2 text-sm text-red-600 cursor-pointer">
+                                    <input type="checkbox" name="remove_specifications_pdf" value="1" class="rounded border-gray-300 text-red-600 focus:ring-red-500">
+                                    <span>Eliminar</span>
+                                </label>
+                            </div>
+                        @endif
+                        <div>
+                            <input type="file" name="specifications_pdf" accept=".pdf,application/pdf" class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none focus:border-blue-500 p-2">
+                            <p class="mt-1 text-xs text-gray-500">{{ $product->specifications_pdf ? 'Cargar un nuevo PDF reemplazará el actual.' : 'Cargar un archivo PDF con las especificaciones del producto.' }} Máximo 10MB.</p>
+                        </div>
+                    </div>
+                </div>
+
                 <div>
                     {{ Aire::hidden('active')->value(0)}}
                     <label class="relative inline-flex items-center cursor-pointer">

@@ -151,6 +151,7 @@ class ProductController extends Controller
             'inventory_opt_out' => 'nullable|boolean',
             'images' => 'nullable|array',
             'images.*' => 'image|max:4096',
+            'specifications_pdf' => 'nullable|file|mimes:pdf|max:10240',
         ]);
 
         // Validate discount based on type
@@ -167,6 +168,12 @@ class ProductController extends Controller
         // Set default value for safety_stock if not provided
         if (!isset($validate['safety_stock'])) {
             $validate['safety_stock'] = 0;
+        }
+
+        // Handle PDF upload
+        if ($request->hasFile('specifications_pdf')) {
+            $pdfPath = $request->file('specifications_pdf')->store('products/specifications', 'public');
+            $validate['specifications_pdf'] = $pdfPath;
         }
 
         $product = Product::create($validate);
@@ -307,6 +314,8 @@ class ProductController extends Controller
             'calculate_package_price' => 'nullable|boolean',
             'safety_stock' => 'nullable|integer|min:0',
             'inventory_opt_out' => 'nullable|boolean',
+            'specifications_pdf' => 'nullable|file|mimes:pdf|max:10240',
+            'remove_specifications_pdf' => 'nullable|boolean',
         ]);
 
         // Validate discount based on type
@@ -320,6 +329,23 @@ class ProductController extends Controller
         if (!isset($validate['safety_stock'])) {
             $validate['safety_stock'] = 0;
         }
+
+        // Handle PDF upload/removal
+        if ($request->boolean('remove_specifications_pdf') && $product->specifications_pdf) {
+            Storage::disk('public')->delete($product->specifications_pdf);
+            $validate['specifications_pdf'] = null;
+        } elseif ($request->hasFile('specifications_pdf')) {
+            // Delete old PDF if exists
+            if ($product->specifications_pdf) {
+                Storage::disk('public')->delete($product->specifications_pdf);
+            }
+            $pdfPath = $request->file('specifications_pdf')->store('products/specifications', 'public');
+            $validate['specifications_pdf'] = $pdfPath;
+        } else {
+            // Don't update the field if no new file and not removing
+            unset($validate['specifications_pdf']);
+        }
+        unset($validate['remove_specifications_pdf']);
 
         $product->labels()->sync($request->labels);
         $product->categories()->sync($request->categories);

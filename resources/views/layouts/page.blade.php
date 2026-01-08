@@ -42,7 +42,7 @@
 
 
 
-<body class="antialdiased font-dm text-primary">
+<body class="antialdiased font-dm text-primary bg-gray-100">
     @include('elements.mobile-menu')
     <main id='main'>
         <div class="bg-amber-500 py-2">

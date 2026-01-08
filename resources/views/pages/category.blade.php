@@ -20,12 +20,22 @@
         >
     </div>
     @endif
-    <div class="flex md:flex-row flex-col md:items-center md:justify-between gap-3 col-span-12 font-semibold w-full max-w-[90vw]">
-        <ul class="flex space-x-2 text-gray-500 uppercase self-start">
-            <li><a href="/">Inicio</a></li>
-            <li>></li>
-            <li><a href=" {{route('category', $params['slug'])}} ">{{$category->name}}</a></li>
-        </ul>
+    <div class="flex md:flex-row flex-col md:items-center md:justify-between gap-3 col-span-12 w-full max-w-[90vw] py-2 border-b border-gray-200">
+        <nav aria-label="Breadcrumb" class="self-start overflow-hidden max-w-full">
+            <ol class="flex items-center space-x-2 text-sm min-w-0">
+                <li class="flex-shrink-0">
+                    <a href="{{ route('home') }}" class="text-gray-500 hover:text-orange-500 uppercase font-medium tracking-wide">INICIO</a>
+                </li>
+                <li class="text-gray-400 flex-shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                    </svg>
+                </li>
+                <li class="min-w-0 flex-1">
+                    <span class="text-gray-700 uppercase font-medium tracking-wide truncate block">{{ strtoupper($category->name) }}</span>
+                </li>
+            </ol>
+        </nav>
         <div id="filter-sort-dropdowns" class="self-end md:self-auto"
             data-current-sort="{{ $params['order'] }}"
             data-current-brand-id="{{ $params['brand_id'] ?? 'null' }}"

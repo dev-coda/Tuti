@@ -104,6 +104,14 @@
                     ></div>
                 </div>
 
+                <div class="col-span-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">PDF de Especificaciones</label>
+                    <div>
+                        <input type="file" name="specifications_pdf" accept=".pdf,application/pdf" class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none focus:border-blue-500 p-2">
+                        <p class="mt-1 text-xs text-gray-500">Cargar un archivo PDF con las especificaciones del producto. Máximo 10MB.</p>
+                    </div>
+                </div>
+
                 <div>
                     {{ Aire::hidden('active')->value(0)}}
                     <label class="relative inline-flex items-center cursor-pointer">

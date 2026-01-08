@@ -10,22 +10,53 @@
 
     <div class="col-span-2">
         <div class="p-4 mb-4 bg-white border border-gray-200 rounded-lg shadow-sm 2xl:col-span-2 ">
-            <h3 class="mb-4 text-xl font-semibold ">Información</h3>
+            <h3 class="mb-4 text-xl font-semibold ">Información Personal</h3>
             {{ Aire::open()->route('users.update', $user)->bind($user)}}
                 <div class="grid grid-cols-2 gap-5">
 
-                    {{ Aire::input('name', 'Nombre')->groupClass('mb-0') }}
-                    {{ Aire::email('email', 'Correo electrónico')->groupClass('mb-0') }}
-                    
-                  
-                    {{ Aire::input('document', 'Documento')->groupClass('mb-0') }}
-                    
-                   
-                   
-                    {{ Aire::input('phone', 'Teléfono')->groupClass('mb-0') }}
+                    {{ Aire::input('name', 'Nombre Completo')->groupClass('mb-0') }}
+                    {{ Aire::email('email', 'Correo Electrónico')->groupClass('mb-0') }}
 
-                 
-            
+                    {{ Aire::input('document', 'Número de Documento')->groupClass('mb-0') }}
+                    {{ Aire::input('phone', 'Teléfono Fijo')->groupClass('mb-0') }}
+
+                    {{ Aire::input('mobile_phone', 'Teléfono Móvil')->groupClass('mb-0') }}
+                    {{ Aire::input('whatsapp', 'Número de WhatsApp')->groupClass('mb-0') }}
+
+                </div>
+
+                <h4 class="mt-6 mb-4 text-lg font-semibold text-gray-700">Información Empresarial</h4>
+                <div class="grid grid-cols-2 gap-5">
+
+                    {{ Aire::input('business_name', 'Razón Social')->groupClass('mb-0') }}
+                    {{ Aire::input('account_num', 'Número de Cuenta')->groupClass('mb-0') }}
+
+                    {{ Aire::input('customer_type', 'Tipo de Cliente')->groupClass('mb-0') }}
+                    {{ Aire::input('price_group', 'Grupo de Precios')->groupClass('mb-0') }}
+
+                    {{ Aire::input('tax_group', 'Grupo de Impuestos')->groupClass('mb-0') }}
+                    {{ Aire::input('line_discount', 'Descuento de Línea')->groupClass('mb-0') }}
+
+                </div>
+
+                <h4 class="mt-6 mb-4 text-lg font-semibold text-gray-700">Ubicación y Estado</h4>
+                <div class="grid grid-cols-2 gap-5">
+
+                    {{ Aire::input('city_code', 'Código de Ciudad')->groupClass('mb-0') }}
+                    {{ Aire::input('county_id', 'Código de Departamento')->groupClass('mb-0') }}
+
+                    {{ Aire::input('balance', 'Saldo de Cuenta')->groupClass('mb-0') }}
+                    {{ Aire::input('quota_value', 'Valor de Cupo de Crédito')->groupClass('mb-0') }}
+
+                    {{ Aire::input('customer_status', 'Estado del Cliente')->groupClass('mb-0') }}
+                    {{ Aire::input('order_sequence', 'Secuencia de Orden')->groupClass('mb-0') }}
+
+                    <div class="col-span-2">
+                        <label class="flex items-center">
+                            {{ Aire::checkbox('is_locked', 'Cuenta Bloqueada')->groupClass('mb-0') }}
+                        </label>
+                    </div>
+
                 </div>
 
                 <div class="col-span-6 justify-between  items-center mt-5 space-x-2 flex">
@@ -77,10 +108,13 @@
                                 Ruta
                             </th>
                             <th scope="col" class="px-6 py-3">
+                                Día de Recorrido
+                            </th>
+                            <th scope="col" class="px-6 py-3">
                                 Dirección
                             </th>
                             <th scope="col" class="px-6 py-3">
-                                CustRuteroID
+                                Código Rutero
                             </th>
                         </tr>
                     </thead>
@@ -93,6 +127,12 @@
                                 </th>
                                 <td class="px-6 py-4">
                                     {{$zone->route}}
+                                </td>
+                                <td class="px-6 py-4">
+                                    @php
+                                        $days = ['1' => 'Lunes', '2' => 'Martes', '3' => 'Miércoles', '4' => 'Jueves', '5' => 'Viernes', '6' => 'Sábado', '7' => 'Domingo'];
+                                        echo $days[$zone->day] ?? $zone->day;
+                                    @endphp
                                 </td>
                                 <td class="px-6 py-4">
                                     {{$zone->address}}

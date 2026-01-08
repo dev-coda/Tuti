@@ -33,9 +33,23 @@ class CouponController extends Controller
         $categories = Category::active()->get(['id', 'name']);
         $brands = Brand::all(['id', 'name']);
         $vendors = Vendor::all(['id', 'name']);
-        $customers = User::whereHas('roles', function ($q) {
-            $q->whereNotIn('name', ['admin', 'seller']);
-        })->get(['id', 'name', 'email']);
+        
+        // Get customers: users who are NOT admins or sellers
+        // This includes users with no roles (regular customers) or with customer-type roles
+        $customers = User::where(function ($query) {
+            // Include users without any roles (regular customers)
+            $query->whereDoesntHave('roles')
+                // Or users who only have customer-type roles (not admin/seller)
+                ->orWhereHas('roles', function ($q) {
+                    $q->whereNotIn('name', ['admin', 'seller']);
+                });
+        })
+        // Exclude users who have admin or seller role
+        ->whereDoesntHave('roles', function ($q) {
+            $q->whereIn('name', ['admin', 'seller']);
+        })
+        ->get(['id', 'name', 'email', 'document']);
+        
         $roles = Role::whereNotIn('name', ['admin', 'seller'])->get(['name']);
 
         return view('coupons.create', compact('products', 'categories', 'brands', 'vendors', 'customers', 'roles'));
@@ -130,9 +144,23 @@ class CouponController extends Controller
         $categories = Category::active()->get(['id', 'name']);
         $brands = Brand::all(['id', 'name']);
         $vendors = Vendor::all(['id', 'name']);
-        $customers = User::whereHas('roles', function ($q) {
-            $q->whereNotIn('name', ['admin', 'seller']);
-        })->get(['id', 'name', 'email']);
+        
+        // Get customers: users who are NOT admins or sellers
+        // This includes users with no roles (regular customers) or with customer-type roles
+        $customers = User::where(function ($query) {
+            // Include users without any roles (regular customers)
+            $query->whereDoesntHave('roles')
+                // Or users who only have customer-type roles (not admin/seller)
+                ->orWhereHas('roles', function ($q) {
+                    $q->whereNotIn('name', ['admin', 'seller']);
+                });
+        })
+        // Exclude users who have admin or seller role
+        ->whereDoesntHave('roles', function ($q) {
+            $q->whereIn('name', ['admin', 'seller']);
+        })
+        ->get(['id', 'name', 'email', 'document']);
+        
         $roles = Role::whereNotIn('name', ['admin', 'seller'])->get(['name']);
 
         return view('coupons.edit', compact('coupon', 'products', 'categories', 'brands', 'vendors', 'customers', 'roles'));

@@ -17,6 +17,7 @@ class Product extends Model
         'technical_specifications',
         'warranty',
         'other_information',
+        'specifications_pdf',
         'sku',
         'slug',
         'active',

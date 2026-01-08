@@ -1186,7 +1186,19 @@ class CartController extends Controller
 
                     $lineFinal = $p->getFinalPriceForUser($has_orders, $vendorTotal);
                     $lineDiscountPercent = (int) ($lineFinal['discount'] ?? 0);
-                    $unitPrice = $p->finalPrice['originalPrice'];
+                    // Clamp discount percentage to valid range
+                    $lineDiscountPercent = max(0, min(100, $lineDiscountPercent));
+                    
+                    // Safely get original price with fallback
+                    $unitPrice = $p->finalPrice['originalPrice'] ?? $p->price ?? 0;
+                    
+                    // Get variation price if applicable
+                    if (isset($row['variation_id']) && $row['variation_id']) {
+                        $variation = $p->items->where('id', $row['variation_id'])->first();
+                        if ($variation && isset($variation->pivot->price)) {
+                            $unitPrice = $variation->pivot->price;
+                        }
+                    }
                 }
 
                 $orderProduct = OrderProduct::create([

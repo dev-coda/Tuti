@@ -20,24 +20,70 @@ class CouponDiscountService
      */
     public function applyCouponDiscountToProducts(Coupon $coupon, User $user, Collection $cartProducts, bool $hasOrders = false): array
     {
-        $couponService = app(CouponService::class);
+        try {
+            $couponService = app(CouponService::class);
 
-        // First validate and get basic coupon application data
-        $couponResult = $couponService->applyCouponToCart($coupon, $user, $cartProducts, $hasOrders);
+            // First validate and get basic coupon application data
+            $couponResult = $couponService->applyCouponToCart($coupon, $user, $cartProducts, $hasOrders);
 
-        if (!$couponResult['success']) {
-            return $couponResult;
-        }
+            \Log::info('CouponDiscountService: applyCouponToCart result', [
+                'coupon_id' => $coupon->id,
+                'coupon_code' => $coupon->code,
+                'coupon_type' => $coupon->type,
+                'coupon_applies_to' => $coupon->applies_to,
+                'coupon_value' => $coupon->value,
+                'success' => $couponResult['success'],
+                'discount_amount' => $couponResult['discount_amount'] ?? 0,
+                'applicable_products_count' => count($couponResult['applicable_products'] ?? []),
+                'total_cart_value' => $couponResult['total_cart_value'] ?? 0,
+            ]);
 
-        $totalDiscountAmount = $couponResult['discount_amount'];
-        $applicableProducts = $couponResult['applicable_products'];
-        $totalCartValue = $couponResult['total_cart_value'];
+            if (!$couponResult['success']) {
+                return $couponResult;
+            }
 
-        // Apply discount based on coupon type
-        if ($coupon->type === Coupon::TYPE_PERCENTAGE) {
-            return $this->applyPercentageCouponDiscount($coupon, $cartProducts, $applicableProducts, $hasOrders);
-        } else {
-            return $this->applyFixedAmountCouponDiscount($coupon, $cartProducts, $applicableProducts, $totalDiscountAmount, $hasOrders);
+            $totalDiscountAmount = $couponResult['discount_amount'];
+            $applicableProducts = $couponResult['applicable_products'];
+            $totalCartValue = $couponResult['total_cart_value'];
+
+            // Apply discount based on coupon type
+            if ($coupon->type === Coupon::TYPE_PERCENTAGE) {
+                $result = $this->applyPercentageCouponDiscount($coupon, $cartProducts, $applicableProducts, $hasOrders);
+            } else {
+                $result = $this->applyFixedAmountCouponDiscount($coupon, $cartProducts, $applicableProducts, $totalDiscountAmount, $hasOrders);
+            }
+
+            \Log::info('CouponDiscountService: Final result', [
+                'coupon_id' => $coupon->id,
+                'coupon_type' => $coupon->type,
+                'success' => $result['success'],
+                'total_coupon_discount' => $result['total_coupon_discount'] ?? 0,
+                'modified_products_count' => count($result['modified_products'] ?? []),
+                'modified_products_summary' => collect($result['modified_products'] ?? [])->map(function($p) {
+                    return [
+                        'product_id' => $p['product_id'],
+                        'discount_type' => $p['applied_discount_type'] ?? 'unknown',
+                        'discount_pct' => $p['applied_discount_percentage'] ?? 0,
+                        'unit_price_reduction' => $p['unit_price_reduction'] ?? 0,
+                    ];
+                })->toArray(),
+            ]);
+
+            return $result;
+        } catch (\Exception $e) {
+            \Log::error('CouponDiscountService: Exception during coupon application', [
+                'coupon_id' => $coupon->id ?? null,
+                'coupon_code' => $coupon->code ?? null,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return [
+                'success' => false,
+                'message' => 'Error al aplicar el cupón: ' . $e->getMessage(),
+                'total_coupon_discount' => 0,
+                'modified_products' => [],
+            ];
         }
     }
 
@@ -61,14 +107,19 @@ class CouponDiscountService
             $isApplicable = $this->isProductApplicableForCoupon($product, $applicableProducts);
 
             if ($isApplicable) {
-                $couponPercentage = $coupon->value; // This is the percentage value
+                // Ensure coupon value is a valid number and within reasonable bounds (0-100%)
+                $couponPercentage = (float) $coupon->value;
+                $couponPercentage = max(0, min(100, $couponPercentage)); // Clamp to 0-100
             }
 
-            // Get existing discount information
+            // Get existing discount information with null-safe handling
             $existingPriceInfo = $product->getFinalPriceForUser($hasOrders);
-            $existingDiscountPercentage = $existingPriceInfo['discount'];
+            $existingDiscountPercentage = (float) ($existingPriceInfo['discount'] ?? 0);
+            
+            // Ensure percentage is valid
+            $existingDiscountPercentage = max(0, min(100, $existingDiscountPercentage));
 
-            // Use the larger discount percentage
+            // Use the larger discount percentage (best for customer)
             $finalDiscountPercentage = max($existingDiscountPercentage, $couponPercentage);
 
             // Calculate base price (with variations if applicable)
@@ -120,6 +171,15 @@ class CouponDiscountService
         $modifiedProducts = [];
         $applicableProductsTotal = 0;
 
+        \Log::debug('applyFixedAmountCouponDiscount: Starting', [
+            'coupon_id' => $coupon->id,
+            'coupon_applies_to' => $coupon->applies_to,
+            'total_discount_amount' => $totalDiscountAmount,
+            'cart_products_count' => $cartProducts->count(),
+            'applicable_products_count' => count($applicableProducts),
+            'applicable_product_ids' => collect($applicableProducts)->pluck('product.id')->toArray(),
+        ]);
+
         // First pass: calculate total value of applicable products and their existing discounts
         $applicableProductsData = [];
         foreach ($cartProducts as $cartItem) {
@@ -128,6 +188,13 @@ class CouponDiscountService
 
             $quantity = $cartItem['quantity'];
             $isApplicable = $this->isProductApplicableForCoupon($product, $applicableProducts);
+
+            \Log::debug('applyFixedAmountCouponDiscount: Checking product applicability', [
+                'product_id' => $product->id,
+                'product_name' => $product->name,
+                'is_applicable' => $isApplicable,
+                'quantity' => $quantity,
+            ]);
 
             if (!$isApplicable) continue;
 
@@ -142,9 +209,10 @@ class CouponDiscountService
             $lineTotal = $basePrice * $quantity * $packageQuantity;
             $applicableProductsTotal += $lineTotal;
 
-            // Get existing discount info
+            // Get existing discount info with null-safe handling
             $existingPriceInfo = $product->getFinalPriceForUser($hasOrders);
-            $existingDiscountPercentage = $existingPriceInfo['discount'];
+            $existingDiscountPercentage = (float) ($existingPriceInfo['discount'] ?? 0);
+            $existingDiscountPercentage = max(0, min(100, $existingDiscountPercentage));
             $existingDiscountAmount = ($basePrice * $existingDiscountPercentage / 100) * $quantity * $packageQuantity;
 
             $applicableProductsData[] = [
@@ -188,9 +256,16 @@ class CouponDiscountService
             $totalUnits = $quantity * $packageQuantity;
             $unitPriceReduction = $proportionalDiscount / $totalUnits;
 
-            // Ensure we don't go below a minimum price (e.g., 10% of original price)
-            $minAllowedPrice = $basePrice * 0.1;
-            $maxAllowedReduction = max(0, $basePrice - $minAllowedPrice);
+            // IMPORTANT: When calculate_package_price is true, the SOAP transmission divides
+            // the stored price by packageQuantity to get per-individual-unit price.
+            // The safeguard must use this actual SOAP unit price to prevent zero prices.
+            $soapUnitPrice = $product->calculate_package_price 
+                ? ($basePrice / $packageQuantity) 
+                : $basePrice;
+            
+            // Ensure we don't go below a minimum price (10% of the actual SOAP unit price)
+            $minAllowedPrice = $soapUnitPrice * 0.1;
+            $maxAllowedReduction = max(0, $soapUnitPrice - $minAllowedPrice);
             $actualUnitPriceReduction = min($unitPriceReduction, $maxAllowedReduction);
 
             // Calculate the actual discount we can apply
@@ -198,11 +273,17 @@ class CouponDiscountService
             $actualTotalDiscount += $actualLineDiscount;
 
             // Calculate equivalent percentage for comparison with existing discounts
-            $equivalentDiscountPercentage = ($actualUnitPriceReduction / $basePrice) * 100;
+            // Use soapUnitPrice for accurate comparison since that's the price sent to SOAP
+            $equivalentDiscountPercentage = $soapUnitPrice > 0 
+                ? ($actualUnitPriceReduction / $soapUnitPrice) * 100 
+                : 0;
             $existingDiscountPercentage = $productData['existing_discount_percentage'];
 
-            // Determine which discount to use
-            $shouldUseFixedDiscount = $equivalentDiscountPercentage > $existingDiscountPercentage;
+            // Determine which discount to use (compare actual savings per unit)
+            // For existing percentage: savings = soapUnitPrice * percentage / 100
+            // For fixed amount: savings = actualUnitPriceReduction
+            $existingSavingsPerUnit = $soapUnitPrice * $existingDiscountPercentage / 100;
+            $shouldUseFixedDiscount = $actualUnitPriceReduction > $existingSavingsPerUnit;
 
             if ($shouldUseFixedDiscount) {
                 // Use the fixed amount approach - modify unit price

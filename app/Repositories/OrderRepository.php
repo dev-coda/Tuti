@@ -156,7 +156,11 @@ class OrderRepository
             // Also handle flat discount type by applying it to unit price instead of percentage field
             $discountType = $product->discount_type ?? 'percentage';
             $flatDiscountAmount = (float) ($product->flat_discount_amount ?? 0);
-            $discountPercentage = (int) $product->percentage;
+            
+            // Validate and clamp discount percentage to valid range (0-100)
+            // This prevents SOAP errors from invalid percentage values
+            $rawPercentage = $product->percentage ?? 0;
+            $discountPercentage = max(0, min(100, (int) $rawPercentage));
             
             if ($bonification) {
                 // For bonifications: always send the exact quantity specified, never multiply by package_quantity
@@ -171,16 +175,24 @@ class OrderRepository
                 
                 // Handle flat discount: apply it to unit price, set percentage to 0
                 if ($discountType === 'fixed_amount' && $flatDiscountAmount > 0) {
-                    // Apply flat discount to unit price
-                    $unitPrice = parseCurrency(max(0, $baseUnitPrice - $flatDiscountAmount));
+                    // Ensure minimum price of 10% of base to prevent zero prices in SOAP
+                    $minAllowedPrice = (float)$baseUnitPrice * 0.1;
+                    $maxAllowedReduction = max(0, (float)$baseUnitPrice - $minAllowedPrice);
+                    $effectiveFlatDiscount = min((float)$flatDiscountAmount, $maxAllowedReduction);
+                    
+                    // Apply flat discount to unit price with safeguard
+                    $unitPrice = parseCurrency(max($minAllowedPrice, (float)$baseUnitPrice - $effectiveFlatDiscount));
                     $discountPercentage = 0; // No percentage when using flat amount
                     
                     Log::channel('soap')->info('Applying flat discount to unit price', [
                         'order_id' => $order->id,
                         'product_id' => $product->product_id,
                         'base_unit_price' => $baseUnitPrice,
-                        'flat_discount' => $flatDiscountAmount,
+                        'original_flat_discount' => $flatDiscountAmount,
+                        'effective_flat_discount' => $effectiveFlatDiscount,
+                        'min_allowed_price' => $minAllowedPrice,
                         'final_unit_price' => $unitPrice,
+                        'was_capped' => $effectiveFlatDiscount < (float)$flatDiscountAmount,
                     ]);
                 } else {
                     // Use base price and percentage discount
@@ -225,15 +237,42 @@ class OrderRepository
                     'product_package_quantity' => $productData->package_quantity ?? 'null'
                 ]);
             }
+
+            // Validate SKU - skip products without valid SKU to prevent SOAP errors
+            if (empty($sku)) {
+                Log::channel('soap')->warning('Skipping product without SKU', [
+                    'order_id' => $order->id,
+                    'product_id' => $product->product_id,
+                    'product_name' => $productData->name ?? 'unknown',
+                ]);
+                continue;
+            }
+
+            // Escape SKU for XML to prevent encoding issues
+            $escapedSku = htmlspecialchars($sku, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+            $escapedVendorType = htmlspecialchars($vendor_type ?? '', ENT_XML1 | ENT_QUOTES, 'UTF-8');
+
+            // Log product being added to SOAP with coupon details
+            Log::channel('soap')->debug('Adding product to SOAP', [
+                'order_id' => $order->id,
+                'product_id' => $product->product_id,
+                'sku' => $escapedSku,
+                'qty' => $qty,
+                'unit_price' => $unitPrice,
+                'discount_percentage' => $discountPercentage,
+                'discount_type' => $discountType,
+                'flat_discount_amount' => $flatDiscountAmount,
+            ]);
+
             $productList .= '<dyn:listDetails>
                             <dyn:discount>' . $discountPercentage . '</dyn:discount>
-                            <dyn:itemId>' . $sku . '</dyn:itemId>
+                            <dyn:itemId>' . $escapedSku . '</dyn:itemId>
                             <dyn:qty>' . $qty . '</dyn:qty>
                             <dyn:qtyCust>' . $qty . '</dyn:qtyCust>
                             <dyn:um>Unidad</dyn:um>
                             <dyn:umCust>None</dyn:umCust>
                             <dyn:unitPrice>' . $unitPrice . '</dyn:unitPrice>
-                            <dyn:vendorType>' . $vendor_type . '</dyn:vendorType>
+                            <dyn:vendorType>' . $escapedVendorType . '</dyn:vendorType>
                         </dyn:listDetails>';
         }
 

@@ -180,7 +180,7 @@
         category: @json($categories->map(fn($c) => ['id' => $c->id, 'name' => $c->name])),
         brand: @json($brands->map(fn($b) => ['id' => $b->id, 'name' => $b->name])),
         vendor: @json($vendors->map(fn($v) => ['id' => $v->id, 'name' => $v->name])),
-        customer: @json($customers->map(fn($u) => ['id' => $u->id, 'name' => $u->name . ' (' . $u->email . ')'])),
+        customer: @json($customers->map(fn($u) => ['id' => $u->id, 'name' => ($u->name ?? 'Sin nombre') . ' - ' . ($u->document ?? 'Sin doc') . ' (' . ($u->email ?? 'Sin email') . ')'])),
         customer_type: @json($roles->map(fn($r) => ['id' => $r->name, 'name' => $r->name]))
     };
 

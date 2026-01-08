@@ -31,13 +31,36 @@ class UserRepository
 
 
 
+        // Log all available fields for debugging what additional data is available
+        \Log::debug('Available fields in aListDetailsRuteros', [
+            'all_fields' => array_keys($aListDetailsRuteros),
+            'sample_data' => $aListDetailsRuteros
+        ]);
+
         return [
             'zone' => $aZona,
             'route' => $aRoute,
             'code' => $aCustRuteroID,
             'day' => $day,
             'address' => $aAddress,
-            'name' => $aName
+            'name' => $aName,
+            // Additional customer data from getRuteros API
+            'phone' => $aListDetailsRuteros['aPhone'] ?? null,
+            'mobile_phone' => !empty($aListDetailsRuteros['aPhoneMobile']) ? $aListDetailsRuteros['aPhoneMobile'] : null,
+            'whatsapp' => !empty($aListDetailsRuteros['aWhatsapp']) ? $aListDetailsRuteros['aWhatsapp'] : null,
+            'business_name' => $aListDetailsRuteros['aRazonSocial'] ?? null,
+            'account_num' => $aListDetailsRuteros['aAccountNum'] ?? null,
+            'city_code' => $aListDetailsRuteros['aCity'] ?? null,
+            'county_id' => $aListDetailsRuteros['aCountyId'] ?? null,
+            'customer_type' => $aListDetailsRuteros['aTypeCustomer'] ?? null,
+            'price_group' => $aListDetailsRuteros['aPriceGroup'] ?? null,
+            'tax_group' => $aListDetailsRuteros['aTaxGroup'] ?? null,
+            'line_discount' => $aListDetailsRuteros['aLineDisc'] ?? null,
+            'balance' => $aListDetailsRuteros['aBalance'] ?? 0,
+            'quota_value' => $aListDetailsRuteros['aQuotaValue'] ?? 0,
+            'customer_status' => $aListDetailsRuteros['aCustStatus'] ?? null,
+            'is_locked' => ($aListDetailsRuteros['aLocked'] ?? 'No') === 'Yes',
+            'order_sequence' => $aListDetailsRuteros['aOrden'] ?? null,
         ];
     }
 
@@ -282,10 +305,51 @@ class UserRepository
                     }
                 }
 
-                // Update user name if available
-                if (isset($data['name']) && $data['name'] !== 'Sin Nombre') {
-                    $user->name = $data['name'];
-                    $user->save();
+                // Update user data if available from the first route
+                $firstRoute = $data['routes']->first();
+                if ($firstRoute) {
+                    $updateData = [];
+
+                    // Update name if available
+                    if (isset($firstRoute['name']) && $firstRoute['name'] !== 'Sin Nombre') {
+                        $updateData['name'] = $firstRoute['name'];
+                    }
+
+                    // Update additional customer fields
+                    $fieldsToUpdate = [
+                        'phone',
+                        'mobile_phone',
+                        'whatsapp',
+                        'business_name',
+                        'account_num',
+                        'city_code',
+                        'county_id',
+                        'customer_type',
+                        'price_group',
+                        'tax_group',
+                        'line_discount',
+                        'balance',
+                        'quota_value',
+                        'customer_status',
+                        'is_locked',
+                        'order_sequence'
+                    ];
+
+                    foreach ($fieldsToUpdate as $field) {
+                        if (isset($firstRoute[$field]) && $firstRoute[$field] !== null && $firstRoute[$field] !== '') {
+                            $updateData[$field] = $firstRoute[$field];
+                        }
+                    }
+
+                    if (!empty($updateData)) {
+                        $user->update($updateData);
+
+                        \Log::info('User data updated from rutero sync', [
+                            'user_id' => $user->id,
+                            'updated_fields' => array_keys($updateData),
+                            'sample_data' => $updateData
+                        ]);
+                    }
                 }
 
                 $user->refresh();
