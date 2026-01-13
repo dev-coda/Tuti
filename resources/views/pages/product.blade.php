@@ -6,6 +6,156 @@
 'description'=> $product->sort_description
 ])
 <link rel="stylesheet" href="{{ asset('css/splide.min.css') }}">
+<style>
+/* Quill.js Content Styling - Matches editor appearance */
+.product-content h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #111827;
+    margin-top: 1.5rem;
+    margin-bottom: 1rem;
+    line-height: 1.75rem;
+}
+
+.product-content h2 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #111827;
+    margin-top: 1.5rem;
+    margin-bottom: 0.75rem;
+    line-height: 1.75rem;
+}
+
+.product-content h3 {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #1f2937;
+    margin-top: 1.25rem;
+    margin-bottom: 0.75rem;
+    line-height: 1.75rem;
+}
+
+.product-content h4 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #374151;
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+    line-height: 1.75rem;
+}
+
+.product-content p {
+    margin-bottom: 1rem;
+    line-height: 1.75rem;
+}
+
+.product-content ul,
+.product-content ol {
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+    padding-left: 1.5rem;
+}
+
+.product-content ul {
+    list-style-type: disc;
+    list-style-position: outside;
+}
+
+.product-content ol {
+    list-style-type: decimal;
+    list-style-position: outside;
+}
+
+.product-content li {
+    margin-bottom: 0.5rem;
+    line-height: 1.75rem;
+    padding-left: 0.5rem;
+}
+
+.product-content li > p {
+    margin-bottom: 0.25rem;
+}
+
+.product-content strong {
+    font-weight: 700;
+    color: #111827;
+}
+
+.product-content em {
+    font-style: italic;
+}
+
+.product-content u {
+    text-decoration: underline;
+}
+
+.product-content a {
+    color: #f97316;
+    text-decoration: underline;
+}
+
+.product-content a:hover {
+    color: #ea580c;
+}
+
+.product-content blockquote {
+    border-left: 4px solid #f97316;
+    padding-left: 1rem;
+    font-style: italic;
+    margin: 1rem 0;
+    color: #6b7280;
+}
+
+.product-content code {
+    background-color: #f3f4f6;
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    font-size: 0.875rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.product-content pre {
+    background-color: #f3f4f6;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    overflow-x: auto;
+    margin: 1rem 0;
+}
+
+.product-content img {
+    border-radius: 0.5rem;
+    margin: 1rem 0;
+    max-width: 100%;
+    height: auto;
+}
+
+.product-content hr {
+    margin: 1.5rem 0;
+    border-color: #d1d5db;
+}
+
+/* Ensure nested lists work correctly */
+.product-content ul ul,
+.product-content ul ol,
+.product-content ol ul,
+.product-content ol ol {
+    margin-top: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+/* Handle alignment classes from Quill */
+.product-content .ql-align-center {
+    text-align: center;
+}
+
+.product-content .ql-align-right {
+    text-align: right;
+}
+
+.product-content .ql-align-justify {
+    text-align: justify;
+}
+</style>
 @endsection
 
 @section('content')
@@ -245,24 +395,7 @@
             </button>
             <div id="description-content" class="border-t border-gray-100">
                 <div class="p-6 pl-7">
-                    <div class="text-gray-700 text-base leading-7 space-y-4 
-                        [&>h1]:text-2xl [&>h1]:font-bold [&>h1]:mb-4 [&>h1]:mt-6 [&>h1]:text-gray-900
-                        [&>h2]:text-xl [&>h2]:font-bold [&>h2]:mb-3 [&>h2]:mt-6 [&>h2]:text-gray-900
-                        [&>h3]:text-lg [&>h3]:font-semibold [&>h3]:mb-3 [&>h3]:mt-5 [&>h3]:text-gray-800
-                        [&>h4]:text-base [&>h4]:font-semibold [&>h4]:mb-2 [&>h4]:mt-4 [&>h4]:text-gray-800
-                        [&>p]:mb-4 [&>p]:leading-7
-                        [&>ul]:list-disc [&>ul]:ml-6 [&>ul]:my-4 [&>ul]:space-y-2
-                        [&>ol]:list-decimal [&>ol]:ml-6 [&>ol]:my-4 [&>ol]:space-y-2
-                        [&>ul>li]:pl-2 [&>ul>li]:leading-7
-                        [&>ol>li]:pl-2 [&>ol>li]:leading-7
-                        [&>strong]:font-bold [&>strong]:text-gray-900
-                        [&>em]:italic
-                        [&>a]:text-orange-500 [&>a]:underline hover:[&>a]:text-orange-600
-                        [&>blockquote]:border-l-4 [&>blockquote]:border-orange-500 [&>blockquote]:pl-4 [&>blockquote]:italic [&>blockquote]:my-4
-                        [&>code]:bg-gray-100 [&>code]:px-1.5 [&>code]:py-0.5 [&>code]:rounded [&>code]:text-sm [&>code]:font-mono
-                        [&>pre]:bg-gray-100 [&>pre]:p-4 [&>pre]:rounded-lg [&>pre]:overflow-x-auto [&>pre]:my-4
-                        [&>img]:rounded-lg [&>img]:my-4
-                        [&>hr]:my-6 [&>hr]:border-gray-300">{!! $product->description !!}</div>
+                    <div class="product-content text-gray-700 text-base leading-7">{!! $product->description !!}</div>
                 </div>
             </div>
         </div>
@@ -289,24 +422,7 @@
             </button>
             <div id="tech-specs-content" class="hidden border-t border-gray-100">
                 <div class="p-6 pl-7">
-                    <div class="text-gray-700 text-base leading-7 space-y-4 
-                        [&>h1]:text-2xl [&>h1]:font-bold [&>h1]:mb-4 [&>h1]:mt-6 [&>h1]:text-gray-900
-                        [&>h2]:text-xl [&>h2]:font-bold [&>h2]:mb-3 [&>h2]:mt-6 [&>h2]:text-gray-900
-                        [&>h3]:text-lg [&>h3]:font-semibold [&>h3]:mb-3 [&>h3]:mt-5 [&>h3]:text-gray-800
-                        [&>h4]:text-base [&>h4]:font-semibold [&>h4]:mb-2 [&>h4]:mt-4 [&>h4]:text-gray-800
-                        [&>p]:mb-4 [&>p]:leading-7
-                        [&>ul]:list-disc [&>ul]:ml-6 [&>ul]:my-4 [&>ul]:space-y-2
-                        [&>ol]:list-decimal [&>ol]:ml-6 [&>ol]:my-4 [&>ol]:space-y-2
-                        [&>ul>li]:pl-2 [&>ul>li]:leading-7
-                        [&>ol>li]:pl-2 [&>ol>li]:leading-7
-                        [&>strong]:font-bold [&>strong]:text-gray-900
-                        [&>em]:italic
-                        [&>a]:text-orange-500 [&>a]:underline hover:[&>a]:text-orange-600
-                        [&>blockquote]:border-l-4 [&>blockquote]:border-orange-500 [&>blockquote]:pl-4 [&>blockquote]:italic [&>blockquote]:my-4
-                        [&>code]:bg-gray-100 [&>code]:px-1.5 [&>code]:py-0.5 [&>code]:rounded [&>code]:text-sm [&>code]:font-mono
-                        [&>pre]:bg-gray-100 [&>pre]:p-4 [&>pre]:rounded-lg [&>pre]:overflow-x-auto [&>pre]:my-4
-                        [&>img]:rounded-lg [&>img]:my-4
-                        [&>hr]:my-6 [&>hr]:border-gray-300">{!! $product->technical_specifications !!}</div>
+                    <div class="product-content text-gray-700 text-base leading-7">{!! $product->technical_specifications !!}</div>
                 </div>
             </div>
         </div>
@@ -332,24 +448,7 @@
             </button>
             <div id="warranty-content" class="hidden border-t border-gray-100">
                 <div class="p-6 pl-7">
-                    <div class="text-gray-700 text-base leading-7 space-y-4 
-                        [&>h1]:text-2xl [&>h1]:font-bold [&>h1]:mb-4 [&>h1]:mt-6 [&>h1]:text-gray-900
-                        [&>h2]:text-xl [&>h2]:font-bold [&>h2]:mb-3 [&>h2]:mt-6 [&>h2]:text-gray-900
-                        [&>h3]:text-lg [&>h3]:font-semibold [&>h3]:mb-3 [&>h3]:mt-5 [&>h3]:text-gray-800
-                        [&>h4]:text-base [&>h4]:font-semibold [&>h4]:mb-2 [&>h4]:mt-4 [&>h4]:text-gray-800
-                        [&>p]:mb-4 [&>p]:leading-7
-                        [&>ul]:list-disc [&>ul]:ml-6 [&>ul]:my-4 [&>ul]:space-y-2
-                        [&>ol]:list-decimal [&>ol]:ml-6 [&>ol]:my-4 [&>ol]:space-y-2
-                        [&>ul>li]:pl-2 [&>ul>li]:leading-7
-                        [&>ol>li]:pl-2 [&>ol>li]:leading-7
-                        [&>strong]:font-bold [&>strong]:text-gray-900
-                        [&>em]:italic
-                        [&>a]:text-orange-500 [&>a]:underline hover:[&>a]:text-orange-600
-                        [&>blockquote]:border-l-4 [&>blockquote]:border-orange-500 [&>blockquote]:pl-4 [&>blockquote]:italic [&>blockquote]:my-4
-                        [&>code]:bg-gray-100 [&>code]:px-1.5 [&>code]:py-0.5 [&>code]:rounded [&>code]:text-sm [&>code]:font-mono
-                        [&>pre]:bg-gray-100 [&>pre]:p-4 [&>pre]:rounded-lg [&>pre]:overflow-x-auto [&>pre]:my-4
-                        [&>img]:rounded-lg [&>img]:my-4
-                        [&>hr]:my-6 [&>hr]:border-gray-300">{!! $product->warranty !!}</div>
+                    <div class="product-content text-gray-700 text-base leading-7">{!! $product->warranty !!}</div>
                 </div>
             </div>
         </div>
@@ -375,24 +474,7 @@
             </button>
             <div id="other-info-content" class="hidden border-t border-gray-100">
                 <div class="p-6 pl-7">
-                    <div class="text-gray-700 text-base leading-7 space-y-4 
-                        [&>h1]:text-2xl [&>h1]:font-bold [&>h1]:mb-4 [&>h1]:mt-6 [&>h1]:text-gray-900
-                        [&>h2]:text-xl [&>h2]:font-bold [&>h2]:mb-3 [&>h2]:mt-6 [&>h2]:text-gray-900
-                        [&>h3]:text-lg [&>h3]:font-semibold [&>h3]:mb-3 [&>h3]:mt-5 [&>h3]:text-gray-800
-                        [&>h4]:text-base [&>h4]:font-semibold [&>h4]:mb-2 [&>h4]:mt-4 [&>h4]:text-gray-800
-                        [&>p]:mb-4 [&>p]:leading-7
-                        [&>ul]:list-disc [&>ul]:ml-6 [&>ul]:my-4 [&>ul]:space-y-2
-                        [&>ol]:list-decimal [&>ol]:ml-6 [&>ol]:my-4 [&>ol]:space-y-2
-                        [&>ul>li]:pl-2 [&>ul>li]:leading-7
-                        [&>ol>li]:pl-2 [&>ol>li]:leading-7
-                        [&>strong]:font-bold [&>strong]:text-gray-900
-                        [&>em]:italic
-                        [&>a]:text-orange-500 [&>a]:underline hover:[&>a]:text-orange-600
-                        [&>blockquote]:border-l-4 [&>blockquote]:border-orange-500 [&>blockquote]:pl-4 [&>blockquote]:italic [&>blockquote]:my-4
-                        [&>code]:bg-gray-100 [&>code]:px-1.5 [&>code]:py-0.5 [&>code]:rounded [&>code]:text-sm [&>code]:font-mono
-                        [&>pre]:bg-gray-100 [&>pre]:p-4 [&>pre]:rounded-lg [&>pre]:overflow-x-auto [&>pre]:my-4
-                        [&>img]:rounded-lg [&>img]:my-4
-                        [&>hr]:my-6 [&>hr]:border-gray-300">{!! $product->other_information !!}</div>
+                    <div class="product-content text-gray-700 text-base leading-7">{!! $product->other_information !!}</div>
                 </div>
             </div>
         </div>
