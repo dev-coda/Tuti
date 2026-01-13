@@ -465,7 +465,7 @@ class SettingController extends Controller
             $twentyFourHoursAgo = \Carbon\Carbon::now()->subHours(24);
             
             // Find all waiting orders created in the last 24 hours
-            $orders = \App\Models\Order::where('status', \App\Models\Order::STATUS_WAITING)
+            $orders = \App\Models\Order::where('status_id', \App\Models\Order::STATUS_WAITING)
                 ->where('created_at', '>=', $twentyFourHoursAgo)
                 ->get();
 
@@ -475,14 +475,21 @@ class SettingController extends Controller
 
             $processedCount = 0;
             
+            // Determine queue connection
+            $queueConnection = config('queue.default');
+            if ($queueConnection === 'sync') {
+                $queueConnection = 'database';
+            }
+            
             foreach ($orders as $order) {
                 // Update order status to pending
                 $order->update([
-                    'status' => \App\Models\Order::STATUS_PENDING,
+                    'status_id' => \App\Models\Order::STATUS_PENDING,
                 ]);
                 
-                // Dispatch the job to process the order
-                \App\Jobs\ProcessOrderAsync::dispatch($order->id)
+                // Dispatch the job to process the order (pass the full Order model)
+                \App\Jobs\ProcessOrderAsync::dispatch($order)
+                    ->onConnection($queueConnection)
                     ->onQueue('orders');
                 
                 $processedCount++;
@@ -492,7 +499,8 @@ class SettingController extends Controller
                 'total_orders' => $processedCount,
                 'user' => auth()->user()->email ?? 'Unknown',
                 'timestamp' => now()->toDateTimeString(),
-                'force_delivery_date_enabled' => Setting::getByKey('force_delivery_date_enabled') == '1'
+                'force_delivery_date_enabled' => Setting::getByKey('force_delivery_date_enabled') == '1',
+                'queue_connection' => $queueConnection
             ]);
 
             $message = "Se iniciaron {$processedCount} pedido(s) para procesamiento inmediato. Los pedidos se procesarán en segundo plano.";

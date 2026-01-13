@@ -829,7 +829,10 @@ class CartController extends Controller
         $scheduledTransmissionDate = null;
         $orderStatus = Order::STATUS_PENDING;
         
-        if ($delivery_method === Order::DELIVERY_METHOD_TRONEX && $zone) {
+        // Check if force delivery date is enabled (emergency override - bypasses waiting)
+        $forceDeliveryDate = \App\Models\Setting::getByKey('force_delivery_date_enabled') == '1';
+        
+        if ($delivery_method === Order::DELIVERY_METHOD_TRONEX && $zone && !$forceDeliveryDate) {
             $sellerVisitDate = OrderRepository::getTronexSellerVisitDate($zone);
             if ($sellerVisitDate) {
                 $today = now();
@@ -848,6 +851,16 @@ class CartController extends Controller
                     ]);
                 }
             }
+        }
+        
+        // Log if force delivery date bypassed the waiting status
+        if ($forceDeliveryDate && $delivery_method === Order::DELIVERY_METHOD_TRONEX) {
+            Log::warning('Force Delivery Date ACTIVE - Order will be processed immediately instead of waiting', [
+                'force_delivery_date_enabled' => true,
+                'would_have_waited_until' => $sellerVisitDate ? $sellerVisitDate->format('Y-m-d') : 'N/A',
+                'zone_id' => $zone ? $zone->id : null,
+                'route' => $zone ? $zone->route : null,
+            ]);
         }
 
         // Pre-check inventory and safety stock for each item (only when enabled)

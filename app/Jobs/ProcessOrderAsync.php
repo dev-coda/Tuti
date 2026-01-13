@@ -86,7 +86,10 @@ class ProcessOrderAsync implements ShouldQueue, ShouldBeUnique
         }
 
         // Check if order is waiting for scheduled transmission date
-        if ($this->order->status_id === Order::STATUS_WAITING && $this->order->scheduled_transmission_date) {
+        // BUT: Skip waiting if force delivery date is enabled (emergency override)
+        $forceDeliveryDate = \App\Models\Setting::getByKey('force_delivery_date_enabled') == '1';
+        
+        if ($this->order->status_id === Order::STATUS_WAITING && $this->order->scheduled_transmission_date && !$forceDeliveryDate) {
             $scheduledDate = \Carbon\Carbon::parse($this->order->scheduled_transmission_date);
             $today = \Carbon\Carbon::today();
             
@@ -100,6 +103,13 @@ class ProcessOrderAsync implements ShouldQueue, ShouldBeUnique
             // Scheduled date has arrived, update status to pending
             $this->order->update(['status_id' => Order::STATUS_PENDING]);
             Log::info("Order {$this->order->id} scheduled transmission date has arrived, processing now");
+        } elseif ($this->order->status_id === Order::STATUS_WAITING && $forceDeliveryDate) {
+            // Force delivery date is active - bypass waiting and process immediately
+            $this->order->update(['status_id' => Order::STATUS_PENDING]);
+            Log::warning("Order {$this->order->id} was WAITING but Force Delivery Date is ACTIVE - processing immediately", [
+                'original_scheduled_date' => $this->order->scheduled_transmission_date,
+                'force_delivery_date_enabled' => true
+            ]);
         }
 
         try {

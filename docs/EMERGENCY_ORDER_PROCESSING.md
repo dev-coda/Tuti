@@ -14,8 +14,11 @@ Admin Panel → Configuraciones → Gestión de Emergencia de Pedidos
 When activated, this setting overrides the scheduled delivery date for ALL orders sent to the SOAP API, forcing them to use the next business day instead.
 
 #### How It Works
-- **When Disabled (Default)**: Orders use their normal scheduled delivery dates
-- **When Enabled**: All orders transmitted to the SOAP API will have their delivery date overridden to the next available business day, calculated using the Holiday system
+- **When Disabled (Default)**: Orders use their normal scheduled delivery dates and may be held with `STATUS_WAITING` if created before the seller's visit day
+- **When Enabled**: 
+  - ALL new orders bypass the waiting/delay mechanism and are processed immediately
+  - ALL orders transmitted to the SOAP API have their delivery date overridden to the next available business day
+  - Existing waiting orders will be processed immediately when the toggle is active
 
 #### Important Notes
 - ⚠️ **This affects ALL orders** being processed while the setting is active
@@ -32,8 +35,11 @@ When activated, this setting overrides the scheduled delivery date for ALL order
 #### Technical Details
 - **Setting Key**: `force_delivery_date_enabled`
 - **Default Value**: `0` (disabled)
-- **Location in Code**: `app/Repositories/OrderRepository.php` (line 88-102)
-- **Log Channel**: `soap`
+- **Bypass Locations**: 
+  - `app/Http/Controllers/CartController.php` (line ~833): Prevents new orders from being set to `STATUS_WAITING`
+  - `app/Jobs/ProcessOrderAsync.php` (line ~89): Processes waiting orders immediately instead of releasing them
+  - `app/Repositories/OrderRepository.php` (line ~88): Overrides delivery date in SOAP payload
+- **Log Channel**: `soap` for delivery date overrides, `default` for bypass actions
 
 ### 2. Despachar Día (Process Daily Orders)
 
