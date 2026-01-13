@@ -114,13 +114,25 @@ print_step "Fixing storage symlink..."
 php artisan storage:link --force
 print_success "Storage symlink created"
 
-# 6. Set Proper Permissions
+# 6. Ensure Laravel Storage Structure Exists
+print_step "Ensuring Laravel storage structure..."
+# Create all required Laravel storage directories
+mkdir -p storage/app/public
+mkdir -p storage/app/public/products
+mkdir -p storage/framework/cache/data
+mkdir -p storage/framework/sessions
+mkdir -p storage/framework/views
+mkdir -p storage/logs
+mkdir -p bootstrap/cache
+print_success "Storage structure verified"
+
+# 7. Set Proper Permissions
 print_step "Setting file permissions..."
 chmod -R 755 storage bootstrap/cache
 chown -R $WEB_USER:$WEB_USER storage bootstrap/cache public/storage 2>/dev/null || print_warning "Could not change ownership (may need sudo)"
 print_success "Permissions set"
 
-# 7. Clear All Caches
+# 8. Clear All Caches
 print_step "Clearing application caches..."
 php artisan config:clear
 php artisan cache:clear
@@ -128,7 +140,7 @@ php artisan view:clear
 php artisan route:clear
 print_success "Caches cleared"
 
-# 8. Rebuild Caches
+# 9. Rebuild Caches
 print_step "Rebuilding application caches..."
 php artisan config:cache
 php artisan route:cache
@@ -136,7 +148,7 @@ php artisan view:cache
 php artisan optimize
 print_success "Caches rebuilt"
 
-# 9. Restart Queue Workers (optional with --full flag)
+# 10. Restart Queue Workers (optional with --full flag)
 if [ "$RESTART_SERVICES" = true ]; then
     print_step "Restarting queue workers..."
     if command -v supervisorctl &> /dev/null; then
@@ -150,7 +162,7 @@ else
     print_step "Skipping queue worker restart (use --full flag to restart services)"
 fi
 
-# 10. Restart Web Services (optional with --full flag)
+# 11. Restart Web Services (optional with --full flag)
 if [ "$RESTART_SERVICES" = true ]; then
     print_step "Restarting web services..."
     if [ -x "$(command -v systemctl)" ]; then
@@ -166,7 +178,7 @@ else
     print_step "Skipping web service restart (use --full flag to restart services)"
 fi
 
-# 11. Verify Storage Structure
+# 12. Verify Storage Structure
 print_step "Verifying storage structure..."
 if [ -L "public/storage" ] && [ -d "storage/app/public" ]; then
     print_success "Storage symlink verified"
@@ -174,21 +186,6 @@ else
     print_error "Storage symlink verification failed!"
     ls -la public/storage
 fi
-
-# 12. Run Post-Deployment Tests (optional)
-print_step "Running post-deployment checks..."
-
-# Check if key directories exist
-REQUIRED_DIRS=("storage/app/public" "storage/app/public/products" "storage/logs" "storage/framework/cache")
-for dir in "${REQUIRED_DIRS[@]}"; do
-    if [ -d "$dir" ]; then
-        print_success "Directory exists: $dir"
-    else
-        print_warning "Directory missing: $dir (creating...)"
-        mkdir -p "$dir"
-        chmod 755 "$dir"
-    fi
-done
 
 # 13. Disable Maintenance Mode
 print_step "Disabling maintenance mode..."
