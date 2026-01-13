@@ -377,31 +377,40 @@
                             {{-- Express Option --}}
                             @php
                                 $express48hEnabled = \App\Models\Setting::getByKey('express_48h_enabled');
+                                $isEnabled = ($express48hEnabled === '1' || $express48hEnabled === 1 || $express48hEnabled === true);
                             @endphp
-                            @if($express48hEnabled === '1' || $express48hEnabled === 1 || $express48hEnabled === true)
                             <button type="button" 
-                                class="delivery-option relative p-5 rounded-xl border-2 transition-all duration-300 text-left"
+                                class="delivery-option relative p-5 rounded-xl border-2 transition-all duration-300 text-left {{ !$isEnabled ? 'opacity-50 cursor-not-allowed bg-gray-50' : '' }}"
                                 data-method="express"
-                                id="delivery-option-express">
+                                id="delivery-option-express"
+                                {{ !$isEnabled ? 'disabled' : '' }}>
                                 <div class="flex items-start gap-4">
                                     <div class="flex-shrink-0">
-                                        <div class="w-12 h-12 rounded-full border-2 flex items-center justify-center delivery-icon-bg">
-                                            <svg class="w-6 h-6 delivery-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <div class="w-12 h-12 rounded-full border-2 flex items-center justify-center delivery-icon-bg {{ !$isEnabled ? 'border-gray-300' : '' }}">
+                                            <svg class="w-6 h-6 delivery-icon {{ !$isEnabled ? 'text-gray-400' : '' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
                                             </svg>
                                         </div>
                                     </div>
                                     <div class="flex-1">
-                                        <div class="font-bold text-lg delivery-title">Entrega en 48h</div>
-                                        <div class="text-sm delivery-subtitle mt-1">Compra mínima $80.000</div>
-                                        <div class="text-xs delivery-date mt-2 font-medium" id="delivery-date-express">Calculando...</div>
+                                        <div class="font-bold text-lg delivery-title {{ !$isEnabled ? 'text-gray-400' : '' }}">
+                                            Entrega en 48h
+                                            @if(!$isEnabled)
+                                                <span class="text-xs font-normal text-gray-400">(No disponible)</span>
+                                            @endif
+                                        </div>
+                                        <div class="text-sm delivery-subtitle mt-1 {{ !$isEnabled ? 'text-gray-400' : '' }}">Compra mínima $80.000</div>
+                                        @if($isEnabled)
+                                            <div class="text-xs delivery-date mt-2 font-medium" id="delivery-date-express">Calculando...</div>
+                                        @endif
                                     </div>
                                 </div>
+                                @if($isEnabled)
                                 <div class="absolute top-3 right-3 w-5 h-5 rounded-full border-2 border-gray-300 delivery-check hidden items-center justify-center">
                                     <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
                                 </div>
+                                @endif
                             </button>
-                            @endif
                         </div>
                         <input type="hidden" name="delivery_method" id="delivery_method" value="tronex">
                     </div>
