@@ -76,6 +76,27 @@
         </div>
     </div>
 
+    <!-- Express 48h Delivery Settings -->
+    <div class="col-span-full mb-6">
+        <div class="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">Entrega Express 48h</h3>
+            <form action="{{ route('settings.update-express-48h') }}" method="POST" id="express48hForm">
+                @csrf
+                <div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" name="express_48h_enabled" value="1" 
+                               class="sr-only peer" 
+                               @checked(\App\Models\Setting::getByKey('express_48h_enabled') == '1')
+                               onchange="document.getElementById('express48hForm').submit()">
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        <span class="ml-3 text-sm font-medium text-gray-900">Habilitar Entrega en 48 Horas</span>
+                    </label>
+                    <p class="mt-2 text-xs text-gray-500">Cuando está activado, los usuarios podrán seleccionar la opción de entrega express en 48 horas en el carrito de compras.</p>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Delivery Dates Section -->
     <div class="col-span-full mb-6">
         <div class="bg-white border border-gray-200 rounded-lg shadow-sm p-6">

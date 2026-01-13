@@ -399,4 +399,27 @@ class SettingController extends Controller
 
         return back()->with('success', 'Configuración de modo vacaciones actualizada exitosamente');
     }
+
+    /**
+     * Update express 48h delivery setting
+     */
+    public function updateExpress48h(Request $request)
+    {
+        $validated = $request->validate([
+            'express_48h_enabled' => 'nullable|in:1',
+        ]);
+
+        // Update express 48h enabled setting
+        $enabled = isset($validated['express_48h_enabled']) ? '1' : '0';
+        Setting::updateOrCreate(
+            ['key' => 'express_48h_enabled'],
+            [
+                'name' => 'Entrega Express 48h',
+                'value' => $enabled,
+                'show' => false,
+            ]
+        );
+
+        return back()->with('success', 'Configuración de entrega express actualizada exitosamente');
+    }
 }
