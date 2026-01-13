@@ -489,8 +489,7 @@ class SettingController extends Controller
                 
                 // Dispatch the job to process the order (pass the full Order model)
                 \App\Jobs\ProcessOrderAsync::dispatch($order)
-                    ->onConnection($queueConnection)
-                    ->onQueue('orders');
+                    ->onConnection($queueConnection);
                 
                 $processedCount++;
             }
