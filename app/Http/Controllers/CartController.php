@@ -828,28 +828,32 @@ class CartController extends Controller
         // For Tronex orders, check if order should be delayed
         $scheduledTransmissionDate = null;
         $orderStatus = Order::STATUS_PENDING;
+        $sellerVisitDate = null;
         
         // Check if force delivery date is enabled (emergency override - bypasses waiting)
         $forceDeliveryDate = \App\Models\Setting::getByKey('force_delivery_date_enabled') == '1';
         
-        if ($delivery_method === Order::DELIVERY_METHOD_TRONEX && $zone && !$forceDeliveryDate) {
+        // Get seller visit date for Tronex orders (for logging and delay calculation)
+        if ($delivery_method === Order::DELIVERY_METHOD_TRONEX && $zone) {
             $sellerVisitDate = OrderRepository::getTronexSellerVisitDate($zone);
-            if ($sellerVisitDate) {
-                $today = now();
-                $isTodaySellerVisitDay = $today->format('Y-m-d') === $sellerVisitDate->format('Y-m-d');
+        }
+        
+        // Only set waiting status if force delivery is NOT active
+        if ($delivery_method === Order::DELIVERY_METHOD_TRONEX && $zone && !$forceDeliveryDate && $sellerVisitDate) {
+            $today = now();
+            $isTodaySellerVisitDay = $today->format('Y-m-d') === $sellerVisitDate->format('Y-m-d');
+            
+            if (!$isTodaySellerVisitDay) {
+                // Order should be delayed until seller visit day
+                $orderStatus = Order::STATUS_WAITING;
+                $scheduledTransmissionDate = $sellerVisitDate->format('Y-m-d');
                 
-                if (!$isTodaySellerVisitDay) {
-                    // Order should be delayed until seller visit day
-                    $orderStatus = Order::STATUS_WAITING;
-                    $scheduledTransmissionDate = $sellerVisitDate->format('Y-m-d');
-                    
-                    Log::info('Order will be delayed until seller visit day', [
-                        'seller_visit_date' => $scheduledTransmissionDate,
-                        'today' => $today->format('Y-m-d'),
-                        'zone_id' => $zone->id,
-                        'route' => $zone->route,
-                    ]);
-                }
+                Log::info('Order will be delayed until seller visit day', [
+                    'seller_visit_date' => $scheduledTransmissionDate,
+                    'today' => $today->format('Y-m-d'),
+                    'zone_id' => $zone->id,
+                    'route' => $zone->route,
+                ]);
             }
         }
         
