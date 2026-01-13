@@ -239,13 +239,13 @@
                     </div>
                     <span class="font-medium text-gray-800">Descripción</span>
                 </div>
-                <svg id="description-chevron" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 text-gray-400 transition-transform duration-300">
+                <svg id="description-chevron" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 text-gray-400 transition-transform duration-300 rotate-180">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
                 </svg>
             </button>
-            <div id="description-content" class="hidden border-t border-gray-100">
-                <div class="p-4 pl-5">
-                    <div class="text-gray-600 prose prose-sm max-w-none">{!! $product->description !!}</div>
+            <div id="description-content" class="border-t border-gray-100">
+                <div class="p-6 pl-7">
+                    <div class="text-gray-700 prose max-w-none leading-relaxed prose-p:mb-4 prose-h1:text-2xl prose-h1:font-bold prose-h1:mb-4 prose-h1:mt-6 prose-h2:text-xl prose-h2:font-semibold prose-h2:mb-3 prose-h2:mt-5 prose-h3:text-lg prose-h3:font-semibold prose-h3:mb-2 prose-h3:mt-4 prose-h4:text-base prose-h4:font-semibold prose-h4:mb-2 prose-h4:mt-3 prose-ul:list-disc prose-ul:ml-6 prose-ul:my-4 prose-ol:list-decimal prose-ol:ml-6 prose-ol:my-4 prose-li:my-1 prose-li:pl-2 prose-strong:font-bold prose-em:italic prose-a:text-orange-500 prose-a:underline hover:prose-a:text-orange-600 prose-blockquote:border-l-4 prose-blockquote:border-orange-500 prose-blockquote:pl-4 prose-blockquote:italic prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-pre:bg-gray-100 prose-pre:p-4 prose-pre:rounded-lg prose-img:rounded-lg prose-hr:my-6">{!! $product->description !!}</div>
                 </div>
             </div>
         </div>
@@ -271,8 +271,8 @@
                 </svg>
             </button>
             <div id="tech-specs-content" class="hidden border-t border-gray-100">
-                <div class="p-4 pl-5">
-                    <div class="text-gray-600 prose prose-sm max-w-none">{!! $product->technical_specifications !!}</div>
+                <div class="p-6 pl-7">
+                    <div class="text-gray-700 prose max-w-none leading-relaxed prose-p:mb-4 prose-h1:text-2xl prose-h1:font-bold prose-h1:mb-4 prose-h1:mt-6 prose-h2:text-xl prose-h2:font-semibold prose-h2:mb-3 prose-h2:mt-5 prose-h3:text-lg prose-h3:font-semibold prose-h3:mb-2 prose-h3:mt-4 prose-h4:text-base prose-h4:font-semibold prose-h4:mb-2 prose-h4:mt-3 prose-ul:list-disc prose-ul:ml-6 prose-ul:my-4 prose-ol:list-decimal prose-ol:ml-6 prose-ol:my-4 prose-li:my-1 prose-li:pl-2 prose-strong:font-bold prose-em:italic prose-a:text-orange-500 prose-a:underline hover:prose-a:text-orange-600 prose-blockquote:border-l-4 prose-blockquote:border-orange-500 prose-blockquote:pl-4 prose-blockquote:italic prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-pre:bg-gray-100 prose-pre:p-4 prose-pre:rounded-lg prose-img:rounded-lg prose-hr:my-6">{!! $product->technical_specifications !!}</div>
                 </div>
             </div>
         </div>
@@ -297,8 +297,8 @@
                 </svg>
             </button>
             <div id="warranty-content" class="hidden border-t border-gray-100">
-                <div class="p-4 pl-5">
-                    <div class="text-gray-600 prose prose-sm max-w-none">{!! $product->warranty !!}</div>
+                <div class="p-6 pl-7">
+                    <div class="text-gray-700 prose max-w-none leading-relaxed prose-p:mb-4 prose-h1:text-2xl prose-h1:font-bold prose-h1:mb-4 prose-h1:mt-6 prose-h2:text-xl prose-h2:font-semibold prose-h2:mb-3 prose-h2:mt-5 prose-h3:text-lg prose-h3:font-semibold prose-h3:mb-2 prose-h3:mt-4 prose-h4:text-base prose-h4:font-semibold prose-h4:mb-2 prose-h4:mt-3 prose-ul:list-disc prose-ul:ml-6 prose-ul:my-4 prose-ol:list-decimal prose-ol:ml-6 prose-ol:my-4 prose-li:my-1 prose-li:pl-2 prose-strong:font-bold prose-em:italic prose-a:text-orange-500 prose-a:underline hover:prose-a:text-orange-600 prose-blockquote:border-l-4 prose-blockquote:border-orange-500 prose-blockquote:pl-4 prose-blockquote:italic prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-pre:bg-gray-100 prose-pre:p-4 prose-pre:rounded-lg prose-img:rounded-lg prose-hr:my-6">{!! $product->warranty !!}</div>
                 </div>
             </div>
         </div>
@@ -323,8 +323,8 @@
                 </svg>
             </button>
             <div id="other-info-content" class="hidden border-t border-gray-100">
-                <div class="p-4 pl-5">
-                    <div class="text-gray-600 prose prose-sm max-w-none">{!! $product->other_information !!}</div>
+                <div class="p-6 pl-7">
+                    <div class="text-gray-700 prose max-w-none leading-relaxed prose-p:mb-4 prose-h1:text-2xl prose-h1:font-bold prose-h1:mb-4 prose-h1:mt-6 prose-h2:text-xl prose-h2:font-semibold prose-h2:mb-3 prose-h2:mt-5 prose-h3:text-lg prose-h3:font-semibold prose-h3:mb-2 prose-h3:mt-4 prose-h4:text-base prose-h4:font-semibold prose-h4:mb-2 prose-h4:mt-3 prose-ul:list-disc prose-ul:ml-6 prose-ul:my-4 prose-ol:list-decimal prose-ol:ml-6 prose-ol:my-4 prose-li:my-1 prose-li:pl-2 prose-strong:font-bold prose-em:italic prose-a:text-orange-500 prose-a:underline hover:prose-a:text-orange-600 prose-blockquote:border-l-4 prose-blockquote:border-orange-500 prose-blockquote:pl-4 prose-blockquote:italic prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-pre:bg-gray-100 prose-pre:p-4 prose-pre:rounded-lg prose-img:rounded-lg prose-hr:my-6">{!! $product->other_information !!}</div>
                 </div>
             </div>
         </div>

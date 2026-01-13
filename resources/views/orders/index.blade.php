@@ -255,17 +255,6 @@
             </button>
         </div>
 
-<<<<<<< HEAD
-<!-- Monthly Export Modal -->
-<div id="monthlyExportModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-        <div class="flex justify-between items-center mb-4">
-            <h3 class="text-lg font-medium text-gray-900">Exportar Pedidos por Mes</h3>
-            <button onclick="closeMonthlyExportModal()" class="text-gray-400 hover:text-gray-600">
-                <span class="text-2xl">&times;</span>
-            </button>
-        </div>
-
         <form id="monthlyExportForm" class="space-y-4">
             @csrf
             <div>
