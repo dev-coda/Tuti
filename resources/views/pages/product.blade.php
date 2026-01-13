@@ -245,7 +245,24 @@
             </button>
             <div id="description-content" class="border-t border-gray-100">
                 <div class="p-6 pl-7">
-                    <div class="text-gray-700 prose max-w-none leading-relaxed prose-p:mb-4 prose-h1:text-2xl prose-h1:font-bold prose-h1:mb-4 prose-h1:mt-6 prose-h2:text-xl prose-h2:font-semibold prose-h2:mb-3 prose-h2:mt-5 prose-h3:text-lg prose-h3:font-semibold prose-h3:mb-2 prose-h3:mt-4 prose-h4:text-base prose-h4:font-semibold prose-h4:mb-2 prose-h4:mt-3 prose-ul:list-disc prose-ul:ml-6 prose-ul:my-4 prose-ol:list-decimal prose-ol:ml-6 prose-ol:my-4 prose-li:my-1 prose-li:pl-2 prose-strong:font-bold prose-em:italic prose-a:text-orange-500 prose-a:underline hover:prose-a:text-orange-600 prose-blockquote:border-l-4 prose-blockquote:border-orange-500 prose-blockquote:pl-4 prose-blockquote:italic prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-pre:bg-gray-100 prose-pre:p-4 prose-pre:rounded-lg prose-img:rounded-lg prose-hr:my-6">{!! $product->description !!}</div>
+                    <div class="text-gray-700 text-base leading-7 space-y-4 
+                        [&>h1]:text-2xl [&>h1]:font-bold [&>h1]:mb-4 [&>h1]:mt-6 [&>h1]:text-gray-900
+                        [&>h2]:text-xl [&>h2]:font-bold [&>h2]:mb-3 [&>h2]:mt-6 [&>h2]:text-gray-900
+                        [&>h3]:text-lg [&>h3]:font-semibold [&>h3]:mb-3 [&>h3]:mt-5 [&>h3]:text-gray-800
+                        [&>h4]:text-base [&>h4]:font-semibold [&>h4]:mb-2 [&>h4]:mt-4 [&>h4]:text-gray-800
+                        [&>p]:mb-4 [&>p]:leading-7
+                        [&>ul]:list-disc [&>ul]:ml-6 [&>ul]:my-4 [&>ul]:space-y-2
+                        [&>ol]:list-decimal [&>ol]:ml-6 [&>ol]:my-4 [&>ol]:space-y-2
+                        [&>ul>li]:pl-2 [&>ul>li]:leading-7
+                        [&>ol>li]:pl-2 [&>ol>li]:leading-7
+                        [&>strong]:font-bold [&>strong]:text-gray-900
+                        [&>em]:italic
+                        [&>a]:text-orange-500 [&>a]:underline hover:[&>a]:text-orange-600
+                        [&>blockquote]:border-l-4 [&>blockquote]:border-orange-500 [&>blockquote]:pl-4 [&>blockquote]:italic [&>blockquote]:my-4
+                        [&>code]:bg-gray-100 [&>code]:px-1.5 [&>code]:py-0.5 [&>code]:rounded [&>code]:text-sm [&>code]:font-mono
+                        [&>pre]:bg-gray-100 [&>pre]:p-4 [&>pre]:rounded-lg [&>pre]:overflow-x-auto [&>pre]:my-4
+                        [&>img]:rounded-lg [&>img]:my-4
+                        [&>hr]:my-6 [&>hr]:border-gray-300">{!! $product->description !!}</div>
                 </div>
             </div>
         </div>
@@ -272,7 +289,24 @@
             </button>
             <div id="tech-specs-content" class="hidden border-t border-gray-100">
                 <div class="p-6 pl-7">
-                    <div class="text-gray-700 prose max-w-none leading-relaxed prose-p:mb-4 prose-h1:text-2xl prose-h1:font-bold prose-h1:mb-4 prose-h1:mt-6 prose-h2:text-xl prose-h2:font-semibold prose-h2:mb-3 prose-h2:mt-5 prose-h3:text-lg prose-h3:font-semibold prose-h3:mb-2 prose-h3:mt-4 prose-h4:text-base prose-h4:font-semibold prose-h4:mb-2 prose-h4:mt-3 prose-ul:list-disc prose-ul:ml-6 prose-ul:my-4 prose-ol:list-decimal prose-ol:ml-6 prose-ol:my-4 prose-li:my-1 prose-li:pl-2 prose-strong:font-bold prose-em:italic prose-a:text-orange-500 prose-a:underline hover:prose-a:text-orange-600 prose-blockquote:border-l-4 prose-blockquote:border-orange-500 prose-blockquote:pl-4 prose-blockquote:italic prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-pre:bg-gray-100 prose-pre:p-4 prose-pre:rounded-lg prose-img:rounded-lg prose-hr:my-6">{!! $product->technical_specifications !!}</div>
+                    <div class="text-gray-700 text-base leading-7 space-y-4 
+                        [&>h1]:text-2xl [&>h1]:font-bold [&>h1]:mb-4 [&>h1]:mt-6 [&>h1]:text-gray-900
+                        [&>h2]:text-xl [&>h2]:font-bold [&>h2]:mb-3 [&>h2]:mt-6 [&>h2]:text-gray-900
+                        [&>h3]:text-lg [&>h3]:font-semibold [&>h3]:mb-3 [&>h3]:mt-5 [&>h3]:text-gray-800
+                        [&>h4]:text-base [&>h4]:font-semibold [&>h4]:mb-2 [&>h4]:mt-4 [&>h4]:text-gray-800
+                        [&>p]:mb-4 [&>p]:leading-7
+                        [&>ul]:list-disc [&>ul]:ml-6 [&>ul]:my-4 [&>ul]:space-y-2
+                        [&>ol]:list-decimal [&>ol]:ml-6 [&>ol]:my-4 [&>ol]:space-y-2
+                        [&>ul>li]:pl-2 [&>ul>li]:leading-7
+                        [&>ol>li]:pl-2 [&>ol>li]:leading-7
+                        [&>strong]:font-bold [&>strong]:text-gray-900
+                        [&>em]:italic
+                        [&>a]:text-orange-500 [&>a]:underline hover:[&>a]:text-orange-600
+                        [&>blockquote]:border-l-4 [&>blockquote]:border-orange-500 [&>blockquote]:pl-4 [&>blockquote]:italic [&>blockquote]:my-4
+                        [&>code]:bg-gray-100 [&>code]:px-1.5 [&>code]:py-0.5 [&>code]:rounded [&>code]:text-sm [&>code]:font-mono
+                        [&>pre]:bg-gray-100 [&>pre]:p-4 [&>pre]:rounded-lg [&>pre]:overflow-x-auto [&>pre]:my-4
+                        [&>img]:rounded-lg [&>img]:my-4
+                        [&>hr]:my-6 [&>hr]:border-gray-300">{!! $product->technical_specifications !!}</div>
                 </div>
             </div>
         </div>
@@ -298,7 +332,24 @@
             </button>
             <div id="warranty-content" class="hidden border-t border-gray-100">
                 <div class="p-6 pl-7">
-                    <div class="text-gray-700 prose max-w-none leading-relaxed prose-p:mb-4 prose-h1:text-2xl prose-h1:font-bold prose-h1:mb-4 prose-h1:mt-6 prose-h2:text-xl prose-h2:font-semibold prose-h2:mb-3 prose-h2:mt-5 prose-h3:text-lg prose-h3:font-semibold prose-h3:mb-2 prose-h3:mt-4 prose-h4:text-base prose-h4:font-semibold prose-h4:mb-2 prose-h4:mt-3 prose-ul:list-disc prose-ul:ml-6 prose-ul:my-4 prose-ol:list-decimal prose-ol:ml-6 prose-ol:my-4 prose-li:my-1 prose-li:pl-2 prose-strong:font-bold prose-em:italic prose-a:text-orange-500 prose-a:underline hover:prose-a:text-orange-600 prose-blockquote:border-l-4 prose-blockquote:border-orange-500 prose-blockquote:pl-4 prose-blockquote:italic prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-pre:bg-gray-100 prose-pre:p-4 prose-pre:rounded-lg prose-img:rounded-lg prose-hr:my-6">{!! $product->warranty !!}</div>
+                    <div class="text-gray-700 text-base leading-7 space-y-4 
+                        [&>h1]:text-2xl [&>h1]:font-bold [&>h1]:mb-4 [&>h1]:mt-6 [&>h1]:text-gray-900
+                        [&>h2]:text-xl [&>h2]:font-bold [&>h2]:mb-3 [&>h2]:mt-6 [&>h2]:text-gray-900
+                        [&>h3]:text-lg [&>h3]:font-semibold [&>h3]:mb-3 [&>h3]:mt-5 [&>h3]:text-gray-800
+                        [&>h4]:text-base [&>h4]:font-semibold [&>h4]:mb-2 [&>h4]:mt-4 [&>h4]:text-gray-800
+                        [&>p]:mb-4 [&>p]:leading-7
+                        [&>ul]:list-disc [&>ul]:ml-6 [&>ul]:my-4 [&>ul]:space-y-2
+                        [&>ol]:list-decimal [&>ol]:ml-6 [&>ol]:my-4 [&>ol]:space-y-2
+                        [&>ul>li]:pl-2 [&>ul>li]:leading-7
+                        [&>ol>li]:pl-2 [&>ol>li]:leading-7
+                        [&>strong]:font-bold [&>strong]:text-gray-900
+                        [&>em]:italic
+                        [&>a]:text-orange-500 [&>a]:underline hover:[&>a]:text-orange-600
+                        [&>blockquote]:border-l-4 [&>blockquote]:border-orange-500 [&>blockquote]:pl-4 [&>blockquote]:italic [&>blockquote]:my-4
+                        [&>code]:bg-gray-100 [&>code]:px-1.5 [&>code]:py-0.5 [&>code]:rounded [&>code]:text-sm [&>code]:font-mono
+                        [&>pre]:bg-gray-100 [&>pre]:p-4 [&>pre]:rounded-lg [&>pre]:overflow-x-auto [&>pre]:my-4
+                        [&>img]:rounded-lg [&>img]:my-4
+                        [&>hr]:my-6 [&>hr]:border-gray-300">{!! $product->warranty !!}</div>
                 </div>
             </div>
         </div>
@@ -324,7 +375,24 @@
             </button>
             <div id="other-info-content" class="hidden border-t border-gray-100">
                 <div class="p-6 pl-7">
-                    <div class="text-gray-700 prose max-w-none leading-relaxed prose-p:mb-4 prose-h1:text-2xl prose-h1:font-bold prose-h1:mb-4 prose-h1:mt-6 prose-h2:text-xl prose-h2:font-semibold prose-h2:mb-3 prose-h2:mt-5 prose-h3:text-lg prose-h3:font-semibold prose-h3:mb-2 prose-h3:mt-4 prose-h4:text-base prose-h4:font-semibold prose-h4:mb-2 prose-h4:mt-3 prose-ul:list-disc prose-ul:ml-6 prose-ul:my-4 prose-ol:list-decimal prose-ol:ml-6 prose-ol:my-4 prose-li:my-1 prose-li:pl-2 prose-strong:font-bold prose-em:italic prose-a:text-orange-500 prose-a:underline hover:prose-a:text-orange-600 prose-blockquote:border-l-4 prose-blockquote:border-orange-500 prose-blockquote:pl-4 prose-blockquote:italic prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-pre:bg-gray-100 prose-pre:p-4 prose-pre:rounded-lg prose-img:rounded-lg prose-hr:my-6">{!! $product->other_information !!}</div>
+                    <div class="text-gray-700 text-base leading-7 space-y-4 
+                        [&>h1]:text-2xl [&>h1]:font-bold [&>h1]:mb-4 [&>h1]:mt-6 [&>h1]:text-gray-900
+                        [&>h2]:text-xl [&>h2]:font-bold [&>h2]:mb-3 [&>h2]:mt-6 [&>h2]:text-gray-900
+                        [&>h3]:text-lg [&>h3]:font-semibold [&>h3]:mb-3 [&>h3]:mt-5 [&>h3]:text-gray-800
+                        [&>h4]:text-base [&>h4]:font-semibold [&>h4]:mb-2 [&>h4]:mt-4 [&>h4]:text-gray-800
+                        [&>p]:mb-4 [&>p]:leading-7
+                        [&>ul]:list-disc [&>ul]:ml-6 [&>ul]:my-4 [&>ul]:space-y-2
+                        [&>ol]:list-decimal [&>ol]:ml-6 [&>ol]:my-4 [&>ol]:space-y-2
+                        [&>ul>li]:pl-2 [&>ul>li]:leading-7
+                        [&>ol>li]:pl-2 [&>ol>li]:leading-7
+                        [&>strong]:font-bold [&>strong]:text-gray-900
+                        [&>em]:italic
+                        [&>a]:text-orange-500 [&>a]:underline hover:[&>a]:text-orange-600
+                        [&>blockquote]:border-l-4 [&>blockquote]:border-orange-500 [&>blockquote]:pl-4 [&>blockquote]:italic [&>blockquote]:my-4
+                        [&>code]:bg-gray-100 [&>code]:px-1.5 [&>code]:py-0.5 [&>code]:rounded [&>code]:text-sm [&>code]:font-mono
+                        [&>pre]:bg-gray-100 [&>pre]:p-4 [&>pre]:rounded-lg [&>pre]:overflow-x-auto [&>pre]:my-4
+                        [&>img]:rounded-lg [&>img]:my-4
+                        [&>hr]:my-6 [&>hr]:border-gray-300">{!! $product->other_information !!}</div>
                 </div>
             </div>
         </div>
