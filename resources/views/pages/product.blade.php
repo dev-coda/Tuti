@@ -62,7 +62,7 @@
 }
 
 .product-content ol {
-    list-style-type: decimal;
+    list-style-type: disc;
     list-style-position: outside;
 }
 
