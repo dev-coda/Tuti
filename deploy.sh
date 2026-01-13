@@ -128,7 +128,7 @@ print_success "Storage structure verified"
 
 # 7. Set Proper Permissions
 print_step "Setting file permissions..."
-chmod -R 755 storage bootstrap/cache
+chmod -R 775 storage bootstrap/cache
 chown -R $WEB_USER:$WEB_USER storage bootstrap/cache public/storage 2>/dev/null || print_warning "Could not change ownership (may need sudo)"
 print_success "Permissions set"
 
@@ -138,7 +138,13 @@ php artisan config:clear
 php artisan cache:clear
 php artisan view:clear
 php artisan route:clear
-print_success "Caches cleared"
+
+# Manually remove cached files to ensure complete cache clear
+print_step "Removing cached files manually..."
+rm -rf storage/framework/cache/data/* 2>/dev/null || true
+rm -rf storage/framework/views/* 2>/dev/null || true
+rm -rf bootstrap/cache/*.php 2>/dev/null || true
+print_success "Caches cleared completely"
 
 # 9. Rebuild Caches
 print_step "Rebuilding application caches..."
