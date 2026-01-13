@@ -422,4 +422,91 @@ class SettingController extends Controller
 
         return back()->with('success', 'Configuración de entrega express actualizada exitosamente');
     }
+
+    /**
+     * Update force delivery date setting
+     */
+    public function updateForceDeliveryDate(Request $request)
+    {
+        $validated = $request->validate([
+            'force_delivery_date_enabled' => 'nullable|in:1',
+        ]);
+
+        // Update force delivery date enabled setting
+        $enabled = isset($validated['force_delivery_date_enabled']) ? '1' : '0';
+        Setting::updateOrCreate(
+            ['key' => 'force_delivery_date_enabled'],
+            [
+                'name' => 'Forzar Fecha de Entrega',
+                'value' => $enabled,
+                'show' => false,
+            ]
+        );
+
+        \Illuminate\Support\Facades\Log::warning('Force Delivery Date setting changed', [
+            'enabled' => $enabled,
+            'user' => auth()->user()->email ?? 'Unknown',
+            'timestamp' => now()->toDateTimeString()
+        ]);
+
+        $message = $enabled === '1' 
+            ? '⚠️ Forzar Fecha de Entrega ACTIVADO: Los pedidos ahora se enviarán con el próximo día hábil como fecha de entrega.'
+            : 'Forzar Fecha de Entrega DESACTIVADO: Los pedidos se enviarán con su fecha programada normal.';
+
+        return back()->with('success', $message);
+    }
+
+    /**
+     * Process all waiting orders created in the last 24 hours
+     */
+    public function processWaitingOrders(Request $request)
+    {
+        try {
+            $twentyFourHoursAgo = \Carbon\Carbon::now()->subHours(24);
+            
+            // Find all waiting orders created in the last 24 hours
+            $orders = \App\Models\Order::where('status', \App\Models\Order::STATUS_WAITING)
+                ->where('created_at', '>=', $twentyFourHoursAgo)
+                ->get();
+
+            if ($orders->isEmpty()) {
+                return back()->with('info', 'No se encontraron pedidos en espera creados en las últimas 24 horas.');
+            }
+
+            $processedCount = 0;
+            
+            foreach ($orders as $order) {
+                // Update order status to pending
+                $order->update([
+                    'status' => \App\Models\Order::STATUS_PENDING,
+                ]);
+                
+                // Dispatch the job to process the order
+                \App\Jobs\ProcessOrderAsync::dispatch($order->id)
+                    ->onQueue('orders');
+                
+                $processedCount++;
+            }
+
+            \Illuminate\Support\Facades\Log::info('Emergency order processing initiated', [
+                'total_orders' => $processedCount,
+                'user' => auth()->user()->email ?? 'Unknown',
+                'timestamp' => now()->toDateTimeString(),
+                'force_delivery_date_enabled' => Setting::getByKey('force_delivery_date_enabled') == '1'
+            ]);
+
+            $message = "Se iniciaron {$processedCount} pedido(s) para procesamiento inmediato. Los pedidos se procesarán en segundo plano.";
+            
+            if (Setting::getByKey('force_delivery_date_enabled') == '1') {
+                $message .= ' ⚠️ NOTA: Forzar Fecha de Entrega está activo, los pedidos usarán el próximo día hábil.';
+            }
+
+            return back()->with('success', $message);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Failed to process waiting orders: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
+            return back()->with('error', 'Error al procesar pedidos: ' . $e->getMessage());
+        }
+    }
 }

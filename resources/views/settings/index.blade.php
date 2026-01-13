@@ -97,6 +97,58 @@
         </div>
     </div>
 
+    <!-- Emergency Order Processing -->
+    <div class="col-span-full mb-6">
+        <div class="bg-white border border-red-200 rounded-lg shadow-sm p-6">
+            <div class="flex items-start">
+                <div class="flex-shrink-0">
+                    <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                    </svg>
+                </div>
+                <div class="ml-4 flex-1">
+                    <h3 class="text-lg font-medium text-gray-900 mb-4">Gestión de Emergencia de Pedidos</h3>
+                    
+                    <!-- Force Delivery Date Toggle -->
+                    <div class="mb-6">
+                        <form action="{{ route('settings.update-force-delivery-date') }}" method="POST" id="forceDeliveryDateForm">
+                            @csrf
+                            <div>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" name="force_delivery_date_enabled" value="1" 
+                                           class="sr-only peer" 
+                                           @checked(\App\Models\Setting::getByKey('force_delivery_date_enabled') == '1')
+                                           onchange="document.getElementById('forceDeliveryDateForm').submit()">
+                                    <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
+                                    <span class="ml-3 text-sm font-medium text-gray-900">Forzar Fecha de Entrega</span>
+                                </label>
+                                <p class="mt-2 text-xs text-gray-500">Cuando está activado, todos los pedidos enviados al SOAP API usarán el próximo día hábil como fecha de entrega, ignorando la fecha programada.</p>
+                                @if(\App\Models\Setting::getByKey('force_delivery_date_enabled') == '1')
+                                    <p class="mt-2 text-xs text-red-600 font-medium">⚠️ MODO ACTIVO: Los pedidos se enviarán con fecha de entrega forzada al próximo día hábil.</p>
+                                @endif
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Process Waiting Orders Button -->
+                    <div class="pt-4 border-t border-gray-200">
+                        <form action="{{ route('settings.process-waiting-orders') }}" method="POST" id="processWaitingOrdersForm" onsubmit="return confirmProcessOrders()">
+                            @csrf
+                            <button type="submit" id="processOrdersButton" 
+                                    class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-lg shadow-sm hover:bg-red-700 focus:ring-4 focus:ring-red-300 disabled:opacity-50 disabled:cursor-not-allowed">
+                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                                </svg>
+                                <span>Despachar Día</span>
+                            </button>
+                            <p class="mt-2 text-xs text-gray-500">Procesa inmediatamente todos los pedidos en espera creados en las últimas 24 horas, independientemente de su fecha de transmisión programada.</p>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Delivery Dates Section -->
     <div class="col-span-full mb-6">
         <div class="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
@@ -371,6 +423,18 @@ function handleSyncSubmit() {
     }, 2000);
     
     return true;
+}
+
+function confirmProcessOrders() {
+    const confirmed = confirm('⚠️ ATENCIÓN: Esta acción procesará TODOS los pedidos en espera creados en las últimas 24 horas, independientemente de su fecha de transmisión programada.\n\n¿Está seguro de que desea continuar?');
+    
+    if (confirmed) {
+        const button = document.getElementById('processOrdersButton');
+        button.disabled = true;
+        button.innerHTML = '<svg class="w-4 h-4 mr-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg><span>Procesando...</span>';
+    }
+    
+    return confirmed;
 }
 </script>
 @endsection

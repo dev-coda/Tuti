@@ -83,6 +83,23 @@ class OrderRepository
         ]);
 
         $delivery_date = $order->delivery_date;
+        
+        // Check if force delivery date is enabled (emergency override)
+        $forceDeliveryDate = Setting::getByKey('force_delivery_date_enabled') == '1';
+        if ($forceDeliveryDate) {
+            // Override with next business day
+            $nextBusinessDay = self::getBusinessDay(0);
+            
+            Log::channel('soap')->warning('Force Delivery Date is ACTIVE - Overriding delivery date', [
+                'order_id' => $order->id,
+                'original_delivery_date' => $delivery_date,
+                'forced_delivery_date' => $nextBusinessDay,
+                'setting_enabled_by' => 'Admin Panel'
+            ]);
+            
+            $delivery_date = $nextBusinessDay;
+        }
+        
         $observations = $order->observations;
 
         $day = $zone->day;
