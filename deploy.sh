@@ -22,14 +22,39 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Parse command line arguments
+BRANCH="stage"
+RESTART_SERVICES=false
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --full)
+            RESTART_SERVICES=true
+            shift
+            ;;
+        --services)
+            RESTART_SERVICES=true
+            shift
+            ;;
+        *)
+            BRANCH="$1"
+            shift
+            ;;
+    esac
+done
+
 # Configuration
-BRANCH="${1:-stage}"  # Default to stage branch, can be overridden
 PHP_VERSION="${PHP_VERSION:-8.1}"
 WEB_USER="${WEB_USER:-www-data}"
 
 echo -e "${BLUE}╔════════════════════════════════════════╗${NC}"
 echo -e "${BLUE}║   Tuti Deployment Script              ║${NC}"
 echo -e "${BLUE}║   Branch: ${BRANCH}                          ║${NC}"
+if [ "$RESTART_SERVICES" = true ]; then
+    echo -e "${BLUE}║   Mode: Full (with service restarts)  ║${NC}"
+else
+    echo -e "${BLUE}║   Mode: Standard (no service restarts)║${NC}"
+fi
 echo -e "${BLUE}╚════════════════════════════════════════╝${NC}"
 echo ""
 
@@ -86,10 +111,6 @@ print_success "Migrations completed"
 
 # 5. Fix Storage Symlink (CRITICAL for images)
 print_step "Fixing storage symlink..."
-# Remove old symlink if it exists
-if [ -L "public/storage" ]; then
-    rm public/storage
-fi
 php artisan storage:link --force
 print_success "Storage symlink created"
 
@@ -115,26 +136,34 @@ php artisan view:cache
 php artisan optimize
 print_success "Caches rebuilt"
 
-# 9. Restart Queue Workers
-print_step "Restarting queue workers..."
-if command -v supervisorctl &> /dev/null; then
-    sudo supervisorctl restart all || print_warning "Could not restart supervisor (may need proper sudo permissions)"
-    print_success "Supervisor workers restarted"
+# 9. Restart Queue Workers (optional with --full flag)
+if [ "$RESTART_SERVICES" = true ]; then
+    print_step "Restarting queue workers..."
+    if command -v supervisorctl &> /dev/null; then
+        sudo supervisorctl restart all || print_warning "Could not restart supervisor (may need proper sudo permissions)"
+        print_success "Supervisor workers restarted"
+    else
+        php artisan queue:restart || print_warning "Queue restart command executed (workers will restart on next job)"
+        print_success "Queue restart signal sent"
+    fi
 else
-    php artisan queue:restart || print_warning "Queue restart command executed (workers will restart on next job)"
-    print_success "Queue restart signal sent"
+    print_step "Skipping queue worker restart (use --full flag to restart services)"
 fi
 
-# 10. Restart Web Services
-print_step "Restarting web services..."
-if [ -x "$(command -v systemctl)" ]; then
-    # Try to restart PHP-FPM
-    sudo systemctl restart php${PHP_VERSION}-fpm 2>/dev/null && print_success "PHP-FPM restarted" || print_warning "Could not restart PHP-FPM"
-    
-    # Try to restart Nginx
-    sudo systemctl restart nginx 2>/dev/null && print_success "Nginx restarted" || print_warning "Could not restart Nginx"
+# 10. Restart Web Services (optional with --full flag)
+if [ "$RESTART_SERVICES" = true ]; then
+    print_step "Restarting web services..."
+    if [ -x "$(command -v systemctl)" ]; then
+        # Try to restart PHP-FPM
+        sudo systemctl restart php${PHP_VERSION}-fpm 2>/dev/null && print_success "PHP-FPM restarted" || print_warning "Could not restart PHP-FPM"
+        
+        # Try to restart Nginx
+        sudo systemctl restart nginx 2>/dev/null && print_success "Nginx restarted" || print_warning "Could not restart Nginx"
+    else
+        print_warning "systemctl not available, skipping service restart"
+    fi
 else
-    print_warning "systemctl not available, skipping service restart"
+    print_step "Skipping web service restart (use --full flag to restart services)"
 fi
 
 # 11. Verify Storage Structure
@@ -182,4 +211,10 @@ echo -e "${YELLOW}Important:${NC}"
 echo "  - Test the application in your browser"
 echo "  - Check that images are displaying correctly"
 echo "  - Monitor logs: tail -f storage/logs/laravel.log"
+if [ "$RESTART_SERVICES" = false ]; then
+    echo ""
+    echo -e "${YELLOW}Note: Services were NOT restarted.${NC}"
+    echo "  - If you need to restart services, run: bash deploy.sh --full"
+    echo "  - Or manually restart: sudo systemctl restart php${PHP_VERSION}-fpm nginx"
+fi
 echo ""

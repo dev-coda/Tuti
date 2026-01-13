@@ -8,16 +8,29 @@ This document explains how to deploy Tuti to production using the automated depl
 # On production server, navigate to project directory
 cd /path/to/tuti
 
-# Run deployment script (defaults to stage branch)
+# Run deployment script (defaults to stage branch, no service restarts)
 bash deploy.sh
 
-# Or deploy from a specific branch
+# Deploy from a specific branch
 bash deploy.sh master
+
+# Full deployment with service restarts (use when needed)
+bash deploy.sh --full
+
+# Or specify branch and full mode
+bash deploy.sh stage --full
 ```
 
 ## Deployment Script (`deploy.sh`)
 
-The automated deployment script handles all necessary steps:
+The automated deployment script has two modes:
+
+### Standard Mode (Default)
+Safe, fast deployments that don't restart services:
+
+```bash
+bash deploy.sh
+```
 
 1. ✅ **Enables maintenance mode** - Prevents user access during deployment
 2. ✅ **Pulls latest code** - Updates from specified git branch
@@ -27,10 +40,21 @@ The automated deployment script handles all necessary steps:
 6. ✅ **Sets permissions** - Ensures proper file/directory permissions
 7. ✅ **Clears caches** - Removes old cached data
 8. ✅ **Rebuilds caches** - Generates fresh optimized caches
-9. ✅ **Restarts queue workers** - Ensures background jobs pick up changes
-10. ✅ **Restarts web services** - Reloads PHP-FPM and Nginx
+9. ⏭️ **Skips queue workers restart** - Avoids touching supervisor/horizon
+10. ⏭️ **Skips web services restart** - Doesn't restart PHP-FPM/Nginx
 11. ✅ **Verifies storage** - Checks symlink and directory structure
 12. ✅ **Disables maintenance mode** - Brings application back online
+
+### Full Mode (With Service Restarts)
+Complete deployment including service restarts (use when needed):
+
+```bash
+bash deploy.sh --full
+```
+
+Includes everything above PLUS:
+- ✅ **Restarts queue workers** - Restarts supervisor/horizon
+- ✅ **Restarts web services** - Reloads PHP-FPM and Nginx
 
 ## Initial Setup
 
@@ -68,7 +92,7 @@ deploy-user ALL=(ALL) NOPASSWD: /usr/bin/supervisorctl restart all
 
 ## Usage Examples
 
-### Deploy from Stage Branch (Default)
+### Deploy from Stage Branch (Standard Mode - No Service Restarts)
 ```bash
 bash deploy.sh
 ```
@@ -82,6 +106,37 @@ bash deploy.sh master
 ```bash
 bash deploy.sh feature-branch
 ```
+
+### Full Deployment with Service Restarts
+Use this when you need to restart PHP-FPM, Nginx, or queue workers:
+
+```bash
+# Stage branch with service restarts
+bash deploy.sh --full
+
+# Or use --services (same as --full)
+bash deploy.sh --services
+
+# Master branch with service restarts
+bash deploy.sh master --full
+```
+
+### When to Use `--full` Flag?
+
+**Use standard mode (no flag) for:**
+- Regular code updates
+- View/template changes
+- Minor bug fixes
+- Configuration changes (after cache clear)
+- Most deployments
+
+**Use `--full` mode when:**
+- Updating PHP dependencies that require reload
+- Modifying queue job classes
+- Changing service providers or middleware
+- Major application structure changes
+- After server configuration changes
+- When troubleshooting caching issues
 
 ## Manual Deployment Steps
 
@@ -136,7 +191,6 @@ This is the most common issue. The `public/storage` symlink gets broken during d
 
 **Fix:**
 ```bash
-rm public/storage
 php artisan storage:link --force
 chmod -R 755 storage/app/public
 chown -R www-data:www-data storage/app/public
