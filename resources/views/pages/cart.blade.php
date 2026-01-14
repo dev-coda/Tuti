@@ -12,6 +12,13 @@
 
 @section('content')
 
+@php
+    // Define delivery settings variables at top level for use throughout the view
+    $forceDeliveryDateEnabled = \App\Models\Setting::getByKey('force_delivery_date_enabled');
+    $isForceEnabled = ($forceDeliveryDateEnabled === '1' || $forceDeliveryDateEnabled === 1 || $forceDeliveryDateEnabled === true);
+    $express48hEnabled = \App\Models\Setting::getByKey('express_48h_enabled');
+    $isEnabled = ($express48hEnabled === '1' || $express48hEnabled === 1 || $express48hEnabled === true);
+@endphp
 
 @if($set_user)
 <div class="grid grid-cols-1 w-full gap-y-5 gap-x-5 xl:px-72" x-data="{'isModalOpen': false}" x-on:keydown.escape="isModalOpen=false">
@@ -398,13 +405,6 @@
                     </div>
 
                     {{-- Delivery Method Selection --}}
-                    @php
-                        // Check both delivery settings once at the top
-                        $forceDeliveryDateEnabled = \App\Models\Setting::getByKey('force_delivery_date_enabled');
-                        $isForceEnabled = ($forceDeliveryDateEnabled === '1' || $forceDeliveryDateEnabled === 1 || $forceDeliveryDateEnabled === true);
-                        $express48hEnabled = \App\Models\Setting::getByKey('express_48h_enabled');
-                        $isEnabled = ($express48hEnabled === '1' || $express48hEnabled === 1 || $express48hEnabled === true);
-                    @endphp
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
                             <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
