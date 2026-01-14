@@ -114,60 +114,116 @@
         <div class="px-6 py-4">
             <div class="space-y-4">
                 @foreach ($products as $key => $product)
-                <div class="cart-item flex items-center gap-4 py-4 {{ !$loop->last ? 'border-b border-gray-100' : '' }}" 
+                <div class="cart-item py-4 {{ !$loop->last ? 'border-b border-gray-100' : '' }}" 
                      data-cart-key="{{ $key }}"
                      data-product-id="{{ $product->id }}"
                      data-unit-price="{{ $has_orders ? $product->calculatedFinalPrice['old'] : $product->calculatedFinalPrice['price'] }}"
                      data-old-price="{{ $product->calculatedFinalPrice['old'] }}"
                      data-has-discount="{{ $product->calculatedFinalPrice['has_discount'] && !$has_orders ? '1' : '0' }}">
-                    {{-- Product Image --}}
-                    <a href="{{route('product', $product->slug)}}" class="hidden md:block flex-shrink-0">
-                        <img src="{{asset('storage/'.$product->image)}}" alt="{{ $product->name }}" class="w-20 h-20 object-contain rounded-lg border border-gray-100">
-                    </a>
                     
-                    {{-- Product Details --}}
-                    <div class="flex-1 min-w-0">
-                        <a href='{{route('product', $product->slug)}}' class="font-medium text-gray-900 hover:text-orange-600 transition-colors block truncate">
-                            {{$product->name}}
-                        </a>
-                        <div class="flex items-center gap-2 mt-1">
-                            <span class="text-sm text-gray-500">${{currency($product->calculatedFinalPrice['old'])}}</span>
-                            @if($product->variation)
-                            <span class="text-xs text-gray-400">• {{$product->variation->name}} {{$product->item->name}}</span>
-                            @endif
+                    {{-- Mobile Layout --}}
+                    <div class="md:hidden space-y-3">
+                        {{-- Product Info Row --}}
+                        <div class="flex gap-3">
+                            <a href="{{route('product', $product->slug)}}" class="flex-shrink-0">
+                                <img src="{{asset('storage/'.$product->image)}}" alt="{{ $product->name }}" class="w-16 h-16 object-contain rounded-lg border border-gray-100">
+                            </a>
+                            <div class="flex-1 min-w-0">
+                                <a href='{{route('product', $product->slug)}}' class="font-medium text-sm text-gray-900 hover:text-orange-600 transition-colors block">
+                                    {{$product->name}}
+                                </a>
+                                @if($product->variation)
+                                <span class="text-xs text-gray-400 block mt-1">{{$product->variation->name}} {{$product->item->name}}</span>
+                                @endif
+                                <span class="text-sm text-gray-500 block mt-1">${{currency($product->calculatedFinalPrice['old'])}}</span>
+                            </div>
+                            {{-- Delete Button --}}
+                            <a href={{route('cart.remove', $key)}} class='flex-shrink-0 p-2 h-fit text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all'>
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                </svg>
+                            </a>
+                        </div>
+                        
+                        {{-- Quantity & Price Row --}}
+                        <div class="flex items-center justify-between">
+                            {{-- Quantity Controls --}}
+                            <div class="flex items-center border border-gray-200 rounded-lg overflow-hidden">
+                                <button data-step="{{$product->step}}" data-cart-key="{{ $key }}" type="button" class="qty-decrease w-9 h-9 flex items-center justify-center text-gray-600 hover:bg-gray-100 transition-colors">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path></svg>
+                                </button>
+                                <input type="number" 
+                                       data-step="{{$product->step}}" 
+                                       data-cart-key="{{ $key }}" 
+                                       class="qty-input w-12 text-center bg-transparent border-0 text-sm font-medium focus:ring-2 focus:ring-orange-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
+                                       value="{{$product->quantity}}"
+                                       min="{{$product->step}}">
+                                <button data-step="{{$product->step}}" data-cart-key="{{ $key }}" type="button" class="qty-increase w-9 h-9 flex items-center justify-center text-gray-600 hover:bg-gray-100 transition-colors">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                                </button>
+                            </div>
+                            
+                            {{-- Price --}}
+                            <div class="text-right">
+                                <span class="item-price font-semibold text-gray-900">${{currency(($has_orders ? $product->calculatedFinalPrice['old'] : $product->calculatedFinalPrice['price']) * $product->quantity)}}</span>
+                                @if($product->calculatedFinalPrice['has_discount'] && !$has_orders)
+                                <span class="item-old-price block text-xs text-gray-400 line-through">${{currency($product->calculatedFinalPrice['old'] * $product->quantity)}}</span>
+                                @endif
+                            </div>
                         </div>
                     </div>
-                    
-                    {{-- Quantity Controls --}}
-                    <div class="flex items-center border border-gray-200 rounded-lg overflow-hidden">
-                        <button data-step="{{$product->step}}" data-cart-key="{{ $key }}" type="button" class="qty-decrease w-10 h-10 flex items-center justify-center text-gray-600 hover:bg-gray-100 transition-colors">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path></svg>
-                        </button>
-                        <input type="number" 
-                               data-step="{{$product->step}}" 
-                               data-cart-key="{{ $key }}" 
-                               class="qty-input w-14 text-center bg-transparent border-0 text-sm font-medium focus:ring-2 focus:ring-orange-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
-                               value="{{$product->quantity}}"
-                               min="{{$product->step}}">
-                        <button data-step="{{$product->step}}" data-cart-key="{{ $key }}" type="button" class="qty-increase w-10 h-10 flex items-center justify-center text-gray-600 hover:bg-gray-100 transition-colors">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-                        </button>
+
+                    {{-- Desktop Layout --}}
+                    <div class="hidden md:flex items-center gap-4">
+                        {{-- Product Image --}}
+                        <a href="{{route('product', $product->slug)}}" class="flex-shrink-0">
+                            <img src="{{asset('storage/'.$product->image)}}" alt="{{ $product->name }}" class="w-20 h-20 object-contain rounded-lg border border-gray-100">
+                        </a>
+                        
+                        {{-- Product Details --}}
+                        <div class="flex-1 min-w-0">
+                            <a href='{{route('product', $product->slug)}}' class="font-medium text-gray-900 hover:text-orange-600 transition-colors block truncate">
+                                {{$product->name}}
+                            </a>
+                            <div class="flex items-center gap-2 mt-1">
+                                <span class="text-sm text-gray-500">${{currency($product->calculatedFinalPrice['old'])}}</span>
+                                @if($product->variation)
+                                <span class="text-xs text-gray-400">• {{$product->variation->name}} {{$product->item->name}}</span>
+                                @endif
+                            </div>
+                        </div>
+                        
+                        {{-- Quantity Controls --}}
+                        <div class="flex items-center border border-gray-200 rounded-lg overflow-hidden">
+                            <button data-step="{{$product->step}}" data-cart-key="{{ $key }}" type="button" class="qty-decrease w-10 h-10 flex items-center justify-center text-gray-600 hover:bg-gray-100 transition-colors">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path></svg>
+                            </button>
+                            <input type="number" 
+                                   data-step="{{$product->step}}" 
+                                   data-cart-key="{{ $key }}" 
+                                   class="qty-input w-14 text-center bg-transparent border-0 text-sm font-medium focus:ring-2 focus:ring-orange-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
+                                   value="{{$product->quantity}}"
+                                   min="{{$product->step}}">
+                            <button data-step="{{$product->step}}" data-cart-key="{{ $key }}" type="button" class="qty-increase w-10 h-10 flex items-center justify-center text-gray-600 hover:bg-gray-100 transition-colors">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                            </button>
+                        </div>
+                        
+                        {{-- Price --}}
+                        <div class="text-right min-w-[100px]">
+                            <span class="item-price font-semibold text-gray-900">${{currency(($has_orders ? $product->calculatedFinalPrice['old'] : $product->calculatedFinalPrice['price']) * $product->quantity)}}</span>
+                            @if($product->calculatedFinalPrice['has_discount'] && !$has_orders)
+                            <span class="item-old-price block text-sm text-gray-400 line-through">${{currency($product->calculatedFinalPrice['old'] * $product->quantity)}}</span>
+                            @endif
+                        </div>
+                        
+                        {{-- Delete Button --}}
+                        <a href={{route('cart.remove', $key)}} class='flex-shrink-0 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all'>
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                            </svg>
+                        </a>
                     </div>
-                    
-                    {{-- Price --}}
-                    <div class="text-right min-w-[100px]">
-                        <span class="item-price font-semibold text-gray-900">${{currency(($has_orders ? $product->calculatedFinalPrice['old'] : $product->calculatedFinalPrice['price']) * $product->quantity)}}</span>
-                        @if($product->calculatedFinalPrice['has_discount'] && !$has_orders)
-                        <span class="item-old-price block text-sm text-gray-400 line-through">${{currency($product->calculatedFinalPrice['old'] * $product->quantity)}}</span>
-                        @endif
-                    </div>
-                    
-                    {{-- Delete Button --}}
-                    <a href={{route('cart.remove', $key)}} class='flex-shrink-0 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all'>
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                        </svg>
-                    </a>
                 </div>
                 @endforeach
             </div>
