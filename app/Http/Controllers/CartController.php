@@ -711,10 +711,6 @@ class CartController extends Controller
         
         $bodega = $isInventoryEnabled ? ZoneWarehouse::getBodegaForZone($zoneCode) : null;
         
-        // #region agent log
-        file_put_contents(storage_path('logs/debug-inventory.log'), json_encode(['sessionId'=>'debug-session','runId'=>'post-fix-v2','hypothesisId'=>'B','location'=>'CartController.php:712','message'=>'Bodega determination','data'=>['zone_code'=>$zoneCode,'bodega'=>$bodega,'zone_id'=>$zoneId,'user_id'=>$actingUser->id,'is_seller'=>$user->hasRole('seller')],'timestamp'=>round(microtime(true)*1000)]).PHP_EOL, FILE_APPEND);
-        // #endregion
-        
         if ($isInventoryEnabled && !$bodega) {
             // Log detailed debugging information
             \Log::warning('Bodega determination failed', [
@@ -891,14 +887,7 @@ class CartController extends Controller
                 $reserved = (int) ($inventory?->reserved ?? 0);
                 $safety = (int) $product->getEffectiveSafetyStock();
 
-                // #region agent log
-                file_put_contents(storage_path('logs/debug-inventory.log'), json_encode(['sessionId'=>'debug-session','runId'=>'post-fix-v2','hypothesisId'=>'A,B,C,D,E','location'=>'CartController.php:889','message'=>'Inventory check entry','data'=>['product_id'=>$product->id,'product_name'=>$product->name,'cart_quantity'=>$cartItem['quantity'],'bodega'=>$bodega,'zone_code'=>$zoneCode,'disponible'=>$available,'reservado'=>$reserved,'fisico_calculated'=>($available + $reserved),'safety'=>$safety,'correct_check'=>'quantity > disponible','old_buggy_check'=>'quantity > (disponible - reservado)'],'timestamp'=>round(microtime(true)*1000)]).PHP_EOL, FILE_APPEND);
-                // #endregion
-
                 if ($available <= $safety) {
-                    // #region agent log
-                    file_put_contents(storage_path('logs/debug-inventory.log'), json_encode(['sessionId'=>'debug-session','runId'=>'post-fix-v2','hypothesisId'=>'C','location'=>'CartController.php:900','message'=>'BLOCKED: Safety stock check','data'=>['reason'=>'disponible_lte_safety','disponible'=>$available,'safety'=>$safety,'product_name'=>$product->name],'timestamp'=>round(microtime(true)*1000)]).PHP_EOL, FILE_APPEND);
-                    // #endregion
                     \Log::warning('Order blocked: product below safety stock', [
                         'product_id' => $product->id,
                         'product_name' => $product->name,
@@ -911,9 +900,6 @@ class CartController extends Controller
                     return back()->with('error', "{$product->name} está por debajo del stock de seguridad.");
                 }
                 if ($available <= 5) {
-                    // #region agent log
-                    file_put_contents(storage_path('logs/debug-inventory.log'), json_encode(['sessionId'=>'debug-session','runId'=>'post-fix-v2','hypothesisId'=>'E','location'=>'CartController.php:909','message'=>'BLOCKED: Low inventory','data'=>['reason'=>'disponible_lte_5','disponible'=>$available,'product_name'=>$product->name],'timestamp'=>round(microtime(true)*1000)]).PHP_EOL, FILE_APPEND);
-                    // #endregion
                     \Log::warning('Order blocked: low inventory', [
                         'product_id' => $product->id,
                         'product_name' => $product->name,
@@ -926,9 +912,6 @@ class CartController extends Controller
                 // disponible = físico - reservado (calculated in DB)
                 // Do NOT subtract reserved again here - that would be double-counting
                 if ($cartItem['quantity'] > $available) {
-                    // #region agent log
-                    file_put_contents(storage_path('logs/debug-inventory.log'), json_encode(['sessionId'=>'debug-session','runId'=>'post-fix-v2','hypothesisId'=>'A','location'=>'CartController.php:920','message'=>'BLOCKED: Quantity exceeds disponible','data'=>['reason'=>'quantity_exceeds_disponible','quantity'=>$cartItem['quantity'],'disponible'=>$available,'reservado'=>$reserved,'product_name'=>$product->name,'note'=>'disponible already = fisico - reservado'],'timestamp'=>round(microtime(true)*1000)]).PHP_EOL, FILE_APPEND);
-                    // #endregion
                     \Log::warning('Order blocked: quantity exceeds available (disponible)', [
                         'product_id' => $product->id,
                         'product_name' => $product->name,
@@ -939,9 +922,6 @@ class CartController extends Controller
                     ]);
                     return back()->with('error', "La cantidad solicitada de {$product->name} excede el inventario disponible en su zona.");
                 }
-                // #region agent log
-                file_put_contents(storage_path('logs/debug-inventory.log'), json_encode(['sessionId'=>'debug-session','runId'=>'post-fix-v2','hypothesisId'=>'ALL','location'=>'CartController.php:931','message'=>'Inventory check PASSED','data'=>['product_name'=>$product->name,'all_checks_passed'=>true],'timestamp'=>round(microtime(true)*1000)]).PHP_EOL, FILE_APPEND);
-                // #endregion
             }
         }
 
