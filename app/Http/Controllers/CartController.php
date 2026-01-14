@@ -712,7 +712,7 @@ class CartController extends Controller
         $bodega = $isInventoryEnabled ? ZoneWarehouse::getBodegaForZone($zoneCode) : null;
         
         // #region agent log
-        file_put_contents(storage_path('logs/debug-inventory.log'), json_encode(['sessionId'=>'debug-session','runId'=>'pre-fix','hypothesisId'=>'B','location'=>'CartController.php:712','message'=>'Bodega determination','data'=>['zone_code'=>$zoneCode,'bodega'=>$bodega,'zone_id'=>$zoneId,'user_id'=>$actingUser->id,'is_seller'=>$user->hasRole('seller')],'timestamp'=>round(microtime(true)*1000)]).PHP_EOL, FILE_APPEND);
+        file_put_contents(storage_path('logs/debug-inventory.log'), json_encode(['sessionId'=>'debug-session','runId'=>'post-fix','hypothesisId'=>'B','location'=>'CartController.php:712','message'=>'Bodega determination','data'=>['zone_code'=>$zoneCode,'bodega'=>$bodega,'zone_id'=>$zoneId,'user_id'=>$actingUser->id,'is_seller'=>$user->hasRole('seller')],'timestamp'=>round(microtime(true)*1000)]).PHP_EOL, FILE_APPEND);
         // #endregion
         
         if ($isInventoryEnabled && !$bodega) {
@@ -892,12 +892,12 @@ class CartController extends Controller
                 $safety = (int) $product->getEffectiveSafetyStock();
 
                 // #region agent log
-                file_put_contents(storage_path('logs/debug-inventory.log'), json_encode(['sessionId'=>'debug-session','runId'=>'pre-fix','hypothesisId'=>'A,B,C,D,E','location'=>'CartController.php:889','message'=>'Inventory check entry','data'=>['product_id'=>$product->id,'product_name'=>$product->name,'cart_quantity'=>$cartItem['quantity'],'bodega'=>$bodega,'zone_code'=>$zoneCode,'available'=>$available,'reserved'=>$reserved,'safety'=>$safety,'check_available_minus_reserved'=>($available - max($reserved, 0)),'will_fail_check'=>($cartItem['quantity'] > ($available - max($reserved, 0)))],'timestamp'=>round(microtime(true)*1000)]).PHP_EOL, FILE_APPEND);
+                file_put_contents(storage_path('logs/debug-inventory.log'), json_encode(['sessionId'=>'debug-session','runId'=>'post-fix','hypothesisId'=>'A,B,C,D,E','location'=>'CartController.php:889','message'=>'Inventory check entry','data'=>['product_id'=>$product->id,'product_name'=>$product->name,'cart_quantity'=>$cartItem['quantity'],'bodega'=>$bodega,'zone_code'=>$zoneCode,'available'=>$available,'reserved'=>$reserved,'safety'=>$safety,'actually_available'=>max(0, $available - $reserved),'old_buggy_calculation'=>($available - max($reserved, 0))],'timestamp'=>round(microtime(true)*1000)]).PHP_EOL, FILE_APPEND);
                 // #endregion
 
                 if ($available <= $safety) {
                     // #region agent log
-                    file_put_contents(storage_path('logs/debug-inventory.log'), json_encode(['sessionId'=>'debug-session','runId'=>'pre-fix','hypothesisId'=>'C','location'=>'CartController.php:900','message'=>'BLOCKED: Safety stock check','data'=>['reason'=>'available_lte_safety','available'=>$available,'safety'=>$safety,'product_name'=>$product->name],'timestamp'=>round(microtime(true)*1000)]).PHP_EOL, FILE_APPEND);
+                    file_put_contents(storage_path('logs/debug-inventory.log'), json_encode(['sessionId'=>'debug-session','runId'=>'post-fix','hypothesisId'=>'C','location'=>'CartController.php:900','message'=>'BLOCKED: Safety stock check','data'=>['reason'=>'available_lte_safety','available'=>$available,'safety'=>$safety,'product_name'=>$product->name],'timestamp'=>round(microtime(true)*1000)]).PHP_EOL, FILE_APPEND);
                     // #endregion
                     \Log::warning('Order blocked: product below safety stock', [
                         'product_id' => $product->id,
@@ -912,7 +912,7 @@ class CartController extends Controller
                 }
                 if ($available <= 5) {
                     // #region agent log
-                    file_put_contents(storage_path('logs/debug-inventory.log'), json_encode(['sessionId'=>'debug-session','runId'=>'pre-fix','hypothesisId'=>'E','location'=>'CartController.php:909','message'=>'BLOCKED: Low inventory','data'=>['reason'=>'available_lte_5','available'=>$available,'product_name'=>$product->name],'timestamp'=>round(microtime(true)*1000)]).PHP_EOL, FILE_APPEND);
+                    file_put_contents(storage_path('logs/debug-inventory.log'), json_encode(['sessionId'=>'debug-session','runId'=>'post-fix','hypothesisId'=>'E','location'=>'CartController.php:909','message'=>'BLOCKED: Low inventory','data'=>['reason'=>'available_lte_5','available'=>$available,'product_name'=>$product->name],'timestamp'=>round(microtime(true)*1000)]).PHP_EOL, FILE_APPEND);
                     // #endregion
                     \Log::warning('Order blocked: low inventory', [
                         'product_id' => $product->id,
@@ -922,22 +922,26 @@ class CartController extends Controller
                     ]);
                     return back()->with('error', "El producto {$product->name} tiene inventario insuficiente en su zona.");
                 }
-                if ($cartItem['quantity'] > ($available - max($reserved, 0))) {
+                // Calculate truly available stock: available minus reserved, but never negative
+                $actuallyAvailable = max(0, $available - $reserved);
+                
+                if ($cartItem['quantity'] > $actuallyAvailable) {
                     // #region agent log
-                    file_put_contents(storage_path('logs/debug-inventory.log'), json_encode(['sessionId'=>'debug-session','runId'=>'pre-fix','hypothesisId'=>'A','location'=>'CartController.php:920','message'=>'BLOCKED: Reserved stock check','data'=>['reason'=>'quantity_exceeds_available_minus_reserved','quantity'=>$cartItem['quantity'],'available'=>$available,'reserved'=>$reserved,'max_reserved'=>max($reserved, 0),'calculation'=>($available - max($reserved, 0)),'product_name'=>$product->name],'timestamp'=>round(microtime(true)*1000)]).PHP_EOL, FILE_APPEND);
+                    file_put_contents(storage_path('logs/debug-inventory.log'), json_encode(['sessionId'=>'debug-session','runId'=>'post-fix','hypothesisId'=>'A','location'=>'CartController.php:923','message'=>'BLOCKED: Quantity exceeds actually available','data'=>['reason'=>'quantity_exceeds_actually_available','quantity'=>$cartItem['quantity'],'available'=>$available,'reserved'=>$reserved,'actually_available'=>$actuallyAvailable,'product_name'=>$product->name],'timestamp'=>round(microtime(true)*1000)]).PHP_EOL, FILE_APPEND);
                     // #endregion
-                    \Log::warning('Order blocked: quantity exceeds available', [
+                    \Log::warning('Order blocked: quantity exceeds available after reservations', [
                         'product_id' => $product->id,
                         'product_name' => $product->name,
                         'requested' => $cartItem['quantity'],
                         'available' => $available,
                         'reserved' => $reserved,
+                        'actually_available' => $actuallyAvailable,
                         'bodega' => $bodega
                     ]);
                     return back()->with('error', "La cantidad solicitada de {$product->name} excede el inventario disponible en su zona.");
                 }
                 // #region agent log
-                file_put_contents(storage_path('logs/debug-inventory.log'), json_encode(['sessionId'=>'debug-session','runId'=>'pre-fix','hypothesisId'=>'ALL','location'=>'CartController.php:940','message'=>'Inventory check PASSED','data'=>['product_name'=>$product->name,'all_checks_passed'=>true],'timestamp'=>round(microtime(true)*1000)]).PHP_EOL, FILE_APPEND);
+                file_put_contents(storage_path('logs/debug-inventory.log'), json_encode(['sessionId'=>'debug-session','runId'=>'post-fix','hypothesisId'=>'ALL','location'=>'CartController.php:948','message'=>'Inventory check PASSED','data'=>['product_name'=>$product->name,'all_checks_passed'=>true],'timestamp'=>round(microtime(true)*1000)]).PHP_EOL, FILE_APPEND);
                 // #endregion
             }
         }
@@ -1262,8 +1266,11 @@ class CartController extends Controller
                     $reserved = (int) ($inventory?->reserved ?? 0);
                     $safety = (int) $p->getEffectiveSafetyStock();
 
+                    // Calculate truly available stock: current minus reserved, but never negative
+                    $actuallyAvailableNow = max(0, $current - $reserved);
+                    
                     // Ensure after decrement, available won't go below safety
-                    if ($current <= 5 || ($current - (int)$row['quantity']) < $safety || $row['quantity'] > ($current - max($reserved, 0))) {
+                    if ($current <= 5 || ($current - (int)$row['quantity']) < $safety || $row['quantity'] > $actuallyAvailableNow) {
                         \Log::error('Order rollback: inventory insufficient during final check', [
                             'product_id' => $p->id,
                             'product_name' => $p->name,
@@ -1272,6 +1279,7 @@ class CartController extends Controller
                             'requested' => $row['quantity'],
                             'available' => $current,
                             'reserved' => $reserved,
+                            'actually_available' => $actuallyAvailableNow,
                             'safety' => $safety,
                             'bodega' => $bodega
                         ]);
