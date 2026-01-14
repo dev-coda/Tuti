@@ -886,27 +886,34 @@ class CartController extends Controller
                 $available = (int) ($inventory?->available ?? 0);
                 $reserved = (int) ($inventory?->reserved ?? 0);
                 $safety = (int) $product->getEffectiveSafetyStock();
+                
+                // Get global minimum inventory setting (default 5 if not configured)
+                $globalMinInventory = (int) (\App\Models\Setting::getByKey('global_minimum_inventory') ?? 5);
+                
+                // Use product safety stock if configured (> 0), otherwise use global minimum
+                // This gives precedence to product-level settings while maintaining a global safety net
+                $effectiveMinimum = ($safety > 0) ? $safety : $globalMinInventory;
 
-                if ($available <= $safety) {
-                    \Log::warning('Order blocked: product below safety stock', [
+                if ($available <= $effectiveMinimum) {
+                    $reason = ($safety > 0) ? 'product safety stock' : 'global minimum inventory';
+                    \Log::warning('Order blocked: below minimum threshold', [
                         'product_id' => $product->id,
                         'product_name' => $product->name,
                         'has_variation' => !is_null($product->variation_id),
                         'variation_item_selected' => $cartItem['variation_id'] ?? null,
                         'available' => $available,
-                        'safety' => $safety,
+                        'product_safety_stock' => $safety,
+                        'global_minimum' => $globalMinInventory,
+                        'effective_minimum' => $effectiveMinimum,
+                        'reason' => $reason,
                         'bodega' => $bodega
                     ]);
-                    return back()->with('error', "{$product->name} está por debajo del stock de seguridad.");
-                }
-                if ($available <= 5) {
-                    \Log::warning('Order blocked: low inventory', [
-                        'product_id' => $product->id,
-                        'product_name' => $product->name,
-                        'available' => $available,
-                        'bodega' => $bodega
-                    ]);
-                    return back()->with('error', "El producto {$product->name} tiene inventario insuficiente en su zona.");
+                    
+                    $errorMsg = ($safety > 0) 
+                        ? "{$product->name} está por debajo del stock de seguridad."
+                        : "El producto {$product->name} tiene inventario insuficiente en su zona (mínimo: {$globalMinInventory} unidades).";
+                    
+                    return back()->with('error', $errorMsg);
                 }
                 // Check against available (disponible) only - it already accounts for reservations!
                 // disponible = físico - reservado (calculated in DB)
@@ -1244,11 +1251,18 @@ class CartController extends Controller
                     $current = (int) ($inventory?->available ?? 0);
                     $reserved = (int) ($inventory?->reserved ?? 0);
                     $safety = (int) $p->getEffectiveSafetyStock();
+                    
+                    // Get global minimum inventory setting (default 5 if not configured)
+                    $globalMinInventory = (int) (\App\Models\Setting::getByKey('global_minimum_inventory') ?? 5);
+                    
+                    // Use product safety stock if configured (> 0), otherwise use global minimum
+                    $effectiveMinimum = ($safety > 0) ? $safety : $globalMinInventory;
 
                     // Check against current (disponible) only - it already accounts for reservations!
                     // disponible = físico - reservado (calculated in DB)
-                    // Ensure after decrement, available won't go below safety
-                    if ($current <= 5 || ($current - (int)$row['quantity']) < $safety || $row['quantity'] > $current) {
+                    // Ensure after decrement, available won't go below the effective minimum
+                    if ($current <= $effectiveMinimum || ($current - (int)$row['quantity']) < $effectiveMinimum || $row['quantity'] > $current) {
+                        $reason = ($safety > 0) ? 'product safety stock' : 'global minimum inventory';
                         \Log::error('Order rollback: inventory insufficient during final check', [
                             'product_id' => $p->id,
                             'product_name' => $p->name,
@@ -1257,9 +1271,11 @@ class CartController extends Controller
                             'requested' => $row['quantity'],
                             'disponible' => $current,
                             'reservado' => $reserved,
-                            'safety' => $safety,
-                            'bodega' => $bodega,
-                            'note' => 'disponible already = fisico - reservado'
+                            'product_safety_stock' => $safety,
+                            'global_minimum' => $globalMinInventory,
+                            'effective_minimum' => $effectiveMinimum,
+                            'reason' => $reason,
+                            'bodega' => $bodega
                         ]);
                         DB::rollBack();
                         return back()->with('error', "Inventario insuficiente para {$p->name} en su zona.");

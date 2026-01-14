@@ -76,6 +76,38 @@
         </div>
     </div>
 
+    <!-- Global Inventory Settings -->
+    <div class="col-span-full mb-6">
+        <div class="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">Inventario Global</h3>
+            <form action="{{ route('settings.update-global-inventory') }}" method="POST">
+                @csrf
+                <div>
+                    <label for="global_minimum_inventory" class="block text-sm font-medium text-gray-700 mb-2">
+                        Inventario Mínimo Global
+                    </label>
+                    <input type="number" 
+                           name="global_minimum_inventory" 
+                           id="global_minimum_inventory"
+                           min="0"
+                           value="{{ \App\Models\Setting::getByKey('global_minimum_inventory') ?? 5 }}"
+                           class="block w-full md:w-64 px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-orange-500 focus:border-orange-500 sm:text-sm">
+                    <p class="mt-2 text-xs text-gray-500">
+                        Cantidad mínima de unidades que debe quedar disponible en inventario. 
+                        <strong>Nota:</strong> Si un producto tiene configurado su propio stock de seguridad, ese valor tiene precedencia. 
+                        Este mínimo global solo aplica a productos SIN stock de seguridad configurado.
+                    </p>
+                    <button type="submit" class="mt-3 inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-orange-600 border border-transparent rounded-lg shadow-sm hover:bg-orange-700 focus:ring-4 focus:ring-orange-300">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                        Guardar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Express 48h Delivery Settings -->
     <div class="col-span-full mb-6">
         <div class="bg-white border border-gray-200 rounded-lg shadow-sm p-6">

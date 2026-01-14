@@ -122,6 +122,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::post('settings/sync-inventory', [SettingController::class, 'syncInventory'])->name('settings.sync-inventory');
     Route::get('settings/inventory-logs', [SettingController::class, 'inventoryLogs'])->name('settings.inventory-logs');
     Route::post('settings/update-vacation-mode', [SettingController::class, 'updateVacationMode'])->name('settings.update-vacation-mode');
+    Route::post('settings/update-global-inventory', [SettingController::class, 'updateGlobalInventory'])->name('settings.update-global-inventory');
     Route::post('settings/update-express-48h', [SettingController::class, 'updateExpress48h'])->name('settings.update-express-48h');
     Route::post('settings/update-force-delivery-date', [SettingController::class, 'updateForceDeliveryDate'])->name('settings.update-force-delivery-date');
     Route::post('settings/process-waiting-orders', [SettingController::class, 'processWaitingOrders'])->name('settings.process-waiting-orders');

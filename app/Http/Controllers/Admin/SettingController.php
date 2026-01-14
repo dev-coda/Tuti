@@ -424,6 +424,33 @@ class SettingController extends Controller
     }
 
     /**
+     * Update global minimum inventory setting
+     */
+    public function updateGlobalInventory(Request $request)
+    {
+        $validated = $request->validate([
+            'global_minimum_inventory' => 'required|integer|min:0|max:100',
+        ]);
+
+        Setting::updateOrCreate(
+            ['key' => 'global_minimum_inventory'],
+            [
+                'name' => 'Inventario Mínimo Global',
+                'value' => $validated['global_minimum_inventory'],
+                'show' => false,
+            ]
+        );
+
+        \Illuminate\Support\Facades\Log::info('Global minimum inventory updated', [
+            'value' => $validated['global_minimum_inventory'],
+            'user' => auth()->user()->email ?? 'Unknown',
+            'timestamp' => now()->toDateTimeString()
+        ]);
+
+        return back()->with('success', 'Inventario mínimo global actualizado exitosamente');
+    }
+
+    /**
      * Update force delivery date setting
      */
     public function updateForceDeliveryDate(Request $request)
