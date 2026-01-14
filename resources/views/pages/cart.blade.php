@@ -422,7 +422,13 @@
                                     <div class="flex-1">
                                         <div class="font-bold text-lg delivery-title">Vendedor Tronex</div>
                                         <div class="text-sm delivery-subtitle mt-1">Entrega durante la visita</div>
+                                        @php
+                                            $forceDeliveryDateEnabled = \App\Models\Setting::getByKey('force_delivery_date_enabled');
+                                            $isForceEnabled = ($forceDeliveryDateEnabled === '1' || $forceDeliveryDateEnabled === 1 || $forceDeliveryDateEnabled === true);
+                                        @endphp
+                                        @if(!$isForceEnabled)
                                         <div class="text-xs delivery-date mt-2 font-medium" id="delivery-date-tronex">Calculando...</div>
+                                        @endif
                                     </div>
                                 </div>
                                 <div class="absolute top-3 right-3 w-5 h-5 rounded-full border-2 border-gray-300 delivery-check hidden items-center justify-center">
@@ -456,7 +462,7 @@
                                             @endif
                                         </div>
                                         <div class="text-sm delivery-subtitle mt-1 {{ !$isEnabled ? 'text-gray-400' : '' }}">Compra mínima $80.000</div>
-                                        @if($isEnabled)
+                                        @if($isEnabled && !$isForceEnabled)
                                             <div class="text-xs delivery-date mt-2 font-medium" id="delivery-date-express">Calculando...</div>
                                         @endif
                                     </div>
@@ -796,6 +802,12 @@
         }
         
         function fetchDeliveryDate(method) {
+            // Skip fetching delivery dates if force delivery date is enabled
+            const forceDeliveryEnabled = {{ $isForceEnabled ? 'true' : 'false' }};
+            if (forceDeliveryEnabled) {
+                return; // Don't fetch or display delivery dates when force is active
+            }
+            
             const zoneId = zoneSelect ? zoneSelect.value : null;
             let url = `/api/delivery-date/${method}`;
             if (zoneId) {
