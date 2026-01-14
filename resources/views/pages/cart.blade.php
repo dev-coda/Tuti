@@ -398,6 +398,13 @@
                     </div>
 
                     {{-- Delivery Method Selection --}}
+                    @php
+                        // Check both delivery settings once at the top
+                        $forceDeliveryDateEnabled = \App\Models\Setting::getByKey('force_delivery_date_enabled');
+                        $isForceEnabled = ($forceDeliveryDateEnabled === '1' || $forceDeliveryDateEnabled === 1 || $forceDeliveryDateEnabled === true);
+                        $express48hEnabled = \App\Models\Setting::getByKey('express_48h_enabled');
+                        $isEnabled = ($express48hEnabled === '1' || $express48hEnabled === 1 || $express48hEnabled === true);
+                    @endphp
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
                             <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -422,10 +429,6 @@
                                     <div class="flex-1">
                                         <div class="font-bold text-lg delivery-title">Vendedor Tronex</div>
                                         <div class="text-sm delivery-subtitle mt-1">Entrega durante la visita</div>
-                                        @php
-                                            $forceDeliveryDateEnabled = \App\Models\Setting::getByKey('force_delivery_date_enabled');
-                                            $isForceEnabled = ($forceDeliveryDateEnabled === '1' || $forceDeliveryDateEnabled === 1 || $forceDeliveryDateEnabled === true);
-                                        @endphp
                                         @if(!$isForceEnabled)
                                         <div class="text-xs delivery-date mt-2 font-medium" id="delivery-date-tronex">Calculando...</div>
                                         @endif
@@ -437,10 +440,6 @@
                             </button>
 
                             {{-- Express Option --}}
-                            @php
-                                $express48hEnabled = \App\Models\Setting::getByKey('express_48h_enabled');
-                                $isEnabled = ($express48hEnabled === '1' || $express48hEnabled === 1 || $express48hEnabled === true);
-                            @endphp
                             <button type="button" 
                                 class="delivery-option relative p-5 rounded-xl border-2 transition-all duration-300 text-left {{ !$isEnabled ? 'opacity-50 cursor-not-allowed bg-gray-50' : '' }}"
                                 data-method="express"
