@@ -261,11 +261,11 @@
             @else
                 <form action="{{route('cart.coupon.apply')}}" method="POST">
                     @csrf
-                    <div class="flex gap-3">
+                    <div class="flex md:gap-3">
                         <input type="text" name="coupon_code" placeholder="Ingresa tu código de cupón" 
-                               class="flex-1 px-4 py-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all">
+                               class="flex-1 px-4 py-3 border border-gray-300 rounded-l-lg md:rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all">
                         <button type="submit" 
-                                class="px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white font-medium text-sm rounded-lg transition-colors shadow-sm">
+                                class="px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white font-medium text-sm rounded-r-lg md:rounded-lg transition-colors shadow-sm">
                             Aplicar
                         </button>
                     </div>
