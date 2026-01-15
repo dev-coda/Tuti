@@ -30,23 +30,25 @@
         @endif
         @auth
             @php
-                $available = $product->getInventoryForBodega($bodegaCode);
                 $isManaged = $product->isInventoryManaged();
+                // Use orderable stock (available - safety) for client-facing display
+                $orderableStock = $product->getOrderableStockForBodega($bodegaCode);
             @endphp
             @if($showInventory && $isManaged)
-                @if($available <= 0)
+                @if($orderableStock <= 0)
                     <p class="text-xs text-red-600">Producto no disponible para tu ubicación</p>
                 @else
-                    <p class="text-xs {{ $available > 5 ? 'text-green-600' : 'text-red-600' }}">Inventario: {{ $available }}</p>
+                    <p class="text-xs {{ $orderableStock > 5 ? 'text-green-600' : 'text-red-600' }}">Inventario: {{ $orderableStock }}</p>
                 @endif
             @endif
         @else
             @php 
-                $mdtat = $product->getInventoryForMdtat();
                 $isManaged = $product->isInventoryManaged();
+                // Use orderable stock (available - safety) for client-facing display
+                $orderableStock = $product->getOrderableStockForMdtat();
             @endphp
             @if($showInventory && $isManaged)
-                <p class="text-xs text-gray-600">Inventario (MDTAT): {{ $mdtat }}</p>
+                <p class="text-xs text-gray-600">Inventario (MDTAT): {{ $orderableStock }}</p>
             @endif
         @endauth
         <div class="flex items-baseline gap-2">

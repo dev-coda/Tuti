@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\ProductInventory;
+use App\Models\Setting;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 
@@ -75,14 +76,24 @@ class InventariosApiController extends Controller
 
         // Transform data
         $inventory->transform(function ($item) {
+            $product = $item->product;
+            
+            // Calculate orderable stock (available - safety)
+            $safety = $product ? (int) $product->getEffectiveSafetyStock() : 0;
+            $globalMin = (int) (\App\Models\Setting::getByKey('global_minimum_inventory') ?? 5);
+            $effectiveMinimum = ($safety > 0) ? $safety : $globalMin;
+            $orderableStock = max(0, $item->available - $effectiveMinimum);
+            
             return [
                 'product_id' => $item->product_id,
-                'product_name' => $item->product->name ?? null,
-                'product_sku' => $item->product->sku ?? null,
+                'product_name' => $product->name ?? null,
+                'product_sku' => $product->sku ?? null,
                 'bodega_code' => $item->bodega_code,
-                'available' => $item->available,
+                'available' => $item->available, // Raw available (for admin/reporting)
+                'orderable_stock' => $orderableStock, // What clients can actually order
                 'physical' => $item->physical,
                 'reserved' => $item->reserved,
+                'safety_stock' => $effectiveMinimum,
                 'updated_at' => $item->updated_at,
             ];
         });
@@ -114,14 +125,22 @@ class InventariosApiController extends Controller
 
         // If no specific bodega requested, also include shared inventory calculation
         $inventoryData = $inventories->map(function ($inventory) use ($product) {
+            // Calculate orderable stock (available - safety)
+            $safety = (int) $product->getEffectiveSafetyStock();
+            $globalMin = (int) (\App\Models\Setting::getByKey('global_minimum_inventory') ?? 5);
+            $effectiveMinimum = ($safety > 0) ? $safety : $globalMin;
+            $orderableStock = max(0, $inventory->available - $effectiveMinimum);
+            
             return [
                 'product_id' => $product->id,
                 'product_name' => $product->name,
                 'product_sku' => $product->sku,
                 'bodega_code' => $inventory->bodega_code,
-                'available' => $inventory->available,
+                'available' => $inventory->available, // Raw available (for admin/reporting)
+                'orderable_stock' => $orderableStock, // What clients can actually order
                 'physical' => $inventory->physical,
                 'reserved' => $inventory->reserved,
+                'safety_stock' => $effectiveMinimum,
                 'shared_inventory' => $product->getSharedInventoryForBodega($inventory->bodega_code),
                 'updated_at' => $inventory->updated_at,
             ];
@@ -191,17 +210,25 @@ class InventariosApiController extends Controller
 
         $inventory->transform(function ($item) {
             $product = $item->product;
+            
+            // Calculate orderable stock (available - safety)
+            $safety = $product ? (int) $product->getEffectiveSafetyStock() : 0;
+            $globalMin = (int) (\App\Models\Setting::getByKey('global_minimum_inventory') ?? 5);
+            $effectiveMinimum = ($safety > 0) ? $safety : $globalMin;
+            $orderableStock = max(0, $item->available - $effectiveMinimum);
+            
             return [
                 'product_id' => $item->product_id,
                 'product_name' => $product->name ?? null,
                 'product_sku' => $product->sku ?? null,
                 'bodega_code' => $item->bodega_code,
-                'available' => $item->available,
+                'available' => $item->available, // Raw available (for admin/reporting)
+                'orderable_stock' => $orderableStock, // What clients can actually order
                 'physical' => $item->physical,
                 'reserved' => $item->reserved,
-                'safety_stock' => $product->safety_stock ?? 0,
-                'is_low_stock' => $product && $item->available <= $product->safety_stock,
-                'is_out_of_stock' => $item->available <= 0,
+                'safety_stock' => $effectiveMinimum,
+                'is_low_stock' => $orderableStock <= 5,
+                'is_out_of_stock' => $orderableStock <= 0,
                 'updated_at' => $item->updated_at,
             ];
         });

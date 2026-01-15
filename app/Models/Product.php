@@ -129,6 +129,34 @@ class Product extends Model
     }
 
     /**
+     * Get orderable stock for bodega (available - safety stock)
+     * This is what should be shown to clients in frontend views
+     */
+    public function getOrderableStockForBodega(?string $bodegaCode): int
+    {
+        $available = $this->getInventoryForBodega($bodegaCode);
+        $safety = (int) $this->getEffectiveSafetyStock();
+        $globalMin = (int) (Setting::getByKey('global_minimum_inventory') ?? 5);
+        $effectiveMinimum = ($safety > 0) ? $safety : $globalMin;
+        
+        return max(0, $available - $effectiveMinimum);
+    }
+
+    /**
+     * Get orderable stock for MDTAT (available - safety stock)
+     * This is what should be shown to clients in frontend views
+     */
+    public function getOrderableStockForMdtat(): int
+    {
+        $available = $this->getInventoryForMdtat();
+        $safety = (int) $this->getEffectiveSafetyStock();
+        $globalMin = (int) (Setting::getByKey('global_minimum_inventory') ?? 5);
+        $effectiveMinimum = ($safety > 0) ? $safety : $globalMin;
+        
+        return max(0, $available - $effectiveMinimum);
+    }
+
+    /**
      * Get all products that share the same SKU as this product
      */
     public function getProductsWithSameSku()
