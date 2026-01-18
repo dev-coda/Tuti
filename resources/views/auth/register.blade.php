@@ -8,26 +8,26 @@
 <section class="w-full xl:py-14 py-10 xl:px-96 px-0">
     <div class="bg-white rounded-lg shadow-lg p-8 max-w-md mx-auto">
         <div class="text-center mb-6">
-            <h1 class='text-xl font-bold text-gray-800 mb-2'>Registrate aquí</h1>
-            <p class="text-gray-600 text-sm">Completa los datos para acceder al portafolio de productos</p>
+            <h1 class='text-xl font-bold text-gray-800 mb-2'>Regístrate en TUTI</h1>
+            <p class="text-gray-600 text-sm">Diligencia el formulario e inicia el proceso de activación como cliente TUTI</p>
         </div>
         
         {{ Aire::open()->route('register')->id('registrationForm') }}
             
             <div class='space-y-4'>
-                {{ Aire::input('name', 'Nombre y Apellido')->placeholder('Nombre y Apellido')->groupClass('mb-0') }}
+                {{ Aire::input('name')->placeholder('Responsable de compra (persona natural o jurídica)')->groupClass('mb-0') }}
                 
-                {{ Aire::email('email', 'Correo electrónico')->placeholder('Correo electrónico')->groupClass('mb-0') }}
+                {{ Aire::input('document')->placeholder('Cédula o NIT')->groupClass('mb-0') }}
                 
-                {{ Aire::input('phone', 'Celular')->placeholder('Celular')->groupClass('mb-0') }}
+                {{ Aire::email('email')->placeholder('Correo electrónico')->groupClass('mb-0') }}
                 
-                {{ Aire::select(['' => 'Selecciona tu ciudad'] + ($cities ?? []), 'city_id', 'Ciudad')->groupClass('mb-0') }}
+                {{ Aire::input('phone')->placeholder('Celular')->groupClass('mb-0') }}
                 
-                {{ Aire::input('document', 'Nit o cédula')->placeholder('Nit o cédula')->groupClass('mb-0') }}
+                {{ Aire::select(['' => 'Ciudad'] + ($cities ?? []), 'city_id')->groupClass('mb-0') }}
                 
-                {{ Aire::password('password', 'Contraseña')->placeholder('Contraseña')->groupClass('mb-0') }}
+                {{ Aire::password('password')->placeholder('Contraseña')->groupClass('mb-0') }}
                 
-                {{ Aire::password('password_confirmation', 'Confirmar Contraseña')->placeholder('Confirmar Contraseña')->groupClass('mb-0') }}
+                {{ Aire::password('password_confirmation')->placeholder('Confirmar Contraseña')->groupClass('mb-0') }}
                 
                 <div class="flex items-start mt-4">
                     <div class="flex items-center h-5">

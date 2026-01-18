@@ -10,8 +10,8 @@
     <form class="mt-8 space-y-6" method="POST" action="{{ route('login') }}">
         @csrf
 
-        {{ Aire::input('email', 'Email') }}
-        {{ Aire::password('password', 'Contraseña') }}
+        {{ Aire::input('email')->placeholder('Correo electrónico') }}
+        {{ Aire::password('password')->placeholder('Contraseña') }}
 
         <div class="flex justify-between">
             <a href="{{ route('password.request') }}" class=" text-sm text-blue-700 hover:underline ">¿Olvidó su contraseña?</a>

@@ -52,13 +52,13 @@
                 </svg>
             </div>
             <h2 class="text-2xl font-bold">Ingreso</h2>
-            <p>Ingresa tus credenciales para acceder</p>
+            <p>Ingresa aquí solo si ya estás registrado</p>
 
             <div class="mt-5 p-5 w-full">
                 <form method="POST" action="{{ route('login') }}" class="space-y-5">
                     @csrf
-                    {{ Aire::input('email', 'Email')->groupClass('mb-0')->required() }}
-                    {{ Aire::password('password', 'Contraseña')->groupClass('mb-5')->required() }}
+                    {{ Aire::input('email')->placeholder('Correo electrónico')->groupClass('mb-0')->required() }}
+                    {{ Aire::password('password')->placeholder('Contraseña')->groupClass('mb-5')->required() }}
 
                     <div class="flex justify-between">
                         <a href="{{ route('password.request') }}" class="text-sm text-blue-700 hover:underline">¿Olvidó su contraseña?</a>
@@ -70,21 +70,21 @@
             </div>
         </div>
         <div id="register-section" class="border border-3 border-blue-900 p-5 rounded-lg flex flex-col items-center justify-center xl:flex xl:flex-col xl:items-center xl:justify-center hidden">
-            <h2 class="text-2xl font-bold">Registrate aquí</h2>
-            <p class="text-center mb-4">Completa los datos para acceder al portafolio de productos</p>
+            <h2 class="text-2xl font-bold">Regístrate en TUTI</h2>
+            <p class="text-center mb-4">Diligencia el formulario e inicia el proceso de activación como cliente TUTI</p>
 
             <div class="mt-5 p-5 w-full">
                 {{ Aire::open()->route('form')->post()->addClass('space-y-4') }}
                 
-                {{ Aire::input('reg_name', 'Nombre y Apellido')->placeholder('Nombre y Apellido')->groupClass('mb-0')->required() }}
+                {{ Aire::input('reg_name')->placeholder('Responsable de compra (persona natural o jurídica)')->groupClass('mb-0')->required() }}
                 
-                {{ Aire::email('reg_email', 'Correo electrónico')->placeholder('Correo electrónico')->groupClass('mb-0')->required() }}
+                {{ Aire::input('reg_nit')->placeholder('Cédula o NIT')->groupClass('mb-0')->required() }}
                 
-                {{ Aire::input('reg_phone', 'Celular')->placeholder('Celular')->groupClass('mb-0')->required() }}
+                {{ Aire::email('reg_email')->placeholder('Correo electrónico')->groupClass('mb-0')->required() }}
                 
-                {{ Aire::select($cities ?? [], 'reg_city_id', 'Ciudad')->groupClass('mb-0')->required() }}
+                {{ Aire::input('reg_phone')->placeholder('Celular')->groupClass('mb-0')->required() }}
                 
-                {{ Aire::input('reg_nit', 'Nit o cédula')->placeholder('Nit o cédula')->groupClass('mb-0')->required() }}
+                {{ Aire::select(['' => 'Ciudad'] + ($cities ?? []), 'reg_city_id')->groupClass('mb-0')->required() }}
                 
                 <div class="flex items-start mt-4">
                     <div class="flex items-center h-5">
