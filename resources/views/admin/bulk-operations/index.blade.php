@@ -96,7 +96,7 @@
                     </div>
                 </div>
 
-                <form action="{{ route('admin.bulk-operations.sync-clients-data') }}" method="POST" 
+                <form action="{{ route('bulk-operations.sync-clients-data') }}" method="POST" 
                       onsubmit="return confirm('¿Estás seguro? Este proceso sincronizará {{ number_format($clientCount) }} clientes. Puede tomar varios minutos.');">
                     @csrf
                     <button type="submit" 
@@ -164,14 +164,14 @@
                                         </td>
                                         <td class="px-6 py-4 text-right">
                                             <div class="flex items-center justify-end gap-2">
-                                                <a href="{{ route('admin.bulk-operations.download-report', $report['name']) }}" 
+                                                <a href="{{ route('bulk-operations.download-report', $report['name']) }}" 
                                                    class="inline-flex items-center px-3 py-2 text-xs font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 focus:ring-4 focus:ring-green-300">
                                                     <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
                                                     </svg>
                                                     Descargar
                                                 </a>
-                                                <form action="{{ route('admin.bulk-operations.delete-report', $report['name']) }}" 
+                                                <form action="{{ route('bulk-operations.delete-report', $report['name']) }}" 
                                                       method="POST" 
                                                       onsubmit="return confirm('¿Estás seguro de eliminar este reporte?');">
                                                     @csrf

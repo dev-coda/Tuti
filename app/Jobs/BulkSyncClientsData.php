@@ -150,8 +150,9 @@ class BulkSyncClientsData implements ShouldQueue
             } catch (\Throwable $e) {
                 $result['status'] = 'error';
                 $result['error'] = $e->getMessage();
-                $result['user_email'] = $user->email ?? 'Unknown';
-                $result['user_name'] = $user->name ?? 'Unknown';
+                // Safe access in case $user wasn't initialized due to early exception
+                $result['user_email'] = isset($user) ? ($user->email ?? 'Unknown') : 'Unknown';
+                $result['user_name'] = isset($user) ? ($user->name ?? 'Unknown') : 'Unknown';
 
                 Log::error("Error syncing client data", [
                     'session_id' => $this->sessionId,
