@@ -62,6 +62,7 @@
                         icon='heroicon-o-cog-6-tooth'
                         :menu="[
                             'settings.index'=>'Configuraciones',
+                            'admin.bulk-operations.index'=>'Procesos Masivos',
                             'settings.mailer'=>'Configuración de Correo',
                             'admin.email-templates.index'=>'Plantillas de Correo',
                             'settings.inventory-logs'=>'Logs de Inventario',

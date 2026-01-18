@@ -128,6 +128,14 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::post('settings/process-waiting-orders', [SettingController::class, 'processWaitingOrders'])->name('settings.process-waiting-orders');
     Route::get('settings/mailer-config', [SettingController::class, 'mailer'])->name('settings.mailer');
     Route::post('settings/mailer-config', [SettingController::class, 'updateMailer'])->name('settings.mailer.update');
+
+    // Bulk Operations
+    Route::prefix('bulk-operations')->name('bulk-operations.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Admin\BulkOperationsController::class, 'index'])->name('index');
+        Route::post('/sync-clients-data', [\App\Http\Controllers\Admin\BulkOperationsController::class, 'syncClientsData'])->name('sync-clients-data');
+        Route::get('/reports/{filename}/download', [\App\Http\Controllers\Admin\BulkOperationsController::class, 'downloadReport'])->name('download-report');
+        Route::delete('/reports/{filename}', [\App\Http\Controllers\Admin\BulkOperationsController::class, 'deleteReport'])->name('delete-report');
+    });
     Route::get('settings/zone-warehouses', [SettingController::class, 'zoneWarehouses'])->name('settings.zone-warehouses');
     Route::post('settings/zone-warehouses/sync', [SettingController::class, 'syncZoneWarehouses'])->name('settings.zone-warehouses.sync');
     Route::post('settings/zone-warehouses', [SettingController::class, 'storeZoneWarehouse'])->name('settings.zone-warehouses.store');
