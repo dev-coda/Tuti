@@ -324,13 +324,25 @@ class MailingService
     }
 
     /**
-     * Get admin email addresses
+     * Get admin email addresses for interesados/contact form notifications
      */
     private function getAdminEmails()
     {
-        // You can customize this to get admin emails from settings
-        // For now, return a default admin email
-        return ['admin@tuti.com'];
+        // Get admin email from settings, or use default
+        $adminEmail = Setting::getByKey('interesados_admin_email');
+        
+        if (empty($adminEmail)) {
+            // Fallback to default if not configured
+            return ['admin@tuti.com'];
+        }
+        
+        // Support multiple emails (comma-separated) or single email
+        $emails = array_map('trim', explode(',', $adminEmail));
+        $emails = array_filter($emails, function($email) {
+            return filter_var($email, FILTER_VALIDATE_EMAIL);
+        });
+        
+        return !empty($emails) ? array_values($emails) : ['admin@tuti.com'];
     }
 
     /**

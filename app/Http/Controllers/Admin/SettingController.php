@@ -122,6 +122,7 @@ class SettingController extends Controller
             'smtp_username',
             'smtp_password',
             'smtp_encryption',
+            'interesados_admin_email',
         ])->get()->keyBy('key');
 
         return view('settings.mailer', compact('mailerSettings'));
@@ -144,6 +145,22 @@ class SettingController extends Controller
             'smtp_username' => 'nullable|string|max:255',
             'smtp_password' => 'nullable|string|max:255',
             'smtp_encryption' => 'nullable|string|in:tls,ssl',
+            'interesados_admin_email' => [
+                'nullable',
+                'string',
+                'max:500',
+                function ($attribute, $value, $fail) {
+                    if (!empty($value)) {
+                        $emails = array_map('trim', explode(',', $value));
+                        foreach ($emails as $email) {
+                            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                                $fail('El campo ' . $attribute . ' debe contener direcciones de correo válidas separadas por comas.');
+                                return;
+                            }
+                        }
+                    }
+                },
+            ],
         ]);
 
         foreach ($validated as $key => $value) {
@@ -179,6 +196,7 @@ class SettingController extends Controller
             'smtp_username' => 'SMTP Username',
             'smtp_password' => 'SMTP Password',
             'smtp_encryption' => 'SMTP Encryption',
+            'interesados_admin_email' => 'Interesados Admin Email',
         ];
 
         return $names[$key] ?? ucfirst(str_replace('_', ' ', $key));

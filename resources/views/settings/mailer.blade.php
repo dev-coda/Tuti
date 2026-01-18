@@ -127,6 +127,44 @@
                 </div>
             </div>
 
+            <!-- Interesados Email Configuration -->
+            <div class="bg-white border border-gray-200 rounded-lg shadow-sm">
+                <div class="p-6 border-b border-gray-200">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                            </svg>
+                        </div>
+                        <div class="ml-3">
+                            <h3 class="text-lg font-medium text-gray-900">Notificaciones de Interesados</h3>
+                            <p class="text-sm text-gray-500">Configuración del correo que recibirá las notificaciones del formulario de contacto</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="p-6">
+                    <div>
+                        <label for="interesados_admin_email" class="block text-sm font-medium text-gray-700 mb-2">
+                            Correo del Administrador <span class="text-red-500">*</span>
+                        </label>
+                        <input type="text"
+                               id="interesados_admin_email"
+                               name="interesados_admin_email"
+                               value="{{ $mailerSettings['interesados_admin_email']->value ?? '' }}"
+                               class="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('interesados_admin_email') border-red-300 @enderror"
+                               placeholder="admin@ejemplo.com, otro@ejemplo.com">
+                        @error('interesados_admin_email')
+                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                        @enderror
+                        <p class="mt-1 text-xs text-gray-500">
+                            Dirección de correo que recibirá las notificaciones cuando alguien complete el formulario de contacto (interesados). 
+                            Puedes ingresar múltiples correos separados por comas.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
             <!-- Mailgun Configuration -->
             <div id="mailgun-config" class="bg-white border border-gray-200 rounded-lg shadow-sm">
                 <div class="p-6 border-b border-gray-200">
