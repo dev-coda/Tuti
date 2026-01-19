@@ -84,7 +84,7 @@
                 
                 {{ Aire::input('reg_phone')->placeholder('Celular')->groupClass('mb-0')->required() }}
                 
-                {{ Aire::select(['' => 'Ciudad'] + ($cities ?? []), 'reg_city_id')->groupClass('mb-0')->required() }}
+                {{ Aire::select($cities ?? [], 'reg_city_id')->groupClass('mb-0')->required() }}
                 
                 <div class="flex items-start mt-4">
                     <div class="flex items-center h-5">

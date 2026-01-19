@@ -23,7 +23,7 @@
                 
                 {{ Aire::input('phone')->placeholder('Celular')->groupClass('mb-0') }}
                 
-                {{ Aire::select(['' => 'Ciudad'] + ($cities ?? []), 'city_id')->groupClass('mb-0') }}
+                {{ Aire::select($cities ?? [], 'city_id')->groupClass('mb-0') }}
                 
                 {{ Aire::password('password')->placeholder('Contraseña')->groupClass('mb-0') }}
                 
