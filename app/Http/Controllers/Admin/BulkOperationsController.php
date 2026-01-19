@@ -46,10 +46,9 @@ class BulkOperationsController extends Controller
     public function syncClientsData(Request $request)
     {
         try {
-            // Get all users with role 'client' who have a document number
-            $userIds = User::whereHas('roles', function ($query) {
-                $query->where('name', 'client');
-            })
+            // Get all users WITHOUT roles (clients) who have a document number
+            // In this system: clients = users without roles, admins/sellers = users with roles
+            $userIds = User::whereDoesntHave('roles')
                 ->whereNotNull('document')
                 ->where('document', '!=', '')
                 ->pluck('id')

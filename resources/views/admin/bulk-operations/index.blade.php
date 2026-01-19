@@ -86,9 +86,10 @@
 
                 <div class="mb-4">
                     @php
-                        $clientCount = \App\Models\User::whereHas('roles', function($q) {
-                            $q->where('name', 'client');
-                        })->whereNotNull('document')->where('document', '!=', '')->count();
+                        $clientCount = \App\Models\User::whereDoesntHave('roles')
+                            ->whereNotNull('document')
+                            ->where('document', '!=', '')
+                            ->count();
                     @endphp
                     <div class="text-sm text-gray-600">
                         <span class="font-medium">Clientes a sincronizar:</span>
