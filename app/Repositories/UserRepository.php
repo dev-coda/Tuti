@@ -177,30 +177,61 @@ class UserRepository
             return null;
         }
 
-        if (!array_key_exists('aDetail', $aListRuteros)) {
-            return null;
-        }
-
         $items = [];
         $name = '';
-        info('AlistRuteros');
-        info(count($aListRuteros));
+        
+        // Detect if we have multiple routes (indexed array) or single route (associative array)
+        $hasMultipleRoutes = array_key_exists(0, $aListRuteros);
+        
+        info('AlistRuteros structure', [
+            'count' => count($aListRuteros),
+            'has_multiple_routes' => $hasMultipleRoutes
+        ]);
 
-        foreach ($aListRuteros as $key => $rutero) {
+        if ($hasMultipleRoutes) {
+            // Multiple routes: iterate through each route
+            foreach ($aListRuteros as $rutero) {
+                if (!isset($rutero['aDetail'])) {
+                    continue;
+                }
+
+                $aListDetailsRuteros = $rutero['aDetail']['aListDetailsRuteros'];
+                
+                $data = [
+                    'aDiaRecorrido' => $rutero['aDiaRecorrido'] ?? null,
+                    'aRoute' => $rutero['aRoute'] ?? null,
+                    'aZona' => $rutero['aZona'] ?? null,
+                ];
+
+                // Check if aListDetailsRuteros is an array of details or a single detail
+                if (array_key_exists(0, $aListDetailsRuteros)) {
+                    foreach ($aListDetailsRuteros as $detail) {
+                        $items[] = self::processData($detail, $data);
+                    }
+                } else {
+                    $items[] = self::processData($aListDetailsRuteros, $data);
+                }
+            }
+        } else {
+            // Single route: use old logic
+            if (!array_key_exists('aDetail', $aListRuteros)) {
+                return null;
+            }
+
             $aListDetailsRuteros = $aListRuteros['aDetail']['aListDetailsRuteros'];
 
             $data = [
-                'aDiaRecorrido' => $aListRuteros['aDiaRecorrido'],
-                'aRoute' => $aListRuteros['aRoute'],
-                'aZona' => $aListRuteros['aZona'],
+                'aDiaRecorrido' => $aListRuteros['aDiaRecorrido'] ?? null,
+                'aRoute' => $aListRuteros['aRoute'] ?? null,
+                'aZona' => $aListRuteros['aZona'] ?? null,
             ];
 
-            //check if exist key 0
+            // Check if aListDetailsRuteros is an array of details or a single detail
             if (array_key_exists(0, $aListDetailsRuteros)) {
-                foreach ($aListDetailsRuteros as $i) {
-                    $items[] = self::processData($i, $data);
+                foreach ($aListDetailsRuteros as $detail) {
+                    $items[] = self::processData($detail, $data);
                 }
-            } else if ('aDetail' === $key) {
+            } else {
                 $items[] = self::processData($aListDetailsRuteros, $data);
             }
         }
