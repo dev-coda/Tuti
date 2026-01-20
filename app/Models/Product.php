@@ -39,6 +39,7 @@ class Product extends Model
         'safety_stock',
         'inventory_opt_out',
         'sales_count',
+        'sync_variations_with_dynamics',
     ];
 
 

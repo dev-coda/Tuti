@@ -90,6 +90,16 @@
                     </label>
                     <p class="mt-1 text-xs text-gray-500">Cuando está desactivado, el empaque se trata como 1 unidad en el procesamiento de órdenes</p>
                 </div>
+
+                <div class="col-span-3">
+                    {{ Aire::hidden('sync_variations_with_dynamics')->value(0)}}
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input @checked($product->sync_variations_with_dynamics) type="checkbox" name='sync_variations_with_dynamics' value="1" class="sr-only peer">
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        <span class="ml-3 text-sm font-medium text-gray-900">Sincronizar variaciones con Dynamics</span>
+                    </label>
+                    <p class="mt-1 text-xs text-gray-500">Cuando está activado, las variaciones heredan el precio del producto padre al actualizar desde Dynamics</p>
+                </div>
                 
                 <!-- Rich Text Editors for Product Content -->
                 <div class="col-span-6">

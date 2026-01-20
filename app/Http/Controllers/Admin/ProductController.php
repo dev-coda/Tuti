@@ -314,6 +314,7 @@ class ProductController extends Controller
             'calculate_package_price' => 'nullable|boolean',
             'safety_stock' => 'nullable|integer|min:0',
             'inventory_opt_out' => 'nullable|boolean',
+            'sync_variations_with_dynamics' => 'nullable|boolean',
             'specifications_pdf' => 'nullable|file|mimes:pdf|max:10240',
             'remove_specifications_pdf' => 'nullable|boolean',
         ]);

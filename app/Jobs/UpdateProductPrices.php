@@ -170,6 +170,17 @@ class UpdateProductPrices implements ShouldQueue
                     if ((float) $existingProduct->price !== (float) $effectivePrice) {
                         $existingProduct->update(['price' => $effectivePrice]);
                         info("Precio actualizado para {$itemId}: {$effectivePrice} (group {$groupId})");
+
+                        // If sync_variations_with_dynamics is enabled, update all variation prices to match parent
+                        if ($existingProduct->sync_variations_with_dynamics && $existingProduct->variation_id) {
+                            $variationCount = DB::table('product_item_variation')
+                                ->where('product_id', $existingProduct->id)
+                                ->update(['price' => $effectivePrice]);
+                            
+                            if ($variationCount > 0) {
+                                info("  └─ Sincronizadas {$variationCount} variaciones con precio {$effectivePrice}");
+                            }
+                        }
                     }
                 }
             }
