@@ -73,7 +73,13 @@
                             'featured-products.index'=>'Productos Destacados',
                             'featured-categories.index'=>'Categorías Destacadas',
                             ]" />
-                        
+
+                    <li>
+                        <a href="{{ route('shipping-methods.index') }}">
+                            @svg('heroicon-o-truck', 'w-6 h-6 text-gray-500')
+                            <span class="ml-3" sidebar-toggle-item>Envíos</span>
+                        </a>
+                    </li>
                         
                         <li>
                             <a href="{{ route('users.index') }}">

@@ -405,6 +405,7 @@
                     </div>
 
                     {{-- Delivery Method Selection --}}
+                    @if($shippingMethods->isNotEmpty())
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
                             <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -412,69 +413,49 @@
                             </svg>
                             Método de entrega
                         </label>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {{-- Tronex Option --}}
+                        <div class="grid grid-cols-1 md:grid-cols-{{ $shippingMethods->count() }} gap-4">
+                            @foreach($shippingMethods as $method)
                             <button type="button" 
                                 class="delivery-option relative p-5 rounded-xl border-2 transition-all duration-300 text-left"
-                                data-method="tronex"
-                                id="delivery-option-tronex">
+                                data-method="{{ $method->code }}"
+                                id="delivery-option-{{ $method->code }}">
                                 <div class="flex items-start gap-4">
                                     <div class="flex-shrink-0">
                                         <div class="w-12 h-12 rounded-full border-2 flex items-center justify-center delivery-icon-bg">
-                                            <svg class="w-6 h-6 delivery-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
-                                            </svg>
-                                        </div>
-                                    </div>
-                                    <div class="flex-1">
-                                        <div class="font-bold text-lg delivery-title">Vendedor Tronex</div>
-                                        <div class="text-sm delivery-subtitle mt-1">Entrega durante la visita</div>
-                                        @if(!$isForceEnabled)
-                                        <div class="text-xs delivery-date mt-2 font-medium" id="delivery-date-tronex">Calculando...</div>
-                                        @endif
-                                    </div>
-                                </div>
-                                <div class="absolute top-3 right-3 w-5 h-5 rounded-full border-2 border-gray-300 delivery-check hidden items-center justify-center">
-                                    <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
-                                </div>
-                            </button>
-
-                            {{-- Express Option --}}
-                            <button type="button" 
-                                class="delivery-option relative p-5 rounded-xl border-2 transition-all duration-300 text-left {{ !$isEnabled ? 'opacity-50 cursor-not-allowed bg-gray-50' : '' }}"
-                                data-method="express"
-                                id="delivery-option-express"
-                                {{ !$isEnabled ? 'disabled' : '' }}>
-                                <div class="flex items-start gap-4">
-                                    <div class="flex-shrink-0">
-                                        <div class="w-12 h-12 rounded-full border-2 flex items-center justify-center delivery-icon-bg {{ !$isEnabled ? 'border-gray-300' : '' }}">
-                                            <svg class="w-6 h-6 delivery-icon {{ !$isEnabled ? 'text-gray-400' : '' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
-                                            </svg>
-                                        </div>
-                                    </div>
-                                    <div class="flex-1">
-                                        <div class="font-bold text-lg delivery-title {{ !$isEnabled ? 'text-gray-400' : '' }}">
-                                            Entrega en 48h
-                                            @if(!$isEnabled)
-                                                <span class="text-xs font-normal text-gray-400">(No disponible)</span>
+                                            @if($method->code === 'express')
+                                                <svg class="w-6 h-6 delivery-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                                                </svg>
+                                            @else
+                                                <svg class="w-6 h-6 delivery-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                                </svg>
                                             @endif
                                         </div>
-                                        <div class="text-sm delivery-subtitle mt-1 {{ !$isEnabled ? 'text-gray-400' : '' }}">Compra mínima $80.000</div>
-                                        @if($isEnabled && !$isForceEnabled)
-                                            <div class="text-xs delivery-date mt-2 font-medium" id="delivery-date-express">Calculando...</div>
+                                    </div>
+                                    <div class="flex-1">
+                                        <div class="font-bold text-lg delivery-title">{{ $method->name }}</div>
+                                        @if($method->description)
+                                            <div class="text-sm delivery-subtitle mt-1">{{ $method->description }}</div>
+                                        @endif
+                                        @if(!$isForceEnabled)
+                                            <div class="text-xs delivery-date mt-2 font-medium" id="delivery-date-{{ $method->code }}">Calculando...</div>
                                         @endif
                                     </div>
                                 </div>
-                                @if($isEnabled)
                                 <div class="absolute top-3 right-3 w-5 h-5 rounded-full border-2 border-gray-300 delivery-check hidden items-center justify-center">
                                     <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
                                 </div>
-                                @endif
                             </button>
+                            @endforeach
                         </div>
-                        <input type="hidden" name="delivery_method" id="delivery_method" value="tronex">
+                        <input type="hidden" name="delivery_method" id="delivery_method" value="{{ $shippingMethods->first()->code ?? 'tronex' }}">
                     </div>
+                    @else
+                    <div class="p-4 bg-red-50 border border-red-200 rounded-lg">
+                        <p class="text-sm text-red-800">No hay métodos de envío disponibles en este momento. Por favor contacta al administrador.</p>
+                    </div>
+                    @endif
 
                     {{-- Observations --}}
                     <div>

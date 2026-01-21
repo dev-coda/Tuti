@@ -28,6 +28,7 @@ use App\Http\Controllers\Admin\ContactController;
 use App\Http\Controllers\Admin\SellerController;
 use App\Http\Controllers\Admin\FeaturedProductController;
 use App\Http\Controllers\Admin\FeaturedCategoryController;
+use App\Http\Controllers\Admin\ShippingMethodController;
 use App\Http\Controllers\Admin\TagController;
 use App\Http\Controllers\Admin\DeliveryCalendarController;
 use App\Http\Controllers\Admin\RouteCycleController;
@@ -128,6 +129,12 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::post('settings/process-waiting-orders', [SettingController::class, 'processWaitingOrders'])->name('settings.process-waiting-orders');
     Route::get('settings/mailer-config', [SettingController::class, 'mailer'])->name('settings.mailer');
     Route::post('settings/mailer-config', [SettingController::class, 'updateMailer'])->name('settings.mailer.update');
+
+    // Shipping Methods
+    Route::get('shipping-methods', [ShippingMethodController::class, 'index'])->name('shipping-methods.index');
+    Route::get('shipping-methods/{shippingMethod}/edit', [ShippingMethodController::class, 'edit'])->name('shipping-methods.edit');
+    Route::put('shipping-methods/{shippingMethod}', [ShippingMethodController::class, 'update'])->name('shipping-methods.update');
+    Route::patch('shipping-methods/{shippingMethod}/toggle', [ShippingMethodController::class, 'toggle'])->name('shipping-methods.toggle');
 
     // Bulk Operations
     Route::prefix('bulk-operations')->name('bulk-operations.')->group(function () {

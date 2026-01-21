@@ -327,7 +327,10 @@ class CartController extends Controller
 
         // Coupon calculation is already done above
 
-        $context = compact('products', 'alertVendors', 'vendorDiscountAlerts', 'zones', 'set_user', 'client', 'alertTotal', 'min_amount', 'total_cart', 'has_orders', 'appliedCoupon', 'couponDiscount', 'couponMessage');
+        // Get enabled shipping methods
+        $shippingMethods = \App\Models\ShippingMethod::getEnabled();
+
+        $context = compact('products', 'alertVendors', 'vendorDiscountAlerts', 'zones', 'set_user', 'client', 'alertTotal', 'min_amount', 'total_cart', 'has_orders', 'appliedCoupon', 'couponDiscount', 'couponMessage', 'shippingMethods');
 
         return view('pages.cart', $context);
     }
