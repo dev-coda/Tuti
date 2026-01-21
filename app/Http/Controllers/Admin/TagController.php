@@ -33,10 +33,36 @@ class TagController extends Controller
      */
     public function create()
     {
-        $products = Product::orderBy('name')->pluck('name', 'id');
-        $categories = Category::orderBy('name')->pluck('name', 'id');
-        $brands = Brand::orderBy('name')->pluck('name', 'id');
-        $bonifications = Bonification::orderBy('name')->pluck('name', 'id');
+        // Get products with SKU and name for better identification
+        $products = Product::orderBy('name')->get()->map(function ($product) {
+            return [
+                'id' => $product->id,
+                'name' => $product->name,
+                'sku' => $product->sku,
+                'display' => "{$product->sku} - {$product->name}",
+            ];
+        });
+
+        $categories = Category::orderBy('name')->get()->map(function ($category) {
+            return [
+                'id' => $category->id,
+                'name' => $category->name,
+            ];
+        });
+
+        $brands = Brand::orderBy('name')->get()->map(function ($brand) {
+            return [
+                'id' => $brand->id,
+                'name' => $brand->name,
+            ];
+        });
+
+        $bonifications = Bonification::orderBy('name')->get()->map(function ($bonification) {
+            return [
+                'id' => $bonification->id,
+                'name' => $bonification->name,
+            ];
+        });
 
         return view('tags.create', compact('products', 'categories', 'brands', 'bonifications'));
     }
@@ -98,10 +124,36 @@ class TagController extends Controller
     {
         $tag->load(['products', 'categories', 'brands', 'bonifications']);
 
-        $products = Product::orderBy('name')->pluck('name', 'id');
-        $categories = Category::orderBy('name')->pluck('name', 'id');
-        $brands = Brand::orderBy('name')->pluck('name', 'id');
-        $bonifications = Bonification::orderBy('name')->pluck('name', 'id');
+        // Get products with SKU and name for better identification
+        $products = Product::orderBy('name')->get()->map(function ($product) {
+            return [
+                'id' => $product->id,
+                'name' => $product->name,
+                'sku' => $product->sku,
+                'display' => "{$product->sku} - {$product->name}",
+            ];
+        });
+
+        $categories = Category::orderBy('name')->get()->map(function ($category) {
+            return [
+                'id' => $category->id,
+                'name' => $category->name,
+            ];
+        });
+
+        $brands = Brand::orderBy('name')->get()->map(function ($brand) {
+            return [
+                'id' => $brand->id,
+                'name' => $brand->name,
+            ];
+        });
+
+        $bonifications = Bonification::orderBy('name')->get()->map(function ($bonification) {
+            return [
+                'id' => $bonification->id,
+                'name' => $bonification->name,
+            ];
+        });
 
         return view('tags.edit', compact('tag', 'products', 'categories', 'brands', 'bonifications'));
     }

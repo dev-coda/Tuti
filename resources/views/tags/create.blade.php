@@ -42,47 +42,145 @@
                 Selecciona los productos, categorías, marcas o bonificaciones a los que se aplicará esta etiqueta.
             </p>
 
-            <div class="space-y-4">
+            <div class="space-y-6">
+                <!-- Products -->
                 <div>
                     <label class="block mb-2 text-sm font-medium text-gray-900">Productos específicos</label>
-                    <select name="product_ids[]" multiple class="w-full border border-gray-300 rounded-lg p-2 text-sm" size="5">
-                        @foreach($products as $id => $name)
-                            <option value="{{ $id }}">{{ $name }}</option>
+                    <input 
+                        type="text" 
+                        id="product-filter"
+                        placeholder="Buscar por SKU o nombre..."
+                        class="w-full mb-2 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500"
+                    >
+                    <div class="border border-gray-300 rounded-lg p-3 max-h-60 overflow-y-auto bg-gray-50">
+                        @foreach($products as $product)
+                            <label class="flex items-center py-1.5 px-2 hover:bg-white rounded cursor-pointer product-item">
+                                <input 
+                                    type="checkbox" 
+                                    name="product_ids[]" 
+                                    value="{{ $product['id'] }}"
+                                    class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                                >
+                                <span class="ml-2 text-sm text-gray-700" data-search="{{ strtolower($product['display']) }}">
+                                    {{ $product['display'] }}
+                                </span>
+                            </label>
                         @endforeach
-                    </select>
-                    <p class="mt-1 text-xs text-gray-500">Mantén presionado Ctrl/Cmd para seleccionar múltiples</p>
+                    </div>
+                    <p class="mt-1 text-xs text-gray-500">Selecciona los productos que desees</p>
                 </div>
 
+                <!-- Categories -->
                 <div>
                     <label class="block mb-2 text-sm font-medium text-gray-900">Categorías</label>
-                    <select name="category_ids[]" multiple class="w-full border border-gray-300 rounded-lg p-2 text-sm" size="5">
-                        @foreach($categories as $id => $name)
-                            <option value="{{ $id }}">{{ $name }}</option>
+                    <input 
+                        type="text" 
+                        id="category-filter"
+                        placeholder="Buscar categorías..."
+                        class="w-full mb-2 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500"
+                    >
+                    <div class="border border-gray-300 rounded-lg p-3 max-h-60 overflow-y-auto bg-gray-50">
+                        @foreach($categories as $category)
+                            <label class="flex items-center py-1.5 px-2 hover:bg-white rounded cursor-pointer category-item">
+                                <input 
+                                    type="checkbox" 
+                                    name="category_ids[]" 
+                                    value="{{ $category['id'] }}"
+                                    class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                                >
+                                <span class="ml-2 text-sm text-gray-700" data-search="{{ strtolower($category['name']) }}">
+                                    {{ $category['name'] }}
+                                </span>
+                            </label>
                         @endforeach
-                    </select>
+                    </div>
                 </div>
 
+                <!-- Brands -->
                 <div>
                     <label class="block mb-2 text-sm font-medium text-gray-900">Marcas</label>
-                    <select name="brand_ids[]" multiple class="w-full border border-gray-300 rounded-lg p-2 text-sm" size="5">
-                        @foreach($brands as $id => $name)
-                            <option value="{{ $id }}">{{ $name }}</option>
+                    <input 
+                        type="text" 
+                        id="brand-filter"
+                        placeholder="Buscar marcas..."
+                        class="w-full mb-2 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500"
+                    >
+                    <div class="border border-gray-300 rounded-lg p-3 max-h-60 overflow-y-auto bg-gray-50">
+                        @foreach($brands as $brand)
+                            <label class="flex items-center py-1.5 px-2 hover:bg-white rounded cursor-pointer brand-item">
+                                <input 
+                                    type="checkbox" 
+                                    name="brand_ids[]" 
+                                    value="{{ $brand['id'] }}"
+                                    class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                                >
+                                <span class="ml-2 text-sm text-gray-700" data-search="{{ strtolower($brand['name']) }}">
+                                    {{ $brand['name'] }}
+                                </span>
+                            </label>
                         @endforeach
-                    </select>
+                    </div>
                 </div>
 
+                <!-- Bonifications -->
                 <div>
                     <label class="block mb-2 text-sm font-medium text-gray-900">Bonificaciones</label>
-                    <select name="bonification_ids[]" multiple class="w-full border border-gray-300 rounded-lg p-2 text-sm" size="5">
-                        @foreach($bonifications as $id => $name)
-                            <option value="{{ $id }}">{{ $name }}</option>
+                    <input 
+                        type="text" 
+                        id="bonification-filter"
+                        placeholder="Buscar bonificaciones..."
+                        class="w-full mb-2 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500"
+                    >
+                    <div class="border border-gray-300 rounded-lg p-3 max-h-60 overflow-y-auto bg-gray-50">
+                        @foreach($bonifications as $bonification)
+                            <label class="flex items-center py-1.5 px-2 hover:bg-white rounded cursor-pointer bonification-item">
+                                <input 
+                                    type="checkbox" 
+                                    name="bonification_ids[]" 
+                                    value="{{ $bonification['id'] }}"
+                                    class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                                >
+                                <span class="ml-2 text-sm text-gray-700" data-search="{{ strtolower($bonification['name']) }}">
+                                    {{ $bonification['name'] }}
+                                </span>
+                            </label>
                         @endforeach
-                    </select>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
 {{ Aire::close() }}
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Generic filter function
+    function setupFilter(inputId, itemClass) {
+        const input = document.getElementById(inputId);
+        if (!input) return;
+
+        input.addEventListener('input', function() {
+            const filter = this.value.toLowerCase();
+            const items = document.querySelectorAll('.' + itemClass);
+            
+            items.forEach(function(item) {
+                const searchText = item.querySelector('[data-search]').getAttribute('data-search');
+                if (searchText.includes(filter)) {
+                    item.style.display = '';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        });
+    }
+
+    // Setup filters for each criteria
+    setupFilter('product-filter', 'product-item');
+    setupFilter('category-filter', 'category-item');
+    setupFilter('brand-filter', 'brand-item');
+    setupFilter('bonification-filter', 'bonification-item');
+});
+</script>
 @endsection
 
