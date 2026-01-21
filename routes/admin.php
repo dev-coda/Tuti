@@ -247,6 +247,10 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
         Route::get('/{report}/download', [App\Http\Controllers\Admin\ReportController::class, 'download'])->name('download');
         Route::get('/{report}/status', [App\Http\Controllers\Admin\ReportController::class, 'status'])->name('status');
         Route::delete('/{report}', [App\Http\Controllers\Admin\ReportController::class, 'destroy'])->name('destroy');
+        
+        // Daily Sales Report
+        Route::get('/daily-sales', [App\Http\Controllers\Admin\ReportController::class, 'dailySales'])->name('daily-sales');
+        Route::get('/daily-sales/export', [App\Http\Controllers\Admin\ReportController::class, 'exportDailySales'])->name('daily-sales.export');
     });
     Route::resource('sellers', SellerController::class);
 

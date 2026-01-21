@@ -54,6 +54,25 @@
         <h2 class="text-lg font-semibold text-gray-900 mb-4">Generar Reportes Rápidos</h2>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             
+            <!-- Daily Sales Report Card -->
+            <div class="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-lg p-6 hover:shadow-lg transition-shadow">
+                <div class="flex items-start justify-between mb-4">
+                    <div class="flex-shrink-0">
+                        <div class="w-12 h-12 bg-purple-600 rounded-lg flex items-center justify-center">
+                            @svg('heroicon-o-currency-dollar', 'w-6 h-6 text-white')
+                        </div>
+                    </div>
+                    <span class="px-2 py-1 text-xs font-semibold text-purple-800 bg-purple-200 rounded">Nuevo</span>
+                </div>
+                <h3 class="text-lg font-semibold text-gray-900 mb-2">Ventas Diarias</h3>
+                <p class="text-sm text-gray-600 mb-4">Reporte completo de ventas, pedidos y ticket promedio con filtros avanzados</p>
+                <a href="{{ route('admin.reports.daily-sales') }}" 
+                   class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 focus:ring-4 focus:ring-purple-300 transition-colors">
+                    Ver Reporte
+                    @svg('heroicon-o-arrow-right', 'w-4 h-4 ml-2')
+                </a>
+            </div>
+
             <!-- KPI Report Card -->
             <div class="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-6 hover:shadow-lg transition-shadow">
                 <div class="flex items-start justify-between mb-4">

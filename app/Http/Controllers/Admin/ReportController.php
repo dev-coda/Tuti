@@ -244,4 +244,59 @@ class ReportController extends Controller
 
         return back()->with('success', 'Reporte eliminado correctamente.');
     }
+
+    /**
+     * Display daily sales dashboard
+     */
+    public function dailySales(Request $request)
+    {
+        $dateFrom = $request->get('date_from', now()->startOfMonth()->format('Y-m-d'));
+        $dateTo = $request->get('date_to', now()->format('Y-m-d'));
+        $region = $request->get('region');
+        $sellerId = $request->get('seller_id');
+
+        // Base query for orders
+        $ordersQuery = \App\Models\Order::query()
+            ->with(['user', 'seller', 'zone'])
+            ->whereDate('created_at', '>=', $dateFrom)
+            ->whereDate('created_at', '<=', $dateTo)
+            ->where('status_id', \App\Models\Order::STATUS_PROCESSED);
+
+        if ($sellerId) {
+            $ordersQuery->where('seller_id', $sellerId);
+        }
+
+        // Get paginated orders
+        $orders = $ordersQuery->orderBy('created_at', 'desc')->paginate(50)->appends($request->query());
+
+        // Calculate KPIs
+        $kpis = [
+            'total_orders' => (clone $ordersQuery)->count(),
+            'total_sales' => (clone $ordersQuery)->sum('total'),
+            'avg_ticket' => (clone $ordersQuery)->avg('total'),
+        ];
+
+        // Get sellers for filter
+        $sellers = \App\Models\User::role('seller')->orderBy('name')->pluck('name', 'id')->prepend('Todos los vendedores', '');
+
+        return view('admin.reports.daily-sales', compact('orders', 'kpis', 'sellers', 'dateFrom', 'dateTo', 'sellerId'));
+    }
+
+    /**
+     * Export daily sales to Excel
+     */
+    public function exportDailySales(Request $request)
+    {
+        $dateFrom = $request->get('date_from');
+        $dateTo = $request->get('date_to');
+        $region = $request->get('region');
+        $sellerId = $request->get('seller_id');
+
+        $filename = 'ventas_diarias_' . now()->format('Y-m-d_His') . '.xlsx';
+
+        return \Maatwebsite\Excel\Facades\Excel::download(
+            new \App\Exports\DailySalesExport($dateFrom, $dateTo, $region, $sellerId),
+            $filename
+        );
+    }
 }

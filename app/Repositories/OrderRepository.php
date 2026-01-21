@@ -65,7 +65,7 @@ class OrderRepository
                 'zone_id' => $order->zone_id,
                 'user_id' => $order->user_id,
             ]);
-            
+
             $order->withoutEvents(function () use ($order) {
                 $order->update([
                     'status_id' => Order::STATUS_ERROR,
@@ -83,23 +83,23 @@ class OrderRepository
         ]);
 
         $delivery_date = $order->delivery_date;
-        
+
         // Check if force delivery date is enabled (emergency override)
         $forceDeliveryDate = Setting::getByKey('force_delivery_date_enabled') == '1';
         if ($forceDeliveryDate) {
             // Override with next business day
             $nextBusinessDay = self::getBusinessDay(0);
-            
+
             Log::channel('soap')->warning('Force Delivery Date is ACTIVE - Overriding delivery date', [
                 'order_id' => $order->id,
                 'original_delivery_date' => $delivery_date,
                 'forced_delivery_date' => $nextBusinessDay,
                 'setting_enabled_by' => 'Admin Panel'
             ]);
-            
+
             $delivery_date = $nextBusinessDay;
         }
-        
+
         $observations = $order->observations;
 
         $day = $zone->day;
@@ -173,12 +173,12 @@ class OrderRepository
             // Also handle flat discount type by applying it to unit price instead of percentage field
             $discountType = $product->discount_type ?? 'percentage';
             $flatDiscountAmount = (float) ($product->flat_discount_amount ?? 0);
-            
+
             // Validate and clamp discount percentage to valid range (0-100)
             // This prevents SOAP errors from invalid percentage values
             $rawPercentage = $product->percentage ?? 0;
             $discountPercentage = max(0, min(100, (int) $rawPercentage));
-            
+
             if ($bonification) {
                 // For bonifications: always send the exact quantity specified, never multiply by package_quantity
                 // Bonifications are always individual items, not package units
@@ -189,18 +189,18 @@ class OrderRepository
                 // For regular products, use the order product's package quantity
                 $effectivePackageQuantity = $productData->calculate_package_price ? $product->package_quantity : 1;
                 $baseUnitPrice = $effectivePackageQuantity ? parseCurrency($product->price / $effectivePackageQuantity) : parseCurrency($product->price);
-                
+
                 // Handle flat discount: apply it to unit price, set percentage to 0
                 if ($discountType === 'fixed_amount' && $flatDiscountAmount > 0) {
                     // Ensure minimum price of 10% of base to prevent zero prices in SOAP
                     $minAllowedPrice = (float)$baseUnitPrice * 0.1;
                     $maxAllowedReduction = max(0, (float)$baseUnitPrice - $minAllowedPrice);
                     $effectiveFlatDiscount = min((float)$flatDiscountAmount, $maxAllowedReduction);
-                    
+
                     // Apply flat discount to unit price with safeguard
                     $unitPrice = parseCurrency(max($minAllowedPrice, (float)$baseUnitPrice - $effectiveFlatDiscount));
                     $discountPercentage = 0; // No percentage when using flat amount
-                    
+
                     Log::channel('soap')->info('Applying flat discount to unit price', [
                         'order_id' => $order->id,
                         'product_id' => $product->product_id,
@@ -341,7 +341,7 @@ class OrderRepository
                 'config_value' => $resource_url,
                 'env_value' => env('MICROSOFT_RESOURCE_URL'),
             ]);
-            
+
             // Update order with error status
             $order->withoutEvents(function () use ($order, $body) {
                 $order->update([
@@ -357,7 +357,7 @@ class OrderRepository
             Log::channel('soap')->error('CRITICAL: Microsoft token is missing', [
                 'order_id' => $order_id,
             ]);
-            
+
             $order->withoutEvents(function () use ($order, $body) {
                 $order->update([
                     'status_id' => Order::STATUS_ERROR,
@@ -796,23 +796,23 @@ class OrderRepository
         $today = now()->startOfDay();
         $tomorrow = $today->copy()->addDay();
         $fromDate = $tomorrow; // Start searching from tomorrow
-        
+
         // Keep looking through weeks until we find a valid future date
         $maxIterations = 52; // Safety limit: max 1 year of weeks
         $iteration = 0;
-        
+
         while ($iteration < $maxIterations) {
             // Find next available week for this cycle starting from our search date
             $nextWeek = DeliveryCalendar::getNextAvailableWeek($cycle, $fromDate);
-            
+
             if (!$nextWeek) {
                 // No more weeks available, return null
                 return null;
             }
-            
+
             $startDate = Carbon::parse($nextWeek->start_date)->startOfDay();
             $endDate = Carbon::parse($nextWeek->end_date)->startOfDay();
-            
+
             // Find the matching weekday in this week
             $currentDate = $startDate->copy();
             while ($currentDate->lte($endDate)) {
@@ -827,13 +827,13 @@ class OrderRepository
                 }
                 $currentDate->addDay();
             }
-            
+
             // If we didn't find a valid date in this week, move to the next week
             // Start searching from the day after this week ends
             $fromDate = $endDate->copy()->addDay();
             $iteration++;
         }
-        
+
         // If we've exhausted all weeks, return null
         return null;
     }
@@ -870,7 +870,7 @@ class OrderRepository
 
         // Use the helper method to get seller visit date
         $sellerVisitDate = self::getTronexSellerVisitDate($zone);
-        
+
         if (!$sellerVisitDate) {
             Log::warning('Could not determine seller visit date, using fallback');
             return self::getBusinessDay(0);
@@ -882,7 +882,7 @@ class OrderRepository
         $deliveryDate = self::getBusinessDayFromDate($sellerVisitDate, 0);
         $deliveryDateCarbon = Carbon::parse($deliveryDate)->startOfDay();
         $tomorrow = now()->startOfDay()->addDay();
-        
+
         // Double-check: ensure delivery date is at least tomorrow
         // This is a safety check in case getBusinessDayFromDate somehow returns today
         if ($deliveryDateCarbon->lt($tomorrow)) {
@@ -895,7 +895,7 @@ class OrderRepository
                 return self::getBusinessDay(0);
             }
         }
-        
+
         return $deliveryDate;
     }
 
@@ -909,7 +909,7 @@ class OrderRepository
     private static function getBusinessDayFromDate(Carbon $fromDate, int $daysAhead = 0): string
     {
         $now = $fromDate->copy();
-        
+
         // Find the required number of business days ahead
         $i = 0;
         $businessDaysFound = 0;
@@ -945,12 +945,12 @@ class OrderRepository
     {
         // Start counting from tomorrow (orders placed today cannot be delivered today)
         $startDate = now()->startOfDay()->addDay();
-        
+
         // Count exactly 2 business days starting from tomorrow
         $now = $startDate->copy();
         $businessDaysFound = 0;
         $targetBusinessDays = 2; // Exactly 2 business days
-        
+
         // Count 2 business days starting from tomorrow
         while ($businessDaysFound < $targetBusinessDays) {
             if (self::isBussinessDay($now)) {
@@ -963,7 +963,7 @@ class OrderRepository
             // Move to next day
             $now = $now->addDay();
         }
-        
+
         return $now->format('Y-m-d');
     }
 
@@ -979,7 +979,7 @@ class OrderRepository
         if ($method === 'express') {
             return self::getExpressDeliveryDate();
         }
-        
+
         return self::getTronexDeliveryDate($zone);
     }
 
