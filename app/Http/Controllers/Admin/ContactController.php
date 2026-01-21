@@ -15,9 +15,18 @@ class ContactController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $contacts = Contact::orderByDesc('id')->paginate();
+        $contacts = Contact::query()
+            ->when($request->date_from, function ($query, $dateFrom) {
+                $query->whereDate('created_at', '>=', $dateFrom);
+            })
+            ->when($request->date_to, function ($query, $dateTo) {
+                $query->whereDate('created_at', '<=', $dateTo);
+            })
+            ->orderByDesc('id')
+            ->paginate();
+
         return view('contacts.index', compact('contacts'));
     }
 
@@ -69,8 +78,14 @@ class ContactController extends Controller
         //
     }
 
-    public function export()
+    public function export(Request $request)
     {
-        return Excel::download(new ContactsExport, 'interesados.xlsx');
+        $dateFrom = $request->query('date_from');
+        $dateTo = $request->query('date_to');
+        
+        return Excel::download(
+            new ContactsExport($dateFrom, $dateTo),
+            'interesados_' . now()->format('Y-m-d_His') . '.xlsx'
+        );
     }
 }
