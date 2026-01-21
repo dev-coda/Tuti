@@ -977,13 +977,13 @@ class CartController extends Controller
         }
 
         if ($duplicateOrder) {
-            // Clear cart and redirect with success message
+            // Clear cart and redirect to thank you page
             if (app()->environment('production')) {
                 session()->forget('cart');
             }
             session()->forget('user_id');
 
-            return to_route('home')->with('success', 'Su pedido ya fue procesado exitosamente!');
+            return redirect()->route('orders.thank-you', $duplicateOrder->id);
         }
 
         // Check if user has previous orders (only if first order discount is enabled)
@@ -1526,11 +1526,8 @@ class CartController extends Controller
                 Log::info("Order {$order->id} created with STATUS_WAITING, will be processed on {$scheduledTransmissionDate}");
             }
 
-            $successMessage = $orderStatus === Order::STATUS_WAITING 
-                ? "Compra procesada con éxito! Tu pedido será enviado el {$scheduledTransmissionDate}."
-                : 'Compra procesada con exito!';
-
-            return to_route('home')->with('success', $successMessage);
+            // Redirect to thank you page instead of home
+            return redirect()->route('orders.thank-you', $order->id);
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error creating order: ' . $e->getMessage(), [
@@ -1637,5 +1634,44 @@ class CartController extends Controller
         session()->forget('applied_coupon');
 
         return redirect()->route('cart')->with('success', 'Cupón removido exitosamente.');
+    }
+
+    /**
+     * Show the thank you page after order is placed
+     */
+    public function thankYou(Order $order)
+    {
+        // Verify the order belongs to the current user or their client (for sellers)
+        $user = auth()->user();
+        
+        if ($user->hasRole('seller')) {
+            // Sellers can view orders they created for clients
+            if ($order->seller_id !== $user->id) {
+                abort(403, 'No autorizado para ver este pedido.');
+            }
+        } else {
+            // Regular users can only view their own orders
+            if ($order->user_id !== $user->id) {
+                abort(403, 'No autorizado para ver este pedido.');
+            }
+        }
+
+        // Calculate estimated delivery date
+        $estimatedDelivery = null;
+        if ($order->scheduled_transmission_date) {
+            $transmissionDate = \Carbon\Carbon::parse($order->scheduled_transmission_date);
+            // Add 2-4 business days for delivery
+            $estimatedStart = $transmissionDate->copy()->addWeekdays(2);
+            $estimatedEnd = $transmissionDate->copy()->addWeekdays(4);
+            $estimatedDelivery = $estimatedStart->format('d') . ' - ' . $estimatedEnd->format('d F Y');
+        } else {
+            // If no scheduled date, estimate from creation date
+            $creationDate = $order->created_at;
+            $estimatedStart = $creationDate->copy()->addWeekdays(2);
+            $estimatedEnd = $creationDate->copy()->addWeekdays(4);
+            $estimatedDelivery = $estimatedStart->format('d') . ' - ' . $estimatedEnd->format('d F Y');
+        }
+
+        return view('orders.thank-you', compact('order', 'estimatedDelivery'));
     }
 }

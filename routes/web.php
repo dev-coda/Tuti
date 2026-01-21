@@ -73,6 +73,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/ordenes', [OrderController::class, 'index'])->name('clients.orders.index');
     Route::get('/ordenes/{order}', [OrderController::class, 'show'])->name('clients.orders.show');
     Route::post('/ordenes/{order}/reorder', [OrderController::class, 'reorder'])->name('clients.orders.reorder');
+    
+    // Thank you page after order placement
+    Route::get('/ordenes/{order}/gracias', [CartController::class, 'thankYou'])->name('orders.thank-you');
 });
 
 Route::name('sellers.')->prefix('vendedor')->group(function () {
