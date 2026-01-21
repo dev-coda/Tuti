@@ -188,8 +188,7 @@ class OrderRepository
             } else {
                 // For regular products, use the order product's package quantity
                 $effectivePackageQuantity = $productData->calculate_package_price ? $product->package_quantity : 1;
-                // The stored price is already the per-unit price; don't divide by package quantity
-                $baseUnitPrice = parseCurrency($product->price);
+                $baseUnitPrice = $effectivePackageQuantity ? parseCurrency($product->price / $effectivePackageQuantity) : parseCurrency($product->price);
                 
                 // Handle flat discount: apply it to unit price, set percentage to 0
                 if ($discountType === 'fixed_amount' && $flatDiscountAmount > 0) {
