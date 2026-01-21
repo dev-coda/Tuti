@@ -1656,22 +1656,6 @@ class CartController extends Controller
             }
         }
 
-        // Calculate estimated delivery date
-        $estimatedDelivery = null;
-        if ($order->scheduled_transmission_date) {
-            $transmissionDate = \Carbon\Carbon::parse($order->scheduled_transmission_date);
-            // Add 2-4 business days for delivery
-            $estimatedStart = $transmissionDate->copy()->addWeekdays(2);
-            $estimatedEnd = $transmissionDate->copy()->addWeekdays(4);
-            $estimatedDelivery = $estimatedStart->format('d') . ' - ' . $estimatedEnd->format('d F Y');
-        } else {
-            // If no scheduled date, estimate from creation date
-            $creationDate = $order->created_at;
-            $estimatedStart = $creationDate->copy()->addWeekdays(2);
-            $estimatedEnd = $creationDate->copy()->addWeekdays(4);
-            $estimatedDelivery = $estimatedStart->format('d') . ' - ' . $estimatedEnd->format('d F Y');
-        }
-
-        return view('orders.thank-you', compact('order', 'estimatedDelivery'));
+        return view('orders.thank-you', compact('order'));
     }
 }
