@@ -61,12 +61,12 @@ class ReportController extends Controller
                 'filters' => ['from_date', 'to_date', 'brand_id', 'vendor_id'],
             ],
             'orders_audit_export' => [
-                'name' => 'Auditoría Diaria de Pedidos',
-                'description' => 'Reporte de auditoría de pedidos con package quantity, bonificaciones y precios sospechosos del SOAP (<$500)',
+                'name' => 'Auditoría de Pedidos',
+                'description' => 'Reporte desde una fecha hasta ahora con package quantity, bonificaciones y precios sospechosos del SOAP (<$500)',
                 'has_filters' => true,
                 'type' => 'direct',
                 'url' => '/admin/orderauditexport',
-                'filters' => ['date'],
+                'filters' => ['from_date'],
             ],
             'holidays_export' => [
                 'name' => 'Exportar Festivos',

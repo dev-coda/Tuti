@@ -14,36 +14,39 @@ class GenerateDailyAuditReport extends Command
      *
      * @var string
      */
-    protected $signature = 'orders:daily-audit {date? : The date to audit (Y-m-d format). Defaults to yesterday}';
+    protected $signature = 'orders:daily-audit {from_date? : Start date to audit from (Y-m-d format). Defaults to yesterday}';
 
     /**
      * The console command description.
      *
      * @var string
      */
-    protected $description = 'Generate daily audit report for orders with package quantities, bonifications, and suspicious pricing';
+    protected $description = 'Generate audit report for orders from a date until now, showing package quantities, bonifications, and suspicious SOAP pricing';
 
     /**
      * Execute the console command.
      */
     public function handle()
     {
-        $date = $this->argument('date') ?? now()->subDay()->format('Y-m-d');
+        $fromDate = $this->argument('from_date') ?? now()->subDay()->format('Y-m-d');
         
         // Validate date format
-        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $fromDate)) {
             $this->error('Invalid date format. Please use Y-m-d format (e.g., 2026-01-21)');
             return 1;
         }
 
-        $this->info("Generating daily audit report for: {$date}");
+        $now = now()->format('Y-m-d H:i:s');
+        $this->info("Generating audit report from: {$fromDate} until now ({$now})");
 
         try {
             // Generate filename
-            $filename = 'reports/orders_audit_' . str_replace('-', '', $date) . '_' . time() . '.xlsx';
+            $todayStr = now()->format('Ymd');
+            $fromDateStr = str_replace('-', '', $fromDate);
+            $filename = 'reports/orders_audit_' . $fromDateStr . '_to_' . $todayStr . '_' . time() . '.xlsx';
             
             // Export to storage
-            Excel::store(new OrdersDailyAuditExport($date), $filename, 'local');
+            Excel::store(new OrdersDailyAuditExport($fromDate), $filename, 'local');
             
             $fullPath = Storage::disk('local')->path($filename);
             
@@ -53,13 +56,13 @@ class GenerateDailyAuditReport extends Command
             $this->line('');
             
             // Show summary
-            $this->showSummary($date);
+            $this->showSummary($fromDate);
             
             return 0;
         } catch (\Exception $e) {
             $this->error('Failed to generate report: ' . $e->getMessage());
             \Log::error('Daily audit report generation failed', [
-                'date' => $date,
+                'from_date' => $fromDate,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
@@ -67,9 +70,11 @@ class GenerateDailyAuditReport extends Command
         }
     }
 
-    private function showSummary($date)
+    private function showSummary($fromDate)
     {
-        $orders = \App\Models\Order::whereDate('created_at', $date)->get();
+        $orders = \App\Models\Order::where('created_at', '>=', $fromDate . ' 00:00:00')
+            ->where('created_at', '<=', now())
+            ->get();
         $totalOrders = $orders->count();
         
         if ($totalOrders === 0) {

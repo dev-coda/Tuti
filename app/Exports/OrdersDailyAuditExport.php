@@ -14,19 +14,20 @@ class OrdersDailyAuditExport implements FromQuery, WithMapping, WithHeadings, Wi
 {
     use Exportable;
 
-    private $date;
+    private $fromDate;
 
-    public function __construct(string $date = null)
+    public function __construct(string $fromDate = null)
     {
         // Default to yesterday if no date provided
-        $this->date = $date ?? now()->subDay()->format('Y-m-d');
+        $this->fromDate = $fromDate ?? now()->subDay()->format('Y-m-d');
     }
 
     public function query()
     {
         return Order::query()
             ->with(['products.product', 'user', 'seller', 'zone'])
-            ->whereDate('created_at', $this->date)
+            ->where('created_at', '>=', $this->fromDate . ' 00:00:00')
+            ->where('created_at', '<=', now())
             ->orderBy('id', 'asc');
     }
 

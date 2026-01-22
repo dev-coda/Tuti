@@ -129,22 +129,24 @@ class OrderController extends Controller
     }
 
     /**
-     * Export daily audit report
+     * Export audit report from date to now
      */
     public function exportAudit(Request $request)
     {
-        $date = $request->input('date', Carbon::yesterday()->format('Y-m-d'));
+        $fromDate = $request->input('from_date', Carbon::yesterday()->format('Y-m-d'));
         
         // Validate date format
         try {
-            $parsedDate = Carbon::parse($date)->format('Y-m-d');
+            $parsedFromDate = Carbon::parse($fromDate)->format('Y-m-d');
         } catch (\Exception $e) {
             return redirect()->back()->withErrors(['error' => 'Formato de fecha inválido.']);
         }
 
-        $filename = 'reporte_auditoria_' . str_replace('-', '', $parsedDate) . '.xlsx';
+        $todayStr = Carbon::now()->format('Ymd');
+        $fromDateStr = str_replace('-', '', $parsedFromDate);
+        $filename = 'auditoria_pedidos_' . $fromDateStr . '_a_' . $todayStr . '.xlsx';
         
-        return Excel::download(new OrdersDailyAuditExport($parsedDate), $filename);
+        return Excel::download(new OrdersDailyAuditExport($parsedFromDate), $filename);
     }
 
     public function resend(Order $order)
