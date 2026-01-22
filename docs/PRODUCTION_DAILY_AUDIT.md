@@ -1,19 +1,39 @@
 # Production Daily Audit Report - Quick Start
 
-## Immediate Use on Production
+## Two Ways to Generate the Report
 
-### Step 1: SSH into Production Server
+### Option 1: Web Interface (Recommended) ✨
+
+1. **Login to Admin Panel**
+   - Go to your admin dashboard
+   - Navigate to **Reportes** (Reports)
+
+2. **Generate Audit Report**
+   - Select "Auditoría Diaria de Pedidos" from the dropdown
+   - Choose the date you want to audit (defaults to yesterday)
+   - Click "Generar Reporte"
+   - The Excel file will download immediately
+
+**Advantages:**
+- No SSH access needed
+- Instant download
+- Easy date selection
+- Visual interface
+
+### Option 2: Command Line
+
+#### Step 1: SSH into Production Server
 ```bash
 ssh your-production-server
 cd /path/to/tuti/project
 ```
 
-### Step 2: Generate Yesterday's Report
+#### Step 2: Generate Yesterday's Report
 ```bash
 php artisan orders:daily-audit
 ```
 
-### Step 3: Download the Report
+#### Step 3: Download the Report
 The report will be saved in `storage/app/reports/`. The exact path will be shown in the command output.
 
 ```bash
@@ -33,15 +53,22 @@ Or use an SFTP client like FileZilla to download from the `storage/app/reports/`
 
 ### Critical Columns to Review:
 
-1. **Precio Sospechoso (<$500)** - Shows "SÍ" if the order has products priced suspiciously low
-2. **Productos Sospechosos** - Lists the actual products and their prices if suspicious
+1. **Precio Sospechoso (<$500)** - Shows "SÍ" if the order has products priced suspiciously low **IN THE SOAP XML**
+2. **Productos Sospechosos** - Lists the actual SKUs and prices from the SOAP request
 3. **Tiene Package Quantity** - Shows "SÍ" if the order has bulk/package quantities
 4. **Tiene Bonificación** - Shows "SÍ" if the order includes promotional/bonification items
 
+### Important: SOAP Price Checking ⚠️
+The report checks the **actual prices sent to the SOAP webservice**, not the database prices. This is critical because:
+- Database prices may differ from what was actually transmitted
+- SOAP prices are what the external system received
+- This is the authoritative source for pricing audits
+
 ### Suspicious Pricing Alert
-Products priced below $500 may indicate:
-- Pricing errors
+Products priced below $500 **in the SOAP XML** may indicate:
+- Pricing errors in the calculation logic
 - Missing decimal points
+- Discount calculation issues
 - Configuration issues that need immediate attention
 
 ## For Different Dates

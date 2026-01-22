@@ -402,6 +402,28 @@
                             </div>
                         </div>
                     `;
+                } else if (reportType === 'orders_audit_export') {
+                    // Orders audit export filter: date
+                    const yesterday = new Date();
+                    yesterday.setDate(yesterday.getDate() - 1);
+                    const yesterdayFormatted = yesterday.toISOString().split('T')[0];
+                    
+                    filterHTML = `
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label for="date" class="block text-sm font-medium text-gray-700 mb-1">
+                                    Fecha a Auditar
+                                    <span class="text-xs font-normal text-gray-500">(Por defecto: ayer)</span>
+                                </label>
+                                <input type="date" id="date" name="date" 
+                                    class="bg-white border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
+                                    value="${yesterdayFormatted}">
+                                <p class="mt-1 text-xs text-gray-500">
+                                    Reporte incluye: pedidos con package quantity, bonificaciones y precios SOAP &lt; $500
+                                </p>
+                            </div>
+                        </div>
+                    `;
                 } else {
                     filterHTML = '<p class="text-sm text-gray-600">Los filtros aparecerán aquí cuando estén disponibles.</p>';
                 }

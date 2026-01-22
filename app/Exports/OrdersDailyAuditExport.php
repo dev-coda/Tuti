@@ -42,20 +42,22 @@ class OrdersDailyAuditExport implements FromQuery, WithMapping, WithHeadings, Wi
             return $product->is_bonification == 1;
         });
 
-        // Check if order has suspicious pricing (below 500)
-        $hasSuspiciousPricing = $order->products->contains(function ($product) {
-            return $product->price < 500;
-        });
-
-        // Get details about suspicious products if any
+        // Parse SOAP XML to check actual prices sent
+        $soapPrices = $this->parseSoapPrices($order->request);
+        
+        // Check if order has suspicious pricing in SOAP (below 500)
+        $hasSuspiciousPricing = false;
         $suspiciousProducts = [];
-        if ($hasSuspiciousPricing) {
-            foreach ($order->products as $product) {
-                if ($product->price < 500) {
+        
+        if (!empty($soapPrices)) {
+            foreach ($soapPrices as $soapProduct) {
+                if ($soapProduct['unitPrice'] < 500) {
+                    $hasSuspiciousPricing = true;
                     $suspiciousProducts[] = sprintf(
-                        '%s ($%s)',
-                        $product->product->name ?? 'N/A',
-                        number_format($product->price, 2)
+                        'SKU: %s ($%s x %s)',
+                        $soapProduct['sku'],
+                        number_format($soapProduct['unitPrice'], 2),
+                        $soapProduct['qty']
                     );
                 }
             }
@@ -125,5 +127,58 @@ class OrdersDailyAuditExport implements FromQuery, WithMapping, WithHeadings, Wi
         ];
 
         return $statuses[$statusId] ?? 'Desconocido';
+    }
+
+    /**
+     * Parse SOAP XML to extract product prices
+     */
+    private function parseSoapPrices($soapXml): array
+    {
+        if (empty($soapXml)) {
+            return [];
+        }
+
+        $products = [];
+        
+        try {
+            // Load XML
+            $xml = simplexml_load_string($soapXml);
+            
+            if ($xml === false) {
+                return [];
+            }
+
+            // Register namespaces
+            $xml->registerXPathNamespace('dyn', 'http://schemas.datacontract.org/2004/07/Dynamics.AX.Application');
+            
+            // Extract all listDetails elements
+            $listDetails = $xml->xpath('//dyn:listDetails');
+            
+            if (!$listDetails) {
+                return [];
+            }
+
+            foreach ($listDetails as $detail) {
+                $detail->registerXPathNamespace('dyn', 'http://schemas.datacontract.org/2004/07/Dynamics.AX.Application');
+                
+                $sku = (string)$detail->xpath('dyn:itemId')[0] ?? '';
+                $unitPrice = (float)($detail->xpath('dyn:unitPrice')[0] ?? 0);
+                $qty = (float)($detail->xpath('dyn:qty')[0] ?? 0);
+                $discount = (float)($detail->xpath('dyn:discount')[0] ?? 0);
+                
+                $products[] = [
+                    'sku' => $sku,
+                    'unitPrice' => $unitPrice,
+                    'qty' => $qty,
+                    'discount' => $discount,
+                ];
+            }
+        } catch (\Exception $e) {
+            \Log::error('Error parsing SOAP XML for prices', [
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return $products;
     }
 }

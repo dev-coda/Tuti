@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Exports\OrdersExport;
 use App\Exports\OrdersMonthlyExport;
+use App\Exports\OrdersDailyAuditExport;
 use App\Http\Controllers\Controller;
 use App\Models\ExportFile;
 use App\Models\Order;
@@ -125,6 +126,25 @@ class OrderController extends Controller
         } else {
             return redirect()->back()->withErrors(['error' => 'Por favor ingresa un rango de fechas.']);
         }
+    }
+
+    /**
+     * Export daily audit report
+     */
+    public function exportAudit(Request $request)
+    {
+        $date = $request->input('date', Carbon::yesterday()->format('Y-m-d'));
+        
+        // Validate date format
+        try {
+            $parsedDate = Carbon::parse($date)->format('Y-m-d');
+        } catch (\Exception $e) {
+            return redirect()->back()->withErrors(['error' => 'Formato de fecha inválido.']);
+        }
+
+        $filename = 'reporte_auditoria_' . str_replace('-', '', $parsedDate) . '.xlsx';
+        
+        return Excel::download(new OrdersDailyAuditExport($parsedDate), $filename);
     }
 
     public function resend(Order $order)

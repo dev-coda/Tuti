@@ -88,8 +88,14 @@ class GenerateDailyAuditReport extends Command
             if ($order->products->contains(fn($p) => $p->is_bonification == 1)) {
                 $ordersWithBonification++;
             }
-            if ($order->products->contains(fn($p) => $p->price < 500)) {
-                $ordersWithSuspiciousPricing++;
+            
+            // Check SOAP prices for suspicious pricing
+            $soapPrices = $this->parseSoapPrices($order->request);
+            foreach ($soapPrices as $soapProduct) {
+                if ($soapProduct['unitPrice'] < 500) {
+                    $ordersWithSuspiciousPricing++;
+                    break;
+                }
             }
         }
 
@@ -102,6 +108,47 @@ class GenerateDailyAuditReport extends Command
                 ['With Suspicious Pricing (<$500)', $ordersWithSuspiciousPricing, $this->percentage($ordersWithSuspiciousPricing, $totalOrders)],
             ]
         );
+    }
+
+    /**
+     * Parse SOAP XML to extract product prices
+     */
+    private function parseSoapPrices($soapXml): array
+    {
+        if (empty($soapXml)) {
+            return [];
+        }
+
+        $products = [];
+        
+        try {
+            $xml = simplexml_load_string($soapXml);
+            
+            if ($xml === false) {
+                return [];
+            }
+
+            $xml->registerXPathNamespace('dyn', 'http://schemas.datacontract.org/2004/07/Dynamics.AX.Application');
+            $listDetails = $xml->xpath('//dyn:listDetails');
+            
+            if (!$listDetails) {
+                return [];
+            }
+
+            foreach ($listDetails as $detail) {
+                $detail->registerXPathNamespace('dyn', 'http://schemas.datacontract.org/2004/07/Dynamics.AX.Application');
+                
+                $unitPrice = (float)($detail->xpath('dyn:unitPrice')[0] ?? 0);
+                
+                $products[] = [
+                    'unitPrice' => $unitPrice,
+                ];
+            }
+        } catch (\Exception $e) {
+            // Silent fail for summary
+        }
+
+        return $products;
     }
 
     private function percentage($count, $total)
