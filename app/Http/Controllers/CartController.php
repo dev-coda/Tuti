@@ -1226,8 +1226,17 @@ class CartController extends Controller
                 
                 if ($bonificationsBlockDiscounts) {
                     // No discounts allowed - use base price only
+                    // Price storage depends on calculate_package_price flag
                     $variation = $p->items->where('id', $row['variation_id'])->first();
-                    $unitPrice = $variation ? $variation->pivot->price : $p->price;
+                    $basePrice = $variation ? $variation->pivot->price : $p->price;
+                    
+                    if ($p->calculate_package_price) {
+                        // Store package price
+                        $unitPrice = $basePrice * ($p->package_quantity ?? 1);
+                    } else {
+                        // Store per-unit price
+                        $unitPrice = $basePrice;
+                    }
                     $lineDiscountPercent = 0;
                 } elseif (isset($modifiedProductsLookup[$lookupKey])) {
                     // Check if this product was modified by coupon discount service
@@ -1238,15 +1247,25 @@ class CartController extends Controller
 
                     if ($discountType === 'fixed_amount') {
                         // For fixed amount discounts, use the new unit price
-                        // Store the original price, and track the flat discount separately
-                        $unitPrice = $modProduct['base_price']; // Store base price
+                        // Store the original price (adjusted for package), and track the flat discount separately
+                        $basePrice = $modProduct['base_price'];
+                        if ($p->calculate_package_price) {
+                            $unitPrice = $basePrice * ($p->package_quantity ?? 1);
+                        } else {
+                            $unitPrice = $basePrice;
+                        }
                         $lineDiscountPercent = 0; // No percentage for fixed amount
                         $orderDiscountType = 'fixed_amount';
                         // Calculate per-unit flat discount for XML
                         $flatDiscountAmount = $modProduct['unit_price_reduction'] ?? 0;
                     } else {
                         // For percentage discounts, use the applied percentage
-                        $unitPrice = $modProduct['base_price'];
+                        $basePrice = $modProduct['base_price'];
+                        if ($p->calculate_package_price) {
+                            $unitPrice = $basePrice * ($p->package_quantity ?? 1);
+                        } else {
+                            $unitPrice = $basePrice;
+                        }
                         $lineDiscountPercent = (int) ($modProduct['applied_discount_percentage'] ?? 0);
                     }
                 } else {
@@ -1260,14 +1279,27 @@ class CartController extends Controller
                     // Clamp discount percentage to valid range
                     $lineDiscountPercent = max(0, min(100, $lineDiscountPercent));
                     
-                    // Safely get original price with fallback
-                    $unitPrice = $p->finalPrice['originalPrice'] ?? $p->price ?? 0;
+                    // Price storage logic depends on calculate_package_price flag:
+                    // - If TRUE: Store originalPrice (base * package_qty), SOAP will divide later
+                    // - If FALSE: Store base price only, SOAP will NOT divide
+                    if ($p->calculate_package_price) {
+                        // Store package price: will be divided in SOAP
+                        $unitPrice = $lineFinal['originalPrice'] ?? ($p->price * ($p->package_quantity ?? 1));
+                    } else {
+                        // Store per-unit price: will be used as-is in SOAP
+                        $unitPrice = $p->price ?? 0;
+                    }
                     
                     // Get variation price if applicable
                     if (isset($row['variation_id']) && $row['variation_id']) {
                         $variation = $p->items->where('id', $row['variation_id'])->first();
                         if ($variation && isset($variation->pivot->price)) {
-                            $unitPrice = $variation->pivot->price;
+                            // Apply same logic for variations
+                            if ($p->calculate_package_price) {
+                                $unitPrice = $variation->pivot->price * ($p->package_quantity ?? 1);
+                            } else {
+                                $unitPrice = $variation->pivot->price;
+                            }
                         }
                     }
                 }
