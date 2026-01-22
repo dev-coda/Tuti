@@ -66,22 +66,38 @@ class AnalyzeOrderPricingFlow extends Command
 
             // Step 4: SOAP calculation (current logic)
             $this->comment('STEP 4: SOAP Generation (Current Logic)');
-            $effectivePackageQty = $product->calculate_package_price ? $orderProduct->package_quantity : 1;
-            $soapUnitPrice = $effectivePackageQty ? $orderProduct->price / $effectivePackageQty : $orderProduct->price;
-            $soapQty = $orderProduct->quantity * $effectivePackageQty;
+            
+            if ($product->calculate_package_price) {
+                // TRUE: Divide price, multiply qty
+                $packageQty = $orderProduct->package_quantity ?? 1;
+                $soapUnitPrice = $packageQty > 1 ? $orderProduct->price / $packageQty : $orderProduct->price;
+                $soapQty = $orderProduct->quantity * $packageQty;
+            } else {
+                // FALSE: Use price as-is, qty as-is (package = 1 unit)
+                $soapUnitPrice = $orderProduct->price;
+                $soapQty = $orderProduct->quantity;
+            }
             
             $soapTable = [
-                ['effectivePackageQty', $effectivePackageQty],
+                ['calculate_package_price', $product->calculate_package_price ? 'TRUE' : 'FALSE'],
                 ['SOAP unitPrice', '$' . number_format($soapUnitPrice, 2)],
                 ['SOAP qty', $soapQty],
                 ['SOAP line total', '$' . number_format($soapUnitPrice * $soapQty, 2)],
             ];
             $this->table(['Field', 'Value'], $soapTable);
 
-            // Step 5: Expected values based on user examples
-            $this->comment('STEP 5: Expected SOAP Values (Based on Examples)');
-            $expectedUnitPrice = $product->price;  // Should be DB price per unit
-            $expectedQty = $orderProduct->quantity * ($product->package_quantity ?? 1);
+            // Step 5: Expected values based on corrected logic
+            $this->comment('STEP 5: Expected SOAP Values');
+            
+            if ($product->calculate_package_price) {
+                // TRUE: unitPrice = DB price per unit, qty = order × package
+                $expectedUnitPrice = $product->price;
+                $expectedQty = $orderProduct->quantity * ($product->package_quantity ?? 1);
+            } else {
+                // FALSE: Package as 1 unit - unitPrice = stored, qty = order quantity
+                $expectedUnitPrice = $orderProduct->price;
+                $expectedQty = $orderProduct->quantity;
+            }
             
             $expectedTable = [
                 ['Expected unitPrice', '$' . number_format($expectedUnitPrice, 2)],
