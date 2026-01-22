@@ -85,9 +85,10 @@ class DebugOrderSoapPricing extends Command
                 $qty = (float)($detail->xpath('dyn:qty')[0] ?? 0);
                 $discount = (float)($detail->xpath('dyn:discount')[0] ?? 0);
                 
-                $isSuspicious = $unitPrice < 500 ? '⚠️  YES' : 'No';
+                // Only flag if price is > $0 and < $500
+                $isSuspicious = ($unitPrice > 0 && $unitPrice < 500) ? '⚠️  YES' : 'No';
                 
-                if ($unitPrice < 500) {
+                if ($unitPrice > 0 && $unitPrice < 500) {
                     $suspiciousCount++;
                 }
 

@@ -95,9 +95,11 @@ class GenerateDailyAuditReport extends Command
             }
             
             // Check SOAP prices for suspicious pricing
+            // Only flag prices > $0 and < $500
             $soapPrices = $this->parseSoapPrices($order->request);
             foreach ($soapPrices as $soapProduct) {
-                if ($soapProduct['unitPrice'] < 500) {
+                $price = (float) $soapProduct['unitPrice'];
+                if ($price > 0 && $price < 500) {
                     $ordersWithSuspiciousPricing++;
                     break;
                 }

@@ -54,14 +54,19 @@ class OrdersDailyAuditExport implements FromQuery, WithMapping, WithHeadings, Wi
             foreach ($soapPrices as $soapProduct) {
                 // Cast to float to ensure proper comparison
                 $unitPrice = (float) $soapProduct['unitPrice'];
+                $qty = (float) $soapProduct['qty'];
+                $sku = $soapProduct['sku'];
                 
-                if ($unitPrice < 500) {
+                // Only flag if price is BETWEEN $0.01 and $499.99
+                // Excludes: $0 (free items), and prices >= $500
+                // Also skip products with no SKU or no quantity
+                if ($unitPrice > 0 && $unitPrice < 500 && !empty($sku) && $qty > 0) {
                     $hasSuspiciousPricing = true;
                     $suspiciousProducts[] = sprintf(
                         'SKU: %s ($%s x %s)',
-                        $soapProduct['sku'] ?: 'N/A',
+                        $sku,
                         number_format($unitPrice, 2),
-                        $soapProduct['qty']
+                        $qty
                     );
                 }
             }
