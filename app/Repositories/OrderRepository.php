@@ -180,11 +180,22 @@ class OrderRepository
             $discountPercentage = max(0, min(100, (int) $rawPercentage));
             
             if ($bonification) {
-                // For bonifications: always send the exact quantity specified, never multiply by package_quantity
-                // Bonifications are always individual items, not package units
-                $effectivePackageQuantity = 1;
-                $unitPrice = 0; // Bonifications always have 0 price
+                // For bonifications: price should be current_price * package_quantity
+                // Quantity is sent as-is (no multiplication)
+                // Example: product price=800, package_qty=10 → SOAP: qty=1, price=8000
+                $productPackageQuantity = $productData->package_quantity ?? 1;
+                $unitPrice = parseCurrency($productData->price * $productPackageQuantity);
+                $effectivePackageQuantity = 1; // Quantity is sent as-is, not multiplied
                 $discountPercentage = 0; // No discount on bonifications
+                
+                Log::channel('soap')->info('Bonification pricing calculation', [
+                    'order_id' => $order->id,
+                    'product_id' => $product->product_id,
+                    'product_price' => $productData->price,
+                    'package_quantity' => $productPackageQuantity,
+                    'calculated_unit_price' => $unitPrice,
+                    'quantity' => $product->quantity,
+                ]);
             } else {
                 // For regular products, use the order product's package quantity
                 $effectivePackageQuantity = $productData->calculate_package_price ? $product->package_quantity : 1;
@@ -239,19 +250,21 @@ class OrderRepository
             }
 
             // Calculate quantity with proper fallback handling
-            // For bonifications, qty is always the exact number specified (not multiplied by package_quantity)
+            // For bonifications: qty is sent as-is (no multiplication), but price is already multiplied by package_quantity above
+            // For regular products: qty is multiplied by package_quantity if calculate_package_price is enabled
             $qty = $bonification ? $product->quantity : ($effectivePackageQuantity ? $product->quantity * $effectivePackageQuantity : $product->quantity);
 
-            // Add logging for bonification quantity debugging
+            // Add logging for bonification pricing and quantity debugging
             if ($bonification) {
-                Log::channel('soap')->info('Bonification quantity calculation', [
+                Log::channel('soap')->info('Bonification final values', [
                     'order_id' => $order->id,
                     'product_id' => $product->product_id,
+                    'product_price' => $productData->price,
+                    'package_quantity' => $productData->package_quantity ?? 1,
+                    'calculated_unit_price' => $unitPrice,
                     'bonification_quantity' => $product->quantity,
-                    'effective_package_quantity' => $effectivePackageQuantity,
-                    'final_qty' => $qty,
-                    'product_calculate_package_price' => $productData->calculate_package_price,
-                    'product_package_quantity' => $productData->package_quantity ?? 'null'
+                    'final_qty_sent_to_soap' => $qty,
+                    'final_price_sent_to_soap' => $unitPrice,
                 ]);
             }
 
