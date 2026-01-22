@@ -997,19 +997,40 @@ class CartController extends Controller
         $couponResult = null;
 
         if ($appliedCoupon) {
+            // IMPORTANT: Force fresh query to avoid cached values
             $coupon = Coupon::find($appliedCoupon['coupon_id']);
+            $coupon->refresh(); // Force reload from database to ensure we have the latest limit values
+            
             if ($coupon && $coupon->isValid()) {
                 // CRITICAL: Re-validate user usage limit before processing order
                 // The user may have already used the coupon since they applied it to the cart
+                
+                // Get current usage count for this user
+                $userUsageCount = $coupon->usages()->where('user_id', $user_id)->count();
+                $usageLimit = $coupon->usage_limit_per_customer;
+                
+                // Debug logging to track the actual values being checked
+                \Log::info('Coupon limit check during order processing', [
+                    'coupon_id' => $coupon->id,
+                    'coupon_code' => $coupon->code,
+                    'user_id' => $user_id,
+                    'usage_limit_per_customer' => $usageLimit,
+                    'usage_limit_type' => gettype($usageLimit),
+                    'usage_limit_is_null' => is_null($usageLimit),
+                    'user_usage_count' => $userUsageCount,
+                    'will_block' => $coupon->hasUserExceededLimit($user_id),
+                ]);
+                
                 if ($coupon->hasUserExceededLimit($user_id)) {
                     \Log::warning('Coupon user limit exceeded during order processing', [
                         'coupon_id' => $coupon->id,
                         'coupon_code' => $coupon->code,
                         'user_id' => $user_id,
-                        'usage_limit' => $coupon->usage_limit_per_customer,
+                        'usage_limit' => $usageLimit,
+                        'user_usage_count' => $userUsageCount,
                     ]);
                     session()->forget('applied_coupon');
-                    return back()->with('error', "El cupón '{$coupon->code}' ha alcanzado el límite de uso permitido para tu cuenta. Por favor remuévelo del carrito e intenta nuevamente.");
+                    return back()->with('error', "El cupón '{$coupon->code}' ha alcanzado el límite de uso permitido para tu cuenta (usado {$userUsageCount} de {$usageLimit} veces). Por favor remuévelo del carrito e intenta nuevamente.");
                 }
 
                 // Use new CouponDiscountService for proper discount calculation
