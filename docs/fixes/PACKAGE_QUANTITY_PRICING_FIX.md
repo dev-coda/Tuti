@@ -44,6 +44,18 @@ The `calculate_package_price` flag now ONLY affects price division, NOT quantity
 
 ## Expected Behavior
 
+### Understanding `calculate_package_price` Flag
+
+**When TRUE:** The product DB price is per-unit, and orders are for packages.
+- Customer sees and orders packages
+- SOAP receives individual units
+- Example: Batteries sold in packs of 10
+
+**When FALSE:** The product DB price is the package price, and the package is 1 orderable unit.
+- Customer orders packages as single units
+- SOAP receives packages as units
+- Example: Promotional bundles like "Buy 5 Get 1 Free"
+
 ### Example 1: `calculate_package_price = TRUE`
 ```
 Product Configuration:
@@ -71,17 +83,20 @@ Product Configuration:
 - package_quantity: 5
 - calculate_package_price: FALSE
 
-Order: 1 package
+Order: 2 packages
 
 Stored in order_products:
 - price: $2,184.87 (stored as-is)
-- quantity: 1
+- quantity: 2
 - package_quantity: 5
 
 SOAP XML:
 - unitPrice: $2,184.87 (no division)
-- qty: 5 (1 × 5)
-- Total: $10,924.35
+- qty: 2 (NO multiplication - package treated as 1 unit)
+- Total: $4,369.74
+
+Note: When FALSE, the package is treated as ONE orderable unit.
+The SOAP qty is the number of packages ordered, NOT multiplied by package_quantity.
 ```
 
 ## Affected Orders
