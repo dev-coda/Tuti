@@ -999,6 +999,19 @@ class CartController extends Controller
         if ($appliedCoupon) {
             $coupon = Coupon::find($appliedCoupon['coupon_id']);
             if ($coupon && $coupon->isValid()) {
+                // CRITICAL: Re-validate user usage limit before processing order
+                // The user may have already used the coupon since they applied it to the cart
+                if ($coupon->hasUserExceededLimit($user_id)) {
+                    \Log::warning('Coupon user limit exceeded during order processing', [
+                        'coupon_id' => $coupon->id,
+                        'coupon_code' => $coupon->code,
+                        'user_id' => $user_id,
+                        'usage_limit' => $coupon->usage_limit_per_customer,
+                    ]);
+                    session()->forget('applied_coupon');
+                    return back()->with('error', "El cupón '{$coupon->code}' ha alcanzado el límite de uso permitido para tu cuenta. Por favor remuévelo del carrito e intenta nuevamente.");
+                }
+
                 // Use new CouponDiscountService for proper discount calculation
                 $couponDiscountService = app(\App\Services\CouponDiscountService::class);
                 $couponResult = $couponDiscountService->applyCouponDiscountToProducts(
@@ -1012,12 +1025,22 @@ class CartController extends Controller
                     $couponDiscount = $couponResult['total_coupon_discount'];
                 } else {
                     // Coupon application failed
+                    \Log::warning('Coupon application failed during order processing', [
+                        'coupon_id' => $coupon->id,
+                        'coupon_code' => $coupon->code,
+                        'user_id' => $user_id,
+                        'reason' => $couponResult['message'] ?? 'Unknown',
+                    ]);
                     session()->forget('applied_coupon');
                     $appliedCoupon = null;
                     $coupon = null; // Ensure coupon is null when application fails
                 }
             } else {
                 // Coupon is no longer valid
+                \Log::warning('Coupon no longer valid during order processing', [
+                    'coupon_id' => $coupon ? $coupon->id : null,
+                    'user_id' => $user_id,
+                ]);
                 session()->forget('applied_coupon');
                 $appliedCoupon = null;
                 $coupon = null; // Ensure coupon is null
@@ -1541,7 +1564,29 @@ class CartController extends Controller
                 'coupon_discount' => $couponDiscount ?? 0,
                 'trace' => $e->getTraceAsString()
             ]);
-            return to_route('cart')->with('error', 'Error al procesar la orden. Por favor intente nuevamente.');
+            
+            // Provide more specific error message when possible
+            $errorMessage = 'Error al procesar la orden. ';
+            
+            // Check if it's a coupon-related error
+            if (isset($coupon) && $coupon) {
+                if (str_contains($e->getMessage(), 'coupon') || str_contains($e->getMessage(), 'cupón') || 
+                    str_contains($e->getMessage(), 'limit') || str_contains($e->getMessage(), 'limite')) {
+                    $errorMessage .= 'Hubo un problema con el cupón aplicado. Por favor remuévelo e intenta nuevamente.';
+                    session()->forget('applied_coupon');
+                } else {
+                    $errorMessage .= 'Por favor intente nuevamente o contacte al administrador.';
+                }
+            } else {
+                $errorMessage .= 'Por favor intente nuevamente o contacte al administrador.';
+            }
+            
+            // In development/staging, show the actual error for debugging
+            if (config('app.debug')) {
+                $errorMessage .= ' (Debug: ' . $e->getMessage() . ')';
+            }
+            
+            return to_route('cart')->with('error', $errorMessage);
         }
 
         // return to_route('home')->with('success', 'Es necesario tener un codigo de cliente para procesar la compra, contacta al administrador!');
