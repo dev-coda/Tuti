@@ -125,7 +125,9 @@
             <div>
                 <label class="block text-sm font-medium text-gray-700">Límite por cliente</label>
                 <input type="number" name="usage_limit_per_customer" value="{{ old('usage_limit_per_customer') }}" min="1"
+                    placeholder="Sin límite"
                     class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                <p class="mt-1 text-xs text-gray-500">Dejar vacío para permitir usos ilimitados</p>
                 @error('usage_limit_per_customer')
                     <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                 @enderror

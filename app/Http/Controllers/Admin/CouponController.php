@@ -121,6 +121,12 @@ class CouponController extends Controller
             }
         }
 
+        // CRITICAL FIX: Ensure empty usage limits are stored as NULL (unlimited), not empty strings or 0
+        // This prevents issues where empty fields are saved as 0 or "" which would block all usage
+        $validated['usage_limit_per_customer'] = !empty($validated['usage_limit_per_customer']) ? (int) $validated['usage_limit_per_customer'] : null;
+        $validated['usage_limit_per_vendor'] = !empty($validated['usage_limit_per_vendor']) ? (int) $validated['usage_limit_per_vendor'] : null;
+        $validated['total_usage_limit'] = !empty($validated['total_usage_limit']) ? (int) $validated['total_usage_limit'] : null;
+
         Coupon::create($validated);
 
         return redirect()->route('coupons.index')->with('success', 'Cupón creado exitosamente.');
@@ -231,6 +237,12 @@ class CouponController extends Controller
                 $validated['applies_to_ids'] = array_map('intval', $validated['applies_to_ids']);
             }
         }
+
+        // CRITICAL FIX: Ensure empty usage limits are stored as NULL (unlimited), not empty strings or 0
+        // This fixes the issue where removing a limit after setting it doesn't allow unlimited uses
+        $validated['usage_limit_per_customer'] = !empty($validated['usage_limit_per_customer']) ? (int) $validated['usage_limit_per_customer'] : null;
+        $validated['usage_limit_per_vendor'] = !empty($validated['usage_limit_per_vendor']) ? (int) $validated['usage_limit_per_vendor'] : null;
+        $validated['total_usage_limit'] = !empty($validated['total_usage_limit']) ? (int) $validated['total_usage_limit'] : null;
 
         $coupon->update($validated);
 
