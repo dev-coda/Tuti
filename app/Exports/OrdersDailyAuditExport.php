@@ -155,20 +155,42 @@ class OrdersDailyAuditExport implements FromQuery, WithMapping, WithHeadings, Wi
             // Register namespaces
             $xml->registerXPathNamespace('dyn', 'http://schemas.datacontract.org/2004/07/Dynamics.AX.Application');
             
-            // Extract all listDetails elements
+            // Extract all listDetails elements - try with namespace first
             $listDetails = $xml->xpath('//dyn:listDetails');
             
-            if (!$listDetails) {
+            // Fallback: Try without namespace if namespaced query returns nothing
+            if (!$listDetails || count($listDetails) === 0) {
+                $listDetails = $xml->xpath('//listDetails');
+            }
+            
+            if (!$listDetails || count($listDetails) === 0) {
                 return [];
             }
 
             foreach ($listDetails as $detail) {
-                $detail->registerXPathNamespace('dyn', 'http://schemas.datacontract.org/2004/07/Dynamics.AX.Application');
+                // Try to get values with namespace first, then without
+                $sku = '';
+                $unitPrice = 0;
+                $qty = 0;
+                $discount = 0;
                 
-                $sku = (string)$detail->xpath('dyn:itemId')[0] ?? '';
-                $unitPrice = (float)($detail->xpath('dyn:unitPrice')[0] ?? 0);
-                $qty = (float)($detail->xpath('dyn:qty')[0] ?? 0);
-                $discount = (float)($detail->xpath('dyn:discount')[0] ?? 0);
+                // Try with namespace
+                $detail->registerXPathNamespace('dyn', 'http://schemas.datacontract.org/2004/07/Dynamics.AX.Application');
+                $skuNodes = $detail->xpath('dyn:itemId');
+                $priceNodes = $detail->xpath('dyn:unitPrice');
+                $qtyNodes = $detail->xpath('dyn:qty');
+                $discountNodes = $detail->xpath('dyn:discount');
+                
+                // Fallback to without namespace
+                if (empty($skuNodes)) $skuNodes = $detail->xpath('itemId');
+                if (empty($priceNodes)) $priceNodes = $detail->xpath('unitPrice');
+                if (empty($qtyNodes)) $qtyNodes = $detail->xpath('qty');
+                if (empty($discountNodes)) $discountNodes = $detail->xpath('discount');
+                
+                $sku = (string)($skuNodes[0] ?? '');
+                $unitPrice = (float)($priceNodes[0] ?? 0);
+                $qty = (float)($qtyNodes[0] ?? 0);
+                $discount = (float)($discountNodes[0] ?? 0);
                 
                 $products[] = [
                     'sku' => $sku,

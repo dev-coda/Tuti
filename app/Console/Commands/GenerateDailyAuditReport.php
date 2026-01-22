@@ -136,14 +136,22 @@ class GenerateDailyAuditReport extends Command
             $xml->registerXPathNamespace('dyn', 'http://schemas.datacontract.org/2004/07/Dynamics.AX.Application');
             $listDetails = $xml->xpath('//dyn:listDetails');
             
-            if (!$listDetails) {
+            // Fallback: Try without namespace
+            if (!$listDetails || count($listDetails) === 0) {
+                $listDetails = $xml->xpath('//listDetails');
+            }
+            
+            if (!$listDetails || count($listDetails) === 0) {
                 return [];
             }
 
             foreach ($listDetails as $detail) {
                 $detail->registerXPathNamespace('dyn', 'http://schemas.datacontract.org/2004/07/Dynamics.AX.Application');
                 
-                $unitPrice = (float)($detail->xpath('dyn:unitPrice')[0] ?? 0);
+                $priceNodes = $detail->xpath('dyn:unitPrice');
+                if (empty($priceNodes)) $priceNodes = $detail->xpath('unitPrice');
+                
+                $unitPrice = (float)($priceNodes[0] ?? 0);
                 
                 $products[] = [
                     'unitPrice' => $unitPrice,
