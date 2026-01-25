@@ -1000,8 +1000,42 @@ class CartController extends Controller
         $couponResult = null;
 
         if ($appliedCoupon) {
+            // IMPORTANT: Force fresh query to avoid cached values
             $coupon = Coupon::find($appliedCoupon['coupon_id']);
+            $coupon->refresh(); // Force reload from database to ensure we have the latest limit values
+            
             if ($coupon && $coupon->isValid()) {
+                // CRITICAL: Re-validate user usage limit before processing order
+                // The user may have already used the coupon since they applied it to the cart
+                
+                // Get current usage count for this user
+                $userUsageCount = $coupon->usages()->where('user_id', $user_id)->count();
+                $usageLimit = $coupon->usage_limit_per_customer;
+                
+                // Debug logging to track the actual values being checked
+                \Log::info('Coupon limit check during order processing', [
+                    'coupon_id' => $coupon->id,
+                    'coupon_code' => $coupon->code,
+                    'user_id' => $user_id,
+                    'usage_limit_per_customer' => $usageLimit,
+                    'usage_limit_type' => gettype($usageLimit),
+                    'usage_limit_is_null' => is_null($usageLimit),
+                    'user_usage_count' => $userUsageCount,
+                    'will_block' => $coupon->hasUserExceededLimit($user_id),
+                ]);
+                
+                if ($coupon->hasUserExceededLimit($user_id)) {
+                    \Log::warning('Coupon user limit exceeded during order processing', [
+                        'coupon_id' => $coupon->id,
+                        'coupon_code' => $coupon->code,
+                        'user_id' => $user_id,
+                        'usage_limit' => $usageLimit,
+                        'user_usage_count' => $userUsageCount,
+                    ]);
+                    session()->forget('applied_coupon');
+                    return back()->with('error', "El cupón '{$coupon->code}' ha alcanzado el límite de uso permitido para tu cuenta (usado {$userUsageCount} de {$usageLimit} veces). Por favor remuévelo del carrito e intenta nuevamente.");
+                }
+
                 // Use new CouponDiscountService for proper discount calculation
                 $couponDiscountService = app(\App\Services\CouponDiscountService::class);
                 $couponResult = $couponDiscountService->applyCouponDiscountToProducts(
@@ -1015,12 +1049,22 @@ class CartController extends Controller
                     $couponDiscount = $couponResult['total_coupon_discount'];
                 } else {
                     // Coupon application failed
+                    \Log::warning('Coupon application failed during order processing', [
+                        'coupon_id' => $coupon->id,
+                        'coupon_code' => $coupon->code,
+                        'user_id' => $user_id,
+                        'reason' => $couponResult['message'] ?? 'Unknown',
+                    ]);
                     session()->forget('applied_coupon');
                     $appliedCoupon = null;
                     $coupon = null; // Ensure coupon is null when application fails
                 }
             } else {
                 // Coupon is no longer valid
+                \Log::warning('Coupon no longer valid during order processing', [
+                    'coupon_id' => $coupon ? $coupon->id : null,
+                    'user_id' => $user_id,
+                ]);
                 session()->forget('applied_coupon');
                 $appliedCoupon = null;
                 $coupon = null; // Ensure coupon is null
@@ -1185,8 +1229,17 @@ class CartController extends Controller
                 
                 if ($bonificationsBlockDiscounts) {
                     // No discounts allowed - use base price only
+                    // Price storage depends on calculate_package_price flag
                     $variation = $p->items->where('id', $row['variation_id'])->first();
-                    $unitPrice = $variation ? $variation->pivot->price : $p->price;
+                    $basePrice = $variation ? $variation->pivot->price : $p->price;
+                    
+                    if ($p->calculate_package_price) {
+                        // Store package price
+                        $unitPrice = $basePrice * ($p->package_quantity ?? 1);
+                    } else {
+                        // Store per-unit price
+                        $unitPrice = $basePrice;
+                    }
                     $lineDiscountPercent = 0;
                 } elseif (isset($modifiedProductsLookup[$lookupKey])) {
                     // Check if this product was modified by coupon discount service
@@ -1197,15 +1250,25 @@ class CartController extends Controller
 
                     if ($discountType === 'fixed_amount') {
                         // For fixed amount discounts, use the new unit price
-                        // Store the original price, and track the flat discount separately
-                        $unitPrice = $modProduct['base_price']; // Store base price
+                        // Store the original price (adjusted for package), and track the flat discount separately
+                        $basePrice = $modProduct['base_price'];
+                        if ($p->calculate_package_price) {
+                            $unitPrice = $basePrice * ($p->package_quantity ?? 1);
+                        } else {
+                            $unitPrice = $basePrice;
+                        }
                         $lineDiscountPercent = 0; // No percentage for fixed amount
                         $orderDiscountType = 'fixed_amount';
                         // Calculate per-unit flat discount for XML
                         $flatDiscountAmount = $modProduct['unit_price_reduction'] ?? 0;
                     } else {
                         // For percentage discounts, use the applied percentage
-                        $unitPrice = $modProduct['base_price'];
+                        $basePrice = $modProduct['base_price'];
+                        if ($p->calculate_package_price) {
+                            $unitPrice = $basePrice * ($p->package_quantity ?? 1);
+                        } else {
+                            $unitPrice = $basePrice;
+                        }
                         $lineDiscountPercent = (int) ($modProduct['applied_discount_percentage'] ?? 0);
                     }
                 } else {
@@ -1219,14 +1282,27 @@ class CartController extends Controller
                     // Clamp discount percentage to valid range
                     $lineDiscountPercent = max(0, min(100, $lineDiscountPercent));
                     
-                    // Safely get original price with fallback
-                    $unitPrice = $p->finalPrice['originalPrice'] ?? $p->price ?? 0;
+                    // Price storage logic depends on calculate_package_price flag:
+                    // - If TRUE: Store originalPrice (base * package_qty), SOAP will divide later
+                    // - If FALSE: Store base price only, SOAP will NOT divide
+                    if ($p->calculate_package_price) {
+                        // Store package price: will be divided in SOAP
+                        $unitPrice = $lineFinal['originalPrice'] ?? ($p->price * ($p->package_quantity ?? 1));
+                    } else {
+                        // Store per-unit price: will be used as-is in SOAP
+                        $unitPrice = $p->price ?? 0;
+                    }
                     
                     // Get variation price if applicable
                     if (isset($row['variation_id']) && $row['variation_id']) {
                         $variation = $p->items->where('id', $row['variation_id'])->first();
                         if ($variation && isset($variation->pivot->price)) {
-                            $unitPrice = $variation->pivot->price;
+                            // Apply same logic for variations
+                            if ($p->calculate_package_price) {
+                                $unitPrice = $variation->pivot->price * ($p->package_quantity ?? 1);
+                            } else {
+                                $unitPrice = $variation->pivot->price;
+                            }
                         }
                     }
                 }
@@ -1541,7 +1617,29 @@ class CartController extends Controller
                 'coupon_discount' => $couponDiscount ?? 0,
                 'trace' => $e->getTraceAsString()
             ]);
-            return to_route('cart')->with('error', 'Error al procesar la orden. Por favor intente nuevamente.');
+            
+            // Provide more specific error message when possible
+            $errorMessage = 'Error al procesar la orden. ';
+            
+            // Check if it's a coupon-related error
+            if (isset($coupon) && $coupon) {
+                if (str_contains($e->getMessage(), 'coupon') || str_contains($e->getMessage(), 'cupón') || 
+                    str_contains($e->getMessage(), 'limit') || str_contains($e->getMessage(), 'limite')) {
+                    $errorMessage .= 'Hubo un problema con el cupón aplicado. Por favor remuévelo e intenta nuevamente.';
+                    session()->forget('applied_coupon');
+                } else {
+                    $errorMessage .= 'Por favor intente nuevamente o contacte al administrador.';
+                }
+            } else {
+                $errorMessage .= 'Por favor intente nuevamente o contacte al administrador.';
+            }
+            
+            // In development/staging, show the actual error for debugging
+            if (config('app.debug')) {
+                $errorMessage .= ' (Debug: ' . $e->getMessage() . ')';
+            }
+            
+            return to_route('cart')->with('error', $errorMessage);
         }
 
         // return to_route('home')->with('success', 'Es necesario tener un codigo de cliente para procesar la compra, contacta al administrador!');

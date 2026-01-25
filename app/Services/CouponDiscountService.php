@@ -136,11 +136,15 @@ class CouponDiscountService
 
             $totalCouponDiscount += $couponContribution;
 
+            // Calculate the new unit price after percentage discount
+            $newUnitPrice = $basePrice - ($basePrice * $finalDiscountPercentage / 100);
+            
             $modifiedProducts[] = [
                 'product_id' => $product->id,
                 'variation_id' => $cartItem['variation_id'] ?? null,
                 'quantity' => $quantity,
                 'base_price' => $basePrice,
+                'new_unit_price' => $newUnitPrice,
                 'package_quantity' => $packageQuantity,
                 'applied_discount_type' => 'percentage',
                 'applied_discount_percentage' => $finalDiscountPercentage,

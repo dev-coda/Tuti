@@ -67,12 +67,12 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
 
     //Route::post('/users/{user}/code', [UserController::class, 'code'])->name('users.code');
     Route::post('/users/{user}/password', [UserController::class, 'password'])->name('users.password');
-    Route::get('/userexport', [UserController::class, 'export']);
-    Route::get('/sellerexport', [SellerController::class, 'export']);
-    Route::get('/productexport', [ProductController::class, 'export']);
-    Route::get('/orderexport', [OrderController::class, 'export']);
-    Route::get('/orderauditexport', [OrderController::class, 'exportAudit']);
-    Route::get('/contactexport', [ContactController::class, 'export']);
+    Route::get('/userexport', [UserController::class, 'export'])->name('admin.export.users');
+    Route::get('/sellerexport', [SellerController::class, 'export'])->name('admin.export.sellers');
+    Route::get('/productexport', [ProductController::class, 'export'])->name('admin.export.products');
+    Route::get('/orderexport', [OrderController::class, 'export'])->name('admin.export.orders');
+    Route::get('/orderauditexport', [OrderController::class, 'exportAudit'])->name('admin.export.orders.audit');
+    Route::get('/contactexport', [ContactController::class, 'export'])->name('admin.export.contacts');
 
     Route::resource('users', UserController::class);
     Route::resource('brands', BrandController::class);

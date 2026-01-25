@@ -101,11 +101,17 @@ class Coupon extends Model
      */
     public function hasUserExceededLimit(int $userId): bool
     {
-        if (!$this->usage_limit_per_customer) {
-            return false;
+        // CRITICAL: Explicitly check for NULL or 0 - both mean unlimited
+        // This handles cases where the field might be null, 0, empty string, or false
+        if (is_null($this->usage_limit_per_customer) || $this->usage_limit_per_customer <= 0) {
+            return false; // No limit set = unlimited uses
         }
 
         $userUsageCount = $this->usages()->where('user_id', $userId)->count();
+        
+        // User has exceeded if they've used it >= limit times
+        // Example: limit=1, count=1 → true (can't use again)
+        // Example: limit=100, count=50 → false (can use 50 more times)
         return $userUsageCount >= $this->usage_limit_per_customer;
     }
 

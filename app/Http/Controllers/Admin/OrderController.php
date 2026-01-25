@@ -134,7 +134,7 @@ class OrderController extends Controller
     public function exportAudit(Request $request)
     {
         $fromDate = $request->input('from_date', Carbon::yesterday()->format('Y-m-d'));
-
+        
         // Validate date format
         try {
             $parsedFromDate = Carbon::parse($fromDate)->format('Y-m-d');
@@ -145,7 +145,7 @@ class OrderController extends Controller
         $todayStr = Carbon::now()->format('Ymd');
         $fromDateStr = str_replace('-', '', $parsedFromDate);
         $filename = 'auditoria_pedidos_' . $fromDateStr . '_a_' . $todayStr . '.xlsx';
-
+        
         return Excel::download(new OrdersDailyAuditExport($parsedFromDate), $filename);
     }
 

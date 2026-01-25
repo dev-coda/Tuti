@@ -186,10 +186,26 @@ class OrderRepository
                 $unitPrice = 0; // Bonifications always have 0 price
                 $discountPercentage = 0; // No discount on bonifications
             } else {
-                // For regular products, use the order product's package quantity
-                $effectivePackageQuantity = $productData->calculate_package_price ? $product->package_quantity : 1;
-                $baseUnitPrice = $effectivePackageQuantity ? parseCurrency($product->price / $effectivePackageQuantity) : parseCurrency($product->price);
-
+                // For regular products:
+                // calculate_package_price flag controls BOTH price division AND qty multiplication
+                
+                // If calculate_package_price = TRUE:
+                //   - Divide stored price by package_qty to get unit price for SOAP
+                //   - Multiply order qty by package_qty in SOAP
+                // If calculate_package_price = FALSE:
+                //   - Use stored price as-is (package treated as 1 unit)
+                //   - Use order qty as-is (no multiplication)
+                
+                $shouldCalculatePackage = $productData->calculate_package_price;
+                $packageQty = $product->package_quantity ?? 1;
+                
+                if ($shouldCalculatePackage && $packageQty > 1) {
+                    // Stored price is package price, divide to get unit price for SOAP
+                    $baseUnitPrice = parseCurrency($product->price / $packageQty);
+                } else {
+                    // Stored price is package price, use as-is (package = 1 unit)
+                    $baseUnitPrice = parseCurrency($product->price);
+                }
                 // Handle flat discount: apply it to unit price, set percentage to 0
                 if ($discountType === 'fixed_amount' && $flatDiscountAmount > 0) {
                     // Ensure minimum price of 10% of base to prevent zero prices in SOAP
@@ -240,7 +256,20 @@ class OrderRepository
 
             // Calculate quantity with proper fallback handling
             // For bonifications, qty is always the exact number specified (not multiplied by package_quantity)
-            $qty = $bonification ? $product->quantity : ($effectivePackageQuantity ? $product->quantity * $effectivePackageQuantity : $product->quantity);
+            // For regular products:
+            //   - If calculate_package_price = TRUE: multiply qty by package_quantity
+            //   - If calculate_package_price = FALSE: use qty as-is (package treated as 1 unit)
+            $packageQty = $product->package_quantity ?? 1;
+            
+            if ($bonification) {
+                $qty = $product->quantity;
+            } elseif ($productData->calculate_package_price) {
+                // Multiply qty for products that calculate by package
+                $qty = $product->quantity * $packageQty;
+            } else {
+                // Package is treated as 1 unit, don't multiply
+                $qty = $product->quantity;
+            }
 
             // Add logging for bonification quantity debugging
             if ($bonification) {
