@@ -48,7 +48,11 @@
                 $orderableStock = $product->getOrderableStockForMdtat();
             @endphp
             @if($showInventory && $isManaged)
-                <p class="text-xs text-gray-600">Inventario (MDTAT): {{ $orderableStock }}</p>
+                @if($orderableStock <= 0)
+                    <p class="text-xs text-red-600">Producto no disponible para tu ubicación</p>
+                @else
+                    <p class="text-xs {{ $orderableStock > 5 ? 'text-green-600' : 'text-red-600' }}">Inventario: {{ $orderableStock }}</p>
+                @endif
             @endif
         @endauth
         <div class="flex items-baseline gap-2">

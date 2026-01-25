@@ -240,9 +240,13 @@
             @endphp
             @auth
                 @if($showInventory && $isManaged && $orderableStock <= 0)
-                    <p class="text-sm text-orange-500 mt-1">Producto no disponible para ubicación</p>
+                    <p class="text-sm text-orange-500 mt-1">Producto no disponible para tu ubicación</p>
                 @elseif($showInventory && $isManaged && $orderableStock < 10 && $orderableStock > 0)
                     <span class="inline-flex items-center text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-700 mt-2 w-fit">últimas unidades disponibles</span>
+                @endif
+            @else
+                @if($showInventory && $isManaged && $orderableStock <= 0)
+                    <p class="text-sm text-orange-500 mt-1">Producto no disponible para tu ubicación</p>
                 @endif
             @endauth
 
