@@ -99,7 +99,7 @@
                 </div>
 
                 <div class="mt-6">
-                    <button type="submit" class="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-4 rounded-lg transition duration-300">
+                    <button id="submit-request" type="submit" class="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-4 rounded-lg transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-orange-500" disabled>
                         Enviar solicitud
                     </button>
                 </div>
@@ -136,6 +136,17 @@
 
     // Tab functionality for mobile
     document.addEventListener('DOMContentLoaded', function() {
+        const termsAccepted = document.getElementById('terms_accepted');
+        const submitRequest = document.getElementById('submit-request');
+
+        if (termsAccepted && submitRequest) {
+            const syncSubmitState = () => {
+                submitRequest.disabled = !termsAccepted.checked;
+            };
+            syncSubmitState();
+            termsAccepted.addEventListener('change', syncSubmitState);
+        }
+
         const loginTab = document.getElementById('login-tab');
         const registerTab = document.getElementById('register-tab');
         const loginSection = document.getElementById('login-section');
