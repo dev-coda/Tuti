@@ -98,6 +98,18 @@
     </script>
     @endif
 
+    @if(session('coupon_removed_message'))
+    <script>
+        window.addEventListener('DOMContentLoaded', function() {
+            setTimeout(function() {
+                if (window.showToast) {
+                    window.showToast(@json(session('coupon_removed_message')), 'error', 6000);
+                }
+            }, 600);
+        });
+    </script>
+    @endif
+
     {{-- Page Title --}}
     <h1 class="text-3xl font-bold text-gray-900 mb-8">Tu Carrito</h1>
 
@@ -543,10 +555,15 @@
                 if (data.success) {
                     // Dispatch cart updated event for header widget
                     window.dispatchEvent(new CustomEvent('cart:updated'));
-                    
-                    // Reload the page to refresh alerts and enable address picker
-                    // This ensures vendor minimum alerts are recalculated
-                    window.location.reload();
+
+                    if (data.coupon_removed && window.showToast) {
+                        window.showToast(data.coupon_removed_message || 'El cupón fue removido del carrito.', 'error', 6000);
+                        setTimeout(() => window.location.reload(), 1200);
+                    } else {
+                        // Reload the page to refresh alerts and enable address picker
+                        // This ensures vendor minimum alerts are recalculated
+                        window.location.reload();
+                    }
                     return true;
                 }
                 return false;

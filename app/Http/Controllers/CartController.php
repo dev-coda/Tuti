@@ -504,6 +504,8 @@ class CartController extends Controller
     public function update(Request $request)
     {
         $cart = session()->get('cart', []);
+        $couponRemoved = false;
+        $couponRemovedMessage = null;
         
         // Handle single item AJAX update
         if ($request->expectsJson() || $request->ajax()) {
@@ -537,6 +539,46 @@ class CartController extends Controller
             
             $cart[$cartKey]['quantity'] = $quantity;
             session()->put('cart', $cart);
+
+            // Revalidate applied coupon after quantity changes
+            $appliedCoupon = session()->get('applied_coupon');
+            if ($appliedCoupon) {
+                $user = auth()->user();
+                $targetUser = $user;
+                if ($user && $user->hasRole('seller')) {
+                    $clientId = session()->get('user_id');
+                    $targetUser = $clientId ? User::find($clientId) : $user;
+                }
+
+                if ($targetUser) {
+                    $has_orders = Order::with('user')
+                        ->withCount('products')
+                        ->whereBelongsTo($targetUser)
+                        ->exists();
+
+                    $coupon = Coupon::find($appliedCoupon['coupon_id']);
+                    if (!$coupon || !$coupon->isValid()) {
+                        session()->forget('applied_coupon');
+                        $couponRemoved = true;
+                        $couponRemovedMessage = "El cupón ya no es válido y fue removido del carrito.";
+                    } else {
+                        $couponDiscountService = app(\App\Services\CouponDiscountService::class);
+                        $couponResult = $couponDiscountService->applyCouponDiscountToProducts(
+                            $coupon,
+                            $targetUser,
+                            collect($cart),
+                            $has_orders
+                        );
+
+                        $totalCouponDiscount = (float) ($couponResult['total_coupon_discount'] ?? 0);
+                        if (!$couponResult['success'] || $totalCouponDiscount <= 0) {
+                            session()->forget('applied_coupon');
+                            $couponRemoved = true;
+                            $couponRemovedMessage = "El cupón ya no aplica a tu carrito y fue removido.";
+                        }
+                    }
+                }
+            }
             
             // Calculate new totals
             $subtotal = 0;
@@ -557,16 +599,9 @@ class CartController extends Controller
             
             // Check for coupon discount
             $couponDiscount = 0;
-            $couponCode = session('coupon_code');
-            if ($couponCode) {
-                $coupon = Coupon::where('code', $couponCode)->first();
-                if ($coupon && $coupon->is_active) {
-                    if ($coupon->type === 'percentage') {
-                        $couponDiscount = ($subtotal - $discount) * ($coupon->value / 100);
-                    } else {
-                        $couponDiscount = $coupon->value;
-                    }
-                }
+            $appliedCoupon = session()->get('applied_coupon');
+            if ($appliedCoupon && !$couponRemoved) {
+                $couponDiscount = (float) ($appliedCoupon['discount_amount'] ?? 0);
             }
             
             $total = $subtotal - $discount - $couponDiscount;
@@ -579,6 +614,8 @@ class CartController extends Controller
                 'discount' => number_format($discount, 0, ',', '.'),
                 'coupon_discount' => number_format($couponDiscount, 0, ',', '.'),
                 'total' => number_format($total, 0, ',', '.'),
+                'coupon_removed' => $couponRemoved,
+                'coupon_removed_message' => $couponRemovedMessage,
             ]);
         }
 
@@ -590,6 +627,9 @@ class CartController extends Controller
         }
 
         session()->put('cart', $cart);
+        if ($couponRemoved) {
+            session()->flash('coupon_removed_message', $couponRemovedMessage ?? 'El cupón fue removido del carrito.');
+        }
         return redirect()->back()
             ->with('success', 'Carrito actualizado exitosamente!')
             ->with('cart_updated', true);
