@@ -403,6 +403,38 @@
                             </div>
                         </div>
                     `;
+                } else if (reportType === 'orders_audit_export') {
+                    // Orders audit export filter: from_date
+                    const yesterday = new Date();
+                    yesterday.setDate(yesterday.getDate() - 1);
+                    const yesterdayFormatted = yesterday.toISOString().split('T')[0];
+
+                    filterHTML = `
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label for="from_date" class="block text-sm font-medium text-gray-700 mb-1">
+                                    Desde Fecha
+                                    <span class="text-xs font-normal text-gray-500">(Por defecto: ayer)</span>
+                                </label>
+                                <input type="date" id="from_date" name="from_date" 
+                                    class="bg-white border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
+                                    value="${yesterdayFormatted}">
+                                <p class="mt-1 text-xs text-gray-500">
+                                    Incluye todos los pedidos desde esta fecha hasta ahora
+                                </p>
+                            </div>
+                            <div class="flex items-center">
+                                <div class="text-sm text-gray-600">
+                                    <p class="font-medium">El reporte incluye:</p>
+                                    <ul class="mt-1 space-y-1 text-xs">
+                                        <li>• Pedidos con package quantity</li>
+                                        <li>• Pedidos con bonificaciones</li>
+                                        <li>• Precios SOAP &lt; $500</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    `;
                 } else if (reportType === 'kpi_export') {
                     // KPI export filters: start_date, end_date
                     filterHTML = `
