@@ -18,6 +18,7 @@ class ContactController extends Controller
     public function index(Request $request)
     {
         $contacts = Contact::query()
+            ->with('city')
             ->when($request->date_from, function ($query, $dateFrom) {
                 $query->whereDate('created_at', '>=', $dateFrom);
             })
@@ -85,7 +86,8 @@ class ContactController extends Controller
         
         return Excel::download(
             new ContactsExport($dateFrom, $dateTo),
-            'interesados_' . now()->format('Y-m-d_His') . '.xlsx'
+            'interesados_' . now()->format('Y-m-d_His') . '.csv',
+            \Maatwebsite\Excel\Excel::CSV
         );
     }
 }

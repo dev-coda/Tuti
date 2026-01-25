@@ -52,12 +52,12 @@
                     </a>
                     
                     <a 
-                        href="/contactexport?date_from={{ request('date_from') }}&date_to={{ request('date_to') }}"
+                        href="{{ route('admin.export.contacts', ['date_from' => request('date_from'), 'date_to' => request('date_to')]) }}"
                         class="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 focus:ring-4 focus:ring-green-300 flex items-center gap-2"
-                        title="Descargar reporte"
+                        title="Descargar CSV"
                     >
                         @svg('heroicon-o-arrow-down-on-square', 'w-5 h-5')
-                        Exportar
+                        Exportar CSV
                     </a>
                 </div>
             </div>
@@ -87,13 +87,22 @@
                                 ID
                             </th>
                             <th scope="col" class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
-                                Nombre / Email
+                                Nombre
+                            </th>
+                            <th scope="col" class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
+                                Email
                             </th>
                             <th scope="col" class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
                                 Celular
                             </th>
                             <th scope="col" class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
-                                Tienda / Ciudad
+                                Tienda
+                            </th>
+                            <th scope="col" class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
+                                Ciudad
+                            </th>
+                            <th scope="col" class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
+                                Ciudad ID
                             </th>
                             <th scope="col" class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
                                 NIT / Cédula
@@ -108,37 +117,58 @@
                                 Estado
                             </th>
                             <th scope="col" class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
-                                Fecha
+                                Creado
+                            </th>
+                            <th scope="col" class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
+                                Actualizado
                             </th>
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200 ">
                         @foreach ($contacts as $contact)
+                        @php
+                            $cityRelation = $contact->getRelationValue('city');
+                            $cityName = $contact->city ?: ($cityRelation ? $cityRelation->name : '');
+                        @endphp
                         <tr class="hover:bg-gray-100">
                             <td class="p-4 text-sm font-mono text-gray-900 whitespace-nowrap">
                                 {{ $contact->id }}
                             </td>
                             
                             <td class="p-4 text-sm font-normal text-gray-500">
-                                <div class="flex flex-col">
-                                    <span class="font-medium text-gray-900">{{ $contact->name }}</span>
-                                    <small class="text-gray-600">{{ $contact->email }}</small>
-                                </div>
+                                <span class="font-medium text-gray-900 truncate block max-w-[220px]" title="{{ $contact->name }}">
+                                    {{ \Illuminate\Support\Str::limit($contact->name, 40) }}
+                                </span>
                             </td>
                            
+                            <td class="p-4 text-sm font-normal text-gray-500">
+                                <span class="truncate block max-w-[240px]" title="{{ $contact->email }}">
+                                    {{ \Illuminate\Support\Str::limit($contact->email, 45) }}
+                                </span>
+                            </td>
+
                             <td class="p-4 text-sm font-normal text-gray-500 whitespace-nowrap">
                                 {{ $contact->phone }}
                             </td>
                             
                             <td class="p-4 text-sm font-normal text-gray-500">
-                                <div class="flex flex-col">
-                                    <span class="font-medium text-gray-900">{{ $contact->business_name }}</span>
-                                    <small class="text-gray-600">{{ $contact->city }}</small>
-                                </div>
+                                <span class="truncate block max-w-[220px]" title="{{ $contact->business_name ?? '-' }}">
+                                    {{ \Illuminate\Support\Str::limit($contact->business_name ?? '-', 40) }}
+                                </span>
+                            </td>
+
+                            <td class="p-4 text-sm font-normal text-gray-500">
+                                <span class="truncate block max-w-[200px]" title="{{ $cityName }}">
+                                    {{ \Illuminate\Support\Str::limit($cityName, 35) }}
+                                </span>
+                            </td>
+
+                            <td class="p-4 text-sm font-normal text-gray-500 whitespace-nowrap">
+                                {{ $contact->city_id ?? '-' }}
                             </td>
                             
                             <td class="p-4 text-sm font-normal text-gray-500 whitespace-nowrap">
-                                {{ $contact->nit }}
+                                {{ $contact->nit ?? '-' }}
                             </td>
                             
                             <td class="p-4 text-sm font-normal text-center whitespace-nowrap">
@@ -181,6 +211,13 @@
                                 <div class="flex flex-col">
                                     <span class="text-gray-900">{{ $contact->created_at->format('d/m/Y') }}</span>
                                     <small class="text-gray-600">{{ $contact->created_at->format('H:i') }}</small>
+                                </div>
+                            </td>
+
+                            <td class="p-4 text-sm font-normal text-gray-500 whitespace-nowrap">
+                                <div class="flex flex-col">
+                                    <span class="text-gray-900">{{ $contact->updated_at->format('d/m/Y') }}</span>
+                                    <small class="text-gray-600">{{ $contact->updated_at->format('H:i') }}</small>
                                 </div>
                             </td>
                         </tr>
