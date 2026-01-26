@@ -1,6 +1,8 @@
-@extends('layouts.app')
+@extends('layouts.page')
 
-@section('title', '¡Gracias por tu compra!')
+@section('head')
+@include('elements.seo', ['title'=>'¡Gracias por tu compra!' ])
+@endsection
 
 @section('content')
 <div class="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
