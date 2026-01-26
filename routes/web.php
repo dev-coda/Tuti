@@ -78,15 +78,16 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/ordenes/{order}/gracias', [CartController::class, 'thankYou'])->name('orders.thank-you');
 });
 
-Route::name('sellers.')->prefix('vendedor')->group(function () {
-    Route::get('/', [SellerPageController::class, 'home'])->name('home');
-    Route::get('/product', [SellerPageController::class, 'product'])->name('product');
-    Route::get('/cart', [SellerPageController::class, 'cart'])->name('cart');
-    Route::get('/orders', [SellerPageController::class, 'orders'])->name('orders');
-    Route::get('/orders/{id}', [SellerPageController::class, 'order'])->name('order');
-    Route::get('/faq', [SellerPageController::class, 'faq'])->name('faq');
-    Route::get('/contact', [SellerPageController::class, 'contact'])->name('contact');
-});
+// DEPRECATED: Legacy seller routes - no longer in use
+// Route::name('sellers.')->prefix('vendedor')->group(function () {
+//     Route::get('/', [SellerPageController::class, 'home'])->name('home');
+//     Route::get('/product', [SellerPageController::class, 'product'])->name('product');
+//     Route::get('/cart', [SellerPageController::class, 'cart'])->name('cart');
+//     Route::get('/orders', [SellerPageController::class, 'orders'])->name('orders');
+//     Route::get('/orders/{id}', [SellerPageController::class, 'order'])->name('order');
+//     Route::get('/faq', [SellerPageController::class, 'faq'])->name('faq');
+//     Route::get('/contact', [SellerPageController::class, 'contact'])->name('contact');
+// });
 
 
 Route::name('shoppers.')->prefix('tendero')->group(function () {
