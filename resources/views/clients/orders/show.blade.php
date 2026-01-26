@@ -307,18 +307,11 @@
                 @endif
             </div>
 
-            <!-- Action Buttons -->
-            <div class="space-y-3">
+            <!-- Action Button -->
+            <div>
                 <a href="{{ route('home') }}" class="w-full flex items-center justify-center px-6 py-3 bg-orange-600 text-white font-medium rounded-lg hover:bg-orange-700 transition-colors duration-200">
                     Volver a Comprar
                 </a>
-                
-                <form action="{{ route('clients.orders.reorder', $order) }}" method="POST" class="w-full">
-                    @csrf
-                    <button type="submit" class="w-full flex items-center justify-center px-6 py-3 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors duration-200">
-                        Ordenar de nuevo
-                    </button>
-                </form>
             </div>
         </div>
     </div>
