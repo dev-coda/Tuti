@@ -165,10 +165,12 @@ class FeaturedCategoryController extends Controller
         // Get IDs of already featured categories
         $featuredIds = FeaturedCategory::pluck('category_id');
 
+        // Use ILIKE for case-insensitive search on PostgreSQL
         $categories = Category::whereNotIn('id', $featuredIds)
-            ->where('name', 'like', "%{$query}%")
-            ->limit(10)
-            ->get();
+            ->where('name', 'ILIKE', "%{$query}%")
+            ->orderBy('name')
+            ->limit(20)
+            ->get(['id', 'name', 'slug', 'image', 'parent_id']);
 
         return response()->json($categories);
     }
