@@ -29,7 +29,7 @@ class CouponController extends Controller
      */
     public function create()
     {
-        $products = Product::active()->get(['id', 'name']);
+        $products = Product::active()->get(['id', 'name', 'sku']);
         $categories = Category::active()->get(['id', 'name']);
         $brands = Brand::all(['id', 'name']);
         $vendors = Vendor::all(['id', 'name']);
@@ -146,7 +146,7 @@ class CouponController extends Controller
      */
     public function edit(Coupon $coupon)
     {
-        $products = Product::active()->get(['id', 'name']);
+        $products = Product::active()->get(['id', 'name', 'sku']);
         $categories = Category::active()->get(['id', 'name']);
         $brands = Brand::all(['id', 'name']);
         $vendors = Vendor::all(['id', 'name']);

@@ -112,9 +112,15 @@
         <!-- Dynamic selection based on applies_to -->
         <div id="applies_to_selection" style="display: none;">
             <label class="block text-sm font-medium text-gray-700" id="selection-label">Seleccionar elementos</label>
-            <select multiple name="applies_to_ids[]" id="applies_to_ids"
-                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-            </select>
+            <input 
+                type="text" 
+                id="applies-to-filter"
+                placeholder="Buscar..."
+                class="w-full mb-2 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500"
+            >
+            <div id="applies-to-checkboxes" class="border border-gray-300 rounded-lg p-3 max-h-60 overflow-y-auto bg-gray-50">
+                <!-- Checkboxes will be dynamically populated here -->
+            </div>
             @error('applies_to_ids')
                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
             @enderror
@@ -178,7 +184,7 @@
 <script>
     // Data for dynamic selections
     const selectionData = {
-        product: @json($products->map(fn($p) => ['id' => $p->id, 'name' => $p->name])),
+        product: @json($products->map(fn($p) => ['id' => $p->id, 'name' => $p->name, 'sku' => $p->sku ?? '', 'display' => ($p->sku ? $p->sku . ' - ' : '') . $p->name])),
         category: @json($categories->map(fn($c) => ['id' => $c->id, 'name' => $c->name])),
         brand: @json($brands->map(fn($b) => ['id' => $b->id, 'name' => $b->name])),
         vendor: @json($vendors->map(fn($v) => ['id' => $v->id, 'name' => $v->name])),
@@ -199,8 +205,9 @@
 
     function updateAppliesTo(appliesTo) {
         const selectionDiv = document.getElementById('applies_to_selection');
-        const select = document.getElementById('applies_to_ids');
+        const checkboxesContainer = document.getElementById('applies-to-checkboxes');
         const label = document.getElementById('selection-label');
+        const filterInput = document.getElementById('applies-to-filter');
 
         if (appliesTo === 'cart') {
             selectionDiv.style.display = 'none';
@@ -209,13 +216,26 @@
 
         if (selectionData[appliesTo]) {
             selectionDiv.style.display = 'block';
-            select.innerHTML = '';
+            checkboxesContainer.innerHTML = '';
             
             selectionData[appliesTo].forEach(item => {
-                const option = document.createElement('option');
-                option.value = item.id;
-                option.textContent = item.name;
-                select.appendChild(option);
+                const itemLabel = document.createElement('label');
+                itemLabel.className = 'flex items-center py-1.5 px-2 hover:bg-white rounded cursor-pointer applies-to-item';
+                
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.name = 'applies_to_ids[]';
+                checkbox.value = item.id;
+                checkbox.className = 'w-4 h-4 text-blue-600 rounded focus:ring-blue-500';
+                
+                const span = document.createElement('span');
+                span.className = 'ml-2 text-sm text-gray-700';
+                span.setAttribute('data-search', (item.display || item.name).toLowerCase());
+                span.textContent = item.display || item.name;
+                
+                itemLabel.appendChild(checkbox);
+                itemLabel.appendChild(span);
+                checkboxesContainer.appendChild(itemLabel);
             });
 
             // Update label
@@ -228,6 +248,22 @@
                 customer_type: 'Seleccionar tipos de cliente'
             };
             label.textContent = labels[appliesTo] || 'Seleccionar elementos';
+
+            // Setup filter
+            filterInput.value = '';
+            filterInput.addEventListener('input', function() {
+                const filter = this.value.toLowerCase();
+                const items = checkboxesContainer.querySelectorAll('.applies-to-item');
+                
+                items.forEach(function(item) {
+                    const searchText = item.querySelector('[data-search]').getAttribute('data-search');
+                    if (searchText.includes(filter)) {
+                        item.style.display = '';
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+            });
         } else {
             selectionDiv.style.display = 'none';
         }
