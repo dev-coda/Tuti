@@ -238,17 +238,35 @@
                     ? $product->getOrderableStockForBodega($bodegaCode ?? null) 
                     : $product->getOrderableStockForMdtat();
             @endphp
-            @auth
-                @if($showInventory && $isManaged && $orderableStock <= 0)
-                    <p class="text-sm text-orange-500 mt-1">Producto no disponible para tu ubicación</p>
-                @elseif($showInventory && $isManaged && $orderableStock < 10 && $orderableStock > 0)
-                    <span class="inline-flex items-center text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-700 mt-2 w-fit">últimas unidades disponibles</span>
-                @endif
-            @else
-                @if($showInventory && $isManaged && $orderableStock <= 0)
-                    <p class="text-sm text-orange-500 mt-1">Producto no disponible para tu ubicación</p>
-                @endif
-            @endauth
+            
+            @if($showInventory && $isManaged)
+                <div class="mt-2">
+                    @auth
+                        @if($orderableStock > 0)
+                            <p class="text-sm text-gray-600">
+                                <span class="font-medium text-gray-900">Disponibilidad:</span> 
+                                <span class="font-semibold {{ $orderableStock < 10 ? 'text-orange-600' : 'text-green-600' }}">
+                                    {{ number_format($orderableStock) }} unidades
+                                </span>
+                            </p>
+                            @if($orderableStock < 10)
+                                <span class="inline-flex items-center text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-700 mt-1 w-fit">últimas unidades disponibles</span>
+                            @endif
+                        @else
+                            <p class="text-sm text-orange-500">Producto no disponible para tu ubicación</p>
+                        @endif
+                    @else
+                        @if($orderableStock > 0)
+                            <p class="text-sm text-gray-600">
+                                <span class="font-medium text-gray-900">Disponibilidad:</span> 
+                                <span class="font-semibold text-green-600">Disponible</span>
+                            </p>
+                        @else
+                            <p class="text-sm text-orange-500">Producto no disponible para tu ubicación</p>
+                        @endif
+                    @endauth
+                </div>
+            @endif
 
             <!-- Short Description Box -->
             @if($product->short_description)
