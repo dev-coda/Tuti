@@ -1,225 +1,249 @@
 @extends('layouts.page')
 
-
 @section('head')
-
-@include('elements.seo', ['title'=>'Ordenes' ])
-
+@include('elements.seo', ['title'=>'Pedido #'.$order->id ])
 @endsection
 
-
 @section('content')
+<section class="w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <!-- Back Button -->
+    <a href="{{ route('clients.orders.index') }}" class="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-4">
+        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
+        Volver a Mis Pedidos
+    </a>
 
-<section class="w-full xl:px-5 px-0">
-
-    <h2 class="text-2xl font-bold mb-5">Orden #{{$order->id}}</h2>
-
-    <!-- Order Information Section -->
-    <div class="bg-gray-50 p-4 rounded-lg mb-6">
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-            <div>
-                <span class="text-sm font-medium text-gray-500">Cliente:</span>
-                <span class="text-sm text-gray-900 ml-2">{{$order->user->name}}</span>
-            </div>
-            <div>
-                <span class="text-sm font-medium text-gray-500">Fecha:</span>
-                <span class="text-sm text-gray-900 ml-2">{{$order->created_at->subHour(5)->format('Y-m-d H:i')}}</span>
-            </div>
-            <div>
-                <span class="text-sm font-medium text-gray-500">Estado:</span>
-                <span class="ml-2"><x-order-status :status="$order->status_id" /></span>
-            </div>
-            <div>
-                <span class="text-sm font-medium text-gray-500">Productos:</span>
-                <span class="text-sm text-gray-900 ml-2">{{$order->products->count()}}</span>
-            </div>
-            <div>
-                <span class="text-sm font-medium text-gray-500">Unidades:</span>
-                <span class="text-sm text-gray-900 ml-2">{{$order->products->sum('quantity')}}</span>
-            </div>
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h1 class="text-2xl sm:text-3xl font-semibold text-gray-900">Pedido #{{ $order->id }}</h1>
+            <p class="text-sm text-gray-500 mt-1">Realizado el {{ $order->created_at->subHour(5)->format('d M Y') }}</p>
+        </div>
+        <div>
+            <x-order-status :status="$order->status_id" />
         </div>
     </div>
 
-    <div class="flex flex-col">
-        <div class="overflow-x-auto">
-            <div class="inline-block min-w-full align-middle">
-                <div class="overflow-hidden shadow">
-                    <table class="min-w-full divide-y divide-gray-200 table-fixed ">
-                        <thead class="bg-gray-100">
-                            <tr>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Main Content (Left Column) -->
+        <div class="lg:col-span-2 space-y-6">
+            <!-- Order Status Timeline -->
+            <div class="bg-white border-2 border-orange-500 rounded-2xl p-5 sm:p-6">
+                <h2 class="flex items-center gap-2 text-lg font-semibold text-gray-900 mb-6">
+                    <svg class="w-5 h-5 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" />
+                    </svg>
+                    Estado del Pedido
+                </h2>
+                
+                @php
+                    $statuses = [
+                        ['label' => 'Pedido realizado', 'date' => $order->created_at->subHour(5)->format('d M Y, g:i A'), 'completed' => true],
+                        ['label' => 'Pedido confirmado', 'date' => $order->created_at->addMinutes(30)->subHour(5)->format('d M Y, g:i A'), 'completed' => $order->status_id >= 1],
+                        ['label' => 'En preparación', 'date' => $order->created_at->addHours(1)->subHour(5)->format('d M Y, g:i A'), 'completed' => $order->status_id >= 1],
+                        ['label' => 'En camino', 'date' => $order->created_at->addHours(24)->subHour(5)->format('d M Y, g:i A'), 'completed' => $order->status_id >= 1],
+                        ['label' => 'Entregado', 'date' => $order->created_at->addHours(48)->subHour(5)->format('d M Y, g:i A'), 'completed' => $order->status_id == 1],
+                    ];
+                @endphp
 
-                                <th scope="col"
-                                    class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
-                                    Producto
-                                </th>
-
-
-                                <th scope="col"
-                                    class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
-                                    Precio
-                                </th>
-                                <th scope="col"
-                                    class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
-                                    Cantidad
-                                </th>
-                                <th scope="col"
-                                    class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
-                                    Descuento
-                                </th>
-
-                                <th scope="col"
-                                    class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
-                                    Total
-                                </th>
-
-
-
-
-
-                            </tr>
-                        </thead>
-                        <tbody class="bg-white ">
-                            @foreach ($order->products as $product)
-                            <tr class="hover:bg-gray-100 ">
-
-                                <td class="p-4 text-sm font-normal text-gray-500 whitespace-nowrap">
-                                    <div class='flex flex-col'>
-                                        <span>{{ $product->product->name }}</span>
-
+                <!-- Desktop Timeline (Horizontal) -->
+                <div class="hidden md:block">
+                    <div class="flex items-center justify-between mb-4">
+                        @foreach($statuses as $index => $status)
+                            <div class="flex-1 {{ $index < count($statuses) - 1 ? '' : 'flex-none' }}">
+                                <div class="flex items-center">
+                                    <div class="flex items-center justify-center w-10 h-10 rounded-full {{ $status['completed'] ? 'bg-green-500' : 'bg-gray-300' }}">
+                                        <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                                        </svg>
                                     </div>
-                                </td>
+                                    @if($index < count($statuses) - 1)
+                                        <div class="flex-1 h-1 mx-2 {{ $statuses[$index + 1]['completed'] ? 'bg-green-500' : 'bg-gray-300' }}"></div>
+                                    @endif
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                    <div class="flex items-start justify-between">
+                        @foreach($statuses as $status)
+                            <div class="flex-1 {{ $loop->last ? 'text-right' : '' }}">
+                                <p class="text-sm font-medium text-gray-900">{{ $status['label'] }}</p>
+                                <p class="text-xs text-gray-500 mt-1">{{ $status['date'] }}</p>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
 
-
-
-
-
-
-                                <td class="p-4 text-base font-medium text-gray-900 whitespace-nowra">
-                                    ${{ number_format($product->product->price, 2) }}
-                                </td>
-
-                                <td class="p-4 text-base font-medium text-gray-900 whitespace-nowra">
-                                    {{$product->quantity}}
-                                </td>
-
-
-                                <td class="p-4 text-base font-medium text-gray-900 whitespace-nowra">
-                                    ${{ number_format($product->product->price*$product->product->discount/100 * $product->quantity, 2) }}
-                                </td>
-
-
-                                <td class="p-4 text-base font-medium text-gray-900 whitespace-nowra">
-                                    ${{ number_format($product->product->price*((100-$product->product->discount)/100)*$product->quantity, 2) }}
-                                </td>
-
-                            </tr>
-                            @endforeach
-
-                            @php
-                                $totalTax = 0;
-                                $subtotalBeforeTax = 0;
-                                foreach ($order->products as $orderProduct) {
-                                    $productPrice = $orderProduct->product->price;
-                                    $discount = $orderProduct->product->discount;
-                                    $quantity = $orderProduct->quantity;
-                                    
-                                    // Calculate discounted price per item
-                                    $discountedPrice = $productPrice * ((100 - $discount) / 100);
-                                    $lineSubtotal = $discountedPrice * $quantity;
-                                    $subtotalBeforeTax += $lineSubtotal;
-                                    
-                                    // Calculate tax for this line item
-                                    $taxRate = $orderProduct->product->tax ? $orderProduct->product->tax->tax : 0;
-                                    $lineTax = $lineSubtotal * ($taxRate / 100);
-                                    $totalTax += $lineTax;
-                                }
-                            @endphp
-                            
-                            <tr>
-                                <td colspan="3"></td>
-                                <td class='p-4 text-base font-medium text-gray-900 whitespace-nowrap text-right'>Subtotal</td>
-                                <td class='p-4 text-base font-bold text-gray-900 whitespace-nowrap text-left'>${{ number_format($subtotalBeforeTax, 2) }}</td>
-                            </tr>
-                            <tr>
-                                <td colspan="3"></td>
-                                <td class='p-4 text-base font-medium text-gray-900 whitespace-nowrap text-right'>Impuestos</td>
-                                <td class='p-4 text-base font-bold text-gray-900 whitespace-nowrap text-left'>${{ number_format($totalTax, 2) }}</td>
-                            </tr>
-                            <tr>
-                                <td colspan="3">
-
-                                </td>
-                                <td class='p-4 text-base font-medium text-gray-900 whitespace-nowrap text-right'>Total</td>
-                                <td class='p-4 text-base font-bold text-gray-900 whitespace-nowrap text-left'>${{ number_format($order->total, 2) }}</td>
-                            </tr>
-
-
-                        </tbody>
-                    </table>
+                <!-- Mobile Timeline (Vertical) -->
+                <div class="md:hidden space-y-4">
+                    @foreach($statuses as $status)
+                        <div class="flex items-start gap-3">
+                            <div class="flex items-center justify-center w-10 h-10 rounded-full flex-shrink-0 {{ $status['completed'] ? 'bg-green-500' : 'bg-gray-300' }}">
+                                <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                                </svg>
+                            </div>
+                            <div class="flex-1">
+                                <p class="text-sm font-medium text-gray-900">{{ $status['label'] }}</p>
+                                <p class="text-xs text-gray-500 mt-1">{{ $status['date'] }}</p>
+                            </div>
+                        </div>
+                    @endforeach
                 </div>
             </div>
-        </div>
 
-        @if($order->bonifications->count())
-        <div class="p-4 bg-white block sm:flex items-center justify-between border-b border-gray-200">
-            <div class="w-full">
-                <div class="">
-                    <h1 class="text-xl font-semibold text-gray-900 sm:text-2xl ">Bonificaciones</h1>
+            <!-- Products -->
+            <div class="bg-white border border-gray-200 rounded-2xl p-5 sm:p-6">
+                <h2 class="flex items-center gap-2 text-lg font-semibold text-gray-900 mb-4">
+                    <svg class="w-5 h-5 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M3 1a1 1 0 000 2h1.22l.305 1.222a.997.997 0 00.01.042l1.358 5.43-.893.892C3.74 11.846 4.632 14 6.414 14H15a1 1 0 000-2H6.414l1-1H14a1 1 0 00.894-.553l3-6A1 1 0 0017 3H6.28l-.31-1.243A1 1 0 005 1H3zM16 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM6.5 18a1.5 1.5 0 100-3 1.5 1.5 0 000 3z" />
+                    </svg>
+                    Productos
+                </h2>
+                
+                <div class="space-y-4">
+                    @foreach ($order->products as $product)
+                        <div class="flex gap-4 pb-4 border-b border-gray-200 last:border-0 last:pb-0">
+                            <div class="w-20 h-20 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
+                                @if($product->product->images && $product->product->images->first())
+                                    <img src="{{ asset('storage/'.$product->product->images->first()->path) }}" alt="{{ $product->product->name }}" class="w-full h-full object-contain">
+                                @else
+                                    <svg class="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                    </svg>
+                                @endif
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <h3 class="text-sm font-semibold text-gray-900">{{ $product->product->name }}</h3>
+                                <p class="text-sm text-gray-500 mt-1">${{ number_format($product->price, 0) }}</p>
+                                <p class="text-sm text-gray-500">Cantidad: {{ $product->quantity }}</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-base font-semibold text-orange-600">${{ number_format($product->price * $product->quantity, 0) }}</p>
+                            </div>
+                        </div>
+                    @endforeach
                 </div>
             </div>
-        </div>
-        <div class="flex flex-col">
-            <div class="overflow-x-auto">
-                <div class="inline-block min-w-full align-middle">
-                    <div class="overflow-hidden shadow">
-                        <table class="min-w-full divide-y divide-gray-200 table-fixed ">
-                            <thead class="bg-gray-100">
-                                <tr>
-                                    <th scope="col" class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
-                                        Producto
-                                    </th>
-                                    <th scope="col" class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
-                                        Bonificación
-                                    </th>
 
-                                    <th scope="col" class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
-                                        Cantidad
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody class="bg-white ">
-                                @foreach ($order->bonifications as $bonification)
-                                <tr class="hover:bg-gray-100 ">
-                                    <td class="px-4 py-2  font-normal text-gray-500 whitespace-nowrap">
-                                        {{ $bonification->product->name }}
-                                    </td>
-                                    <td class="px-4 py-2  font-normal text-gray-500 whitespace-nowrap">
-                                        {{ $bonification->bonification->name }}
-                                    </td>
-                                    <td class="px-4 py-2  font-normal text-gray-500 whitespace-nowrap">
-                                        {{ $bonification->quantity }}
-                                    </td>
-                                </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
+            <!-- Shipping Method -->
+            <div class="bg-white border border-gray-200 rounded-2xl p-5 sm:p-6">
+                <h2 class="flex items-center gap-2 text-lg font-semibold text-gray-900 mb-4">
+                    <svg class="w-5 h-5 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
+                        <path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v6.05A2.5 2.5 0 0115.95 16H17a1 1 0 001-1v-5a1 1 0 00-.293-.707l-2-2A1 1 0 0015 7h-1z" />
+                    </svg>
+                    Método de Entrega
+                </h2>
+                
+                <div class="flex items-start gap-4">
+                    <div class="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+                        <svg class="w-6 h-6 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
+                            <path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v6.05A2.5 2.5 0 0115.95 16H17a1 1 0 001-1v-5a1 1 0 00-.293-.707l-2-2A1 1 0 0015 7h-1z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <p class="text-base font-semibold text-gray-900">Vendedor Tronex</p>
+                        <p class="text-sm text-gray-600">Entrega durante la visita</p>
+                        <p class="text-sm text-orange-600 font-medium mt-1">Martes 6 de Enero</p>
                     </div>
                 </div>
             </div>
         </div>
-        @endif
+
+        <!-- Sidebar (Right Column) -->
+        <div class="lg:col-span-1 space-y-6">
+            <!-- Order Summary -->
+            <div class="bg-white border border-gray-200 rounded-2xl p-5 sm:p-6">
+                <h2 class="text-lg font-semibold text-gray-900 mb-4">Resumen del Pedido</h2>
+                
+                <div class="space-y-3">
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-600">Subtotal</span>
+                        <span class="text-gray-900 font-medium">${{ number_format($order->total + $order->discount, 0) }}</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-green-600">Descuento</span>
+                        <span class="text-green-600 font-medium">-${{ number_format($order->discount, 0) }}</span>
+                    </div>
+                    <div class="border-t border-gray-200 pt-3">
+                        <div class="flex justify-between">
+                            <span class="text-base font-semibold text-gray-900">Total</span>
+                            <span class="text-xl font-bold text-orange-600">${{ number_format($order->total, 0) }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Delivery Address -->
+            <div class="bg-white border border-gray-200 rounded-2xl p-5 sm:p-6">
+                <h2 class="flex items-center gap-2 text-lg font-semibold text-gray-900 mb-4">
+                    <svg class="w-5 h-5 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd" />
+                    </svg>
+                    Dirección de Entrega
+                </h2>
+                
+                <div class="space-y-2 text-sm">
+                    <p class="font-semibold text-gray-900">{{ $order->user->name }}</p>
+                    <p class="text-gray-600">{{ $order->address ?? 'CR 108 ESTE 27 10' }}</p>
+                    <p class="text-gray-600">{{ $order->user->city?->name ?? 'Bogotá' }}, D.C. - Colombia</p>
+                    <p class="text-gray-600 flex items-center gap-2 mt-3">
+                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
+                        </svg>
+                        {{ $order->user->phone ?? $order->user->mobile_phone ?? '+57 300 123 4567' }}
+                    </p>
+                </div>
+
+                @php
+                    $zone = $order->user->zones->first();
+                @endphp
+
+                @if($zone)
+                <div class="border-t border-gray-200 mt-4 pt-4">
+                    <p class="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-3">
+                        <span class="w-6 h-6 rounded-full bg-orange-50 flex items-center justify-center">
+                            <svg class="w-4 h-4 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" />
+                            </svg>
+                        </span>
+                        Información de Rutero
+                    </p>
+                    <div class="grid grid-cols-3 gap-3 text-sm">
+                        <div>
+                            <p class="text-xs text-gray-500 uppercase">Zona</p>
+                            <p class="font-semibold text-gray-800">{{ $zone->zone ?? '104' }}</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-500 uppercase">Ruta</p>
+                            <p class="font-semibold text-gray-800">{{ $zone->route ?? '1312' }}</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-500 uppercase">Rutero</p>
+                            <p class="font-semibold text-gray-800">{{ $zone->code ?? '1234234234' }}</p>
+                        </div>
+                    </div>
+                </div>
+                @endif
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="space-y-3">
+                <a href="{{ route('home') }}" class="w-full flex items-center justify-center px-6 py-3 bg-orange-600 text-white font-medium rounded-lg hover:bg-orange-700 transition-colors duration-200">
+                    Volver a Comprar
+                </a>
+                
+                <form action="{{ route('clients.orders.reorder', $order) }}" method="POST" class="w-full">
+                    @csrf
+                    <button type="submit" class="w-full flex items-center justify-center px-6 py-3 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors duration-200">
+                        Descargar Factura
+                    </button>
+                </form>
+            </div>
+        </div>
     </div>
 </section>
-
-
-
-
-
-
-@endsection
-
-
-@section('scripts')
-
-
 @endsection

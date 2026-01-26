@@ -53,7 +53,7 @@ class CategoriesApiController extends Controller
         // Get featured categories with their customizations
         $featuredCategories = FeaturedCategory::with(['category'])
             ->orderBy('position')
-            ->take(3)
+            ->take(4)
             ->get();
 
         Log::info('Featured categories found: ' . $featuredCategories->count());
@@ -62,7 +62,7 @@ class CategoriesApiController extends Controller
             // If no featured categories, fallback to hardcoded ones (for backward compatibility)
             $categories = Category::where('active', 1)
                 ->whereIn('id', [3, 17, 4])
-                ->take(3)
+                ->take(4)
                 ->get();
 
             $mappedCategories = $categories->map(function ($category) {
@@ -139,7 +139,7 @@ class CategoriesApiController extends Controller
             ->select('category_id', DB::raw('COUNT(product_id) as total_products'))
             ->groupBy('category_id')
             ->orderBy('total_products', 'desc')
-            ->take(3)
+            ->take(4)
             ->pluck('category_id');
 
         // If no categories with products, fallback to hardcoded ones
