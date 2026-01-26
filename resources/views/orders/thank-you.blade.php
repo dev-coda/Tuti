@@ -47,13 +47,13 @@
 
                 <div class="flex justify-between items-center py-3 border-b border-gray-100">
                     <span class="text-sm text-gray-600">Fecha del pedido</span>
-                    <span class="text-sm font-semibold text-gray-900">{{ $order->created_at->format('d F Y') }}</span>
+                    <span class="text-sm font-semibold text-gray-900">{{ $order->created_at->translatedFormat('d F Y') }}</span>
                 </div>
 
                 @if($order->delivery_date)
                 <div class="flex justify-between items-center py-3 border-b border-gray-100">
                     <span class="text-sm text-gray-600">Entrega estimada</span>
-                    <span class="text-sm font-semibold text-gray-900">{{ \Carbon\Carbon::parse($order->delivery_date)->format('d F Y') }}</span>
+                    <span class="text-sm font-semibold text-gray-900">{{ \Carbon\Carbon::parse($order->delivery_date)->translatedFormat('d F Y') }}</span>
                 </div>
                 @endif
 
