@@ -38,12 +38,44 @@
                 </h2>
                 
                 @php
+                    // Define status configurations
+                    $statusLabels = [
+                        0 => 'Pendiente',
+                        1 => 'Procesado',
+                        2 => 'Error',
+                        3 => 'Error WS',
+                    ];
+                    
+                    $statusColors = [
+                        0 => 'blue',   // Pending - blue
+                        1 => 'green',  // Processed - green
+                        2 => 'red',    // Error - red
+                        3 => 'red',    // Error WS - red
+                    ];
+                    
+                    $currentStatusLabel = $statusLabels[$order->status_id] ?? 'Desconocido';
+                    $currentStatusColor = $statusColors[$order->status_id] ?? 'gray';
+                    
+                    // Always show these 3 steps
                     $statuses = [
-                        ['label' => 'Pedido realizado', 'date' => $order->created_at->subHour(5)->format('d M Y, g:i A'), 'completed' => true],
-                        ['label' => 'Pedido confirmado', 'date' => $order->created_at->addMinutes(30)->subHour(5)->format('d M Y, g:i A'), 'completed' => $order->status_id >= 1],
-                        ['label' => 'En preparación', 'date' => $order->created_at->addHours(1)->subHour(5)->format('d M Y, g:i A'), 'completed' => $order->status_id >= 1],
-                        ['label' => 'En camino', 'date' => $order->created_at->addHours(24)->subHour(5)->format('d M Y, g:i A'), 'completed' => $order->status_id >= 1],
-                        ['label' => 'Entregado', 'date' => $order->created_at->addHours(48)->subHour(5)->format('d M Y, g:i A'), 'completed' => $order->status_id == 1],
+                        [
+                            'label' => 'Pedido realizado',
+                            'date' => $order->created_at->subHour(5)->format('d M Y, g:i A'),
+                            'completed' => true,
+                            'color' => 'green'
+                        ],
+                        [
+                            'label' => 'Pedido Pendiente',
+                            'date' => $order->created_at->subHour(5)->format('d M Y, g:i A'),
+                            'completed' => true,
+                            'color' => 'green'
+                        ],
+                        [
+                            'label' => $currentStatusLabel,
+                            'date' => $order->updated_at->subHour(5)->format('d M Y, g:i A'),
+                            'completed' => true,
+                            'color' => $currentStatusColor
+                        ],
                     ];
                 @endphp
 
@@ -53,13 +85,23 @@
                         @foreach($statuses as $index => $status)
                             <div class="flex-1 {{ $index < count($statuses) - 1 ? '' : 'flex-none' }}">
                                 <div class="flex items-center">
-                                    <div class="flex items-center justify-center w-10 h-10 rounded-full {{ $status['completed'] ? 'bg-green-500' : 'bg-gray-300' }}">
+                                    <div class="flex items-center justify-center w-10 h-10 rounded-full 
+                                        @if($status['color'] === 'green') bg-green-500
+                                        @elseif($status['color'] === 'blue') bg-blue-500
+                                        @elseif($status['color'] === 'red') bg-red-500
+                                        @else bg-gray-300
+                                        @endif">
                                         <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
                                             <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
                                         </svg>
                                     </div>
                                     @if($index < count($statuses) - 1)
-                                        <div class="flex-1 h-1 mx-2 {{ $statuses[$index + 1]['completed'] ? 'bg-green-500' : 'bg-gray-300' }}"></div>
+                                        <div class="flex-1 h-1 mx-2 
+                                            @if($statuses[$index + 1]['color'] === 'green') bg-green-500
+                                            @elseif($statuses[$index + 1]['color'] === 'blue') bg-blue-500
+                                            @elseif($statuses[$index + 1]['color'] === 'red') bg-red-500
+                                            @else bg-gray-300
+                                            @endif"></div>
                                     @endif
                                 </div>
                             </div>
@@ -79,7 +121,12 @@
                 <div class="md:hidden space-y-4">
                     @foreach($statuses as $status)
                         <div class="flex items-start gap-3">
-                            <div class="flex items-center justify-center w-10 h-10 rounded-full flex-shrink-0 {{ $status['completed'] ? 'bg-green-500' : 'bg-gray-300' }}">
+                            <div class="flex items-center justify-center w-10 h-10 rounded-full flex-shrink-0
+                                @if($status['color'] === 'green') bg-green-500
+                                @elseif($status['color'] === 'blue') bg-blue-500
+                                @elseif($status['color'] === 'red') bg-red-500
+                                @else bg-gray-300
+                                @endif">
                                 <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
                                     <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
                                 </svg>
@@ -128,6 +175,7 @@
             </div>
 
             <!-- Shipping Method -->
+            @if($order->delivery_method)
             <div class="bg-white border border-gray-200 rounded-2xl p-5 sm:p-6">
                 <h2 class="flex items-center gap-2 text-lg font-semibold text-gray-900 mb-4">
                     <svg class="w-5 h-5 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
@@ -145,12 +193,14 @@
                         </svg>
                     </div>
                     <div>
-                        <p class="text-base font-semibold text-gray-900">Vendedor Tronex</p>
-                        <p class="text-sm text-gray-600">Entrega durante la visita</p>
-                        <p class="text-sm text-orange-600 font-medium mt-1">Martes 6 de Enero</p>
+                        <p class="text-base font-semibold text-gray-900">{{ $order->delivery_method }}</p>
+                        @if($order->delivery_date)
+                            <p class="text-sm text-orange-600 font-medium mt-1">{{ \Carbon\Carbon::parse($order->delivery_date)->format('l d \d\e F') }}</p>
+                        @endif
                     </div>
                 </div>
             </div>
+            @endif
         </div>
 
         <!-- Sidebar (Right Column) -->
@@ -164,10 +214,12 @@
                         <span class="text-gray-600">Subtotal</span>
                         <span class="text-gray-900 font-medium">${{ number_format($order->total + $order->discount, 0) }}</span>
                     </div>
+                    @if($order->discount > 0)
                     <div class="flex justify-between text-sm">
                         <span class="text-green-600">Descuento</span>
                         <span class="text-green-600 font-medium">-${{ number_format($order->discount, 0) }}</span>
                     </div>
+                    @endif
                     <div class="border-t border-gray-200 pt-3">
                         <div class="flex justify-between">
                             <span class="text-base font-semibold text-gray-900">Total</span>
@@ -188,19 +240,38 @@
                 
                 <div class="space-y-2 text-sm">
                     <p class="font-semibold text-gray-900">{{ $order->user->name }}</p>
-                    <p class="text-gray-600">{{ $order->address ?? 'CR 108 ESTE 27 10' }}</p>
-                    <p class="text-gray-600">{{ $order->user->city?->name ?? 'Bogotá' }}, D.C. - Colombia</p>
-                    <p class="text-gray-600 flex items-center gap-2 mt-3">
-                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
-                        </svg>
-                        {{ $order->user->phone ?? $order->user->mobile_phone ?? '+57 300 123 4567' }}
-                    </p>
+                    
+                    @php
+                        $zone = $order->user->zones->first();
+                    @endphp
+                    
+                    @if($zone && $zone->address)
+                        <p class="text-gray-600">{{ $zone->address }}</p>
+                    @endif
+                    
+                    @if($order->user->city)
+                        <p class="text-gray-600">{{ $order->user->city->name }}, Colombia</p>
+                    @endif
+                    
+                    @if($order->user->phone || $order->user->mobile_phone)
+                        <p class="text-gray-600 flex items-center gap-2 mt-3">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
+                            </svg>
+                            {{ $order->user->phone ?? $order->user->mobile_phone }}
+                        </p>
+                    @endif
+                    
+                    @if($order->user->email)
+                        <p class="text-gray-600 flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
+                                <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
+                            </svg>
+                            {{ $order->user->email }}
+                        </p>
+                    @endif
                 </div>
-
-                @php
-                    $zone = $order->user->zones->first();
-                @endphp
 
                 @if($zone)
                 <div class="border-t border-gray-200 mt-4 pt-4">
@@ -212,19 +283,25 @@
                         </span>
                         Información de Rutero
                     </p>
-                    <div class="grid grid-cols-3 gap-3 text-sm">
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
+                        @if($zone->zone)
                         <div>
                             <p class="text-xs text-gray-500 uppercase">Zona</p>
-                            <p class="font-semibold text-gray-800">{{ $zone->zone ?? '104' }}</p>
+                            <p class="font-semibold text-gray-800 break-words">{{ $zone->zone }}</p>
                         </div>
+                        @endif
+                        @if($zone->route)
                         <div>
                             <p class="text-xs text-gray-500 uppercase">Ruta</p>
-                            <p class="font-semibold text-gray-800">{{ $zone->route ?? '1312' }}</p>
+                            <p class="font-semibold text-gray-800 break-words">{{ $zone->route }}</p>
                         </div>
-                        <div>
+                        @endif
+                        @if($zone->code)
+                        <div class="col-span-2 sm:col-span-1">
                             <p class="text-xs text-gray-500 uppercase">Rutero</p>
-                            <p class="font-semibold text-gray-800">{{ $zone->code ?? '1234234234' }}</p>
+                            <p class="font-semibold text-gray-800 break-words">{{ $zone->code }}</p>
                         </div>
+                        @endif
                     </div>
                 </div>
                 @endif
@@ -239,7 +316,7 @@
                 <form action="{{ route('clients.orders.reorder', $order) }}" method="POST" class="w-full">
                     @csrf
                     <button type="submit" class="w-full flex items-center justify-center px-6 py-3 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors duration-200">
-                        Descargar Factura
+                        Ordenar de nuevo
                     </button>
                 </form>
             </div>
