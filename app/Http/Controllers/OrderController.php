@@ -17,7 +17,7 @@ class OrderController extends Controller
         $user = auth()->user();
 
         $orders = Order::query()
-            ->with(['user'])
+            ->with(['user', 'products.product.images'])
             ->withCount('products')
             ->withSum('products', 'quantity')
             ->where(function ($query) use ($user) {
