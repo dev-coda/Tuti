@@ -47,16 +47,16 @@
                     ];
                     
                     $statusColors = [
-                        0 => 'blue',   // Pending - blue
-                        1 => 'green',  // Processed - green
-                        2 => 'red',    // Error - red
-                        3 => 'red',    // Error WS - red
+                        0 => 'blue',   // Pendiente - azul
+                        1 => 'green',  // Procesado - verde
+                        2 => 'red',    // Error - rojo
+                        3 => 'red',    // Error WS - rojo
                     ];
                     
                     $currentStatusLabel = $statusLabels[$order->status_id] ?? 'Desconocido';
                     $currentStatusColor = $statusColors[$order->status_id] ?? 'gray';
                     
-                    // Always show these 3 steps
+                    // Siempre mostrar estos 3 pasos
                     $statuses = [
                         [
                             'label' => 'Pedido realizado',

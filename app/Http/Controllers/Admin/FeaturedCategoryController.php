@@ -165,8 +165,7 @@ class FeaturedCategoryController extends Controller
         // Get IDs of already featured categories
         $featuredIds = FeaturedCategory::pluck('category_id');
 
-        $categories = Category::where('active', 1)
-            ->whereNotIn('id', $featuredIds)
+        $categories = Category::whereNotIn('id', $featuredIds)
             ->where('name', 'like', "%{$query}%")
             ->limit(10)
             ->get();
