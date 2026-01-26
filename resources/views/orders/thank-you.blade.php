@@ -47,13 +47,18 @@
 
                 <div class="flex justify-between items-center py-3 border-b border-gray-100">
                     <span class="text-sm text-gray-600">Fecha del pedido</span>
-                    <span class="text-sm font-semibold text-gray-900">{{ $order->created_at->translatedFormat('d F Y') }}</span>
+                    <span class="text-sm font-semibold text-gray-900">{{ $order->created_at->locale('es')->translatedFormat('d \d\e F \d\e Y') }}</span>
                 </div>
 
-                @if($order->delivery_date)
+                @if($order->delivery_date && $order->delivery_method)
+                <div class="flex justify-between items-center py-3 border-b border-gray-100">
+                    <span class="text-sm text-gray-600">Método de envío</span>
+                    <span class="text-sm font-semibold text-gray-900">{{ $order->delivery_method }}</span>
+                </div>
+                
                 <div class="flex justify-between items-center py-3 border-b border-gray-100">
                     <span class="text-sm text-gray-600">Entrega estimada</span>
-                    <span class="text-sm font-semibold text-gray-900">{{ \Carbon\Carbon::parse($order->delivery_date)->translatedFormat('d F Y') }}</span>
+                    <span class="text-sm font-semibold text-gray-900">{{ \Carbon\Carbon::parse($order->delivery_date)->locale('es')->translatedFormat('l d \d\e F \d\e Y') }}</span>
                 </div>
                 @endif
 
