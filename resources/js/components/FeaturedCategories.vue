@@ -1,11 +1,11 @@
 <template>
-    <div class="xl:col-span-12 col-span-12">
+    <div class="w-full">
         <h4
-            class="col-span-12 text-slate-700 text-3xl font-semibold mb-2 md:mb-3 mt-4 md:mt-12 flex justify-center"
+            class="text-center text-slate-600 text-xl md:text-2xl font-semibold mb-4 md:mb-6 mt-6 md:mt-10"
         >
             {{ sectionTitle }}
         </h4>
-        <div class="xl:col-span-12 col-span-12 pb-2 md:pb-6">
+        <div class="pb-2 md:pb-6">
             <div v-if="error" class="text-red-500 text-center mb-4">
                 {{ error }}
             </div>
@@ -13,16 +13,14 @@
                 Cargando categorías...
             </div>
             <template v-else>
-                <div
-                    class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 md:gap-5"
-                >
-                    <div
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+                    <a
                         v-for="category in categories"
                         :key="category.id"
-                        class="border border-gray-100 rounded-lg overflow-hidden hover:scale-105 transition duration-300 cursor-pointer relative bg-gray-100"
+                        :href="category.url"
+                        class="group block rounded-2xl overflow-hidden border border-gray-200 bg-white shadow-sm transition-transform duration-300 hover:-translate-y-0.5"
                     >
-                        <!-- Image Container -->
-                        <div class="relative h-40 w-full max-w-sm mx-auto">
+                        <div class="relative h-36 md:h-44 w-full">
                             <img
                                 v-if="category.image"
                                 :src="category.image"
@@ -39,7 +37,7 @@
                                     viewBox="0 0 24 24"
                                     stroke-width="1.5"
                                     stroke="currentColor"
-                                    class="w-12 h-12 text-gray-400"
+                                    class="w-10 h-10 text-gray-400"
                                 >
                                     <path
                                         stroke-linecap="round"
@@ -49,22 +47,12 @@
                                 </svg>
                             </div>
                         </div>
-
-                        <!-- Category Name Overlay -->
-                        <div
-                            class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4"
-                        >
-                            <a :href="category.url" class="block">
-                                <div
-                                    class="bg-orange-500 text-white font-semibold text-sm sm:text-base p-3 rounded-lg text-center"
-                                >
-                                    <span class="block truncate">
-                                        {{ category.name }}
-                                    </span>
-                                </div>
-                            </a>
+                        <div class="bg-orange-500 text-white text-[11px] md:text-xs font-semibold text-center py-2 uppercase tracking-wide">
+                            <span class="block truncate px-2">
+                                {{ category.name }}
+                            </span>
                         </div>
-                    </div>
+                    </a>
                 </div>
             </template>
         </div>

@@ -1,11 +1,11 @@
 <template>
-    <div class="xl:col-span-12 col-span-12">
+    <div class="w-full">
         <h4
-            class="col-span-12 text-slate-700 text-3xl font-semibold mb-3 mt-12 flex justify-center"
+            class="text-center text-slate-600 text-xl md:text-2xl font-semibold mb-4 md:mb-6 mt-8 md:mt-12"
         >
             {{ sectionTitle }}
         </h4>
-        <div class="xl:col-span-12 col-span-12 pb-6">
+        <div class="pb-6">
             <div v-if="error" class="text-red-500 text-center mb-4">
                 {{ error }}
             </div>
@@ -13,18 +13,18 @@
                 Cargando productos...
             </div>
             <template v-else>
-                <div class="grid grid-cols-1 xl:grid-cols-4 gap-0">
+                <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
                     <template
                         v-for="product in visibleProducts"
                         :key="product.id"
                     >
-                        <div class="rounded flex flex-col p-6 max-w-[90vw]">
+                        <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-4 flex flex-col">
                             <div
                                 class="flex w-full items-center justify-center py-2 text-gray-400 flex-grow relative"
                             >
                                 <a
                                     :href="product.url"
-                                    class="flex-grow-1 h-40 block w-full bg-contain bg-center bg-no-repeat hover:scale-110 transition duration-500 cursor-pointer"
+                                    class="h-36 md:h-44 block w-full bg-contain bg-center bg-no-repeat hover:scale-105 transition duration-300 cursor-pointer"
                                     :style="{
                                         backgroundImage: `url(${product.image})`,
                                     }"
@@ -32,27 +32,27 @@
                                 </a>
                                 <div
                                     v-if="product.tag"
-                                    class="absolute top-2 right-2 z-10 px-2 py-1 text-xs font-semibold text-white bg-orange-600 rounded shadow-lg"
+                                    class="absolute top-2 right-2 z-10 px-2 py-1 text-[10px] font-semibold text-white bg-orange-600 rounded-full shadow"
                                 >
                                     {{ product.tag.content }}
                                 </div>
                             </div>
 
-                            <div class="p-2 flex flex-col">
+                            <div class="mt-2 flex flex-col">
                                 <a
                                     :href="product.url"
-                                    class="text-[#180F09] font-semibold text-lg"
+                                    class="text-gray-800 font-medium text-sm md:text-base leading-tight"
                                     >{{ product.name }}</a
                                 >
                                 <p
                                     v-if="product.sku"
-                                    class="text-slate-500 text-md"
+                                    class="text-xs text-blue-600 mt-1"
                                 >
                                     {{ product.sku }}
                                 </p>
-                                <div class="flex items-baseline gap-2">
+                                <div class="flex items-baseline gap-2 mt-2">
                                     <span
-                                        class="text-orange-500 font-semibold text-2xl"
+                                        class="text-orange-500 font-bold text-lg md:text-xl"
                                     >
                                         ${{
                                             formatPrice(
@@ -62,14 +62,14 @@
                                     </span>
                                     <span
                                         v-if="product.final_price.has_discount"
-                                        class="line-through text-slate-400 text-base font-semibold"
+                                        class="line-through text-gray-400 text-xs md:text-sm font-semibold"
                                     >
                                         ${{
                                             formatPrice(product.final_price.old)
                                         }}
                                     </span>
                                 </div>
-                                <p v-if="product.final_price.perItemPrice">
+                                <p v-if="product.final_price.perItemPrice" class="text-xs text-gray-500 mt-1">
                                     (Und. x) ${{
                                         formatPrice(
                                             product.final_price.perItemPrice
@@ -81,7 +81,7 @@
                                 <button
                                     @click="addToCart(product)"
                                     :disabled="addingToCart === product.id || vacationMode.enabled"
-                                    class="bg-secondary p-2 mt-4 text-white hover:bg-gray2 flex px-4 text-xl font-semibold rounded-full items-center justify-center w-52 mx-auto disabled:opacity-50 disabled:cursor-not-allowed"
+                                    class="bg-orange-500 hover:bg-orange-600 text-white text-sm md:text-base font-semibold rounded-full px-4 py-2 w-full mt-4 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     <span v-if="addingToCart !== product.id">¡Lo quiero!</span>
                                     <span v-else class="animate-spin">⏳</span>
@@ -91,7 +91,7 @@
                                         viewBox="0 0 24 24"
                                         stroke-width="1.5"
                                         stroke="currentColor"
-                                        class="w-8 h-8"
+                                        class="w-5 h-5"
                                     >
                                         <path
                                             stroke-linecap="round"
@@ -117,12 +117,11 @@
                         v-for="page in totalPages"
                         :key="page"
                         @click="currentPage = page - 1"
-                        class="w-4 h-4 rounded-full transition-all duration-300 border-2 border-black"
-                        style="border-color: darkgray; border-width: 2px"
+                        class="w-3 h-3 rounded-full transition-all duration-300 border border-gray-300"
                         :class="
                             currentPage === page - 1
                                 ? 'bg-gray-500'
-                                : 'bg-orange-200 '
+                                : 'bg-gray-200'
                         "
                         :aria-label="'Go to page ' + page"
                     ></button>

@@ -18,21 +18,19 @@
 
 <section class="w-full bg-gray-100 pt-4 sm:pt-6">
     <div class="max-w-6xl mx-auto px-4">
-        <div class="rounded-2xl overflow-hidden border border-gray-200 bg-white shadow-sm">
-            <section id='banners' class="splide">
-                <div class="splide__track">
-                    <ul class="splide__list">
-                        @foreach ($banners as $banner)
-                        <li class="splide__slide">
-                            <a href="{{$banner->url ?? '#'}}">
-                                <img src="{{asset('storage/'.$banner->path)}}" class="w-full h-auto object-cover">
-                            </a>
-                        </li>
-                        @endforeach
-                    </ul>
-                </div>
-            </section>
-        </div>
+        <section id='banners' class="splide overflow-hidden rounded-xl">
+            <div class="splide__track">
+                <ul class="splide__list">
+                    @foreach ($banners as $banner)
+                    <li class="splide__slide">
+                        <a href="{{$banner->url ?? '#'}}">
+                            <img src="{{asset('storage/'.$banner->path)}}" class="w-full h-auto object-cover">
+                        </a>
+                    </li>
+                    @endforeach
+                </ul>
+            </div>
+        </section>
     </div>
 </section>
 
@@ -42,27 +40,13 @@
 
 
 
-<section class="max-w-6xl mx-auto px-4 mt-6 sm:mt-8 space-y-6 sm:space-y-8">
-    <div class="bg-white border border-gray-200 rounded-2xl p-4 sm:p-6 shadow-sm">
-        <div class="flex items-center justify-between mb-4">
-            <h2 class="text-lg sm:text-2xl font-semibold text-gray-900">Categorías</h2>
-        </div>
-        <div id="featured-categories" class="pt-1"></div>
-    </div>
-
-    <div class="bg-white border border-gray-200 rounded-2xl p-4 sm:p-6 shadow-sm">
-        <div class="flex items-center justify-between mb-4">
-            <h2 class="text-lg sm:text-2xl font-semibold text-gray-900">Productos Destacados</h2>
-        </div>
-        <div id="featured-products" class="pt-1"></div>
-    </div>
+<section class="max-w-6xl mx-auto px-4 mt-6 sm:mt-8 space-y-8 sm:space-y-10">
+    <div id="featured-categories"></div>
+    <div id="featured-products"></div>
 </section>
 
 <section class="max-w-6xl mx-auto px-4 mt-6 sm:mt-8 pb-6 sm:pb-10">
-    <div class="bg-white border border-gray-200 rounded-2xl p-4 sm:p-6 shadow-sm">
-        <div class="flex items-center justify-between mb-4">
-            <h2 class="text-lg sm:text-2xl font-semibold text-gray-900">Marcas Destacadas</h2>
-        </div>
+    <div class="bg-gray-100 rounded-xl py-4 px-2 sm:px-4">
         <div id='ads' class="splide">
             <div class="splide__track">
                 <ul class="splide__list">
