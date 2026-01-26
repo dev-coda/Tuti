@@ -59,7 +59,9 @@ class OrderController extends Controller
             3 => 'Error WS',
         ];
 
-        return view('clients.orders.index', compact('orders', 'statuses'));
+        $accountUser = $user->load(['zones', 'city']);
+
+        return view('clients.orders.index', compact('orders', 'statuses', 'accountUser'));
     }
 
     public function show($id)

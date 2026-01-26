@@ -137,8 +137,151 @@
             </div>
 
             <div data-tab-panel="account" class="hidden">
-                <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-6 text-sm text-gray-500">
-                    Sección en construcción.
+                @php
+                    $accountUser = $accountUser ?? auth()->user();
+                    $isSeller = $accountUser?->hasRole('seller');
+                    $roleLabel = $isSeller ? 'Vendedor' : 'Cliente';
+                @endphp
+                <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-5 sm:p-6">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-1">Información Personal</h2>
+                    <p class="text-sm text-gray-500 mb-4">
+                        {{ $isSeller ? 'Información del vendedor' : 'Información del cliente' }}
+                    </p>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Rol</label>
+                            <input type="text" value="{{ $roleLabel }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Nombre</label>
+                            <input type="text" value="{{ $accountUser->name }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Razón Social</label>
+                            <input type="text" value="{{ $accountUser->business_name ?? '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Correo Electrónico</label>
+                            <input type="text" value="{{ $accountUser->email }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Documento</label>
+                            <input type="text" value="{{ $accountUser->document ?? '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Teléfono</label>
+                            <input type="text" value="{{ $accountUser->phone ?? '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Celular</label>
+                            <input type="text" value="{{ $accountUser->mobile_phone ?? '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">WhatsApp</label>
+                            <input type="text" value="{{ $accountUser->whatsapp ?? '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Ciudad</label>
+                            <input type="text" value="{{ $accountUser->city?->name ?? '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Código Ciudad</label>
+                            <input type="text" value="{{ $accountUser->city_code ?? '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Zona</label>
+                            <input type="text" value="{{ $accountUser->zone ?? '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
+                        </div>
+                    </div>
+
+                    <h3 class="text-lg font-semibold text-gray-900 mt-8 mb-4">Información Comercial</h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Tipo de Cliente</label>
+                            <input type="text" value="{{ $accountUser->customer_type ?? '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Grupo de Precios</label>
+                            <input type="text" value="{{ $accountUser->price_group ?? '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Grupo de Impuestos</label>
+                            <input type="text" value="{{ $accountUser->tax_group ?? '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Descuento</label>
+                            <input type="text" value="{{ $accountUser->line_discount ?? '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Saldo</label>
+                            <input type="text" value="{{ $accountUser->balance ?? '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Cupo</label>
+                            <input type="text" value="{{ $accountUser->quota_value ?? '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Estado del Cliente</label>
+                            <input type="text" value="{{ $accountUser->customer_status ?? '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Cuenta</label>
+                            <input type="text" value="{{ $accountUser->account_num ?? '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Bloqueado</label>
+                            <input type="text" value="{{ $accountUser->is_locked ? 'Sí' : 'No' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Secuencia de Orden</label>
+                            <input type="text" value="{{ $accountUser->order_sequence ?? '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
+                        </div>
+                    </div>
+
+                    <h3 class="text-lg font-semibold text-gray-900 mt-8 mb-4">Metadatos</h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">ID Usuario</label>
+                            <input type="text" value="{{ $accountUser->id }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Estado</label>
+                            <input type="text" value="{{ $accountUser->status_id ?? '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Términos Aceptados</label>
+                            <input type="text" value="{{ $accountUser->terms_accepted ? 'Sí' : 'No' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Email Verificado</label>
+                            <input type="text" value="{{ $accountUser->email_verified_at ? $accountUser->email_verified_at->format('d/m/Y H:i') : '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Creado</label>
+                            <input type="text" value="{{ $accountUser->created_at?->format('d/m/Y H:i') ?? '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Actualizado</label>
+                            <input type="text" value="{{ $accountUser->updated_at?->format('d/m/Y H:i') ?? '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
+                        </div>
+                    </div>
+
+                    <h3 class="text-lg font-semibold text-gray-900 mt-8 mb-4">Zonas Asociadas</h3>
+                    <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 text-sm text-gray-600">
+                        @if($accountUser->zones && $accountUser->zones->count())
+                            <ul class="space-y-2">
+                                @foreach($accountUser->zones as $zone)
+                                    <li class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                                        <span class="font-medium text-gray-800">{{ $zone->address ?? 'Dirección no disponible' }}</span>
+                                        <span class="text-xs text-gray-500">Zona {{ $zone->zone ?? '-' }} · Ruta {{ $zone->route ?? '-' }}</span>
+                                    </li>
+                                @endforeach
+                            </ul>
+                        @else
+                            <span>No hay zonas registradas.</span>
+                        @endif
+                    </div>
                 </div>
             </div>
 
