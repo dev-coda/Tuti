@@ -139,155 +139,97 @@
             <div data-tab-panel="account" class="hidden">
                 @php
                     $accountUser = $accountUser ?? auth()->user();
-                    $isSeller = $accountUser?->hasRole('seller');
-                    $roleLabel = $isSeller ? 'Vendedor' : 'Cliente';
+                    $fullName = trim((string) $accountUser->name);
+                    $nameParts = preg_split('/\s+/', $fullName, 2);
+                    $firstName = $nameParts[0] ?? $fullName;
+                    $lastName = $nameParts[1] ?? '';
                 @endphp
                 <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-5 sm:p-6">
-                    <h2 class="text-lg font-semibold text-gray-900 mb-1">Información Personal</h2>
-                    <p class="text-sm text-gray-500 mb-4">
-                        {{ $isSeller ? 'Información del vendedor' : 'Información del cliente' }}
-                    </p>
-
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4">Información Personal</h2>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1">Rol</label>
-                            <input type="text" value="{{ $roleLabel }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
-                        </div>
-                        <div>
                             <label class="block text-xs font-medium text-gray-500 mb-1">Nombre</label>
-                            <input type="text" value="{{ $accountUser->name }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
+                            <input type="text" value="{{ $firstName }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
                         </div>
                         <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1">Razón Social</label>
-                            <input type="text" value="{{ $accountUser->business_name ?? '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Apellido</label>
+                            <input type="text" value="{{ $lastName ?: '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
                         </div>
-                        <div>
+                        <div class="sm:col-span-2">
                             <label class="block text-xs font-medium text-gray-500 mb-1">Correo Electrónico</label>
                             <input type="text" value="{{ $accountUser->email }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
                         </div>
                         <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1">Documento</label>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Teléfono</label>
+                            <input type="text" value="{{ $accountUser->mobile_phone ?? $accountUser->phone ?? '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Documento de Identidad</label>
                             <input type="text" value="{{ $accountUser->document ?? '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
                         </div>
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1">Teléfono</label>
-                            <input type="text" value="{{ $accountUser->phone ?? '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1">Celular</label>
-                            <input type="text" value="{{ $accountUser->mobile_phone ?? '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1">WhatsApp</label>
-                            <input type="text" value="{{ $accountUser->whatsapp ?? '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1">Ciudad</label>
-                            <input type="text" value="{{ $accountUser->city?->name ?? '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1">Código Ciudad</label>
-                            <input type="text" value="{{ $accountUser->city_code ?? '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1">Zona</label>
-                            <input type="text" value="{{ $accountUser->zone ?? '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
-                        </div>
-                    </div>
-
-                    <h3 class="text-lg font-semibold text-gray-900 mt-8 mb-4">Información Comercial</h3>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1">Tipo de Cliente</label>
-                            <input type="text" value="{{ $accountUser->customer_type ?? '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1">Grupo de Precios</label>
-                            <input type="text" value="{{ $accountUser->price_group ?? '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1">Grupo de Impuestos</label>
-                            <input type="text" value="{{ $accountUser->tax_group ?? '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1">Descuento</label>
-                            <input type="text" value="{{ $accountUser->line_discount ?? '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1">Saldo</label>
-                            <input type="text" value="{{ $accountUser->balance ?? '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1">Cupo</label>
-                            <input type="text" value="{{ $accountUser->quota_value ?? '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1">Estado del Cliente</label>
-                            <input type="text" value="{{ $accountUser->customer_status ?? '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1">Cuenta</label>
-                            <input type="text" value="{{ $accountUser->account_num ?? '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1">Bloqueado</label>
-                            <input type="text" value="{{ $accountUser->is_locked ? 'Sí' : 'No' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1">Secuencia de Orden</label>
-                            <input type="text" value="{{ $accountUser->order_sequence ?? '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
-                        </div>
-                    </div>
-
-                    <h3 class="text-lg font-semibold text-gray-900 mt-8 mb-4">Metadatos</h3>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1">ID Usuario</label>
-                            <input type="text" value="{{ $accountUser->id }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1">Estado</label>
-                            <input type="text" value="{{ $accountUser->status_id ?? '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1">Términos Aceptados</label>
-                            <input type="text" value="{{ $accountUser->terms_accepted ? 'Sí' : 'No' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1">Email Verificado</label>
-                            <input type="text" value="{{ $accountUser->email_verified_at ? $accountUser->email_verified_at->format('d/m/Y H:i') : '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1">Creado</label>
-                            <input type="text" value="{{ $accountUser->created_at?->format('d/m/Y H:i') ?? '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1">Actualizado</label>
-                            <input type="text" value="{{ $accountUser->updated_at?->format('d/m/Y H:i') ?? '-' }}" readonly class="w-full border-gray-200 rounded-lg text-sm bg-gray-50">
-                        </div>
-                    </div>
-
-                    <h3 class="text-lg font-semibold text-gray-900 mt-8 mb-4">Zonas Asociadas</h3>
-                    <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 text-sm text-gray-600">
-                        @if($accountUser->zones && $accountUser->zones->count())
-                            <ul class="space-y-2">
-                                @foreach($accountUser->zones as $zone)
-                                    <li class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                                        <span class="font-medium text-gray-800">{{ $zone->address ?? 'Dirección no disponible' }}</span>
-                                        <span class="text-xs text-gray-500">Zona {{ $zone->zone ?? '-' }} · Ruta {{ $zone->route ?? '-' }}</span>
-                                    </li>
-                                @endforeach
-                            </ul>
-                        @else
-                            <span>No hay zonas registradas.</span>
-                        @endif
                     </div>
                 </div>
             </div>
 
             <div data-tab-panel="addresses" class="hidden">
-                <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-6 text-sm text-gray-500">
-                    Sección en construcción.
+                <div class="space-y-6">
+                    @if($accountUser->zones && $accountUser->zones->count())
+                        @foreach($accountUser->zones as $zone)
+                            <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-5 sm:p-6">
+                                <div class="flex items-start gap-4">
+                                    <div class="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center">
+                                        <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8.25 8.25 0 1111.314 0z" />
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        </svg>
+                                    </div>
+                                    <div class="flex-1">
+                                        <div class="flex items-center gap-2">
+                                            <h3 class="text-sm font-semibold text-gray-900">
+                                                {{ $zone->address ?? 'Dirección' }}
+                                            </h3>
+                                            @if($zone->id === $accountUser->zones->first()->id)
+                                                <span class="text-xs font-medium text-orange-600 bg-orange-100 rounded-full px-2 py-0.5">Predeterminada</span>
+                                            @endif
+                                        </div>
+                                        <p class="text-sm text-gray-600 mt-1">{{ $accountUser->name }}</p>
+                                        <p class="text-sm text-gray-600">{{ $zone->address ?? '-' }}</p>
+                                        <p class="text-sm text-gray-600">{{ $accountUser->city?->name ?? '-' }}</p>
+                                        <p class="text-sm text-gray-600">{{ $accountUser->phone ?? $accountUser->mobile_phone ?? '-' }}</p>
+                                    </div>
+                                </div>
+
+                                <div class="border-t border-gray-100 mt-4 pt-4">
+                                    <div class="flex items-center gap-2 text-sm text-gray-700 font-semibold mb-3">
+                                        <span class="w-6 h-6 rounded-full bg-orange-50 flex items-center justify-center">
+                                            <svg class="w-4 h-4 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m2 0a8 8 0 11-16 0 8 8 0 0116 0z" />
+                                            </svg>
+                                        </span>
+                                        Información de Rutero
+                                    </div>
+                                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm text-gray-600">
+                                        <div>
+                                            <p class="text-xs text-gray-500 uppercase">Zona</p>
+                                            <p class="font-semibold text-gray-800">{{ $zone->zone ?? '-' }}</p>
+                                        </div>
+                                        <div>
+                                            <p class="text-xs text-gray-500 uppercase">Ruta</p>
+                                            <p class="font-semibold text-gray-800">{{ $zone->route ?? '-' }}</p>
+                                        </div>
+                                        <div>
+                                            <p class="text-xs text-gray-500 uppercase">Rutero</p>
+                                            <p class="font-semibold text-gray-800">{{ $zone->code ?? '-' }}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        @endforeach
+                    @else
+                        <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-6 text-center text-gray-500">
+                            No hay direcciones registradas.
+                        </div>
+                    @endif
                 </div>
             </div>
         </div>
