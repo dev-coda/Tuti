@@ -1,4 +1,4 @@
-@props(['title', 'menu', 'icon'])
+@props(['title', 'menu' => [], 'icon'])
 
 @php
     $is = [];
