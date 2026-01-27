@@ -174,18 +174,19 @@
                 </div>
             </div>
 
-            <!-- Shipping Method -->
-            @if($order->delivery_method)
+            <!-- Shipping Method & Observations -->
+            @if($order->delivery_method || $order->observations)
             <div class="bg-white border border-gray-200 rounded-2xl p-5 sm:p-6">
                 <h2 class="flex items-center gap-2 text-lg font-semibold text-gray-900 mb-4">
                     <svg class="w-5 h-5 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
                         <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
                         <path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v6.05A2.5 2.5 0 0115.95 16H17a1 1 0 001-1v-5a1 1 0 00-.293-.707l-2-2A1 1 0 0015 7h-1z" />
                     </svg>
-                    Método de Entrega
+                    Información de Envío
                 </h2>
                 
-                <div class="flex items-start gap-4">
+                @if($order->delivery_method)
+                <div class="flex items-start gap-4 mb-4">
                     <div class="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
                         <svg class="w-6 h-6 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
                             <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
@@ -193,12 +194,20 @@
                         </svg>
                     </div>
                     <div>
-                        <p class="text-base font-semibold text-gray-900">{{ $order->delivery_method }}</p>
+                        <p class="text-base font-semibold text-gray-900">{{ ucwords(strtolower($order->delivery_method)) }}</p>
                         @if($order->delivery_date)
-                            <p class="text-sm text-orange-600 font-medium mt-1">{{ \Carbon\Carbon::parse($order->delivery_date)->format('l d \d\e F') }}</p>
+                            <p class="text-sm text-orange-600 font-medium mt-1">{{ \Carbon\Carbon::parse($order->delivery_date)->locale('es')->translatedFormat('l d \d\e F') }}</p>
                         @endif
                     </div>
                 </div>
+                @endif
+
+                @if($order->observations)
+                <div class="border-t border-gray-200 pt-4">
+                    <p class="text-sm font-semibold text-gray-700 mb-2">Observaciones</p>
+                    <p class="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">{{ $order->observations }}</p>
+                </div>
+                @endif
             </div>
             @endif
         </div>
