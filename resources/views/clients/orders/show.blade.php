@@ -196,7 +196,7 @@
                     <div>
                         <p class="text-base font-semibold text-gray-900">{{ ucwords(strtolower($order->delivery_method)) }}</p>
                         @if($order->delivery_date)
-                            <p class="text-sm text-orange-600 font-medium mt-1">{{ \Carbon\Carbon::parse($order->delivery_date)->locale('es')->translatedFormat('l d \d\e F') }}</p>
+                            <p class="text-sm text-orange-600 font-medium mt-1">{{ ucwords(\Carbon\Carbon::parse($order->delivery_date)->locale('es')->translatedFormat('l d \d\e F')) }}</p>
                         @endif
                     </div>
                 </div>
