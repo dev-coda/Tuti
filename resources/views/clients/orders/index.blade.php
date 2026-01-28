@@ -85,24 +85,12 @@
 
                 <div class="space-y-4">
                     @forelse ($orders as $order)
-                        @php
-                            $firstProduct = $order->products->first();
-                            $firstImage = $firstProduct?->product?->images?->first();
-                        @endphp
                         <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-4">
-                            <div class="w-16 h-16 rounded-xl bg-gray-100 flex items-center justify-center overflow-hidden">
-                                @if($firstImage)
-                                    <img src="{{ asset('storage/'.$firstImage->path) }}" alt="Producto" class="w-full h-full object-contain">
-                                @else
-                                    <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7h18M5 7l1 12a2 2 0 002 2h8a2 2 0 002-2l1-12M9 7V5a2 2 0 012-2h2a2 2 0 012 2v2" />
-                                    </svg>
-                                @endif
-                            </div>
                             <div class="flex-1">
                                 <div class="flex items-center justify-between">
                                     <div>
                                         <p class="text-sm font-semibold text-gray-900">Pedido #{{ $order->id }}</p>
+                                        <p class="text-xs text-gray-600 mt-0.5">{{ $order->user->name }}</p>
                                         <p class="text-xs text-gray-500">{{ $order->created_at->subHour(5)->format('d M Y') }}</p>
                                     </div>
                                     <div class="text-right">
