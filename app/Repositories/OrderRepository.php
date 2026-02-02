@@ -871,6 +871,10 @@ class OrderRepository
      * Calculate delivery date for Tronex method (next available route date)
      * 
      * Logic:
+     * - If order is created by a seller: delivery date = next business day
+     * - If order is created by a client: apply the full calculation logic
+     * 
+     * Full calculation logic for clients:
      * 1. Get user's route from their zone
      * 2. Map route to cycle (A/B/C)
      * 3. Find next available week for that cycle
@@ -883,6 +887,12 @@ class OrderRepository
      */
     public static function getTronexDeliveryDate(?Zone $zone = null): string
     {
+        // Check if the order is being created by a seller
+        // If so, delivery date is always next business day
+        if (auth()->check() && auth()->user()->hasRole('seller')) {
+            return self::getBusinessDay(0);
+        }
+
         // If no zone provided, try to get from session
         if (!$zone && auth()->check()) {
             $zoneId = session()->get('zone_id');
