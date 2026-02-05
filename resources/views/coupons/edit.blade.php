@@ -185,12 +185,44 @@
 <script>
     // Data for dynamic selections
     const selectionData = {
-        product: @json($products->map(fn($p) => ['id' => $p->id, 'name' => $p->name, 'sku' => $p->sku ?? '', 'display' => ($p->sku ? $p->sku . ' - ' : '') . $p->name])),
-        category: @json($categories->map(fn($c) => ['id' => $c->id, 'name' => $c->name])),
-        brand: @json($brands->map(fn($b) => ['id' => $b->id, 'name' => $b->name])),
-        vendor: @json($vendors->map(fn($v) => ['id' => $v->id, 'name' => $v->name])),
-        customer: @json($customers->map(fn($u) => ['id' => $u->id, 'name' => ($u->name ?? 'Sin nombre') . ' - ' . ($u->document ?? 'Sin doc') . ' (' . ($u->email ?? 'Sin email') . ')'])),
-        customer_type: @json($roles->map(fn($r) => ['id' => $r->name, 'name' => $r->name]))
+        product: @json($products->map(function ($p) {
+            return [
+                'id' => $p->id,
+                'name' => $p->name,
+                'sku' => $p->sku ?? '',
+                'display' => ($p->sku ? $p->sku . ' - ' : '') . $p->name,
+            ];
+        })),
+        category: @json($categories->map(function ($c) {
+            return [
+                'id' => $c->id,
+                'name' => $c->name,
+            ];
+        })),
+        brand: @json($brands->map(function ($b) {
+            return [
+                'id' => $b->id,
+                'name' => $b->name,
+            ];
+        })),
+        vendor: @json($vendors->map(function ($v) {
+            return [
+                'id' => $v->id,
+                'name' => $v->name,
+            ];
+        })),
+        customer: @json($customers->map(function ($u) {
+            return [
+                'id' => $u->id,
+                'name' => ($u->name ?? 'Sin nombre') . ' - ' . ($u->document ?? 'Sin doc') . ' (' . ($u->email ?? 'Sin email') . ')',
+            ];
+        })),
+        customer_type: @json($roles->map(function ($r) {
+            return [
+                'id' => $r->name,
+                'name' => $r->name,
+            ];
+        }))
     };
 
     // Current coupon's selected IDs
