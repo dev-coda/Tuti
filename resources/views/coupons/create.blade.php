@@ -181,47 +181,61 @@
     </form>
 </div>
 
+@php
+    $productsData = $products->map(function ($p) {
+        return [
+            'id' => $p->id,
+            'name' => $p->name,
+            'sku' => $p->sku ?? '',
+            'display' => ($p->sku ? $p->sku . ' - ' : '') . $p->name,
+        ];
+    })->values();
+    
+    $categoriesData = $categories->map(function ($c) {
+        return [
+            'id' => $c->id,
+            'name' => $c->name,
+        ];
+    })->values();
+    
+    $brandsData = $brands->map(function ($b) {
+        return [
+            'id' => $b->id,
+            'name' => $b->name,
+        ];
+    })->values();
+    
+    $vendorsData = $vendors->map(function ($v) {
+        return [
+            'id' => $v->id,
+            'name' => $v->name,
+        ];
+    })->values();
+    
+    $customersData = $customers->map(function ($u) {
+        return [
+            'id' => $u->id,
+            'name' => ($u->name ?? 'Sin nombre') . ' - ' . ($u->document ?? 'Sin doc') . ' (' . ($u->email ?? 'Sin email') . ')',
+        ];
+    })->values();
+    
+    $rolesData = $roles->map(function ($r) {
+        return [
+            'id' => $r->name,
+            'name' => $r->name,
+        ];
+    })->values();
+@endphp
+
 <script>
     // Data for dynamic selections
     const selectionData = {
-        product: @json($products->map(function ($p) {
-            return [
-                'id' => $p->id,
-                'name' => $p->name,
-                'sku' => $p->sku ?? '',
-                'display' => ($p->sku ? $p->sku . ' - ' : '') . $p->name,
-            ];
-        })),
-        category: @json($categories->map(function ($c) {
-            return [
-                'id' => $c->id,
-                'name' => $c->name,
-            ];
-        })),
-        brand: @json($brands->map(function ($b) {
-            return [
-                'id' => $b->id,
-                'name' => $b->name,
-            ];
-        })),
-        vendor: @json($vendors->map(function ($v) {
-            return [
-                'id' => $v->id,
-                'name' => $v->name,
-            ];
-        })),
-        customer: @json($customers->map(function ($u) {
-            return [
-                'id' => $u->id,
-                'name' => ($u->name ?? 'Sin nombre') . ' - ' . ($u->document ?? 'Sin doc') . ' (' . ($u->email ?? 'Sin email') . ')',
-            ];
-        })),
-        customer_type: @json($roles->map(function ($r) {
-            return [
-                'id' => $r->name,
-                'name' => $r->name,
-            ];
-        }))
+        product: @json($productsData),
+        category: @json($categoriesData),
+        brand: @json($brandsData),
+        vendor: @json($vendorsData),
+        customer: @json($customersData),
+        customer_type: @json($rolesData)
     };
 
     function updateValueLabel(type) {
