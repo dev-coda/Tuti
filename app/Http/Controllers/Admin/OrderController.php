@@ -31,9 +31,12 @@ class OrderController extends Controller
             })
 
             ->when($request->q, function ($query, $q) {
-                $query->whereHas('user', function ($subQuery) use ($q) {
-                    $subQuery->where('name', 'ilike', "%$q%");
-                })->orWhere('id', 'ilike', "%$q%");
+                $query->where(function ($qry) use ($q) {
+                    $qry->whereHas('user', function ($subQuery) use ($q) {
+                        $subQuery->where('name', 'ilike', "%$q%")
+                                  ->orWhere('document', 'ilike', "%$q%");
+                    })->orWhere('id', 'ilike', "%$q%");
+                });
             })
 
             ->when($request->zone, function ($query) use ($request) {
