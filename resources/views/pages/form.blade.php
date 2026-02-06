@@ -120,7 +120,7 @@
                             <input type="text" id="address_street_number" name="address_street_number" pattern="[0-9]*" inputmode="numeric" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Ej: 15" onkeypress="return /[0-9]/i.test(event.key)" required>
                         </div>
                         <div>
-                            <label for="address_street_complement" class="block text-sm font-medium text-gray-700 mb-1">Complemento de vía</label>
+                            <label for="address_street_complement" class="block text-sm font-medium text-gray-700 mb-1">Complemento</label>
                             <select id="address_street_complement" name="address_street_complement" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                                 <option value="">Ninguno</option>
                                 <option value="Bis">Bis</option>
@@ -151,15 +151,9 @@
                             <input type="text" id="address_house_number" name="address_house_number" pattern="[0-9]*" inputmode="numeric" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Ej: 45" onkeypress="return /[0-9]/i.test(event.key)" required>
                         </div>
                         <div>
-                            <label for="address_house_complement" class="block text-sm font-medium text-gray-700 mb-1">Complemento de placa</label>
+                            <label for="address_house_complement" class="block text-sm font-medium text-gray-700 mb-1">Complemento</label>
                             <input type="text" id="address_house_complement" name="address_house_complement" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Ej: Apto 301, Casa 2">
                         </div>
-                    </div>
-                    
-                    <!-- Barrio -->
-                    <div>
-                        <label for="address_neighborhood" class="block text-sm font-medium text-gray-700 mb-1">Barrio</label>
-                        <input type="text" id="address_neighborhood" name="address_neighborhood" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Ej: Centro">
                     </div>
                     
                     <!-- Referencias adicionales -->
@@ -240,7 +234,6 @@
             const streetComplement = document.getElementById('address_street_complement')?.value || '';
             const houseNumber = document.getElementById('address_house_number')?.value || '';
             const houseComplement = document.getElementById('address_house_complement')?.value || '';
-            const neighborhood = document.getElementById('address_neighborhood')?.value || '';
             const references = document.getElementById('address_references')?.value || '';
 
             const addressParts = [];
@@ -261,11 +254,6 @@
                     housePart += ` ${houseComplement}`;
                 }
                 addressParts.push(housePart);
-            }
-
-            // Add neighborhood
-            if (neighborhood) {
-                addressParts.push(`Barrio ${neighborhood}`);
             }
 
             // Add references
@@ -289,7 +277,6 @@
             'address_street_complement',
             'address_house_number',
             'address_house_complement',
-            'address_neighborhood',
             'address_references'
         ];
 
