@@ -86,6 +86,92 @@
                 
                 {{ Aire::select($cities ?? [], 'reg_city_id')->groupClass('mb-0')->required() }}
                 
+                <!-- Colombian Address Fields -->
+                <div class="mt-4 space-y-4 border-t pt-4">
+                    <h3 class="text-lg font-semibold text-gray-700 mb-3">Dirección</h3>
+                    
+                    <!-- Tipo de vía y Número de vía -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div>
+                            <label for="address_street_type" class="block text-sm font-medium text-gray-700 mb-1">Tipo de vía *</label>
+                            <select id="address_street_type" name="address_street_type" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" required>
+                                <option value="">Seleccione</option>
+                                <option value="Calle">Calle</option>
+                                <option value="Carrera">Carrera</option>
+                                <option value="Avenida">Avenida</option>
+                                <option value="Diagonal">Diagonal</option>
+                                <option value="Transversal">Transversal</option>
+                                <option value="Circular">Circular</option>
+                                <option value="Vía">Vía</option>
+                                <option value="Autopista">Autopista</option>
+                                <option value="Boulevard">Boulevard</option>
+                                <option value="Pasaje">Pasaje</option>
+                                <option value="Peatonal">Peatonal</option>
+                                <option value="Glorieta">Glorieta</option>
+                                <option value="Variante">Variante</option>
+                                <option value="Kilómetro">Kilómetro</option>
+                                <option value="Vereda">Vereda</option>
+                                <option value="Camino">Camino</option>
+                                <option value="Carretera">Carretera</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="address_street_number" class="block text-sm font-medium text-gray-700 mb-1">Número de vía *</label>
+                            <input type="text" id="address_street_number" name="address_street_number" pattern="[0-9]*" inputmode="numeric" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Ej: 15" onkeypress="return /[0-9]/i.test(event.key)" required>
+                        </div>
+                        <div>
+                            <label for="address_street_complement" class="block text-sm font-medium text-gray-700 mb-1">Complemento de vía</label>
+                            <select id="address_street_complement" name="address_street_complement" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                <option value="">Ninguno</option>
+                                <option value="Bis">Bis</option>
+                                <option value="A">A</option>
+                                <option value="B">B</option>
+                                <option value="C">C</option>
+                                <option value="D">D</option>
+                                <option value="E">E</option>
+                                <option value="F">F</option>
+                                <option value="G">G</option>
+                                <option value="H">H</option>
+                                <option value="Este">Este</option>
+                                <option value="Oeste">Oeste</option>
+                                <option value="Norte">Norte</option>
+                                <option value="Sur">Sur</option>
+                                <option value="Sur Este">Sur Este</option>
+                                <option value="Sur Oeste">Sur Oeste</option>
+                                <option value="Norte Este">Norte Este</option>
+                                <option value="Norte Oeste">Norte Oeste</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- Número de placa y Complemento de placa -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                            <label for="address_house_number" class="block text-sm font-medium text-gray-700 mb-1">Número de placa *</label>
+                            <input type="text" id="address_house_number" name="address_house_number" pattern="[0-9]*" inputmode="numeric" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Ej: 45" onkeypress="return /[0-9]/i.test(event.key)" required>
+                        </div>
+                        <div>
+                            <label for="address_house_complement" class="block text-sm font-medium text-gray-700 mb-1">Complemento de placa</label>
+                            <input type="text" id="address_house_complement" name="address_house_complement" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Ej: Apto 301, Casa 2">
+                        </div>
+                    </div>
+                    
+                    <!-- Barrio -->
+                    <div>
+                        <label for="address_neighborhood" class="block text-sm font-medium text-gray-700 mb-1">Barrio</label>
+                        <input type="text" id="address_neighborhood" name="address_neighborhood" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Ej: Centro">
+                    </div>
+                    
+                    <!-- Referencias adicionales -->
+                    <div>
+                        <label for="address_references" class="block text-sm font-medium text-gray-700 mb-1">Referencias adicionales</label>
+                        <textarea id="address_references" name="address_references" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Ej: Cerca al parque, edificio azul"></textarea>
+                    </div>
+                    
+                    <!-- Hidden field to store the constructed address -->
+                    <input type="hidden" id="reg_address" name="reg_address">
+                </div>
+                
                 <div class="flex items-start mt-4">
                     <div class="flex items-center h-5">
                         <input id="terms_accepted" name="terms_accepted" type="checkbox" value="1" class="w-4 h-4 border border-gray-300 rounded bg-gray-50 focus:ring-3 focus:ring-blue-300" required>
@@ -145,6 +231,85 @@
             };
             syncSubmitState();
             termsAccepted.addEventListener('change', syncSubmitState);
+        }
+
+        // Construct Colombian address string from form fields
+        function constructAddress() {
+            const streetType = document.getElementById('address_street_type')?.value || '';
+            const streetNumber = document.getElementById('address_street_number')?.value || '';
+            const streetComplement = document.getElementById('address_street_complement')?.value || '';
+            const houseNumber = document.getElementById('address_house_number')?.value || '';
+            const houseComplement = document.getElementById('address_house_complement')?.value || '';
+            const neighborhood = document.getElementById('address_neighborhood')?.value || '';
+            const references = document.getElementById('address_references')?.value || '';
+
+            const addressParts = [];
+
+            // Build main address: Tipo de vía + Número + Complemento
+            if (streetType && streetNumber) {
+                let mainAddress = `${streetType} ${streetNumber}`;
+                if (streetComplement) {
+                    mainAddress += ` ${streetComplement}`;
+                }
+                addressParts.push(mainAddress);
+            }
+
+            // Add house number
+            if (houseNumber) {
+                let housePart = `# ${houseNumber}`;
+                if (houseComplement) {
+                    housePart += ` ${houseComplement}`;
+                }
+                addressParts.push(housePart);
+            }
+
+            // Add neighborhood
+            if (neighborhood) {
+                addressParts.push(`Barrio ${neighborhood}`);
+            }
+
+            // Add references
+            if (references) {
+                addressParts.push(`Ref: ${references}`);
+            }
+
+            const fullAddress = addressParts.join(', ');
+            const addressField = document.getElementById('reg_address');
+            if (addressField) {
+                addressField.value = fullAddress;
+            }
+
+            return fullAddress;
+        }
+
+        // Update address on any address field change
+        const addressFields = [
+            'address_street_type',
+            'address_street_number',
+            'address_street_complement',
+            'address_house_number',
+            'address_house_complement',
+            'address_neighborhood',
+            'address_references'
+        ];
+
+        addressFields.forEach(fieldId => {
+            const field = document.getElementById(fieldId);
+            if (field) {
+                field.addEventListener('change', constructAddress);
+                field.addEventListener('input', constructAddress);
+            }
+        });
+
+        // Construct address before form submission
+        const submitButton = document.getElementById('submit-request');
+        if (submitButton) {
+            const form = submitButton.closest('form');
+            if (form) {
+                form.addEventListener('submit', function(e) {
+                    constructAddress();
+                });
+            }
         }
 
         const loginTab = document.getElementById('login-tab');

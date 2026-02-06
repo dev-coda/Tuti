@@ -25,7 +25,13 @@ class HolidayController extends Controller
                 // Only filter to future holidays if show_past is explicitly false
                 return $query->where('date', '>=', now());
             })
-            ->when($request->type_id && $request->type_id > 0, function ($query, $type_id) {
+            ->when($request->type_id && $request->type_id > 0, function ($query) use ($request) {
+                $type_id = $request->type_id;
+                if ($type_id == Holiday::SATURDAY) {
+                    // For Sabados filter, only show Saturdays marked as 'laboral'
+                    return $query->where('type_id', $type_id)
+                                 ->where('day_type', Holiday::DAY_TYPE_LABORAL);
+                }
                 return $query->where('type_id', $type_id);
             })
             ->paginate();
@@ -67,6 +73,7 @@ class HolidayController extends Controller
         $validate = $request->validate([
             'type_id' => 'required',
             'date' => 'required|date',
+            'day_type' => 'nullable|in:festivo,laboral',
         ]);
 
         if ($validate['type_id'] == Holiday::SATURDAY) {
@@ -76,6 +83,10 @@ class HolidayController extends Controller
             }
         }
 
+        // Default to 'festivo' if not provided
+        if (!isset($validate['day_type'])) {
+            $validate['day_type'] = Holiday::DAY_TYPE_FESTIVO;
+        }
 
         Holiday::create($validate);
 
@@ -90,6 +101,7 @@ class HolidayController extends Controller
         $validate = $request->validate([
             'type_id' => 'required',
             'date' => 'required|date',
+            'day_type' => 'nullable|in:festivo,laboral',
         ]);
 
         if ($validate['type_id'] == Holiday::SATURDAY) {
@@ -97,6 +109,11 @@ class HolidayController extends Controller
             if (date('N', strtotime($validate['date'])) != 6) {
                 return back()->with('error', 'La fecha no es un sábado')->withInput();
             }
+        }
+
+        // Default to 'festivo' if not provided
+        if (!isset($validate['day_type'])) {
+            $validate['day_type'] = Holiday::DAY_TYPE_FESTIVO;
         }
 
         $holiday->update($validate);
@@ -146,7 +163,7 @@ class HolidayController extends Controller
             $file = fopen('php://output', 'w');
 
             // Write CSV header
-            fputcsv($file, ['ID', 'Type', 'Type_ID', 'Date', 'Day', 'Created_At', 'Updated_At']);
+            fputcsv($file, ['ID', 'Type', 'Type_ID', 'Date', 'Day', 'Day_Type', 'Created_At', 'Updated_At']);
 
             // Write data rows
             foreach ($holidays as $holiday) {
@@ -156,6 +173,7 @@ class HolidayController extends Controller
                     $holiday->type_id,
                     $holiday->date->format('Y-m-d'),
                     $holiday->day,
+                    $holiday->day_type ?? Holiday::DAY_TYPE_FESTIVO,
                     $holiday->created_at?->format('Y-m-d H:i:s'),
                     $holiday->updated_at?->format('Y-m-d H:i:s'),
                 ]);
@@ -182,14 +200,14 @@ class HolidayController extends Controller
             $file = fopen('php://output', 'w');
 
             // Write CSV header
-            fputcsv($file, ['ID', 'Type', 'Type_ID', 'Date', 'Day', 'Created_At', 'Updated_At']);
+            fputcsv($file, ['ID', 'Type', 'Type_ID', 'Date', 'Day', 'Day_Type', 'Created_At', 'Updated_At']);
 
             // Write sample data rows
             $sampleData = [
-                ['', 'Festivo', '1', '2024-12-25', 'Miércoles', '', ''],
-                ['', 'Festivo', '1', '2024-12-31', 'Martes', '', ''],
-                ['', 'Sábado', '2', '2024-12-28', 'Sábado', '', ''],
-                ['', 'Festivo', '1', '2025-01-01', 'Miércoles', '', ''],
+                ['', 'Festivo', '1', '2024-12-25', 'Miércoles', 'festivo', '', ''],
+                ['', 'Festivo', '1', '2024-12-31', 'Martes', 'festivo', '', ''],
+                ['', 'Sábado', '2', '2024-12-28', 'Sábado', 'laboral', '', ''],
+                ['', 'Festivo', '1', '2025-01-01', 'Miércoles', 'festivo', '', ''],
             ];
 
             foreach ($sampleData as $row) {
@@ -239,11 +257,17 @@ class HolidayController extends Controller
 
                     $typeId = trim($data[2]); // Type_ID column
                     $dateStr = trim($data[3]); // Date column
+                    $dayType = isset($data[5]) ? trim($data[5]) : Holiday::DAY_TYPE_FESTIVO; // Day_Type column (index 5)
 
                     // Validate type_id
                     if (!in_array($typeId, [1, 2])) {
                         $errors[] = "Fila " . ($imported + count($errors) + 2) . ": type_id debe ser 1 (Festivo) o 2 (Sábado)";
                         continue;
+                    }
+
+                    // Validate day_type
+                    if (!in_array($dayType, [Holiday::DAY_TYPE_FESTIVO, Holiday::DAY_TYPE_LABORAL])) {
+                        $dayType = Holiday::DAY_TYPE_FESTIVO; // Default to festivo if invalid
                     }
 
                     // Validate and parse date
@@ -271,6 +295,7 @@ class HolidayController extends Controller
                     Holiday::create([
                         'type_id' => $typeId,
                         'date' => $date,
+                        'day_type' => $dayType,
                     ]);
 
                     $imported++;

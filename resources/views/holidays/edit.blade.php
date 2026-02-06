@@ -15,6 +15,9 @@
                 <div>
                     {{ Aire::input('date')->type('date')->required() }}
                 </div>
+                <div>
+                    {{ Aire::select(['festivo' => 'Festivo', 'laboral' => 'Laboral'], 'day_type', 'Tipo de día')->value($holiday->day_type ?? 'festivo')->required() }}
+                </div>
             </div>
 
             <div class="mt-6 flex space-x-4">

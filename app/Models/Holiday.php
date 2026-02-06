@@ -12,11 +12,15 @@ class Holiday extends Model
     protected $fillable = [
         'name',
         'type_id',
-        'date'
+        'date',
+        'day_type'
     ];
 
     const HOLIDAY = 1;
     const SATURDAY = 2;
+    
+    const DAY_TYPE_FESTIVO = 'festivo';
+    const DAY_TYPE_LABORAL = 'laboral';
 
     protected $casts = [
         'date' => 'date',

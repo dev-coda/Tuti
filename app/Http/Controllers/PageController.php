@@ -353,6 +353,7 @@ class PageController extends Controller
             'reg_phone' => 'required',
             'reg_city_id' => 'required|exists:cities,id',
             'reg_nit' => 'required',
+            'reg_address' => 'required|string',
             'terms_accepted' => 'required|accepted',
         ]);
 
@@ -366,6 +367,7 @@ class PageController extends Controller
             'phone' => $validate['reg_phone'],
             'city_id' => $validate['reg_city_id'],
             'nit' => $validate['reg_nit'],
+            'address' => $validate['reg_address'],
         ];
 
         Contact::create($contactData);

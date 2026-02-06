@@ -33,7 +33,7 @@ class Contact extends Model
         });
     }
 
-    protected $fillable = ['name', 'email', 'phone', 'business_name', 'read', 'city', 'city_id', 'nit', 'terms_accepted'];
+    protected $fillable = ['name', 'email', 'phone', 'business_name', 'read', 'city', 'city_id', 'nit', 'terms_accepted', 'address'];
 
     protected $appends = ['state'];
 

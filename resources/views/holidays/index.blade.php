@@ -123,6 +123,9 @@
                                     <span class="text-base font-semibold ">
                                         {{ $holiday->type }}
                                     </span>
+                                    <small class="text-xs text-gray-500">
+                                        {{ $holiday->day_type === 'laboral' ? 'Laboral' : 'Festivo' }}
+                                    </small>
                                 </a>
                             </td>
                             <td class="p-4 text-base font-medium text-gray-900 whitespace-nowra">

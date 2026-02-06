@@ -27,7 +27,9 @@
                     </div>
                 </div>
 
-                 {{ Aire::select([1=>'Festivo',2=>'Sábado'], 'type_id', 'Producto')->groupClass('col-span-6 sm:col-span-3') }}
+                 {{ Aire::select([1=>'Festivo',2=>'Sábado'], 'type_id', 'Tipo')->groupClass('col-span-6 sm:col-span-3') }}
+                 
+                 {{ Aire::select(['festivo'=>'Festivo','laboral'=>'Laboral'], 'day_type', 'Tipo de día')->groupClass('col-span-6 sm:col-span-3')->value(old('day_type', 'festivo')) }}
 
                
                 <div class="col-span-6 justify-between  items-center mt-5 space-x-2 flex">

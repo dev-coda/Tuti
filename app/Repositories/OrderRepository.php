@@ -544,28 +544,40 @@ class OrderRepository
 
     public static function isBussinessDay($date)
     {
+        // First check: If day is marked as 'laboral', it's ALWAYS a working day (overrides everything)
+        $laboralDay = Holiday::whereDate('date', $date)
+                            ->where('day_type', Holiday::DAY_TYPE_LABORAL)
+                            ->exists();
+        if ($laboralDay) {
+            return true;
+        }
 
+        // Second check: If day is marked as 'festivo', it's NEVER a working day
+        $festivoDay = Holiday::whereDate('date', $date)
+                            ->where('day_type', Holiday::DAY_TYPE_FESTIVO)
+                            ->exists();
+        if ($festivoDay) {
+            return false;
+        }
 
-        //if is sunday or saturday
-        $response = false;
-
-        //check if holiday 
+        // Third check: Legacy holiday check (for backwards compatibility)
         $holiday = Holiday::whereDate('date', $date)->whereTypeId(Holiday::HOLIDAY)->exists();
         if ($holiday) {
             return false;
         }
 
-        // //check if saturday
+        // Fourth check: Legacy Saturday check (for backwards compatibility)
         $saturday = Holiday::whereDate('date', $date)->whereTypeId(Holiday::SATURDAY)->exists();
         if ($saturday) {
-            $response = true;
+            return true;
         }
 
-        //if is weekday
+        // Default behavior: Weekdays are working days, weekends are not
         if ($date->isWeekday()) {
-            $response = true;
+            return true;
         }
-        return $response;
+
+        return false;
     }
 
     /**
@@ -663,39 +675,10 @@ class OrderRepository
             $next_business_day->addDay();
         }
 
-        // Si el próximo día es un día festivo, sumamos otro día
-        while (Holiday::whereDate('date', $next_business_day)->exists()) {
+        // Skip non-business days until we find a business day
+        // Use isBusinessDay which respects laboral and festivo day types
+        while (!self::isBussinessDay($next_business_day)) {
             $next_business_day->addDay();
-        }
-
-
-
-        if ($next_business_day->isWeekend()) {
-            //$next_business_day->next(Carbon::MONDAY);
-
-            //valido si es sabado 
-            if ($next_business_day->isSaturday()) {
-                //valido in holidays
-
-                while (Holiday::whereDate('date', $next_business_day)->first()) {
-                    $next_business_day->next(Carbon::MONDAY);
-                }
-            }
-
-            // Si el próximo lunes es un día festivo, sumamos otro día
-            while (Holiday::whereDate('date', $next_business_day)->exists()) {
-                $next_business_day->addDay();
-            }
-        }
-
-        // Si el próximo día no es un día de semana (de lunes a viernes), lo cambiamos al siguiente lunes
-        if ($next_business_day->isWeekend()) {
-            $next_business_day->next(Carbon::MONDAY);
-
-            // Si el próximo lunes es un día festivo, sumamos otro día
-            while (Holiday::whereDate('date', $next_business_day)->exists()) {
-                $next_business_day->addDay();
-            }
         }
 
         return $next_business_day;
