@@ -31,11 +31,12 @@ class OrderController extends Controller
             })
 
             ->when($request->q, function ($query, $q) {
-                $query->where(function ($qry) use ($q) {
-                    $qry->whereHas('user', function ($subQuery) use ($q) {
-                        $subQuery->where('name', 'ilike', "%$q%")
-                                  ->orWhere('document', 'ilike', "%$q%");
-                    })->orWhere('id', 'ilike', "%$q%");
+                $searchTerm = strtolower($q);
+                $query->where(function ($qry) use ($q, $searchTerm) {
+                    $qry->whereHas('user', function ($subQuery) use ($searchTerm) {
+                        $subQuery->whereRaw('LOWER(name) LIKE ?', ['%' . $searchTerm . '%'])
+                                  ->orWhereRaw('LOWER(document) LIKE ?', ['%' . $searchTerm . '%']);
+                    })->orWhereRaw('LOWER(CAST(id AS CHAR)) LIKE ?', ['%' . $searchTerm . '%']);
                 });
             })
 
