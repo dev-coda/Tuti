@@ -147,7 +147,7 @@
                     <!-- Número de placa y Complemento de placa -->
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
-                            <label for="address_house_number" class="block text-sm font-medium text-gray-700 mb-1">Número de placa *</label>
+                            <label for="address_house_number" class="block text-sm font-medium text-gray-700 mb-1">Número *</label>
                             <input type="text" id="address_house_number" name="address_house_number" pattern="[0-9]*" inputmode="numeric" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Ej: 45" onkeypress="return /[0-9]/i.test(event.key)" required>
                         </div>
                         <div>
