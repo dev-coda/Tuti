@@ -58,6 +58,32 @@ class PageController extends Controller
 
         // Only apply search filter if we have valid search words
         if (!empty($searchWords)) {
+            $searchTerm = strtolower(trim($q));
+            $searchTermUnaccent = $transliterator->transliterate($searchTerm);
+            
+            // Add relevance score for prioritization
+            // Priority: SKU exact (100) > SKU partial (90) > Name exact (80) > Name starts with (70) > Name contains (60) > Description (30) > Other (10)
+            $productsQuery->selectRaw('products.*, 
+                CASE 
+                    WHEN LOWER(unaccent(sku)) = ? THEN 100
+                    WHEN LOWER(unaccent(sku)) LIKE ? THEN 90
+                    WHEN LOWER(unaccent(name)) = ? THEN 80
+                    WHEN LOWER(unaccent(name)) LIKE ? THEN 70
+                    WHEN LOWER(unaccent(name)) LIKE ? THEN 60
+                    WHEN LOWER(unaccent(description)) LIKE ? OR LOWER(unaccent(short_description)) LIKE ? THEN 30
+                    ELSE 10
+                END as search_priority',
+                [
+                    $searchTermUnaccent,                    // SKU exact match
+                    $searchTermUnaccent . '%',             // SKU starts with
+                    $searchTermUnaccent,                   // Name exact match
+                    $searchTermUnaccent . '%',             // Name starts with
+                    '%' . $searchTermUnaccent . '%',       // Name contains
+                    '%' . $searchTermUnaccent . '%',       // Description contains
+                    '%' . $searchTermUnaccent . '%'        // Short description contains
+                ]
+            );
+            
             $productsQuery->where(function ($query) use ($searchWords) {
                 $isFirst = true;
                 foreach ($searchWords as $word) {
@@ -153,6 +179,11 @@ class PageController extends Controller
 
         $brands = $brands->filter(fn($brand) => in_array($brand->id, $productBrandIds));
 
+        // Always prioritize by search relevance first (if searching)
+        if (!empty($searchWords)) {
+            $productsQuery->orderBy('search_priority', 'desc');
+        }
+        
         switch ($order) {
             case 1:
                 $products = $productsQuery->orderBy('created_at', 'desc')->paginate();
