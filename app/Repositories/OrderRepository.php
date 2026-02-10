@@ -178,6 +178,52 @@ class OrderRepository
             // This prevents SOAP errors from invalid percentage values
             $rawPercentage = $product->percentage ?? 0;
             $discountPercentage = max(0, min(100, (int) $rawPercentage));
+            
+            // CRITICAL FIX: If percentage is 0 but order has discount, recalculate from brand/vendor
+            // This fixes the bug where brand/vendor discounts are applied to price but not stored in percentage
+            if ($discountPercentage == 0 && $discountType === 'percentage' && $order->discount > 0) {
+                // Check if user has orders (needed for discount calculation)
+                $hasOrders = $user ? \App\Models\Order::where('user_id', $user->id)
+                    ->where('id', '!=', $order->id)
+                    ->exists() : false;
+                
+                // Calculate vendor total for this product (needed for vendor discount minimum check)
+                $vendorId = $productData->brand && $productData->brand->vendor ? $productData->brand->vendor->id : null;
+                $vendorTotal = null;
+                if ($vendorId) {
+                    // Calculate total for this vendor from all products in this order
+                    $vendorProducts = $products->filter(function ($p) use ($vendorId, $productsData) {
+                        $pData = $productsData[$p->product_id] ?? null;
+                        return $pData && $pData->brand && $pData->brand->vendor && $pData->brand->vendor->id == $vendorId;
+                    });
+                    
+                    $vendorTotal = 0;
+                    foreach ($vendorProducts as $vendorProduct) {
+                        $vendorProductData = $productsData[$vendorProduct->product_id] ?? null;
+                        if ($vendorProductData) {
+                            $packageQty = $vendorProduct->package_quantity ?? 1;
+                            $vendorTotal += $vendorProduct->price * $vendorProduct->quantity * $packageQty;
+                        }
+                    }
+                }
+                
+                // Recalculate discount using the same logic as order creation
+                $priceInfo = $productData->getFinalPriceForUser($hasOrders, $vendorTotal);
+                $recalculatedDiscount = (int) ($priceInfo['discount'] ?? 0);
+                
+                if ($recalculatedDiscount > 0) {
+                    $discountPercentage = max(0, min(100, $recalculatedDiscount));
+                    
+                    Log::channel('soap')->warning('Recalculated missing discount percentage', [
+                        'order_id' => $order->id,
+                        'product_id' => $product->product_id,
+                        'stored_percentage' => $rawPercentage,
+                        'recalculated_percentage' => $discountPercentage,
+                        'discount_source' => $priceInfo['discount_on'] ?? 'unknown',
+                        'order_discount' => $order->discount,
+                    ]);
+                }
+            }
 
             if ($bonification) {
                 // For bonifications: always send the exact quantity specified, never multiply by package_quantity
