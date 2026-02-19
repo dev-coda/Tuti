@@ -24,6 +24,14 @@ class UpsellRule extends Model
         'active' => 'boolean',
     ];
 
+    /**
+     * Scope: only active rules
+     */
+    public function scopeActive($query)
+    {
+        return $query->where('active', true);
+    }
+
     public function zones()
     {
         return $this->belongsToMany(UpsellZone::class, 'upsell_zone_rules')
