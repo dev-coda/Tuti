@@ -8,8 +8,6 @@ use App\Models\Category;
 use App\Models\Label;
 use App\Models\Product;
 use App\Models\ZoneWarehouse;
-use App\Models\UpsellZone;
-use App\Services\UpsellService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Transliterator;
@@ -274,22 +272,10 @@ class PageController extends Controller
             ->with(['related.images', 'items', 'variation', 'labels', 'inventories'])
             ->where('slug', $slug)->firstOrFail();
         
-        // Try to get products from upsell zone first
-        $upsellZone = UpsellZone::findBySlug('complementa-tu-compra');
-        $related = collect();
-        
-        if ($upsellZone && $upsellZone->active) {
-            $upsellService = app(UpsellService::class);
-            $user = Auth::user();
-            $related = $upsellService->getProductsForZone($upsellZone, $product, $user);
-        }
-        
-        // Fallback to old system if no upsell products found
-        if ($related->isEmpty()) {
-            $related = $product->related;
-            if (!$related->count()) {
-                $related = Product::active()->where('brand_id', $product->brand_id)->where('id', '!=', $product->id)->limit(4)->get();
-            }
+        // Get related products for "Complementa tu compra" section
+        $related = $product->related;
+        if (!$related->count()) {
+            $related = Product::active()->where('brand_id', $product->brand_id)->where('id', '!=', $product->id)->limit(4)->get();
         }
 
         $quantity = $product->step;
