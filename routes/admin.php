@@ -34,6 +34,7 @@ use App\Http\Controllers\Admin\DeliveryCalendarController;
 use App\Http\Controllers\Admin\RouteCycleController;
 use App\Http\Controllers\Admin\UpsellZoneController;
 use App\Http\Controllers\Admin\UpsellRuleController;
+use App\Http\Controllers\Admin\CampaignController;
 use Illuminate\Support\Facades\Route;
 
 
@@ -94,10 +95,11 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('categories/{category}/highlights/search', [ProductHighlightController::class, 'search'])->name('categories.highlights.search');
     Route::post('categories/{category}/highlights/reorder', [ProductHighlightController::class, 'reorder'])->name('categories.highlights.reorder');
     Route::resource('labels', LabelController::class);
-    Route::resource('tags', TagController::class);
-    Route::post('tags/{tag}/toggle', [TagController::class, 'toggle'])->name('tags.toggle');
+    // Custom tag routes must be defined before resource routes to avoid conflicts
     Route::post('tags/auto-tag-nuevo/toggle', [TagController::class, 'toggleAutoTagNuevo'])->name('tags.auto-tag-nuevo.toggle');
     Route::post('tags/auto-tag-descuento/toggle', [TagController::class, 'toggleAutoTagDescuento'])->name('tags.auto-tag-descuento.toggle');
+    Route::post('tags/{tag}/toggle', [TagController::class, 'toggle'])->name('tags.toggle')->where('tag', '[0-9]+');
+    Route::resource('tags', TagController::class);
     Route::resource('vendors', VendorController::class);
     Route::resource('bonifications', BonificationController::class);
     // Custom coupon routes must be defined before resource routes to avoid conflicts
@@ -257,6 +259,12 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     });
     Route::resource('upsell-zones', UpsellZoneController::class);
     Route::resource('upsell-rules', UpsellRuleController::class);
+
+    // Campaigns Management
+    Route::prefix('campaigns')->name('admin.campaigns.')->group(function () {
+        Route::get('/', [CampaignController::class, 'index'])->name('index');
+        Route::post('/settings', [CampaignController::class, 'updateSettings'])->name('settings.update');
+    });
 
     // Reports
     Route::prefix('reports')->name('admin.reports.')->group(function () {
