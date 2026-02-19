@@ -190,38 +190,69 @@ class PageController extends Controller
         // Check if using default ordering (order = '1' is default for search)
         $isDefaultOrdering = ($order == '1' || !$order);
 
-        // Always prioritize by search relevance first (if searching)
-        if (!empty($searchWords)) {
-            $productsQuery->orderBy('search_priority', 'desc');
-        }
-        
-        switch ($order) {
-            case 1:
-                $products = $productsQuery->orderBy('created_at', 'desc')->paginate();
-                break;
-            case 2:
-                $products = $productsQuery->orderBy('price', 'asc')->paginate();
-                break;
-            case 3:
-                $products = $productsQuery->orderBy('price', 'desc')->paginate();
-                break;
-            case 4:
-                $products = $productsQuery->orderBy('name', 'asc')->paginate();
-                break;
-            case 5:
-                $products = $productsQuery->orderBy('name', 'desc')->paginate();
-                break;
-            case 6:
-                $products = $productsQuery->orderBy('sales_count', 'desc')->paginate();
-                break;
-            default:
-                $products = $productsQuery->paginate();
-                break;
-        }
-
         // Push unavailable products to end only when using default ordering
+        // Get all products, sort by availability, then paginate
         if ($isDefaultOrdering) {
-            $products = $this->sortUnavailableProductsToEnd($products, $bodegaCode);
+            // Always prioritize by search relevance first (if searching)
+            if (!empty($searchWords)) {
+                $productsQuery->orderBy('search_priority', 'desc');
+            }
+            
+            // Apply default ordering
+            $productsQuery = $productsQuery->orderBy('created_at', 'desc');
+            
+            // Get all products first (without pagination)
+            $allProducts = $productsQuery->get();
+            
+            // Sort to push unavailable products to end
+            $sortedProducts = $this->sortProductsByAvailability($allProducts, $bodegaCode);
+            
+            // Now paginate the sorted collection
+            $perPage = 15; // Default pagination size
+            $currentPage = request()->get('page', 1);
+            $offset = ($currentPage - 1) * $perPage;
+            $itemsForCurrentPage = $sortedProducts->slice($offset, $perPage)->values();
+            
+            $products = new \Illuminate\Pagination\LengthAwarePaginator(
+                $itemsForCurrentPage,
+                $sortedProducts->count(),
+                $perPage,
+                $currentPage,
+                [
+                    'path' => request()->url(),
+                    'pageName' => 'page',
+                ]
+            );
+        } else {
+            // User-selected ordering - apply ordering and paginate normally
+            // Always prioritize by search relevance first (if searching)
+            if (!empty($searchWords)) {
+                $productsQuery->orderBy('search_priority', 'desc');
+            }
+            
+            switch ($order) {
+                case 1:
+                    $products = $productsQuery->orderBy('created_at', 'desc')->paginate();
+                    break;
+                case 2:
+                    $products = $productsQuery->orderBy('price', 'asc')->paginate();
+                    break;
+                case 3:
+                    $products = $productsQuery->orderBy('price', 'desc')->paginate();
+                    break;
+                case 4:
+                    $products = $productsQuery->orderBy('name', 'asc')->paginate();
+                    break;
+                case 5:
+                    $products = $productsQuery->orderBy('name', 'desc')->paginate();
+                    break;
+                case 6:
+                    $products = $productsQuery->orderBy('sales_count', 'desc')->paginate();
+                    break;
+                default:
+                    $products = $productsQuery->paginate();
+                    break;
+            }
         }
 
         $categoriesArray = [];
@@ -361,11 +392,33 @@ class PageController extends Controller
         }
 
         // Handle highlighting and get final products
-        $products = $this->getProductsWithHighlighting($category, $productsQuery, $order, $category_id, $brand_id);
-
-        // Push unavailable products to end only when using default ordering
+        // If default ordering, we need to get all products, sort by availability, then paginate
         if ($isDefaultOrdering) {
-            $products = $this->sortUnavailableProductsToEnd($products, $bodegaCode);
+            // Get all products first (without pagination)
+            $allProducts = $this->getProductsWithHighlighting($category, $productsQuery, $order, $category_id, $brand_id, true);
+            
+            // Sort to push unavailable products to end
+            $sortedProducts = $this->sortProductsByAvailability($allProducts, $bodegaCode);
+            
+            // Now paginate the sorted collection
+            $perPage = 15; // Default pagination size
+            $currentPage = request()->get('page', 1);
+            $offset = ($currentPage - 1) * $perPage;
+            $itemsForCurrentPage = $sortedProducts->slice($offset, $perPage)->values();
+            
+            $products = new \Illuminate\Pagination\LengthAwarePaginator(
+                $itemsForCurrentPage,
+                $sortedProducts->count(),
+                $perPage,
+                $currentPage,
+                [
+                    'path' => request()->url(),
+                    'pageName' => 'page',
+                ]
+            );
+        } else {
+            // User-selected ordering - paginate normally
+            $products = $this->getProductsWithHighlighting($category, $productsQuery, $order, $category_id, $brand_id);
         }
 
         $categoriesArray = [];
@@ -491,57 +544,41 @@ class PageController extends Controller
 
     /**
      * Sort products collection to push unavailable products to the end
-     * Only applies when using default ordering (not user-selected)
+     * Sorts ALL products first - ensures available products appear first across all pages
      */
-    private function sortUnavailableProductsToEnd($products, ?string $bodegaCode = null): \Illuminate\Pagination\LengthAwarePaginator|\Illuminate\Contracts\Pagination\LengthAwarePaginator
+    private function sortProductsByAvailability($products, ?string $bodegaCode = null): \Illuminate\Support\Collection
     {
         if (!$bodegaCode) {
             $bodegaCode = 'MDTAT'; // Default for non-authenticated users
         }
 
-        // If it's a paginator, get the items
-        if ($products instanceof \Illuminate\Pagination\LengthAwarePaginator) {
-            $items = $products->getCollection();
-            
-            // Sort items: available first, unavailable last
-            $sortedItems = $items->sortBy(function ($product) use ($bodegaCode) {
-                // Check if product is unavailable
-                if ($product->isInventoryManaged()) {
-                    $orderableStock = $product->getOrderableStockForBodega($bodegaCode);
-                    // Return 1 for unavailable (will be sorted last), 0 for available
-                    return $orderableStock <= 0 ? 1 : 0;
-                }
-                // Products not inventory managed are always available
-                return 0;
-            })->values();
-
-            // Create new paginator with sorted items
-            return new \Illuminate\Pagination\LengthAwarePaginator(
-                $sortedItems,
-                $products->total(),
-                $products->perPage(),
-                $products->currentPage(),
-                [
-                    'path' => $products->path(),
-                    'pageName' => $products->getPageName(),
-                ]
-            );
-        }
-
-        return $products;
+        // Sort products: available first, unavailable last
+        return $products->sortBy(function ($product) use ($bodegaCode) {
+            // Check if product is unavailable
+            if ($product->isInventoryManaged()) {
+                $orderableStock = $product->getOrderableStockForBodega($bodegaCode);
+                // Return 1 for unavailable (will be sorted last), 0 for available
+                return $orderableStock <= 0 ? 1 : 0;
+            }
+            // Products not inventory managed are always available
+            return 0;
+        })->values();
     }
 
     /**
      * Get products with highlighting applied
+     * @param bool $returnCollection If true, returns collection instead of paginator
      */
-    private function getProductsWithHighlighting($category, $productsQuery, $order, $category_id, $brand_id)
+    private function getProductsWithHighlighting($category, $productsQuery, $order, $category_id, $brand_id, bool $returnCollection = false)
     {
-        // If highlighting is disabled for this category, return normal pagination
+        // If highlighting is disabled for this category, return normal pagination or collection
         if (!$category->enable_highlighting) {
-            return $productsQuery->with('inventories')->paginate();
+            return $returnCollection 
+                ? $productsQuery->with('inventories')->get()
+                : $productsQuery->with('inventories')->paginate();
         }
 
-        // Get all products first
+        // Get all products first (always get collection when highlighting is enabled)
         $allProducts = $productsQuery->with('inventories')->get();
 
         // Get highlighted products
@@ -595,6 +632,11 @@ class PageController extends Controller
 
         // Merge highlighted and regular products
         $finalProducts = $sortedHighlighted->merge($regular);
+
+        // Return collection if requested, otherwise paginate
+        if ($returnCollection) {
+            return $finalProducts;
+        }
 
         // Create a paginator manually
         $perPage = 15; // Default pagination size
