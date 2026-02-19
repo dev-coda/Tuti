@@ -100,10 +100,11 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::post('tags/auto-tag-descuento/toggle', [TagController::class, 'toggleAutoTagDescuento'])->name('tags.auto-tag-descuento.toggle');
     Route::resource('vendors', VendorController::class);
     Route::resource('bonifications', BonificationController::class);
-    Route::resource('coupons', CouponController::class);
-    Route::post('coupons/{coupon}/toggle', [CouponController::class, 'toggle'])->name('coupons.toggle');
-    Route::post('coupons/{coupon}/mass-create', [CouponController::class, 'massCreate'])->name('coupons.mass-create');
+    // Custom coupon routes must be defined before resource routes to avoid conflicts
     Route::get('coupons/export', [CouponController::class, 'export'])->name('coupons.export');
+    Route::post('coupons/{coupon}/toggle', [CouponController::class, 'toggle'])->name('coupons.toggle')->where('coupon', '[0-9]+');
+    Route::post('coupons/{coupon}/mass-create', [CouponController::class, 'massCreate'])->name('coupons.mass-create')->where('coupon', '[0-9]+');
+    Route::resource('coupons', CouponController::class);
 
     // Promociones routes
     Route::prefix('promociones')->name('promociones.')->group(function () {

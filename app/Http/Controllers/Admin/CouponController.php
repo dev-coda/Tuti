@@ -304,8 +304,15 @@ class CouponController extends Controller
     /**
      * Mass create coupons based on a base coupon
      */
-    public function massCreate(Request $request, Coupon $coupon)
+    public function massCreate(Request $request, $coupon)
     {
+        // Resolve coupon manually to provide better error handling
+        $coupon = Coupon::find($coupon);
+        
+        if (!$coupon) {
+            return redirect()->route('coupons.index')->with('error', 'Cupón no encontrado.');
+        }
+
         $request->validate([
             'quantity' => 'required|integer|min:1|max:1000',
         ]);
