@@ -32,6 +32,8 @@ use App\Http\Controllers\Admin\ShippingMethodController;
 use App\Http\Controllers\Admin\TagController;
 use App\Http\Controllers\Admin\DeliveryCalendarController;
 use App\Http\Controllers\Admin\RouteCycleController;
+use App\Http\Controllers\Admin\UpsellZoneController;
+use App\Http\Controllers\Admin\UpsellRuleController;
 use Illuminate\Support\Facades\Route;
 
 
@@ -240,6 +242,16 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
 
     // Content Pages CRUD (Dynamic content pages)
     Route::resource('content-pages', ContentPageController::class);
+
+    // Upsell/Cross-sell Management
+    Route::prefix('upsell-zones')->name('admin.upsell-zones.')->group(function () {
+        Route::get('{upsellZone}/manage-products', [UpsellZoneController::class, 'manageProducts'])->name('manage-products');
+        Route::post('{upsellZone}/attach-products', [UpsellZoneController::class, 'attachProducts'])->name('attach-products');
+        Route::delete('{upsellZone}/products/{product}', [UpsellZoneController::class, 'detachProduct'])->name('detach-product');
+        Route::put('{upsellZone}/update-positions', [UpsellZoneController::class, 'updateProductPositions'])->name('update-positions');
+    });
+    Route::resource('upsell-zones', UpsellZoneController::class);
+    Route::resource('upsell-rules', UpsellRuleController::class);
 
     // Reports
     Route::prefix('reports')->name('admin.reports.')->group(function () {
