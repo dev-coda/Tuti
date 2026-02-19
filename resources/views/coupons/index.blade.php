@@ -140,7 +140,7 @@
                                     Editar
                                 </a>
                                 <button type="button"
-                                    onclick="openMassCreateModal({{ $coupon->id }}, '{{ $coupon->code }}')"
+                                    onclick="openMassCreateModal({{ $coupon->id }}, '{{ $coupon->code }}', '{{ route('coupons.mass-create', $coupon->id) }}')"
                                     class="inline-flex items-center px-3 py-2 text-sm font-medium text-center text-white rounded-lg bg-purple-600 hover:bg-purple-700 focus:ring-4 focus:ring-purple-300">
                                     Crear masivamente
                                 </button>
@@ -214,10 +214,10 @@
 </x-modal>
 
 <script>
-    function openMassCreateModal(couponId, couponCode) {
+    function openMassCreateModal(couponId, couponCode, routeUrl) {
         document.getElementById('base-coupon-code').textContent = couponCode;
         document.getElementById('example-code').textContent = couponCode + '1, ' + couponCode + '2, ' + couponCode + '3...';
-        document.getElementById('mass-create-form').action = `/admin/coupons/${couponId}/mass-create`;
+        document.getElementById('mass-create-form').action = routeUrl;
         document.getElementById('quantity').value = '';
         window.dispatchEvent(new CustomEvent('open-modal', { detail: 'mass-create-modal' }));
     }
