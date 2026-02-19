@@ -1716,12 +1716,16 @@ class CartController extends Controller
             return redirect()->route('cart')->with('error', 'Tu carrito contenía productos inválidos.');
         }
 
-        // Check if there's already a coupon applied
-        if (session()->has('applied_coupon')) {
-            return redirect()->route('cart')->with('error', 'Ya tienes un cupón aplicado. Remuévelo primero para aplicar otro.');
-        }
-
         $couponCode = trim($request->coupon_code);
+
+        // Get existing applied coupons
+        $appliedCoupons = session()->get('applied_coupons', []);
+        $appliedCouponCodes = array_column($appliedCoupons, 'coupon_code');
+
+        // Check if coupon is already applied
+        if (in_array($couponCode, $appliedCouponCodes)) {
+            return redirect()->route('cart')->with('error', 'Este cupón ya está aplicado.');
+        }
 
         // Calculate current cart total (without any existing discounts from promotions)
         $cartProducts = collect($cart);
@@ -1748,31 +1752,72 @@ class CartController extends Controller
 
         $coupon = $validation['coupon'];
 
-        // Apply coupon to cart
-        $application = $couponService->applyCouponToCart($coupon, $user, $cartProducts);
+        // Recalculate all coupons including the new one
+        $allCouponCodes = array_merge($appliedCouponCodes, [$couponCode]);
+        $discountCalculation = $couponService->calculateMultipleCouponDiscounts($allCouponCodes, $user, $cartProducts);
 
-        if (!$application['success']) {
-            return redirect()->route('cart')->with('error', $application['message']);
+        if (!$discountCalculation['success']) {
+            return redirect()->route('cart')->with('error', 'Error al aplicar el cupón.');
         }
 
-        // Store coupon in session
-        session()->put('applied_coupon', [
-            'coupon_id' => $coupon->id,
-            'coupon_code' => $coupon->code,
-            'discount_amount' => $application['discount_amount'],
-            'type' => $coupon->type,
-            'value' => $coupon->value,
-        ]);
+        // Store all applied coupons in session
+        session()->put('applied_coupons', $discountCalculation['applied_coupons']);
+        session()->put('coupon_discounts', $discountCalculation['product_discounts']);
+        session()->put('total_coupon_discount', $discountCalculation['total_discount']);
 
-        return redirect()->route('cart')->with('success', "Cupón '{$coupon->code}' aplicado exitosamente. Descuento: $" . number_format($application['discount_amount'], 2));
+        return redirect()->route('cart')->with('success', "Cupón '{$coupon->code}' aplicado exitosamente.");
     }
 
     /**
-     * Remove the applied coupon from the cart
+     * Remove a specific coupon from the cart
      */
-    public function removeCoupon()
+    public function removeCoupon(Request $request)
     {
-        session()->forget('applied_coupon');
+        $couponCode = $request->input('coupon_code');
+        
+        if (!$couponCode) {
+            // Remove all coupons if no specific code provided (backward compatibility)
+            session()->forget('applied_coupons');
+            session()->forget('coupon_discounts');
+            session()->forget('total_coupon_discount');
+            return redirect()->route('cart')->with('success', 'Cupones removidos exitosamente.');
+        }
+
+        $appliedCoupons = session()->get('applied_coupons', []);
+        $appliedCoupons = array_filter($appliedCoupons, function ($coupon) use ($couponCode) {
+            return $coupon['coupon_code'] !== $couponCode;
+        });
+
+        // Recalculate discounts with remaining coupons
+        $user = auth()->user();
+        if ($user) {
+            $cart = session()->get('cart', []);
+            $cartProducts = collect($cart);
+            $remainingCodes = array_column($appliedCoupons, 'coupon_code');
+            
+            if (!empty($remainingCodes)) {
+                $couponService = app(\App\Services\CouponService::class);
+                $discountCalculation = $couponService->calculateMultipleCouponDiscounts($remainingCodes, $user, $cartProducts);
+                
+                if ($discountCalculation['success']) {
+                    session()->put('applied_coupons', $discountCalculation['applied_coupons']);
+                    session()->put('coupon_discounts', $discountCalculation['product_discounts']);
+                    session()->put('total_coupon_discount', $discountCalculation['total_discount']);
+                } else {
+                    session()->forget('applied_coupons');
+                    session()->forget('coupon_discounts');
+                    session()->forget('total_coupon_discount');
+                }
+            } else {
+                session()->forget('applied_coupons');
+                session()->forget('coupon_discounts');
+                session()->forget('total_coupon_discount');
+            }
+        } else {
+            session()->forget('applied_coupons');
+            session()->forget('coupon_discounts');
+            session()->forget('total_coupon_discount');
+        }
 
         return redirect()->route('cart')->with('success', 'Cupón removido exitosamente.');
     }
