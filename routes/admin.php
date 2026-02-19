@@ -257,8 +257,8 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
         Route::delete('{upsellZone}/products/{product}', [UpsellZoneController::class, 'detachProduct'])->name('detach-product');
         Route::put('{upsellZone}/update-positions', [UpsellZoneController::class, 'updateProductPositions'])->name('update-positions');
     });
-    Route::resource('upsell-zones', UpsellZoneController::class);
-    Route::resource('upsell-rules', UpsellRuleController::class);
+    Route::resource('upsell-zones', UpsellZoneController::class)->names('admin.upsell-zones');
+    Route::resource('upsell-rules', UpsellRuleController::class)->names('admin.upsell-rules');
 
     // Campaigns Management
     Route::prefix('campaigns')->name('admin.campaigns.')->group(function () {

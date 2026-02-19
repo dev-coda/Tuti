@@ -12,7 +12,6 @@ use App\Models\Banner;
 use App\Models\VolumeDiscount;
 use App\Models\Setting;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class CampaignController extends Controller
 {
@@ -82,24 +81,36 @@ class CampaignController extends Controller
      */
     public function updateSettings(Request $request)
     {
-        $validated = $request->validate([
-            'auto_tag_nuevo_enabled' => 'nullable|boolean',
-            'auto_tag_descuento_enabled' => 'nullable|boolean',
-            'use_most_sold_products' => 'nullable|boolean',
-            'featured_products_section_title' => 'nullable|string|max:255',
-        ]);
+        // Handle boolean toggles explicitly (hidden input sends "0" when unchecked)
+        $booleanFields = [
+            'auto_tag_nuevo_enabled',
+            'auto_tag_descuento_enabled',
+            'use_most_sold_products',
+        ];
 
-        foreach ($validated as $key => $value) {
-            if ($value !== null) {
-                Setting::updateOrCreate(
-                    ['key' => $key],
-                    [
-                        'name' => $this->getSettingName($key),
-                        'value' => is_bool($value) ? ($value ? '1' : '0') : $value,
-                        'show' => false,
-                    ]
-                );
-            }
+        foreach ($booleanFields as $field) {
+            $value = $request->input($field, '0');
+            Setting::updateOrCreate(
+                ['key' => $field],
+                [
+                    'name' => $this->getSettingName($field),
+                    'value' => $value ? '1' : '0',
+                    'show' => false,
+                ]
+            );
+        }
+
+        // Handle text fields
+        if ($request->has('featured_products_section_title')) {
+            $title = $request->input('featured_products_section_title', 'Productos Destacados');
+            Setting::updateOrCreate(
+                ['key' => 'featured_products_section_title'],
+                [
+                    'name' => $this->getSettingName('featured_products_section_title'),
+                    'value' => $title,
+                    'show' => false,
+                ]
+            );
         }
 
         return back()->with('success', 'Configuración de campañas actualizada exitosamente');

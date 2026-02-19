@@ -273,6 +273,7 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div class="flex items-start space-x-3">
                             <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="hidden" name="auto_tag_nuevo_enabled" value="0">
                                 <input type="checkbox" name="auto_tag_nuevo_enabled" value="1" 
                                        class="sr-only peer" 
                                        @checked(isset($settings['auto_tag_nuevo_enabled']) && $settings['auto_tag_nuevo_enabled']->value == '1')
@@ -287,6 +288,7 @@
 
                         <div class="flex items-start space-x-3">
                             <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="hidden" name="auto_tag_descuento_enabled" value="0">
                                 <input type="checkbox" name="auto_tag_descuento_enabled" value="1" 
                                        class="sr-only peer" 
                                        @checked(isset($settings['auto_tag_descuento_enabled']) && $settings['auto_tag_descuento_enabled']->value == '1')
@@ -307,6 +309,7 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
                             <label for="use_most_sold_products" class="relative inline-flex items-center cursor-pointer">
+                                <input type="hidden" name="use_most_sold_products" value="0">
                                 <input type="checkbox" name="use_most_sold_products" value="1" 
                                        class="sr-only peer" 
                                        @checked(isset($settings['use_most_sold_products']) && $settings['use_most_sold_products']->value == '1')
