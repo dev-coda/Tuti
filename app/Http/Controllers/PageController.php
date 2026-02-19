@@ -56,7 +56,7 @@ class PageController extends Controller
             }
         }
 
-        $productsQuery = Product::active()->with(['brand.vendor']);
+        $productsQuery = Product::active()->with(['brand.vendor', 'inventories', 'categories']);
 
         // Only apply search filter if we have valid search words
         if (!empty($searchWords)) {
@@ -181,6 +181,15 @@ class PageController extends Controller
 
         $brands = $brands->filter(fn($brand) => in_array($brand->id, $productBrandIds));
 
+        // Determine user's mapped bodega code for availability sorting
+        $bodegaCode = $this->getUserBodegaCode();
+        if (!$bodegaCode) {
+            $bodegaCode = 'MDTAT'; // Default for non-authenticated users
+        }
+
+        // Check if using default ordering (order = '1' is default for search)
+        $isDefaultOrdering = ($order == '1' || !$order);
+
         // Always prioritize by search relevance first (if searching)
         if (!empty($searchWords)) {
             $productsQuery->orderBy('search_priority', 'desc');
@@ -210,6 +219,11 @@ class PageController extends Controller
                 break;
         }
 
+        // Push unavailable products to end only when using default ordering
+        if ($isDefaultOrdering) {
+            $products = $this->sortUnavailableProductsToEnd($products, $bodegaCode);
+        }
+
         $categoriesArray = [];
         foreach ($products as $item) {
             $values = $item->categories()->pluck('id')->toArray();
@@ -217,9 +231,6 @@ class PageController extends Controller
         }
 
         $categories = $categories->filter(fn($category) => in_array($category->id, $categoriesArray));
-
-        // Determine user's mapped bodega code
-        $bodegaCode = $this->getUserBodegaCode();
 
         return view('pages.search', compact('products', 'brands', 'categories', 'params', 'bodegaCode'));
     }
@@ -284,14 +295,14 @@ class PageController extends Controller
 
 
         if ($slug2) {
-            $productsQuery = Product::active()->whereHas('categories', function ($query) use ($category) {
+            $productsQuery = Product::active()->with(['inventories', 'categories'])->whereHas('categories', function ($query) use ($category) {
                 $query->where('category_id', $category->id);
             });
         } else {
             $ids = $category->children->pluck('id')->toArray();
             $ids[] = $category->id;
 
-            $productsQuery = Product::active()->whereHas('categories', function ($query) use ($ids) {
+            $productsQuery = Product::active()->with(['inventories', 'categories'])->whereHas('categories', function ($query) use ($ids) {
                 $query->whereIn('category_id', $ids);
             });
         }
@@ -310,8 +321,15 @@ class PageController extends Controller
 
         $brands = $brands->filter(fn($brand) => in_array($brand->id, $productBrandIds));
 
+        // Determine user's mapped bodega code for availability sorting
+        $bodegaCode = $this->getUserBodegaCode();
+        if (!$bodegaCode) {
+            $bodegaCode = 'MDTAT'; // Default for non-authenticated users
+        }
+
         // Apply sorting - use category default if order is 0 or not specified
-        if ($order == '0' || !$order) {
+        $isDefaultOrdering = ($order == '0' || !$order);
+        if ($isDefaultOrdering) {
             // Use category's default sorting
             $sortOrder = $category->default_sort_order ?? 'most_recent';
             $productsQuery = $this->applyCategorySorting($productsQuery, $sortOrder);
@@ -345,6 +363,11 @@ class PageController extends Controller
         // Handle highlighting and get final products
         $products = $this->getProductsWithHighlighting($category, $productsQuery, $order, $category_id, $brand_id);
 
+        // Push unavailable products to end only when using default ordering
+        if ($isDefaultOrdering) {
+            $products = $this->sortUnavailableProductsToEnd($products, $bodegaCode);
+        }
+
         $categoriesArray = [];
         foreach ($products as $item) {
             $values = $item->categories()->pluck('id')->toArray();
@@ -352,9 +375,6 @@ class PageController extends Controller
         }
 
         $categories = $categories->filter(fn($category) => in_array($category->id, $categoriesArray));
-
-        // Determine user's mapped bodega code
-        $bodegaCode = $this->getUserBodegaCode();
 
         return view('pages.category', compact('products', 'brands', 'categories', 'params', 'category', 'bodegaCode'));
     }
@@ -467,6 +487,48 @@ class PageController extends Controller
             default:
                 return $query->orderBy('created_at', 'desc');
         }
+    }
+
+    /**
+     * Sort products collection to push unavailable products to the end
+     * Only applies when using default ordering (not user-selected)
+     */
+    private function sortUnavailableProductsToEnd($products, ?string $bodegaCode = null): \Illuminate\Pagination\LengthAwarePaginator|\Illuminate\Contracts\Pagination\LengthAwarePaginator
+    {
+        if (!$bodegaCode) {
+            $bodegaCode = 'MDTAT'; // Default for non-authenticated users
+        }
+
+        // If it's a paginator, get the items
+        if ($products instanceof \Illuminate\Pagination\LengthAwarePaginator) {
+            $items = $products->getCollection();
+            
+            // Sort items: available first, unavailable last
+            $sortedItems = $items->sortBy(function ($product) use ($bodegaCode) {
+                // Check if product is unavailable
+                if ($product->isInventoryManaged()) {
+                    $orderableStock = $product->getOrderableStockForBodega($bodegaCode);
+                    // Return 1 for unavailable (will be sorted last), 0 for available
+                    return $orderableStock <= 0 ? 1 : 0;
+                }
+                // Products not inventory managed are always available
+                return 0;
+            })->values();
+
+            // Create new paginator with sorted items
+            return new \Illuminate\Pagination\LengthAwarePaginator(
+                $sortedItems,
+                $products->total(),
+                $products->perPage(),
+                $products->currentPage(),
+                [
+                    'path' => $products->path(),
+                    'pageName' => $products->getPageName(),
+                ]
+            );
+        }
+
+        return $products;
     }
 
     /**
