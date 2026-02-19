@@ -33,6 +33,8 @@ class Coupon extends Model
         'except_customer_ids',
         'except_customer_types',
         'minimum_amount',
+        'parent_coupon_id',
+        'is_mass_created',
         'active',
     ];
 
@@ -47,6 +49,7 @@ class Coupon extends Model
         'except_customer_ids' => 'array',
         'except_customer_types' => 'array',
         'active' => 'boolean',
+        'is_mass_created' => 'boolean',
         'value' => 'decimal:2',
         'minimum_amount' => 'decimal:2',
     ];
@@ -68,6 +71,22 @@ class Coupon extends Model
     public function usages(): HasMany
     {
         return $this->hasMany(CouponUsage::class);
+    }
+
+    /**
+     * Get the parent coupon (for mass-created coupons)
+     */
+    public function parentCoupon(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(Coupon::class, 'parent_coupon_id');
+    }
+
+    /**
+     * Get all mass-created coupons from this base coupon
+     */
+    public function massCreatedCoupons(): HasMany
+    {
+        return $this->hasMany(Coupon::class, 'parent_coupon_id');
     }
 
     /**
