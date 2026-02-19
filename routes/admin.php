@@ -100,6 +100,8 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::resource('bonifications', BonificationController::class);
     Route::resource('coupons', CouponController::class);
     Route::post('coupons/{coupon}/toggle', [CouponController::class, 'toggle'])->name('coupons.toggle');
+    Route::post('coupons/{coupon}/mass-create', [CouponController::class, 'massCreate'])->name('coupons.mass-create');
+    Route::get('coupons/export', [CouponController::class, 'export'])->name('coupons.export');
 
     // Promociones routes
     Route::prefix('promociones')->name('promociones.')->group(function () {

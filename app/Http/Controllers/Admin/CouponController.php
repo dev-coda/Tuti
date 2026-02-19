@@ -10,8 +10,11 @@ use App\Models\Brand;
 use App\Models\Vendor;
 use App\Models\User;
 use App\Models\Zone;
+use App\Exports\CouponsExport;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\DB;
+use Maatwebsite\Excel\Facades\Excel;
 use Spatie\Permission\Models\Role;
 
 class CouponController extends Controller
@@ -296,5 +299,76 @@ class CouponController extends Controller
 
         $status = $coupon->active ? 'activado' : 'desactivado';
         return back()->with('success', "Cupón {$status} exitosamente.");
+    }
+
+    /**
+     * Mass create coupons based on a base coupon
+     */
+    public function massCreate(Request $request, Coupon $coupon)
+    {
+        $request->validate([
+            'quantity' => 'required|integer|min:1|max:1000',
+        ]);
+
+        $quantity = (int) $request->quantity;
+        $baseCode = $coupon->code;
+        $createdCount = 0;
+        $errors = [];
+
+        DB::beginTransaction();
+        try {
+            for ($i = 1; $i <= $quantity; $i++) {
+                $newCode = $baseCode . $i;
+                
+                // Check if code already exists
+                if (Coupon::where('code', $newCode)->exists()) {
+                    $errors[] = "El código '{$newCode}' ya existe. Se omitió.";
+                    continue;
+                }
+
+                // Create new coupon with all attributes from base coupon
+                $newCouponData = $coupon->only($coupon->getFillable());
+                
+                // Override specific fields for the new coupon
+                $newCouponData['code'] = $newCode;
+                $newCouponData['parent_coupon_id'] = $coupon->id;
+                $newCouponData['is_mass_created'] = true;
+                $newCouponData['current_usage'] = 0;
+
+                Coupon::create($newCouponData);
+                $createdCount++;
+            }
+
+            DB::commit();
+
+            $message = "Se crearon {$createdCount} cupón(es) exitosamente.";
+            if (!empty($errors)) {
+                $message .= " Errores: " . implode(' ', $errors);
+            }
+
+            return redirect()->route('coupons.index')->with('success', $message);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->with('error', 'Error al crear los cupones: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Export coupons to Excel
+     */
+    public function export(Request $request)
+    {
+        $onlyMassCreated = $request->boolean('only_mass_created', false);
+        
+        $filename = 'cupones_' . now()->format('Y-m-d_His');
+        if ($onlyMassCreated) {
+            $filename .= '_masivos';
+        }
+        $filename .= '.xlsx';
+
+        return Excel::download(
+            new CouponsExport($onlyMassCreated),
+            $filename
+        );
     }
 }
