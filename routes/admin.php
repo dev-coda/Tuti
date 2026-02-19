@@ -96,6 +96,8 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::resource('labels', LabelController::class);
     Route::resource('tags', TagController::class);
     Route::post('tags/{tag}/toggle', [TagController::class, 'toggle'])->name('tags.toggle');
+    Route::post('tags/auto-tag-nuevo/toggle', [TagController::class, 'toggleAutoTagNuevo'])->name('tags.auto-tag-nuevo.toggle');
+    Route::post('tags/auto-tag-descuento/toggle', [TagController::class, 'toggleAutoTagDescuento'])->name('tags.auto-tag-descuento.toggle');
     Route::resource('vendors', VendorController::class);
     Route::resource('bonifications', BonificationController::class);
     Route::resource('coupons', CouponController::class);

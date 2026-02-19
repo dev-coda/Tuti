@@ -223,10 +223,156 @@ class Product extends Model
 
     /**
      * Get the active tag for this product (lowest priority)
+     * @deprecated Use getActiveTags() instead
      */
     public function getActiveTag(): ?Tag
     {
         return Tag::getTagForProduct($this);
+    }
+
+    /**
+     * Get all active tags for this product (manual + auto tags)
+     * Returns up to 2 tags: manual tag (if exists) + auto tags (NUEVO, DESCUENTO)
+     */
+    public function getActiveTags(): array
+    {
+        $tags = [];
+
+        // Get manual tag (lowest priority)
+        $manualTag = Tag::getTagForProduct($this);
+        if ($manualTag) {
+            $tags[] = [
+                'content' => $manualTag->content,
+                'type' => 'manual',
+                'priority' => $manualTag->priority,
+            ];
+        }
+
+        // Get auto tags if enabled
+        $autoTagNuevoEnabled = Setting::getByKey('auto_tag_nuevo_enabled') === '1';
+        $autoTagDescuentoEnabled = Setting::getByKey('auto_tag_descuento_enabled') === '1';
+
+        // Auto tag: NUEVO (if product created within 30 days)
+        if ($autoTagNuevoEnabled) {
+            $daysSinceCreation = $this->created_at->diffInDays(now());
+            if ($daysSinceCreation <= 30) {
+                $tags[] = [
+                    'content' => 'NUEVO',
+                    'type' => 'auto_nuevo',
+                    'priority' => 999, // Lower priority than manual tags
+                ];
+            }
+        }
+
+        // Auto tag: DESCUENTO (if product has static discount)
+        if ($autoTagDescuentoEnabled) {
+            $discountInfo = $this->getStaticDiscountInfo();
+            if ($discountInfo && $discountInfo['has_discount']) {
+                $discountText = '';
+                if ($discountInfo['discount_type'] === 'percentage') {
+                    $discountText = '-' . number_format($discountInfo['discount'], 0) . '%';
+                } else {
+                    $discountText = '-$' . number_format($discountInfo['discount'], 0);
+                }
+                $tags[] = [
+                    'content' => $discountText,
+                    'type' => 'auto_descuento',
+                    'priority' => 998, // Lower priority than manual tags, higher than NUEVO
+                ];
+            }
+        }
+
+        // Sort by priority (lower is better) and limit to 2 tags
+        usort($tags, function ($a, $b) {
+            return $a['priority'] <=> $b['priority'];
+        });
+
+        return array_slice($tags, 0, 2);
+    }
+
+    /**
+     * Get static discount information (product, brand, or vendor discounts only)
+     * Does NOT include coupons, promociones, or volume discounts
+     */
+    public function getStaticDiscountInfo(): ?array
+    {
+        $price = $this->price;
+        $variation = $this->items?->first();
+        if ($variation) {
+            $price = $variation->pivot->price;
+        }
+
+        if ($price <= 0) {
+            return null;
+        }
+
+        $bestDiscount = null;
+        $bestDiscountType = 'percentage';
+        $bestDiscountSource = null;
+        $bestDiscountPercentage = 0; // Always store as percentage equivalent for comparison
+
+        // Product discount (always percentage)
+        if ($this->discount > 0) {
+            $bestDiscount = $this->discount;
+            $bestDiscountType = 'percentage';
+            $bestDiscountPercentage = $this->discount;
+            $bestDiscountSource = 'product';
+        }
+
+        // Brand discount
+        if ($this->brand && $this->brand->discount > 0) {
+            $brandDiscount = $this->brand->discount;
+            $brandDiscountType = $this->brand->discount_type ?? 'percentage';
+            
+            $brandDiscountPercentage = 0;
+            if ($brandDiscountType === 'percentage') {
+                $brandDiscountPercentage = $brandDiscount;
+            } else {
+                // Convert fixed amount to percentage equivalent
+                $brandDiscountPercentage = ($brandDiscount / $price) * 100;
+            }
+            
+            // Brand discount wins if it's better (higher percentage)
+            if ($brandDiscountPercentage > $bestDiscountPercentage) {
+                $bestDiscount = $brandDiscount;
+                $bestDiscountType = $brandDiscountType;
+                $bestDiscountPercentage = $brandDiscountPercentage;
+                $bestDiscountSource = 'brand';
+            }
+        }
+
+        // Vendor discount (highest priority - always wins if better or equal)
+        if ($this->brand && $this->brand->vendor && $this->brand->vendor->discount > 0) {
+            $vendorDiscount = $this->brand->vendor->discount;
+            $vendorDiscountType = $this->brand->vendor->discount_type ?? 'percentage';
+            
+            $vendorDiscountPercentage = 0;
+            if ($vendorDiscountType === 'percentage') {
+                $vendorDiscountPercentage = $vendorDiscount;
+            } else {
+                // Convert fixed amount to percentage equivalent
+                $vendorDiscountPercentage = ($vendorDiscount / $price) * 100;
+            }
+            
+            // Vendor discount always wins if it's better or equal
+            if ($vendorDiscountPercentage >= $bestDiscountPercentage) {
+                $bestDiscount = $vendorDiscount;
+                $bestDiscountType = $vendorDiscountType;
+                $bestDiscountPercentage = $vendorDiscountPercentage;
+                $bestDiscountSource = 'vendor';
+            }
+        }
+
+        if ($bestDiscount && $bestDiscount > 0) {
+            return [
+                'has_discount' => true,
+                'discount' => $bestDiscount,
+                'discount_type' => $bestDiscountType,
+                'discount_source' => $bestDiscountSource,
+            ];
+        }
+
+        return null;
     }
 
     public function getImageAttribute()

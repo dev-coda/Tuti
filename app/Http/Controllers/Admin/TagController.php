@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Models\Category;
 use App\Models\Brand;
 use App\Models\Bonification;
+use App\Models\Setting;
 use Illuminate\Http\Request;
 
 class TagController extends Controller
@@ -25,7 +26,47 @@ class TagController extends Controller
             ->orderBy('created_at', 'desc')
             ->paginate();
 
-        return view('tags.index', compact('tags'));
+        // Get auto tag settings
+        $autoTagNuevoEnabled = Setting::getByKey('auto_tag_nuevo_enabled') === '1';
+        $autoTagDescuentoEnabled = Setting::getByKey('auto_tag_descuento_enabled') === '1';
+
+        return view('tags.index', compact('tags', 'autoTagNuevoEnabled', 'autoTagDescuentoEnabled'));
+    }
+
+    /**
+     * Toggle auto tag NUEVO
+     */
+    public function toggleAutoTagNuevo(Request $request)
+    {
+        $enabled = $request->boolean('enabled', false);
+        Setting::updateOrCreate(
+            ['key' => 'auto_tag_nuevo_enabled'],
+            [
+                'name' => 'Etiqueta automática NUEVO',
+                'value' => $enabled ? '1' : '0',
+                'show' => true,
+            ]
+        );
+
+        return back()->with('success', $enabled ? 'Etiqueta automática NUEVO habilitada' : 'Etiqueta automática NUEVO deshabilitada');
+    }
+
+    /**
+     * Toggle auto tag DESCUENTO
+     */
+    public function toggleAutoTagDescuento(Request $request)
+    {
+        $enabled = $request->boolean('enabled', false);
+        Setting::updateOrCreate(
+            ['key' => 'auto_tag_descuento_enabled'],
+            [
+                'name' => 'Etiqueta automática DESCUENTO',
+                'value' => $enabled ? '1' : '0',
+                'show' => true,
+            ]
+        );
+
+        return back()->with('success', $enabled ? 'Etiqueta automática DESCUENTO habilitada' : 'Etiqueta automática DESCUENTO deshabilitada');
     }
 
     /**
