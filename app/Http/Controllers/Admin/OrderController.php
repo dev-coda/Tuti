@@ -31,12 +31,15 @@ class OrderController extends Controller
             })
 
             ->when($request->q, function ($query, $q) {
-                $searchTerm = strtolower($q);
-                $query->where(function ($qry) use ($q, $searchTerm) {
-                    $qry->whereHas('user', function ($subQuery) use ($searchTerm) {
-                        $subQuery->whereRaw('LOWER(name) LIKE ?', ['%' . $searchTerm . '%'])
-                                  ->orWhereRaw('LOWER(document) LIKE ?', ['%' . $searchTerm . '%']);
-                    })->orWhereRaw('LOWER(CAST(id AS CHAR)) LIKE ?', ['%' . $searchTerm . '%']);
+                $searchTerm = strtolower(trim($q));
+                $query->where(function ($qry) use ($searchTerm) {
+                    // Search by order ID (case-insensitive, supports partial matches)
+                    $qry->whereRaw('CAST(id AS TEXT) ILIKE ?', ['%' . $searchTerm . '%'])
+                        // Search by client name (case-insensitive)
+                        ->orWhereHas('user', function ($subQuery) use ($searchTerm) {
+                            $subQuery->whereRaw('LOWER(name) LIKE ?', ['%' . $searchTerm . '%'])
+                                      ->orWhereRaw('LOWER(document) LIKE ?', ['%' . $searchTerm . '%']);
+                        });
                 });
             })
 
