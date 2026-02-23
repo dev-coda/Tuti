@@ -403,8 +403,28 @@ class PageController extends Controller
                 ]
             );
         } else {
-            // User-selected ordering - paginate normally
-            $products = $this->getProductsWithHighlighting($category, $productsQuery, $order, $category_id, $brand_id);
+            // User-selected ordering - get products, sort by availability, then paginate
+            $allProducts = $this->getProductsWithHighlighting($category, $productsQuery, $order, $category_id, $brand_id, true);
+            
+            // Sort to push unavailable products to end (secondary sort after user's selected ordering)
+            $sortedProducts = $this->sortProductsByAvailability($allProducts, $bodegaCode);
+            
+            // Now paginate the sorted collection
+            $perPage = 15; // Default pagination size
+            $currentPage = request()->get('page', 1);
+            $offset = ($currentPage - 1) * $perPage;
+            $itemsForCurrentPage = $sortedProducts->slice($offset, $perPage)->values();
+            
+            $products = new \Illuminate\Pagination\LengthAwarePaginator(
+                $itemsForCurrentPage,
+                $sortedProducts->count(),
+                $perPage,
+                $currentPage,
+                [
+                    'path' => request()->url(),
+                    'pageName' => 'page',
+                ]
+            );
         }
 
         $categoriesArray = [];
