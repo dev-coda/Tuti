@@ -64,31 +64,14 @@ echo ""
 # ============================================
 print_step "Checking database service..."
 
-# Function to check if PostgreSQL service is running
+# Function to check if PostgreSQL is actually listening on port 5432
 check_db_service() {
-    # First check if PostgreSQL is actually listening (most reliable)
+    # Only check if PostgreSQL is actually listening on port 5432 (most reliable)
+    # Don't check for processes - a process might exist but not be listening
     if timeout 2 bash -c "echo > /dev/tcp/127.0.0.1/5432" 2>/dev/null || nc -z 127.0.0.1 5432 2>/dev/null || (command -v pg_isready >/dev/null 2>&1 && timeout 2 pg_isready -h 127.0.0.1 -p 5432 >/dev/null 2>&1); then
         echo "running"
         return 0
     fi
-    
-    # Check if postgres process is running
-    if pgrep -x postgres > /dev/null 2>&1; then
-        echo "running"
-        return 0
-    fi
-    
-    # Linux - check systemctl for actual PostgreSQL instance services
-    if command -v systemctl &> /dev/null; then
-        # Check for versioned services (e.g., postgresql@14-main) - these are the actual instances
-        for service in $(timeout 3 systemctl list-units --type=service --state=running --no-pager 2>/dev/null | grep -oE 'postgresql@[0-9]+-[^.]*\.service' | sed 's/\.service$//' | head -1); do
-            if [ -n "$service" ] && timeout 2 systemctl is-active --quiet "$service" 2>/dev/null; then
-                echo "$service"
-                return 0
-            fi
-        done
-    fi
-    
     return 1
 }
 
@@ -103,18 +86,34 @@ find_and_start_postgresql() {
                     VERSION=$(echo "$line" | awk '{print $1}')
                     CLUSTER=$(echo "$line" | awk '{print $2}')
                     STATUS=$(pg_lsclusters 2>/dev/null | grep "$VERSION $CLUSTER" | awk '{print $6}' || echo "")
+                    PORT=$(pg_lsclusters 2>/dev/null | grep "$VERSION $CLUSTER" | awk '{print $3}' || echo "5432")
                     
-                    if [ "$STATUS" != "online" ]; then
-                        print_step "Starting PostgreSQL cluster $VERSION/$CLUSTER..."
+                    # Check if cluster is actually listening, not just marked as "online"
+                    PORT_LISTENING=false
+                    if [ -n "$PORT" ]; then
+                        if timeout 2 bash -c "echo > /dev/tcp/127.0.0.1/$PORT" 2>/dev/null || nc -z 127.0.0.1 "$PORT" 2>/dev/null || timeout 2 pg_isready -h 127.0.0.1 -p "$PORT" >/dev/null 2>&1; then
+                            PORT_LISTENING=true
+                        fi
+                    fi
+                    
+                    if [ "$STATUS" != "online" ] || [ "$PORT_LISTENING" = false ]; then
+                        if [ "$STATUS" = "online" ] && [ "$PORT_LISTENING" = false ]; then
+                            print_warning "Cluster $VERSION/$CLUSTER shows as online but is not listening on port $PORT, restarting..."
+                        else
+                            print_step "Starting PostgreSQL cluster $VERSION/$CLUSTER..."
+                        fi
                         if sudo -u postgres pg_ctlcluster "$VERSION" "$CLUSTER" start 2>&1; then
-                            sleep 2
-                            if timeout 2 pg_isready -h 127.0.0.1 -p 5432 >/dev/null 2>&1; then
-                                print_success "PostgreSQL cluster $VERSION/$CLUSTER started"
+                            sleep 3
+                            # Verify it's actually listening
+                            if timeout 2 bash -c "echo > /dev/tcp/127.0.0.1/$PORT" 2>/dev/null || nc -z 127.0.0.1 "$PORT" 2>/dev/null || timeout 2 pg_isready -h 127.0.0.1 -p "$PORT" >/dev/null 2>&1; then
+                                print_success "PostgreSQL cluster $VERSION/$CLUSTER started and listening on port $PORT"
                                 return 0
+                            else
+                                print_warning "Cluster $VERSION/$CLUSTER start command succeeded but not listening yet"
                             fi
                         fi
                     else
-                        print_success "PostgreSQL cluster $VERSION/$CLUSTER is already online"
+                        print_success "PostgreSQL cluster $VERSION/$CLUSTER is already online and listening"
                         return 0
                     fi
                 fi
@@ -148,17 +147,42 @@ find_and_start_postgresql() {
     return 1
 }
 
-# Check if database service is running
+# Check if database service is running (listening on port 5432)
 DB_SERVICE_STATUS=$(check_db_service)
 if [ -n "$DB_SERVICE_STATUS" ]; then
-    print_success "Database service is running ($DB_SERVICE_STATUS)"
+    print_success "PostgreSQL is listening on port 5432"
 else
-    print_warning "Database service is not running!"
+    print_warning "PostgreSQL is not listening on port 5432!"
     echo ""
     echo "Attempting to start PostgreSQL cluster..."
     
     if find_and_start_postgresql; then
         print_success "PostgreSQL started successfully"
+        
+        # Wait for PostgreSQL to be ready and verify it's listening
+        print_step "Waiting for PostgreSQL to be ready..."
+        MAX_PORT_CHECKS=10
+        PORT_CHECK_COUNT=0
+        PORT_READY=false
+        
+        while [ $PORT_CHECK_COUNT -lt $MAX_PORT_CHECKS ]; do
+            if timeout 2 bash -c "echo > /dev/tcp/127.0.0.1/5432" 2>/dev/null || nc -z 127.0.0.1 5432 2>/dev/null || timeout 2 pg_isready -h 127.0.0.1 -p 5432 >/dev/null 2>&1; then
+                PORT_READY=true
+                break
+            fi
+            PORT_CHECK_COUNT=$((PORT_CHECK_COUNT + 1))
+            if [ $PORT_CHECK_COUNT -lt $MAX_PORT_CHECKS ]; then
+                print_warning "PostgreSQL port not ready yet (attempt $PORT_CHECK_COUNT/$MAX_PORT_CHECKS), waiting..."
+                sleep 2
+            fi
+        done
+        
+        if [ "$PORT_READY" = true ]; then
+            print_success "PostgreSQL is now listening on port 5432"
+        else
+            print_error "PostgreSQL started but is not listening on port 5432 after $MAX_PORT_CHECKS attempts"
+            exit 1
+        fi
     else
         print_error "Could not start PostgreSQL automatically"
         echo ""
@@ -195,33 +219,6 @@ else
         echo "  To find services: systemctl list-unit-files | grep postgresql"
         exit 1
     fi
-fi
-
-# Wait a bit for database to be fully ready
-print_step "Waiting for PostgreSQL to be ready..."
-sleep 3
-
-# Additional check: verify PostgreSQL is actually listening on port 5432
-MAX_PORT_CHECKS=10
-PORT_CHECK_COUNT=0
-PORT_READY=false
-
-while [ $PORT_CHECK_COUNT -lt $MAX_PORT_CHECKS ]; do
-    if timeout 2 bash -c "echo > /dev/tcp/127.0.0.1/5432" 2>/dev/null || nc -z 127.0.0.1 5432 2>/dev/null || timeout 2 pg_isready -h 127.0.0.1 -p 5432 >/dev/null 2>&1; then
-        PORT_READY=true
-        break
-    fi
-    PORT_CHECK_COUNT=$((PORT_CHECK_COUNT + 1))
-    if [ $PORT_CHECK_COUNT -lt $MAX_PORT_CHECKS ]; then
-        print_warning "PostgreSQL port not ready yet (attempt $PORT_CHECK_COUNT/$MAX_PORT_CHECKS), waiting..."
-        sleep 2
-    fi
-done
-
-if [ "$PORT_READY" = true ]; then
-    print_success "PostgreSQL is listening on port 5432"
-else
-    print_warning "PostgreSQL port check timed out, but continuing with connection test..."
 fi
 
 # ============================================
