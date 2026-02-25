@@ -68,9 +68,16 @@ print_step "Checking database service..."
 check_db_service() {
     # Linux - check systemctl
     if command -v systemctl &> /dev/null; then
-        # Try different PostgreSQL service names
-        for service in postgresql postgres; do
-            if systemctl is-active --quiet $service 2>/dev/null; then
+        # Try different PostgreSQL service names (with timeout to avoid hanging)
+        for service in postgresql postgres postgresql@*; do
+            if timeout 2 systemctl is-active --quiet "$service" 2>/dev/null; then
+                echo "$service"
+                return 0
+            fi
+        done
+        # Also check for versioned services (e.g., postgresql@14-main)
+        for service in $(timeout 2 systemctl list-units --type=service --no-pager 2>/dev/null | grep -oE 'postgresql[@-][0-9]+[^.]*' | head -1); do
+            if [ -n "$service" ] && timeout 2 systemctl is-active --quiet "$service" 2>/dev/null; then
                 echo "$service"
                 return 0
             fi
@@ -97,51 +104,106 @@ else
     
     # Linux - try to start with systemctl
     if command -v systemctl &> /dev/null; then
+        # First, try to find available PostgreSQL services (with timeout)
+        AVAILABLE_SERVICES=$(timeout 5 systemctl list-unit-files --type=service --no-pager 2>/dev/null | grep -E '^postgresql|^postgres\.service' | awk '{print $1}' | sed 's/\.service$//' || echo "")
+        
+        # Try common service names first
         for service in postgresql postgres; do
-            if systemctl list-unit-files | grep -q "^${service}.service"; then
-                if sudo systemctl start $service 2>/dev/null; then
+            if timeout 2 systemctl list-unit-files --type=service --no-pager 2>/dev/null | grep -q "^${service}\.service"; then
+                print_step "Attempting to start $service..."
+                if timeout 10 sudo systemctl start "$service" 2>&1; then
                     sleep 3  # Give PostgreSQL time to start
-                    if systemctl is-active --quiet $service 2>/dev/null; then
+                    if timeout 2 systemctl is-active --quiet "$service" 2>/dev/null; then
                         print_success "Database service started via systemctl ($service)"
                         DB_STARTED=true
                         break
+                    else
+                        print_warning "$service start command succeeded but service is not active yet"
                     fi
+                else
+                    print_warning "Failed to start $service"
                 fi
             fi
         done
+        
+        # If common names didn't work, try versioned services from the list
+        if [ "$DB_STARTED" = false ] && [ -n "$AVAILABLE_SERVICES" ]; then
+            for service in $AVAILABLE_SERVICES; do
+                if [ "$service" != "postgresql" ] && [ "$service" != "postgres" ]; then
+                    print_step "Attempting to start $service..."
+                    if timeout 10 sudo systemctl start "$service" 2>&1; then
+                        sleep 3
+                        if timeout 2 systemctl is-active --quiet "$service" 2>/dev/null; then
+                            print_success "Database service started via systemctl ($service)"
+                            DB_STARTED=true
+                            break
+                        fi
+                    fi
+                fi
+            done
+        fi
     fi
     
     if [ "$DB_STARTED" = false ]; then
         print_error "Could not start database service automatically"
+        echo ""
+        echo "Available PostgreSQL services:"
+        timeout 5 systemctl list-unit-files --type=service --no-pager 2>/dev/null | grep -E 'postgresql|postgres' || echo "  (none found)"
+        echo ""
         echo "Please start the database service manually:"
         echo "  sudo systemctl start postgresql"
         echo "  or: sudo systemctl start postgres"
+        echo "  or check available services: systemctl list-unit-files | grep postgres"
         exit 1
     fi
 fi
 
 # Wait a bit for database to be fully ready
-sleep 2
+print_step "Waiting for PostgreSQL to be ready..."
+sleep 3
+
+# Additional check: verify PostgreSQL is actually listening on port 5432
+MAX_PORT_CHECKS=10
+PORT_CHECK_COUNT=0
+PORT_READY=false
+
+while [ $PORT_CHECK_COUNT -lt $MAX_PORT_CHECKS ]; do
+    if timeout 2 bash -c "echo > /dev/tcp/127.0.0.1/5432" 2>/dev/null || nc -z 127.0.0.1 5432 2>/dev/null || timeout 2 pg_isready -h 127.0.0.1 -p 5432 >/dev/null 2>&1; then
+        PORT_READY=true
+        break
+    fi
+    PORT_CHECK_COUNT=$((PORT_CHECK_COUNT + 1))
+    if [ $PORT_CHECK_COUNT -lt $MAX_PORT_CHECKS ]; then
+        print_warning "PostgreSQL port not ready yet (attempt $PORT_CHECK_COUNT/$MAX_PORT_CHECKS), waiting..."
+        sleep 2
+    fi
+done
+
+if [ "$PORT_READY" = true ]; then
+    print_success "PostgreSQL is listening on port 5432"
+else
+    print_warning "PostgreSQL port check timed out, but continuing with connection test..."
+fi
 
 # ============================================
 # 2. Verify Database Connection
 # ============================================
 print_step "Verifying database connection..."
 
-# Test database connection using Laravel
+# Test database connection using Laravel (with timeout to avoid hanging)
 MAX_RETRIES=5
 RETRY_COUNT=0
 DB_CONNECTED=false
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    if php artisan db:show >/dev/null 2>&1; then
+    if timeout 10 php artisan db:show >/dev/null 2>&1; then
         DB_CONNECTED=true
         break
     fi
     RETRY_COUNT=$((RETRY_COUNT + 1))
     if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
         print_warning "Database connection attempt $RETRY_COUNT failed, retrying..."
-        sleep 2
+        sleep 3
     fi
 done
 
@@ -268,8 +330,8 @@ if ! check_db_service > /dev/null 2>&1; then
     ALL_SERVICES_OK=false
 fi
 
-# Verify Database Connection
-if ! php artisan db:show >/dev/null 2>&1; then
+# Verify Database Connection (with timeout)
+if ! timeout 10 php artisan db:show >/dev/null 2>&1; then
     print_error "Database connection verification failed"
     ALL_SERVICES_OK=false
 fi
