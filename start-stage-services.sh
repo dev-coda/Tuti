@@ -66,28 +66,85 @@ print_step "Checking database service..."
 
 # Function to check if PostgreSQL service is running
 check_db_service() {
-    # Linux - check systemctl
+    # First check if PostgreSQL is actually listening (most reliable)
+    if timeout 2 bash -c "echo > /dev/tcp/127.0.0.1/5432" 2>/dev/null || nc -z 127.0.0.1 5432 2>/dev/null || (command -v pg_isready >/dev/null 2>&1 && timeout 2 pg_isready -h 127.0.0.1 -p 5432 >/dev/null 2>&1); then
+        echo "running"
+        return 0
+    fi
+    
+    # Check if postgres process is running
+    if pgrep -x postgres > /dev/null 2>&1; then
+        echo "running"
+        return 0
+    fi
+    
+    # Linux - check systemctl for actual PostgreSQL instance services
     if command -v systemctl &> /dev/null; then
-        # Try different PostgreSQL service names (with timeout to avoid hanging)
-        for service in postgresql postgres postgresql@*; do
-            if timeout 2 systemctl is-active --quiet "$service" 2>/dev/null; then
-                echo "$service"
-                return 0
-            fi
-        done
-        # Also check for versioned services (e.g., postgresql@14-main)
-        for service in $(timeout 2 systemctl list-units --type=service --no-pager 2>/dev/null | grep -oE 'postgresql[@-][0-9]+[^.]*' | head -1); do
+        # Check for versioned services (e.g., postgresql@14-main) - these are the actual instances
+        for service in $(timeout 3 systemctl list-units --type=service --state=running --no-pager 2>/dev/null | grep -oE 'postgresql@[0-9]+-[^.]*\.service' | sed 's/\.service$//' | head -1); do
             if [ -n "$service" ] && timeout 2 systemctl is-active --quiet "$service" 2>/dev/null; then
                 echo "$service"
                 return 0
             fi
         done
     fi
-    # Fallback: check if postgres process is running
-    if pgrep -x postgres > /dev/null 2>&1; then
-        echo "running"
-        return 0
+    
+    return 1
+}
+
+# Function to find and start the actual PostgreSQL cluster
+find_and_start_postgresql() {
+    # Method 1: Use pg_lsclusters to find available clusters (most reliable)
+    if command -v pg_lsclusters >/dev/null 2>&1; then
+        CLUSTERS=$(pg_lsclusters 2>/dev/null | awk 'NR>1 {print $1 " " $2}' || echo "")
+        if [ -n "$CLUSTERS" ]; then
+            while IFS= read -r line; do
+                if [ -n "$line" ]; then
+                    VERSION=$(echo "$line" | awk '{print $1}')
+                    CLUSTER=$(echo "$line" | awk '{print $2}')
+                    STATUS=$(pg_lsclusters 2>/dev/null | grep "$VERSION $CLUSTER" | awk '{print $6}' || echo "")
+                    
+                    if [ "$STATUS" != "online" ]; then
+                        print_step "Starting PostgreSQL cluster $VERSION/$CLUSTER..."
+                        if sudo -u postgres pg_ctlcluster "$VERSION" "$CLUSTER" start 2>&1; then
+                            sleep 2
+                            if timeout 2 pg_isready -h 127.0.0.1 -p 5432 >/dev/null 2>&1; then
+                                print_success "PostgreSQL cluster $VERSION/$CLUSTER started"
+                                return 0
+                            fi
+                        fi
+                    else
+                        print_success "PostgreSQL cluster $VERSION/$CLUSTER is already online"
+                        return 0
+                    fi
+                fi
+            done <<< "$CLUSTERS"
+        fi
     fi
+    
+    # Method 2: Try to find and start versioned systemd services
+    if command -v systemctl &> /dev/null; then
+        # Find all postgresql@ services
+        VERSIONED_SERVICES=$(timeout 5 systemctl list-unit-files --type=service --no-pager 2>/dev/null | grep -E '^postgresql@[0-9]+' | awk '{print $1}' | sed 's/\.service$//' || echo "")
+        
+        if [ -n "$VERSIONED_SERVICES" ]; then
+            for service in $VERSIONED_SERVICES; do
+                print_step "Attempting to start $service..."
+                if timeout 10 sudo systemctl start "$service" 2>&1; then
+                    sleep 3
+                    if timeout 2 systemctl is-active --quiet "$service" 2>/dev/null; then
+                        # Verify it's actually listening
+                        sleep 2
+                        if timeout 2 pg_isready -h 127.0.0.1 -p 5432 >/dev/null 2>&1 || timeout 2 bash -c "echo > /dev/tcp/127.0.0.1/5432" 2>/dev/null; then
+                            print_success "PostgreSQL service started: $service"
+                            return 0
+                        fi
+                    fi
+                fi
+            done
+        fi
+    fi
+    
     return 1
 }
 
@@ -98,62 +155,44 @@ if [ -n "$DB_SERVICE_STATUS" ]; then
 else
     print_warning "Database service is not running!"
     echo ""
-    echo "Attempting to start database service..."
+    echo "Attempting to start PostgreSQL cluster..."
     
-    DB_STARTED=false
-    
-    # Linux - try to start with systemctl
-    if command -v systemctl &> /dev/null; then
-        # First, try to find available PostgreSQL services (with timeout)
-        AVAILABLE_SERVICES=$(timeout 5 systemctl list-unit-files --type=service --no-pager 2>/dev/null | grep -E '^postgresql|^postgres\.service' | awk '{print $1}' | sed 's/\.service$//' || echo "")
+    if find_and_start_postgresql; then
+        print_success "PostgreSQL started successfully"
+    else
+        print_error "Could not start PostgreSQL automatically"
+        echo ""
+        echo "Troubleshooting information:"
+        echo ""
         
-        # Try common service names first
-        for service in postgresql postgres; do
-            if timeout 2 systemctl list-unit-files --type=service --no-pager 2>/dev/null | grep -q "^${service}\.service"; then
-                print_step "Attempting to start $service..."
-                if timeout 10 sudo systemctl start "$service" 2>&1; then
-                    sleep 3  # Give PostgreSQL time to start
-                    if timeout 2 systemctl is-active --quiet "$service" 2>/dev/null; then
-                        print_success "Database service started via systemctl ($service)"
-                        DB_STARTED=true
-                        break
-                    else
-                        print_warning "$service start command succeeded but service is not active yet"
-                    fi
-                else
-                    print_warning "Failed to start $service"
-                fi
-            fi
-        done
-        
-        # If common names didn't work, try versioned services from the list
-        if [ "$DB_STARTED" = false ] && [ -n "$AVAILABLE_SERVICES" ]; then
-            for service in $AVAILABLE_SERVICES; do
-                if [ "$service" != "postgresql" ] && [ "$service" != "postgres" ]; then
-                    print_step "Attempting to start $service..."
-                    if timeout 10 sudo systemctl start "$service" 2>&1; then
-                        sleep 3
-                        if timeout 2 systemctl is-active --quiet "$service" 2>/dev/null; then
-                            print_success "Database service started via systemctl ($service)"
-                            DB_STARTED=true
-                            break
-                        fi
-                    fi
-                fi
-            done
+        # Show available clusters
+        if command -v pg_lsclusters >/dev/null 2>&1; then
+            echo "Available PostgreSQL clusters:"
+            pg_lsclusters 2>/dev/null || echo "  (pg_lsclusters not available)"
+            echo ""
         fi
-    fi
-    
-    if [ "$DB_STARTED" = false ]; then
-        print_error "Could not start database service automatically"
+        
+        # Show available services
+        if command -v systemctl &> /dev/null; then
+            echo "Available PostgreSQL systemd services:"
+            timeout 5 systemctl list-unit-files --type=service --no-pager 2>/dev/null | grep -E 'postgresql|postgres' || echo "  (none found)"
+            echo ""
+        fi
+        
+        echo "Please start PostgreSQL manually using one of these methods:"
         echo ""
-        echo "Available PostgreSQL services:"
-        timeout 5 systemctl list-unit-files --type=service --no-pager 2>/dev/null | grep -E 'postgresql|postgres' || echo "  (none found)"
+        if command -v pg_lsclusters >/dev/null 2>&1; then
+            echo "  Method 1 (using pg_ctlcluster):"
+            echo "    sudo -u postgres pg_ctlcluster <version> <cluster> start"
+            echo "    Example: sudo -u postgres pg_ctlcluster 14 main start"
+            echo ""
+        fi
+        echo "  Method 2 (using systemctl):"
+        echo "    sudo systemctl start postgresql@<version>-<cluster>"
+        echo "    Example: sudo systemctl start postgresql@14-main"
         echo ""
-        echo "Please start the database service manually:"
-        echo "  sudo systemctl start postgresql"
-        echo "  or: sudo systemctl start postgres"
-        echo "  or check available services: systemctl list-unit-files | grep postgres"
+        echo "  To find your cluster: pg_lsclusters"
+        echo "  To find services: systemctl list-unit-files | grep postgresql"
         exit 1
     fi
 fi
