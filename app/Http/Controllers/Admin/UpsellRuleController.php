@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\UpsellRule;
+use App\Models\Product;
 use Illuminate\Http\Request;
 
 class UpsellRuleController extends Controller
@@ -33,7 +34,18 @@ class UpsellRuleController extends Controller
     public function create()
     {
         $ruleTypes = UpsellRule::getRuleTypes();
-        $context = compact('ruleTypes');
+        
+        // Get products with SKU and name for better identification
+        $products = Product::orderBy('name')->get()->map(function ($product) {
+            return [
+                'id' => $product->id,
+                'name' => $product->name,
+                'sku' => $product->sku,
+                'display' => "{$product->sku} - {$product->name}",
+            ];
+        });
+        
+        $context = compact('ruleTypes', 'products');
 
         return view('admin.upsell-rules.create', $context);
     }
@@ -52,11 +64,18 @@ class UpsellRuleController extends Controller
             'config' => 'nullable|array',
             'priority' => 'nullable|integer|min:0',
             'active' => 'nullable|boolean',
+            'product_ids' => 'nullable|array',
+            'product_ids.*' => 'exists:products,id',
         ]);
 
         // Set default config based on rule type
         if (empty($validate['config'])) {
             $validate['config'] = $this->getDefaultConfigForType($validate['type']);
+        }
+        
+        // If type is manual and product_ids are provided, store them in config
+        if ($validate['type'] === 'manual' && !empty($validate['product_ids'])) {
+            $validate['config']['product_ids'] = $validate['product_ids'];
         }
 
         UpsellRule::create($validate);
@@ -82,7 +101,18 @@ class UpsellRuleController extends Controller
     public function edit(UpsellRule $upsellRule)
     {
         $ruleTypes = UpsellRule::getRuleTypes();
-        $context = compact('upsellRule', 'ruleTypes');
+        
+        // Get products with SKU and name for better identification
+        $products = Product::orderBy('name')->get()->map(function ($product) {
+            return [
+                'id' => $product->id,
+                'name' => $product->name,
+                'sku' => $product->sku,
+                'display' => "{$product->sku} - {$product->name}",
+            ];
+        });
+        
+        $context = compact('upsellRule', 'ruleTypes', 'products');
 
         return view('admin.upsell-rules.edit', $context);
     }
@@ -101,11 +131,21 @@ class UpsellRuleController extends Controller
             'config' => 'nullable|array',
             'priority' => 'nullable|integer|min:0',
             'active' => 'nullable|boolean',
+            'product_ids' => 'nullable|array',
+            'product_ids.*' => 'exists:products,id',
         ]);
 
         // Set default config if empty
         if (empty($validate['config'])) {
             $validate['config'] = $this->getDefaultConfigForType($validate['type']);
+        }
+        
+        // If type is manual and product_ids are provided, store them in config
+        if ($validate['type'] === 'manual' && !empty($validate['product_ids'])) {
+            $validate['config']['product_ids'] = $validate['product_ids'];
+        } elseif ($validate['type'] === 'manual' && empty($validate['product_ids'])) {
+            // Clear product_ids if type is manual but no products selected
+            $validate['config']['product_ids'] = [];
         }
 
         $upsellRule->update($validate);
@@ -137,6 +177,7 @@ class UpsellRuleController extends Controller
             'same_brand' => ['limit' => 10],
             'best_selling' => ['limit' => 10],
             'related_products' => ['limit' => 10],
+            'manual' => ['product_ids' => []],
             default => ['limit' => 10],
         };
     }
