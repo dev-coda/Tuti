@@ -19,6 +19,7 @@
 
 <div class="max-w-5xl container mx-auto xl:space-y-10 space-y-0 mt-5 mb-20">
     <h1 class="xl:text-4xl text-2xl font-bold  text-center">Bienvenido Tendero</h1>
+    <p class="text-center text-sm text-gray-500">Version B: Magic Link como alternativa a contraseña</p>
 
     <!-- Mobile Tabs Navigation -->
     <div class="xl:hidden mb-6">
@@ -55,18 +56,50 @@
             <p>Ingresa aquí solo si ya estás registrado</p>
 
             <div class="mt-5 p-5 w-full">
-                <form method="POST" action="{{ route('login') }}" class="space-y-5">
+                <form method="POST" action="{{ route('login') }}" class="space-y-5" id="login-form">
                     @csrf
-                    {{ Aire::input('email')->placeholder('Correo electrónico')->groupClass('mb-0')->required() }}
-                    {{ Aire::password('password')->placeholder('Contraseña')->groupClass('mb-5')->required() }}
-
-                    <div class="flex justify-between">
-                        <a href="{{ route('password.request') }}" class="text-sm text-blue-700 hover:underline">¿Olvidó su contraseña?</a>
-                        {{-- <a href="{{ route('password.request') }}" class="text-sm text-blue-700 hover:underline">Olvido su contraseña?</a> --}}
+                    <div>
+                        <label for="login-email" class="block text-sm font-medium text-gray-700 mb-1">Correo electrónico</label>
+                        <input type="email" id="login-email" name="email" placeholder="Correo electrónico" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500" required value="{{ old('email') }}">
+                        @error('email')
+                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                        @enderror
+                    </div>
+                    <div>
+                        <label for="login-password" class="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
+                        <input type="password" id="login-password" name="password" placeholder="Ingresa tu contraseña" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500" required>
                     </div>
 
-                    {{ Aire::submit('Ingresar')->variant()->primary() }}
+                    <div class="flex justify-between">
+                        <a href="{{ route('password.request') }}" class="text-sm text-orange-600 hover:underline">¿Olvidó su contraseña?</a>
+                    </div>
+
+                    <button type="submit" class="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-4 rounded-lg transition duration-300 flex items-center justify-center space-x-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd" />
+                        </svg>
+                        <span>Ingresar</span>
+                    </button>
                 </form>
+
+                <!-- Divider -->
+                <div class="relative my-6">
+                    <div class="absolute inset-0 flex items-center">
+                        <div class="w-full border-t border-gray-300"></div>
+                    </div>
+                    <div class="relative flex justify-center text-sm">
+                        <span class="px-4 bg-white text-gray-500 uppercase tracking-wider text-xs font-semibold">O bien</span>
+                    </div>
+                </div>
+
+                <!-- Magic Link Button -->
+                <button type="button" id="magic-link-btn" class="w-full border-2 border-gray-300 hover:border-orange-400 text-gray-700 hover:text-orange-600 font-semibold py-3 px-4 rounded-lg transition duration-300 flex items-center justify-center space-x-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" />
+                    </svg>
+                    <span>Ingresar sin contraseña</span>
+                </button>
+                <p class="text-center text-xs text-gray-500 mt-2">Te enviaremos un código de verificación a tu correo.</p>
             </div>
         </div>
         <div id="register-section" class="border border-3 border-blue-900 p-5 rounded-lg flex flex-col items-center justify-center xl:flex xl:flex-col xl:items-center xl:justify-center hidden">
@@ -206,6 +239,79 @@
 
 
 
+    </div>
+</div>
+
+<!-- Magic Link Verification Modal -->
+<div id="magic-link-modal" class="fixed inset-0 z-50 hidden">
+    <!-- Backdrop -->
+    <div class="fixed inset-0 bg-black bg-opacity-50 transition-opacity" id="magic-modal-backdrop"></div>
+    
+    <!-- Modal Content -->
+    <div class="fixed inset-0 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-8 relative transform transition-all" id="magic-modal-content">
+            <!-- Close Button -->
+            <button type="button" id="magic-modal-close" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+
+            <!-- Icon -->
+            <div class="flex justify-center mb-4">
+                <div class="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-orange-500" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
+                        <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
+                    </svg>
+                </div>
+            </div>
+
+            <!-- Title -->
+            <h3 class="text-xl font-bold text-center text-gray-900 mb-1">Ingreso sin contraseña</h3>
+            <p class="text-center text-sm text-gray-500 mb-1">Hemos enviado un código de verificación a</p>
+            <p class="text-center text-sm font-semibold text-gray-700 mb-6" id="magic-modal-email"></p>
+
+            <!-- Code Input -->
+            <div class="mb-4">
+                <label for="magic-code-input" class="block text-sm font-medium text-gray-700 mb-2">Código de verificación</label>
+                <input 
+                    type="text" 
+                    id="magic-code-input" 
+                    maxlength="6" 
+                    placeholder="000000" 
+                    inputmode="numeric"
+                    pattern="[0-9]*"
+                    class="w-full text-center text-2xl tracking-[0.5em] font-mono py-3 px-4 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    autocomplete="one-time-code"
+                >
+                <p id="magic-code-error" class="mt-2 text-sm text-red-600 hidden"></p>
+            </div>
+
+            <!-- Verify Button -->
+            <button type="button" id="magic-verify-btn" class="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-4 rounded-lg transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                Verificar e ingresar
+            </button>
+
+            <!-- Resend Link -->
+            <div class="text-center mt-4">
+                <button type="button" id="magic-resend-btn" class="text-sm text-orange-600 hover:text-orange-700 hover:underline font-medium">
+                    Reenviar código
+                </button>
+                <p id="magic-resend-timer" class="text-sm text-gray-400 hidden"></p>
+            </div>
+
+            <!-- Loading State -->
+            <div id="magic-loading" class="hidden absolute inset-0 bg-white bg-opacity-80 rounded-xl flex items-center justify-center">
+                <div class="flex flex-col items-center">
+                    <svg class="animate-spin h-8 w-8 text-orange-500 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span class="text-sm text-gray-500">Procesando...</span>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -360,6 +466,238 @@
                 }
             });
         }
+
+        // =============================================
+        // Magic Link Login Functionality
+        // =============================================
+        const magicLinkBtn = document.getElementById('magic-link-btn');
+        const magicModal = document.getElementById('magic-link-modal');
+        const magicModalClose = document.getElementById('magic-modal-close');
+        const magicModalBackdrop = document.getElementById('magic-modal-backdrop');
+        const magicModalEmail = document.getElementById('magic-modal-email');
+        const magicCodeInput = document.getElementById('magic-code-input');
+        const magicCodeError = document.getElementById('magic-code-error');
+        const magicVerifyBtn = document.getElementById('magic-verify-btn');
+        const magicResendBtn = document.getElementById('magic-resend-btn');
+        const magicResendTimer = document.getElementById('magic-resend-timer');
+        const magicLoading = document.getElementById('magic-loading');
+        const loginEmailInput = document.getElementById('login-email');
+
+        let magicLinkEmail = '';
+        let resendCooldown = null;
+
+        // CSRF token
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+
+        function showMagicLoading(show) {
+            if (show) {
+                magicLoading.classList.remove('hidden');
+            } else {
+                magicLoading.classList.add('hidden');
+            }
+        }
+
+        function showMagicError(message) {
+            magicCodeError.textContent = message;
+            magicCodeError.classList.remove('hidden');
+            magicCodeInput.classList.add('border-red-500');
+        }
+
+        function hideMagicError() {
+            magicCodeError.classList.add('hidden');
+            magicCodeInput.classList.remove('border-red-500');
+        }
+
+        function openMagicModal() {
+            magicModal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+            magicCodeInput.value = '';
+            magicVerifyBtn.disabled = true;
+            hideMagicError();
+            setTimeout(() => magicCodeInput.focus(), 100);
+        }
+
+        function closeMagicModal() {
+            magicModal.classList.add('hidden');
+            document.body.style.overflow = '';
+            if (resendCooldown) {
+                clearInterval(resendCooldown);
+                resendCooldown = null;
+            }
+        }
+
+        function startResendCooldown() {
+            let seconds = 60;
+            magicResendBtn.classList.add('hidden');
+            magicResendTimer.classList.remove('hidden');
+            magicResendTimer.textContent = `Reenviar código en ${seconds}s`;
+
+            resendCooldown = setInterval(() => {
+                seconds--;
+                if (seconds <= 0) {
+                    clearInterval(resendCooldown);
+                    resendCooldown = null;
+                    magicResendBtn.classList.remove('hidden');
+                    magicResendTimer.classList.add('hidden');
+                } else {
+                    magicResendTimer.textContent = `Reenviar código en ${seconds}s`;
+                }
+            }, 1000);
+        }
+
+        async function sendMagicCode(email) {
+            showMagicLoading(true);
+            try {
+                const response = await fetch('{{ route("magic-link.send") }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({ email: email }),
+                });
+
+                const data = await response.json();
+                
+                if (!response.ok && response.status === 429) {
+                    showMagicError(data.message || 'Demasiados intentos. Por favor espera un momento.');
+                    return false;
+                }
+
+                return true;
+            } catch (error) {
+                console.error('Error sending magic code:', error);
+                showMagicError('Error de conexión. Por favor intenta de nuevo.');
+                return false;
+            } finally {
+                showMagicLoading(false);
+            }
+        }
+
+        async function verifyMagicCode(email, code) {
+            showMagicLoading(true);
+            hideMagicError();
+            try {
+                const response = await fetch('{{ route("magic-link.verify") }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({ email: email, code: code }),
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    // Redirect on success
+                    window.location.href = data.redirect || '/';
+                    return;
+                }
+
+                showMagicError(data.message || 'Código inválido o expirado.');
+            } catch (error) {
+                console.error('Error verifying magic code:', error);
+                showMagicError('Error de conexión. Por favor intenta de nuevo.');
+            } finally {
+                showMagicLoading(false);
+            }
+        }
+
+        // Magic Link Button Click
+        if (magicLinkBtn) {
+            magicLinkBtn.addEventListener('click', async function() {
+                const email = loginEmailInput?.value?.trim();
+                
+                if (!email || !email.includes('@')) {
+                    // Focus and highlight the email field
+                    loginEmailInput.focus();
+                    loginEmailInput.classList.add('border-red-500', 'ring-2', 'ring-red-200');
+                    setTimeout(() => {
+                        loginEmailInput.classList.remove('border-red-500', 'ring-2', 'ring-red-200');
+                    }, 3000);
+                    return;
+                }
+
+                magicLinkEmail = email;
+                magicModalEmail.textContent = email;
+
+                const sent = await sendMagicCode(email);
+                if (sent) {
+                    openMagicModal();
+                    startResendCooldown();
+                }
+            });
+        }
+
+        // Code Input - Enable verify button when 6 digits entered
+        if (magicCodeInput) {
+            magicCodeInput.addEventListener('input', function() {
+                // Only allow digits
+                this.value = this.value.replace(/[^0-9]/g, '');
+                magicVerifyBtn.disabled = this.value.length !== 6;
+                if (this.value.length > 0) {
+                    hideMagicError();
+                }
+            });
+
+            // Auto-submit on 6 digits
+            magicCodeInput.addEventListener('keyup', function(e) {
+                if (this.value.length === 6 && e.key !== 'Enter') {
+                    magicVerifyBtn.click();
+                }
+            });
+
+            // Handle Enter key
+            magicCodeInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && this.value.length === 6) {
+                    e.preventDefault();
+                    magicVerifyBtn.click();
+                }
+            });
+        }
+
+        // Verify Button Click
+        if (magicVerifyBtn) {
+            magicVerifyBtn.addEventListener('click', function() {
+                const code = magicCodeInput.value.trim();
+                if (code.length === 6 && magicLinkEmail) {
+                    verifyMagicCode(magicLinkEmail, code);
+                }
+            });
+        }
+
+        // Resend Button Click
+        if (magicResendBtn) {
+            magicResendBtn.addEventListener('click', async function() {
+                if (magicLinkEmail) {
+                    magicCodeInput.value = '';
+                    magicVerifyBtn.disabled = true;
+                    hideMagicError();
+                    const sent = await sendMagicCode(magicLinkEmail);
+                    if (sent) {
+                        startResendCooldown();
+                    }
+                }
+            });
+        }
+
+        // Close Modal
+        if (magicModalClose) {
+            magicModalClose.addEventListener('click', closeMagicModal);
+        }
+        if (magicModalBackdrop) {
+            magicModalBackdrop.addEventListener('click', closeMagicModal);
+        }
+
+        // Close modal on Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && !magicModal.classList.contains('hidden')) {
+                closeMagicModal();
+            }
+        });
     });
 </script>
 @endsection
