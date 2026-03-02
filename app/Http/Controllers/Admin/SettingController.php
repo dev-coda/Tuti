@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Category;
 use App\Models\Setting;
 use App\Models\ZoneWarehouse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use App\Jobs\SyncProductInventory;
 
 class SettingController extends Controller
@@ -499,6 +501,47 @@ class SettingController extends Controller
             : 'Forzar Fecha de Entrega DESACTIVADO: Los pedidos se enviarán con su fecha programada normal.';
 
         return back()->with('success', $message);
+    }
+
+    /**
+     * Show Ventas settings (seller dashboard category picker)
+     */
+    public function ventas()
+    {
+        $categories = Category::active()
+            ->whereNull('parent_id')
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $selectedIds = json_decode(Setting::getByKey('seller_dashboard_categories') ?? '[]', true);
+
+        return view('settings.ventas', compact('categories', 'selectedIds'));
+    }
+
+    /**
+     * Update Ventas settings
+     */
+    public function updateVentas(Request $request)
+    {
+        $validated = $request->validate([
+            'category_ids'   => 'nullable|array|max:5',
+            'category_ids.*' => 'integer|exists:categories,id',
+        ]);
+
+        $ids = $validated['category_ids'] ?? [];
+
+        Setting::updateOrCreate(
+            ['key' => 'seller_dashboard_categories'],
+            [
+                'name'  => 'Categorías del Dashboard de Vendedor',
+                'value' => json_encode(array_map('intval', $ids)),
+                'show'  => false,
+            ]
+        );
+
+        Cache::forget('setting_seller_dashboard_categories');
+
+        return back()->with('success', 'Categorías del dashboard de ventas actualizadas exitosamente.');
     }
 
     /**

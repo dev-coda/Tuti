@@ -139,6 +139,8 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::post('settings/process-waiting-orders', [SettingController::class, 'processWaitingOrders'])->name('settings.process-waiting-orders');
     Route::get('settings/mailer-config', [SettingController::class, 'mailer'])->name('settings.mailer');
     Route::post('settings/mailer-config', [SettingController::class, 'updateMailer'])->name('settings.mailer.update');
+    Route::get('settings/ventas', [SettingController::class, 'ventas'])->name('settings.ventas');
+    Route::post('settings/ventas', [SettingController::class, 'updateVentas'])->name('settings.ventas.update');
 
     // Shipping Methods
     Route::get('shipping-methods', [ShippingMethodController::class, 'index'])->name('shipping-methods.index');

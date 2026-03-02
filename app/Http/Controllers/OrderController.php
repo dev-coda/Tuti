@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Category;
 use App\Models\Order;
+use App\Models\Setting;
 use App\Models\User;
 use App\Models\Zone;
 use App\Models\ZoneWarehouse;
@@ -96,44 +97,51 @@ class OrderController extends Controller
         $ventasTotales  = (clone $ordersQuery)->sum('total');
         $ticketPromedio = $totalPedidos > 0 ? round($ventasTotales / $totalPedidos, 2) : 0;
 
-        // ── Row 2: sales per top-level category ────────────────
-        // Join path: orders → order_products → products → category_product → categories
-        $categorySales = DB::table('orders')
-            ->join('order_products', 'orders.id', '=', 'order_products.order_id')
-            ->join('category_product', 'order_products.product_id', '=', 'category_product.product_id')
-            ->join('categories', 'category_product.category_id', '=', 'categories.id')
-            ->where('orders.seller_id', $user->id)
-            ->where('orders.total', '!=', 0)
-            ->whereBetween('orders.created_at', [$from, $to])
-            ->whereNull('categories.parent_id')
-            ->where('categories.active', true)
-            ->select(
-                'categories.id',
-                'categories.name',
-                DB::raw('COALESCE(SUM(order_products.price * order_products.quantity), 0) as total_sales')
-            )
-            ->groupBy('categories.id', 'categories.name')
-            ->orderByDesc('total_sales')
-            ->limit(5)
-            ->get();
+        // ── Row 2: sales per configured categories ─────────────
+        $configuredIds = json_decode(Setting::getByKey('seller_dashboard_categories') ?? '[]', true);
 
-        // If fewer than 5 categories with sales, fill remaining slots
-        // with other active top-level categories showing $0
-        if ($categorySales->count() < 5) {
-            $existingIds = $categorySales->pluck('id')->toArray();
-            $remaining = Category::active()
+        // Fall back to top-5 active root categories when nothing is configured
+        if (empty($configuredIds)) {
+            $configuredIds = Category::active()
                 ->whereNull('parent_id')
-                ->whereNotIn('id', $existingIds)
                 ->orderBy('name')
-                ->limit(5 - $categorySales->count())
-                ->get(['id', 'name'])
-                ->map(fn ($c) => (object) [
-                    'id'          => $c->id,
-                    'name'        => $c->name,
-                    'total_sales' => 0,
-                ]);
+                ->limit(5)
+                ->pluck('id')
+                ->toArray();
+        }
 
-            $categorySales = $categorySales->concat($remaining);
+        // Get sales for the configured categories
+        $categorySales = collect();
+        if (!empty($configuredIds)) {
+            $salesData = DB::table('orders')
+                ->join('order_products', 'orders.id', '=', 'order_products.order_id')
+                ->join('category_product', 'order_products.product_id', '=', 'category_product.product_id')
+                ->join('categories', 'category_product.category_id', '=', 'categories.id')
+                ->where('orders.seller_id', $user->id)
+                ->where('orders.total', '!=', 0)
+                ->whereBetween('orders.created_at', [$from, $to])
+                ->whereIn('categories.id', $configuredIds)
+                ->select(
+                    'categories.id',
+                    'categories.name',
+                    DB::raw('COALESCE(SUM(order_products.price * order_products.quantity), 0) as total_sales')
+                )
+                ->groupBy('categories.id', 'categories.name')
+                ->get()
+                ->keyBy('id');
+
+            // Build final list preserving configured order, showing $0 for categories with no sales
+            $categorySales = collect($configuredIds)->map(function ($id) use ($salesData) {
+                if ($salesData->has($id)) {
+                    return $salesData->get($id);
+                }
+                $cat = Category::find($id);
+                return (object) [
+                    'id'          => $id,
+                    'name'        => $cat->name ?? 'Categoría',
+                    'total_sales' => 0,
+                ];
+            });
         }
 
         return response()->json([
