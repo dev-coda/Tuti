@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Category;
 use App\Models\Order;
 use App\Models\User;
 use App\Models\Zone;
 use App\Models\ZoneWarehouse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use App\Repositories\UserRepository;
 
@@ -60,8 +62,92 @@ class OrderController extends Controller
         ];
 
         $accountUser = $user->load(['zones', 'city']);
+        $isSeller = $user->hasRole('seller');
 
-        return view('clients.orders.index', compact('orders', 'statuses', 'accountUser'));
+        return view('clients.orders.index', compact('orders', 'statuses', 'accountUser', 'isSeller'));
+    }
+
+    /**
+     * API endpoint: seller mini-dashboard data (JSON).
+     * Accepts optional ?from_date & ?to_date (defaults to today).
+     */
+    public function sellerDashboard(Request $request)
+    {
+        $user = auth()->user();
+
+        if (!$user || !$user->hasRole('seller')) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $from = $request->filled('from_date')
+            ? Carbon::parse($request->from_date)->startOfDay()
+            : Carbon::today();
+
+        $to = $request->filled('to_date')
+            ? Carbon::parse($request->to_date)->endOfDay()
+            : Carbon::today()->endOfDay();
+
+        // ── Row 1: aggregate KPIs ──────────────────────────────
+        $ordersQuery = Order::where('seller_id', $user->id)
+            ->whereNot('total', '0')
+            ->whereBetween('created_at', [$from, $to]);
+
+        $totalPedidos   = (clone $ordersQuery)->count();
+        $ventasTotales  = (clone $ordersQuery)->sum('total');
+        $ticketPromedio = $totalPedidos > 0 ? round($ventasTotales / $totalPedidos, 2) : 0;
+
+        // ── Row 2: sales per top-level category ────────────────
+        // Join path: orders → order_products → products → category_product → categories
+        $categorySales = DB::table('orders')
+            ->join('order_products', 'orders.id', '=', 'order_products.order_id')
+            ->join('category_product', 'order_products.product_id', '=', 'category_product.product_id')
+            ->join('categories', 'category_product.category_id', '=', 'categories.id')
+            ->where('orders.seller_id', $user->id)
+            ->where('orders.total', '!=', 0)
+            ->whereBetween('orders.created_at', [$from, $to])
+            ->whereNull('categories.parent_id')
+            ->where('categories.active', true)
+            ->select(
+                'categories.id',
+                'categories.name',
+                DB::raw('COALESCE(SUM(order_products.price * order_products.quantity), 0) as total_sales')
+            )
+            ->groupBy('categories.id', 'categories.name')
+            ->orderByDesc('total_sales')
+            ->limit(5)
+            ->get();
+
+        // If fewer than 5 categories with sales, fill remaining slots
+        // with other active top-level categories showing $0
+        if ($categorySales->count() < 5) {
+            $existingIds = $categorySales->pluck('id')->toArray();
+            $remaining = Category::active()
+                ->whereNull('parent_id')
+                ->whereNotIn('id', $existingIds)
+                ->orderBy('name')
+                ->limit(5 - $categorySales->count())
+                ->get(['id', 'name'])
+                ->map(fn ($c) => (object) [
+                    'id'          => $c->id,
+                    'name'        => $c->name,
+                    'total_sales' => 0,
+                ]);
+
+            $categorySales = $categorySales->concat($remaining);
+        }
+
+        return response()->json([
+            'total_pedidos'    => $totalPedidos,
+            'ventas_totales'   => round($ventasTotales, 2),
+            'ticket_promedio'  => $ticketPromedio,
+            'category_sales'   => $categorySales->map(fn ($c) => [
+                'id'    => $c->id,
+                'name'  => $c->name,
+                'total' => round((float) $c->total_sales, 2),
+            ])->values(),
+            'from_date' => $from->toDateString(),
+            'to_date'   => $to->toDateString(),
+        ]);
     }
 
     public function show($id)
