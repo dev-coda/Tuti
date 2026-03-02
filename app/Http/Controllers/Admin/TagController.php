@@ -48,6 +48,9 @@ class TagController extends Controller
             ]
         );
 
+        // Clear the cached setting so the change takes effect immediately
+        \Illuminate\Support\Facades\Cache::forget('setting_auto_tag_nuevo_enabled');
+
         return back()->with('success', $enabled ? 'Etiqueta automática NUEVO habilitada' : 'Etiqueta automática NUEVO deshabilitada');
     }
 
@@ -65,6 +68,9 @@ class TagController extends Controller
                 'show' => true,
             ]
         );
+
+        // Clear the cached setting so the change takes effect immediately
+        \Illuminate\Support\Facades\Cache::forget('setting_auto_tag_descuento_enabled');
 
         return back()->with('success', $enabled ? 'Etiqueta automática DESCUENTO habilitada' : 'Etiqueta automática DESCUENTO deshabilitada');
     }

@@ -248,38 +248,26 @@ class Product extends Model
             ];
         }
 
-        // Get auto tags if enabled
+        // Check auto tag settings
         $autoTagNuevoEnabled = Setting::getByKey('auto_tag_nuevo_enabled') === '1';
         $autoTagDescuentoEnabled = Setting::getByKey('auto_tag_descuento_enabled') === '1';
 
         // Auto tag: NUEVO (if product created within 30 days)
-        if ($autoTagNuevoEnabled) {
-            $daysSinceCreation = $this->created_at->diffInDays(now());
-            if ($daysSinceCreation <= 30) {
-                $tags[] = [
-                    'content' => 'NUEVO',
-                    'type' => 'auto_nuevo',
-                    'priority' => 999, // Lower priority than manual tags
-                ];
-            }
+        if ($autoTagNuevoEnabled && $this->created_at && $this->created_at->diffInDays(now()) <= 30) {
+            $tags[] = [
+                'content' => 'NUEVO',
+                'type' => 'auto_nuevo',
+                'priority' => 999,
+            ];
         }
 
-        // Auto tag: DESCUENTO (if product has static discount)
-        if ($autoTagDescuentoEnabled) {
-            $discountInfo = $this->getStaticDiscountInfo();
-            if ($discountInfo && $discountInfo['has_discount']) {
-                $discountText = '';
-                if ($discountInfo['discount_type'] === 'percentage') {
-                    $discountText = '-' . number_format($discountInfo['discount'], 0) . '%';
-                } else {
-                    $discountText = '-$' . number_format($discountInfo['discount'], 0);
-                }
-                $tags[] = [
-                    'content' => $discountText,
-                    'type' => 'auto_descuento',
-                    'priority' => 998, // Lower priority than manual tags, higher than NUEVO
-                ];
-            }
+        // Auto tag: DESCUENTO (if product has any product, brand, or vendor discount)
+        if ($autoTagDescuentoEnabled && $this->hasAnyDiscount()) {
+            $tags[] = [
+                'content' => 'DESCUENTO',
+                'type' => 'auto_descuento',
+                'priority' => 998,
+            ];
         }
 
         // Sort by priority (lower is better) and limit to 2 tags
@@ -288,6 +276,29 @@ class Product extends Model
         });
 
         return array_slice($tags, 0, 2);
+    }
+
+    /**
+     * Check if this product has any type of discount (product, brand, or vendor)
+     */
+    public function hasAnyDiscount(): bool
+    {
+        // Product-level discount
+        if ($this->discount > 0) {
+            return true;
+        }
+
+        // Brand-level discount
+        if ($this->brand && $this->brand->discount > 0) {
+            return true;
+        }
+
+        // Vendor-level discount (through brand)
+        if ($this->brand && $this->brand->vendor && $this->brand->vendor->discount > 0) {
+            return true;
+        }
+
+        return false;
     }
 
     /**

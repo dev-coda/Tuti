@@ -56,12 +56,12 @@ class ProductsApiController extends Controller
 
         if ($featuredProductIds->isEmpty()) {
             // If no featured products, fallback to latest
-            $query = Product::with(['brand', 'categories', 'images'])
+            $query = Product::with(['brand.vendor', 'categories', 'images'])
                 ->latest()->where('active', 1)
                 ->take(12);
         } else {
             // Get featured products maintaining the order
-            $query = Product::with(['brand', 'categories', 'images'])
+            $query = Product::with(['brand.vendor', 'categories', 'images'])
                 ->whereIn('id', $featuredProductIds)
                 ->where('active', 1)
                 ->take(12);
@@ -92,7 +92,7 @@ class ProductsApiController extends Controller
 
         $mappedProducts = $products->map(function ($product) {
             $finalPrice = $product->finalPrice;
-            $tag = $product->getActiveTag();
+            $tags = $product->getActiveTags();
             return [
                 'id' => $product->id,
                 'name' => $product->name,
@@ -109,9 +109,16 @@ class ProductsApiController extends Controller
                 'category' => $product->category ? [
                     'name' => $product->category->name
                 ] : null,
-                'tag' => $tag ? [
-                    'content' => $tag->content,
-                    'priority' => $tag->priority
+                'tags' => array_map(function ($tag) {
+                    return [
+                        'content' => $tag['content'],
+                        'type' => $tag['type'],
+                    ];
+                }, $tags),
+                // Keep backward compatibility for single tag
+                'tag' => !empty($tags) ? [
+                    'content' => $tags[0]['content'],
+                    'priority' => $tags[0]['priority'],
                 ] : null,
                 'final_price' => [
                     'price' => $finalPrice['price'],
@@ -153,7 +160,7 @@ class ProductsApiController extends Controller
         }
 
         // Get products maintaining the order of most sold
-        $products = Product::with(['brand', 'categories', 'images'])
+        $products = Product::with(['brand.vendor', 'categories', 'images'])
             ->whereIn('id', $mostSoldProductIds)
             ->where('active', 1)
             ->get()
@@ -174,7 +181,7 @@ class ProductsApiController extends Controller
 
         $mappedProducts = $products->map(function ($product) {
             $finalPrice = $product->finalPrice;
-            $tag = $product->getActiveTag();
+            $tags = $product->getActiveTags();
             return [
                 'id' => $product->id,
                 'name' => $product->name,
@@ -191,9 +198,16 @@ class ProductsApiController extends Controller
                 'category' => $product->category ? [
                     'name' => $product->category->name
                 ] : null,
-                'tag' => $tag ? [
-                    'content' => $tag->content,
-                    'priority' => $tag->priority
+                'tags' => array_map(function ($tag) {
+                    return [
+                        'content' => $tag['content'],
+                        'type' => $tag['type'],
+                    ];
+                }, $tags),
+                // Keep backward compatibility for single tag
+                'tag' => !empty($tags) ? [
+                    'content' => $tags[0]['content'],
+                    'priority' => $tags[0]['priority'],
                 ] : null,
                 'final_price' => [
                     'price' => $finalPrice['price'],

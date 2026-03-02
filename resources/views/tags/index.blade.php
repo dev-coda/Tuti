@@ -48,7 +48,7 @@
         <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
             <div class="flex-1">
                 <h3 class="text-sm font-medium text-gray-900 mb-1">Etiqueta DESCUENTO</h3>
-                <p class="text-xs text-gray-500">Muestra el descuento en productos con descuentos estáticos (producto, marca, vendedor)</p>
+                <p class="text-xs text-gray-500">Muestra "DESCUENTO" en productos con descuento de producto, marca o vendedor</p>
             </div>
             <form action="{{ route('tags.auto-tag-descuento.toggle') }}" method="POST" class="ml-4">
                 @csrf
