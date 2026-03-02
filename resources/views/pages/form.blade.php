@@ -19,7 +19,6 @@
 
 <div class="max-w-5xl container mx-auto xl:space-y-10 space-y-0 mt-5 mb-20">
     <h1 class="xl:text-4xl text-2xl font-bold  text-center">Bienvenido Tendero</h1>
-    <p class="text-center text-sm text-gray-500">Version B: Magic Link como alternativa a contraseña</p>
 
     <!-- Mobile Tabs Navigation -->
     <div class="xl:hidden mb-6">
@@ -94,12 +93,17 @@
 
                 <!-- Magic Link Button -->
                 <button type="button" id="magic-link-btn" class="w-full border-2 border-gray-300 hover:border-orange-400 text-gray-700 hover:text-orange-600 font-semibold py-3 px-4 rounded-lg transition duration-300 flex items-center justify-center space-x-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 magic-link-icon" viewBox="0 0 20 20" fill="currentColor">
                         <path d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" />
                     </svg>
-                    <span>Ingresar sin contraseña</span>
+                    <svg class="animate-spin h-5 w-5 magic-link-spinner hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span class="magic-link-text">Ingresar sin contraseña</span>
                 </button>
-                <p class="text-center text-xs text-gray-500 mt-2">Te enviaremos un código de verificación a tu correo.</p>
+                <p class="text-center text-xs text-gray-500 mt-2" id="magic-link-hint">Te enviaremos un código de verificación a tu correo.</p>
+                <p class="text-center text-xs text-red-600 mt-2 hidden" id="magic-link-error"></p>
             </div>
         </div>
         <div id="register-section" class="border border-3 border-blue-900 p-5 rounded-lg flex flex-col items-center justify-center xl:flex xl:flex-col xl:items-center xl:justify-center hidden">
@@ -471,6 +475,11 @@
         // Magic Link Login Functionality
         // =============================================
         const magicLinkBtn = document.getElementById('magic-link-btn');
+        const magicLinkIcon = magicLinkBtn ? magicLinkBtn.querySelector('.magic-link-icon') : null;
+        const magicLinkSpinner = magicLinkBtn ? magicLinkBtn.querySelector('.magic-link-spinner') : null;
+        const magicLinkTextEl = magicLinkBtn ? magicLinkBtn.querySelector('.magic-link-text') : null;
+        const magicLinkHint = document.getElementById('magic-link-hint');
+        const magicLinkError = document.getElementById('magic-link-error');
         const magicModal = document.getElementById('magic-link-modal');
         const magicModalClose = document.getElementById('magic-modal-close');
         const magicModalBackdrop = document.getElementById('magic-modal-backdrop');
@@ -489,6 +498,39 @@
         // CSRF token
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
 
+        // Show/hide loading state on the magic link BUTTON (visible to user)
+        function setMagicBtnLoading(loading) {
+            if (!magicLinkBtn) return;
+            if (loading) {
+                magicLinkBtn.disabled = true;
+                magicLinkBtn.classList.add('opacity-60', 'cursor-not-allowed');
+                if (magicLinkIcon) magicLinkIcon.classList.add('hidden');
+                if (magicLinkSpinner) magicLinkSpinner.classList.remove('hidden');
+                if (magicLinkTextEl) magicLinkTextEl.textContent = 'Enviando código...';
+            } else {
+                magicLinkBtn.disabled = false;
+                magicLinkBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+                if (magicLinkIcon) magicLinkIcon.classList.remove('hidden');
+                if (magicLinkSpinner) magicLinkSpinner.classList.add('hidden');
+                if (magicLinkTextEl) magicLinkTextEl.textContent = 'Ingresar sin contraseña';
+            }
+        }
+
+        // Show an error message BELOW the magic link button (visible to user)
+        function showBtnError(message) {
+            if (magicLinkError) {
+                magicLinkError.textContent = message;
+                magicLinkError.classList.remove('hidden');
+            }
+            if (magicLinkHint) magicLinkHint.classList.add('hidden');
+        }
+
+        function hideBtnError() {
+            if (magicLinkError) magicLinkError.classList.add('hidden');
+            if (magicLinkHint) magicLinkHint.classList.remove('hidden');
+        }
+
+        // Loading/error inside the modal (for verify flow)
         function showMagicLoading(show) {
             if (show) {
                 magicLoading.classList.remove('hidden');
@@ -530,7 +572,7 @@
             let seconds = 60;
             magicResendBtn.classList.add('hidden');
             magicResendTimer.classList.remove('hidden');
-            magicResendTimer.textContent = `Reenviar código en ${seconds}s`;
+            magicResendTimer.textContent = 'Reenviar código en ' + seconds + 's';
 
             resendCooldown = setInterval(() => {
                 seconds--;
@@ -540,13 +582,18 @@
                     magicResendBtn.classList.remove('hidden');
                     magicResendTimer.classList.add('hidden');
                 } else {
-                    magicResendTimer.textContent = `Reenviar código en ${seconds}s`;
+                    magicResendTimer.textContent = 'Reenviar código en ' + seconds + 's';
                 }
             }, 1000);
         }
 
-        async function sendMagicCode(email) {
-            showMagicLoading(true);
+        async function sendMagicCode(email, showOnBtn) {
+            if (showOnBtn) {
+                setMagicBtnLoading(true);
+                hideBtnError();
+            } else {
+                showMagicLoading(true);
+            }
             try {
                 const response = await fetch('{{ route("magic-link.send") }}', {
                     method: 'POST',
@@ -560,18 +607,32 @@
 
                 const data = await response.json();
                 
-                if (!response.ok && response.status === 429) {
-                    showMagicError(data.message || 'Demasiados intentos. Por favor espera un momento.');
+                if (!response.ok) {
+                    const errMsg = data.message || 'Error al enviar el código. Intenta de nuevo.';
+                    if (showOnBtn) {
+                        showBtnError(errMsg);
+                    } else {
+                        showMagicError(errMsg);
+                    }
                     return false;
                 }
 
                 return true;
             } catch (error) {
                 console.error('Error sending magic code:', error);
-                showMagicError('Error de conexión. Por favor intenta de nuevo.');
+                const errMsg = 'Error de conexión. Por favor intenta de nuevo.';
+                if (showOnBtn) {
+                    showBtnError(errMsg);
+                } else {
+                    showMagicError(errMsg);
+                }
                 return false;
             } finally {
-                showMagicLoading(false);
+                if (showOnBtn) {
+                    setMagicBtnLoading(false);
+                } else {
+                    showMagicLoading(false);
+                }
             }
         }
 
@@ -612,19 +673,21 @@
                 const email = loginEmailInput?.value?.trim();
                 
                 if (!email || !email.includes('@')) {
-                    // Focus and highlight the email field
+                    // Focus and highlight the email field, show error near button
                     loginEmailInput.focus();
                     loginEmailInput.classList.add('border-red-500', 'ring-2', 'ring-red-200');
+                    showBtnError('Por favor ingresa tu correo electrónico arriba.');
                     setTimeout(() => {
                         loginEmailInput.classList.remove('border-red-500', 'ring-2', 'ring-red-200');
                     }, 3000);
                     return;
                 }
 
+                hideBtnError();
                 magicLinkEmail = email;
                 magicModalEmail.textContent = email;
 
-                const sent = await sendMagicCode(email);
+                const sent = await sendMagicCode(email, true);
                 if (sent) {
                     openMagicModal();
                     startResendCooldown();
@@ -676,7 +739,7 @@
                     magicCodeInput.value = '';
                     magicVerifyBtn.disabled = true;
                     hideMagicError();
-                    const sent = await sendMagicCode(magicLinkEmail);
+                    const sent = await sendMagicCode(magicLinkEmail, false);
                     if (sent) {
                         startResendCooldown();
                     }
