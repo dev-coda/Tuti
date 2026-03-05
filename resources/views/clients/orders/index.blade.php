@@ -194,6 +194,63 @@
                         </div>
                     </div>
                 </div>
+
+                <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-5 sm:p-6 mt-6">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4">Cambiar Contraseña</h2>
+                    <form method="POST" action="{{ route('password.update') }}?tab=account" class="space-y-4">
+                        @csrf
+                        @method('put')
+
+                        <div>
+                            <label for="current_password" class="block text-xs font-medium text-gray-500 mb-1">Contraseña Actual</label>
+                            <input type="password" 
+                                   id="current_password" 
+                                   name="current_password" 
+                                   required 
+                                   autocomplete="current-password"
+                                   class="w-full border-gray-300 rounded-lg text-sm px-3 py-2 focus:ring-orange-500 focus:border-orange-500 @error('current_password', 'updatePassword') border-red-300 @enderror">
+                            @error('current_password', 'updatePassword')
+                                <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+
+                        <div>
+                            <label for="password" class="block text-xs font-medium text-gray-500 mb-1">Nueva Contraseña</label>
+                            <input type="password" 
+                                   id="password" 
+                                   name="password" 
+                                   required 
+                                   autocomplete="new-password"
+                                   class="w-full border-gray-300 rounded-lg text-sm px-3 py-2 focus:ring-orange-500 focus:border-orange-500 @error('password', 'updatePassword') border-red-300 @enderror">
+                            @error('password', 'updatePassword')
+                                <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+
+                        <div>
+                            <label for="password_confirmation" class="block text-xs font-medium text-gray-500 mb-1">Confirmar Nueva Contraseña</label>
+                            <input type="password" 
+                                   id="password_confirmation" 
+                                   name="password_confirmation" 
+                                   required 
+                                   autocomplete="new-password"
+                                   class="w-full border-gray-300 rounded-lg text-sm px-3 py-2 focus:ring-orange-500 focus:border-orange-500 @error('password_confirmation', 'updatePassword') border-red-300 @enderror">
+                            @error('password_confirmation', 'updatePassword')
+                                <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+
+                        <div class="flex items-center gap-4 pt-2">
+                            <button type="submit" 
+                                    class="px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-colors">
+                                Guardar Contraseña
+                            </button>
+                            @if (session('status') === 'password-updated')
+                                <p class="text-sm text-green-600 font-medium">Contraseña actualizada correctamente.</p>
+                            @endif
+                        </div>
+                    </form>
+                </div>
             </div>
 
             <div data-tab-panel="addresses" class="hidden">
@@ -290,7 +347,11 @@
             trigger.addEventListener('click', () => activateTab(trigger.dataset.tabTrigger));
         });
 
-        activateTab('orders');
+        // Check for tab query parameter, otherwise default to 'orders'
+        const urlParams = new URLSearchParams(window.location.search);
+        const tabParam = urlParams.get('tab');
+        const initialTab = tabParam && ['orders', 'account', 'addresses'].includes(tabParam) ? tabParam : 'orders';
+        activateTab(initialTab);
 
         /* ── Order filter debounce ─────────────────────────── */
         const input = document.getElementById('orders-filter-q');

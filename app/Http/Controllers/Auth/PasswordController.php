@@ -24,6 +24,13 @@ class PasswordController extends Controller
             'password' => Hash::make($validated['password']),
         ]);
 
+        // Preserve tab query parameter if present (for Mi Cuenta page)
+        $referer = $request->headers->get('referer');
+        if ($request->has('tab') && $referer && str_contains($referer, route('clients.orders.index', [], false))) {
+            $separator = str_contains($referer, '?') ? '&' : '?';
+            return redirect($referer . $separator . 'tab=' . $request->input('tab'))->with('status', 'password-updated');
+        }
+
         return back()->with('status', 'password-updated');
     }
 }
