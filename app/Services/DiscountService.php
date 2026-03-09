@@ -204,31 +204,49 @@ class DiscountService
      */
     private function calculateCouponDiscount(Collection $cartProducts, User $user, bool $hasOrders = false): array
     {
-        $appliedCoupon = session()->get('applied_coupon');
-        if (!$appliedCoupon) {
+        // Support both multi-coupon (applied_coupons) and legacy (applied_coupon) session keys
+        $appliedCoupons = session()->get('applied_coupons', []);
+        $legacyCoupon = session()->get('applied_coupon');
+
+        $couponEntries = [];
+        if (!empty($appliedCoupons)) {
+            $couponEntries = $appliedCoupons;
+        } elseif ($legacyCoupon) {
+            $couponEntries = [$legacyCoupon];
+        }
+
+        if (empty($couponEntries)) {
             return ['type' => 'coupon', 'amount' => 0, 'description' => 'Sin cupón aplicado', 'details' => []];
         }
 
-        $coupon = Coupon::find($appliedCoupon['coupon_id']);
-        if (!$coupon || !$coupon->isValid()) {
-            return ['type' => 'coupon', 'amount' => 0, 'description' => 'Cupón inválido', 'details' => []];
-        }
-
         $cartTotal = $this->calculateCartTotal($cartProducts, $hasOrders);
-        $discountAmount = $coupon->calculateDiscount($cartTotal);
+        $totalDiscountAmount = 0;
+        $details = [];
+        $codes = [];
+
+        foreach ($couponEntries as $entry) {
+            $coupon = Coupon::find($entry['coupon_id'] ?? null);
+            if (!$coupon || !$coupon->isValid()) {
+                continue;
+            }
+
+            $discountAmount = $coupon->calculateDiscount($cartTotal);
+            $totalDiscountAmount += $discountAmount;
+            $codes[] = $coupon->code;
+
+            $details[] = [
+                'type' => 'coupon',
+                'name' => $coupon->name,
+                'amount' => $discountAmount,
+                'coupon_id' => $coupon->id
+            ];
+        }
 
         return [
             'type' => 'coupon',
-            'amount' => $discountAmount,
-            'description' => "Cupón: {$coupon->code}",
-            'details' => [
-                [
-                    'type' => 'coupon',
-                    'name' => $coupon->name,
-                    'amount' => $discountAmount,
-                    'coupon_id' => $coupon->id
-                ]
-            ]
+            'amount' => $totalDiscountAmount,
+            'description' => empty($codes) ? 'Cupón inválido' : 'Cupones: ' . implode(', ', $codes),
+            'details' => $details
         ];
     }
 

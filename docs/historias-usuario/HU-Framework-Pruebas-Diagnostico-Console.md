@@ -1,0 +1,68 @@
+# HU Framework de Pruebas y Diagnóstico mediante Consola
+
+Yo como desarrollador y administrador del sistema quiero tener un framework robusto de pruebas y diagnóstico mediante comandos de consola que me permita probar y depurar funcionalidades directamente en producción de manera segura y estructurada, sin necesidad de modificar código o acceder directamente a la base de datos. Esta funcionalidad será usada para:
+- Diagnosticar problemas en producción de manera rápida y precisa sin afectar el sistema
+- Probar integraciones con servicios externos (SOAP, APIs) de forma aislada
+- Verificar cálculos complejos (precios, descuentos, bonificaciones) en pedidos reales
+- Analizar flujos completos de datos desde la base de datos hasta la generación de XML/SOAP
+- Validar sincronizaciones de datos (ruteros, inventarios, zonas) con sistemas externos
+- Identificar discrepancias entre datos almacenados y datos transmitidos
+- Realizar auditorías de pedidos y detectar problemas de precios o configuración
+- Probar endpoints SOAP y validar respuestas antes de implementar cambios
+
+## Criterios de aceptación
+
+- El framework debe estar basado en comandos de consola de Laravel (Artisan commands) que pueden ejecutarse directamente en producción
+- Los comandos deben seguir una convención de nombres clara y consistente:
+  - Comandos de diagnóstico: prefijo `diagnose:` seguido del área (ej: `diagnose:order-pricing`, `diagnose:rutero`, `diagnose:inventory`)
+  - Comandos de prueba: prefijo `test:` seguido de la funcionalidad (ej: `test:get-ruteros-response`)
+  - Comandos de análisis: prefijo del dominio seguido de la acción (ej: `orders:analyze-pricing-flow`, `inventory:diagnose`)
+- Cada comando debe tener una descripción clara que explique su propósito y uso
+- Los comandos deben aceptar parámetros necesarios (IDs de pedidos, documentos de clientes, etc.) como argumentos
+- Los comandos deben proporcionar salida formateada y estructurada que sea fácil de leer y analizar:
+  - Uso de cajas decorativas para títulos principales
+  - Separadores visuales para secciones
+  - Uso de colores (info, error, warning) para destacar información importante
+  - Tablas formateadas cuando sea apropiado
+- Los comandos de diagnóstico deben realizar análisis paso a paso, mostrando:
+  - Estado inicial de los datos
+  - Procesos intermedios
+  - Comparaciones entre diferentes fuentes de datos
+  - Identificación de discrepancias o problemas
+  - Resúmenes finales con conclusiones
+- Los comandos deben trabajar con datos reales de producción sin modificarlos (modo de solo lectura para diagnóstico)
+- Los comandos de prueba deben permitir probar integraciones externas de forma aislada:
+  - Probar endpoints SOAP con diferentes parámetros
+  - Mostrar la estructura completa de respuestas
+  - Validar tokens y autenticación automáticamente
+  - Manejar errores de manera informativa
+- El framework debe incluir comandos para diagnosticar áreas críticas del sistema:
+  - Diagnóstico de precios de pedidos (comparar DB, almacenamiento, SOAP)
+  - Diagnóstico de sincronización de ruteros (validar datos de usuarios y zonas)
+  - Diagnóstico de inventario (verificar disponibilidad por cliente y zona)
+  - Diagnóstico de descuentos (validar aplicación de descuentos en pedidos)
+  - Diagnóstico de bonificaciones (verificar cálculo y aplicación)
+  - Diagnóstico de XML/SOAP (validar generación de payloads)
+  - Análisis de flujos completos (seguir datos desde origen hasta destino)
+- Los comandos deben manejar errores de manera robusta:
+  - Validar que los recursos existan antes de procesarlos
+  - Proporcionar mensajes de error claros y accionables
+  - Continuar el análisis cuando sea posible aunque algunos pasos fallen
+  - Retornar códigos de salida apropiados para scripting
+- Los comandos deben ser documentados y fáciles de descubrir:
+  - Descripciones claras en la ayuda de Artisan (`php artisan list`)
+  - Uso consistente de argumentos y opciones
+  - Ejemplos de uso en comentarios o documentación
+- El framework debe permitir extender fácilmente con nuevos comandos de diagnóstico siguiendo los patrones establecidos
+- Los comandos deben poder ejecutarse de forma independiente sin afectar otros procesos del sistema
+- Los comandos deben registrar información relevante en logs cuando sea apropiado para auditoría
+- El framework debe incluir comandos de utilidad que faciliten el diagnóstico:
+  - Comandos para probar respuestas de servicios externos
+  - Comandos para validar configuraciones
+  - Comandos para analizar datos históricos
+- Los comandos deben ser eficientes y no causar impacto significativo en el rendimiento del sistema cuando se ejecutan
+- El framework debe seguir las mejores prácticas de Laravel para comandos de consola:
+  - Uso de la clase base `Command`
+  - Validación de argumentos y opciones
+  - Uso de métodos helper de Laravel para salida formateada
+  - Manejo apropiado de excepciones

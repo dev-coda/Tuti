@@ -158,6 +158,68 @@
             </div>
         </div>
 
+        <!-- Zone/Route Restrictions -->
+        <div class="border-t border-gray-200 pt-6">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">Restricciones de Zona/Ruta</h3>
+            <p class="text-sm text-gray-500 mb-4">Opcional: Restringir este cupón a zonas o rutas específicas. Dejar vacío para permitir en todas las zonas/rutas.</p>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Zone IDs -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Zonas permitidas (por ID)</label>
+                    <select name="allowed_zone_ids[]" multiple 
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        size="5">
+                        @foreach($zones as $zone)
+                            <option value="{{ $zone->id }}" {{ in_array($zone->id, old('allowed_zone_ids', [])) ? 'selected' : '' }}>
+                                ID: {{ $zone->id }} - Zona: {{ $zone->zone ?? 'N/A' }} - Ruta: {{ $zone->route ?? 'N/A' }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <p class="mt-1 text-xs text-gray-500">Mantén presionado Ctrl/Cmd para seleccionar múltiples</p>
+                    @error('allowed_zone_ids')
+                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                    @enderror
+                </div>
+
+                <!-- Zone Numbers -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Zonas permitidas (por número)</label>
+                    <select name="allowed_zones[]" multiple 
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        size="5">
+                        @foreach($uniqueZones as $zoneNum)
+                            <option value="{{ $zoneNum }}" {{ in_array($zoneNum, old('allowed_zones', [])) ? 'selected' : '' }}>
+                                Zona {{ $zoneNum }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <p class="mt-1 text-xs text-gray-500">Mantén presionado Ctrl/Cmd para seleccionar múltiples</p>
+                    @error('allowed_zones')
+                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                    @enderror
+                </div>
+
+                <!-- Routes -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Rutas permitidas</label>
+                    <select name="allowed_routes[]" multiple 
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        size="5">
+                        @foreach($uniqueRoutes as $route)
+                            <option value="{{ $route }}" {{ in_array($route, old('allowed_routes', [])) ? 'selected' : '' }}>
+                                Ruta {{ $route }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <p class="mt-1 text-xs text-gray-500">Mantén presionado Ctrl/Cmd para seleccionar múltiples</p>
+                    @error('allowed_routes')
+                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                    @enderror
+                </div>
+            </div>
+        </div>
+
         <!-- Active Status -->
         <div>
             <label class="flex items-center">

@@ -30,8 +30,18 @@
                                     }"
                                 >
                                 </a>
+                                <div v-if="product.tags && product.tags.length" class="absolute top-2 right-2 z-10 flex flex-col gap-1">
+                                    <div
+                                        v-for="(tag, idx) in product.tags"
+                                        :key="idx"
+                                        class="px-2 py-1 text-xs font-semibold text-white rounded shadow-lg"
+                                        :class="tagClass(tag.type)"
+                                    >
+                                        {{ tag.content }}
+                                    </div>
+                                </div>
                                 <div
-                                    v-if="product.tag"
+                                    v-else-if="product.tag"
                                     class="absolute top-2 right-2 z-10 px-2 py-1 text-xs font-semibold text-white bg-orange-600 rounded shadow-lg"
                                 >
                                     {{ product.tag.content }}
@@ -173,6 +183,11 @@ export default {
         },
     },
     methods: {
+        tagClass(type) {
+            if (type === 'auto_nuevo') return 'bg-green-600';
+            if (type === 'auto_descuento') return 'bg-red-600';
+            return 'bg-orange-600';
+        },
         formatPrice(price) {
             return new Intl.NumberFormat("es-CO", {
                 minimumFractionDigits: 2,

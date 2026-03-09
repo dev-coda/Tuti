@@ -9,6 +9,7 @@ use App\Models\Category;
 use App\Models\Brand;
 use App\Models\Vendor;
 use App\Models\User;
+use App\Models\Zone;
 use App\Exports\CouponsExport;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -54,8 +55,13 @@ class CouponController extends Controller
         ->get(['id', 'name', 'email', 'document']);
         
         $roles = Role::whereNotIn('name', ['admin', 'seller'])->get(['name']);
+        
+        // Get zones and unique routes for restrictions
+        $zones = Zone::select('id', 'zone', 'route')->distinct()->get();
+        $uniqueZones = Zone::whereNotNull('zone')->distinct()->pluck('zone')->sort()->values();
+        $uniqueRoutes = Zone::whereNotNull('route')->distinct()->pluck('route')->sort()->values();
 
-        return view('coupons.create', compact('products', 'categories', 'brands', 'vendors', 'customers', 'roles'));
+        return view('coupons.create', compact('products', 'categories', 'brands', 'vendors', 'customers', 'roles', 'zones', 'uniqueZones', 'uniqueRoutes'));
     }
 
     /**
@@ -97,6 +103,12 @@ class CouponController extends Controller
             'except_customer_ids.*' => 'nullable|integer|exists:users,id',
             'except_customer_types' => 'nullable|array',
             'except_customer_types.*' => 'nullable|string',
+            'allowed_zone_ids' => 'nullable|array',
+            'allowed_zone_ids.*' => 'nullable|integer|exists:zones,id',
+            'allowed_zones' => 'nullable|array',
+            'allowed_zones.*' => 'nullable|string',
+            'allowed_routes' => 'nullable|array',
+            'allowed_routes.*' => 'nullable|string',
             'minimum_amount' => 'nullable|numeric|min:0',
             'active' => 'boolean',
         ]);
@@ -171,8 +183,13 @@ class CouponController extends Controller
         ->get(['id', 'name', 'email', 'document']);
         
         $roles = Role::whereNotIn('name', ['admin', 'seller'])->get(['name']);
+        
+        // Get zones and unique routes for restrictions
+        $zones = Zone::select('id', 'zone', 'route')->distinct()->get();
+        $uniqueZones = Zone::whereNotNull('zone')->distinct()->pluck('zone')->sort()->values();
+        $uniqueRoutes = Zone::whereNotNull('route')->distinct()->pluck('route')->sort()->values();
 
-        return view('coupons.edit', compact('coupon', 'products', 'categories', 'brands', 'vendors', 'customers', 'roles'));
+        return view('coupons.edit', compact('coupon', 'products', 'categories', 'brands', 'vendors', 'customers', 'roles', 'zones', 'uniqueZones', 'uniqueRoutes'));
     }
 
     /**
@@ -214,6 +231,12 @@ class CouponController extends Controller
             'except_customer_ids.*' => 'nullable|integer|exists:users,id',
             'except_customer_types' => 'nullable|array',
             'except_customer_types.*' => 'nullable|string',
+            'allowed_zone_ids' => 'nullable|array',
+            'allowed_zone_ids.*' => 'nullable|integer|exists:zones,id',
+            'allowed_zones' => 'nullable|array',
+            'allowed_zones.*' => 'nullable|string',
+            'allowed_routes' => 'nullable|array',
+            'allowed_routes.*' => 'nullable|string',
             'minimum_amount' => 'nullable|numeric|min:0',
             'active' => 'boolean',
         ]);

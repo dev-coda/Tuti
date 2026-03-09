@@ -103,4 +103,10 @@ class User extends Authenticatable
     {
         return $this->hasMany(Zone::class);
     }
+
+    public function favoriteProducts()
+    {
+        return $this->belongsToMany(Product::class, 'user_favorite_products')
+            ->withTimestamps();
+    }
 }

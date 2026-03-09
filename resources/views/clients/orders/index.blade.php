@@ -17,6 +17,43 @@
             <p class="text-sm text-gray-500 mt-1">Gestiona tu información personal y pedidos</p>
         </div>
 
+        {{-- ── Seller Mini Dashboard ─────────────────────────── --}}
+        @if(!empty($isSeller))
+        <div id="seller-dashboard" class="mb-8">
+            {{-- Date Range Picker --}}
+            <div class="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
+                <span class="text-sm font-medium text-gray-600">Filtrar por fecha:</span>
+                <div class="flex items-center gap-2">
+                    <input type="date" id="dash-from" class="border-gray-300 rounded-lg text-sm px-3 py-2 focus:ring-orange-500 focus:border-orange-500" />
+                    <span class="text-gray-400">—</span>
+                    <input type="date" id="dash-to" class="border-gray-300 rounded-lg text-sm px-3 py-2 focus:ring-orange-500 focus:border-orange-500" />
+                </div>
+            </div>
+
+            {{-- Row 1: KPI Cards --}}
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-5 flex flex-col items-center justify-center text-center">
+                    <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Total Pedidos</p>
+                    <p id="kpi-pedidos" class="mt-1 text-2xl font-bold text-gray-900">—</p>
+                </div>
+                <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-5 flex flex-col items-center justify-center text-center">
+                    <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Ventas Totales</p>
+                    <p id="kpi-ventas" class="mt-1 text-2xl font-bold text-orange-600">—</p>
+                </div>
+                <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-5 flex flex-col items-center justify-center text-center">
+                    <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Ticket Promedio</p>
+                    <p id="kpi-ticket" class="mt-1 text-2xl font-bold text-gray-900">—</p>
+                </div>
+            </div>
+
+            {{-- Row 2: Category Sales Cards --}}
+            <div id="category-cards" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                {{-- Filled dynamically via JS --}}
+            </div>
+        </div>
+        @endif
+        {{-- ── / Seller Mini Dashboard ───────────────────────── --}}
+
         <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
             <div class="flex flex-col sm:flex-row">
                 <button type="button" data-tab-trigger="orders"
@@ -157,6 +194,63 @@
                         </div>
                     </div>
                 </div>
+
+                <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-5 sm:p-6 mt-6">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4">Cambiar Contraseña</h2>
+                    <form method="POST" action="{{ route('password.update') }}?tab=account" class="space-y-4">
+                        @csrf
+                        @method('put')
+
+                        <div>
+                            <label for="current_password" class="block text-xs font-medium text-gray-500 mb-1">Contraseña Actual</label>
+                            <input type="password" 
+                                   id="current_password" 
+                                   name="current_password" 
+                                   required 
+                                   autocomplete="current-password"
+                                   class="w-full border-gray-300 rounded-lg text-sm px-3 py-2 focus:ring-orange-500 focus:border-orange-500 @error('current_password', 'updatePassword') border-red-300 @enderror">
+                            @error('current_password', 'updatePassword')
+                                <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+
+                        <div>
+                            <label for="password" class="block text-xs font-medium text-gray-500 mb-1">Nueva Contraseña</label>
+                            <input type="password" 
+                                   id="password" 
+                                   name="password" 
+                                   required 
+                                   autocomplete="new-password"
+                                   class="w-full border-gray-300 rounded-lg text-sm px-3 py-2 focus:ring-orange-500 focus:border-orange-500 @error('password', 'updatePassword') border-red-300 @enderror">
+                            @error('password', 'updatePassword')
+                                <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+
+                        <div>
+                            <label for="password_confirmation" class="block text-xs font-medium text-gray-500 mb-1">Confirmar Nueva Contraseña</label>
+                            <input type="password" 
+                                   id="password_confirmation" 
+                                   name="password_confirmation" 
+                                   required 
+                                   autocomplete="new-password"
+                                   class="w-full border-gray-300 rounded-lg text-sm px-3 py-2 focus:ring-orange-500 focus:border-orange-500 @error('password_confirmation', 'updatePassword') border-red-300 @enderror">
+                            @error('password_confirmation', 'updatePassword')
+                                <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+
+                        <div class="flex items-center gap-4 pt-2">
+                            <button type="submit" 
+                                    class="px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-colors">
+                                Guardar Contraseña
+                            </button>
+                            @if (session('status') === 'password-updated')
+                                <p class="text-sm text-green-600 font-medium">Contraseña actualizada correctamente.</p>
+                            @endif
+                        </div>
+                    </form>
+                </div>
             </div>
 
             <div data-tab-panel="addresses" class="hidden">
@@ -231,6 +325,7 @@
 @section('scripts')
 <script>
     (function(){
+        /* ── Tab switching ─────────────────────────────────── */
         const tabTriggers = document.querySelectorAll('[data-tab-trigger]');
         const tabPanels = document.querySelectorAll('[data-tab-panel]');
 
@@ -252,20 +347,26 @@
             trigger.addEventListener('click', () => activateTab(trigger.dataset.tabTrigger));
         });
 
-        activateTab('orders');
+        // Check for tab query parameter, otherwise default to 'orders'
+        const urlParams = new URLSearchParams(window.location.search);
+        const tabParam = urlParams.get('tab');
+        const initialTab = tabParam && ['orders', 'account', 'addresses'].includes(tabParam) ? tabParam : 'orders';
+        activateTab(initialTab);
 
+        /* ── Order filter debounce ─────────────────────────── */
         const input = document.getElementById('orders-filter-q');
         const idInput = document.getElementById('orders-filter-id');
-        if(!input) return;
-        let t;
-        input.addEventListener('input', function(){
-            clearTimeout(t);
-            t = setTimeout(() => {
-                const params = new URLSearchParams(window.location.search);
-                params.set('q', input.value || '');
-                window.location = `${window.location.pathname}?${params.toString()}`;
-            }, 350);
-        });
+        if(input) {
+            let t;
+            input.addEventListener('input', function(){
+                clearTimeout(t);
+                t = setTimeout(() => {
+                    const params = new URLSearchParams(window.location.search);
+                    params.set('q', input.value || '');
+                    window.location = `${window.location.pathname}?${params.toString()}`;
+                }, 350);
+            });
+        }
 
         if (idInput) {
             let ti;
@@ -285,6 +386,76 @@
                 this.form.submit();
             });
         });
+
+        /* ── Seller Mini Dashboard ─────────────────────────── */
+        @if(!empty($isSeller))
+        (function(){
+            const DASH_URL   = @json(route('api.seller.dashboard'));
+            const fromInput  = document.getElementById('dash-from');
+            const toInput    = document.getElementById('dash-to');
+            const kpiPedidos = document.getElementById('kpi-pedidos');
+            const kpiVentas  = document.getElementById('kpi-ventas');
+            const kpiTicket  = document.getElementById('kpi-ticket');
+            const catCards   = document.getElementById('category-cards');
+
+            function todayStr() {
+                const d = new Date();
+                return d.getFullYear() + '-' +
+                    String(d.getMonth()+1).padStart(2,'0') + '-' +
+                    String(d.getDate()).padStart(2,'0');
+            }
+
+            // Default dates = today
+            fromInput.value = todayStr();
+            toInput.value   = todayStr();
+
+            function currency(n) {
+                return '$' + Number(n).toLocaleString('es-CO', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+            }
+
+            function renderKPIs(data) {
+                kpiPedidos.textContent = data.total_pedidos;
+                kpiVentas.textContent  = currency(data.ventas_totales);
+                kpiTicket.textContent  = currency(data.ticket_promedio);
+            }
+
+            function renderCategories(categories) {
+                catCards.innerHTML = '';
+                (categories || []).forEach(function(cat) {
+                    const card = document.createElement('div');
+                    card.className = 'bg-white border border-gray-200 rounded-2xl shadow-sm p-4 flex flex-col items-center justify-center text-center';
+                    card.innerHTML =
+                        '<p class="text-xs font-medium text-gray-500 uppercase tracking-wide leading-tight mb-1">Ventas ' + cat.name + '</p>' +
+                        '<p class="text-lg font-bold text-gray-900">' + currency(cat.total) + '</p>';
+                    catCards.appendChild(card);
+                });
+            }
+
+            function fetchDashboard() {
+                const params = new URLSearchParams();
+                if (fromInput.value) params.set('from_date', fromInput.value);
+                if (toInput.value)   params.set('to_date', toInput.value);
+
+                fetch(DASH_URL + '?' + params.toString(), {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+                })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    renderKPIs(data);
+                    renderCategories(data.category_sales);
+                })
+                .catch(function(err) {
+                    console.error('Dashboard fetch error', err);
+                });
+            }
+
+            fromInput.addEventListener('change', fetchDashboard);
+            toInput.addEventListener('change', fetchDashboard);
+
+            // Initial load
+            fetchDashboard();
+        })();
+        @endif
     })();
 </script>
 @endsection

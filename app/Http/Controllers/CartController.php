@@ -161,36 +161,32 @@ class CartController extends Controller
             ->whereBelongsTo($targetUser)
             ->exists();
 
-        // Check for applied coupon and calculate proper discounts FIRST
-        $appliedCoupon = session()->get('applied_coupon');
+        // Check for applied coupons and calculate proper discounts FIRST
         $couponDiscount = 0;
         $couponMessage = null;
         $couponResult = null;
 
-        if ($appliedCoupon) {
-            $coupon = Coupon::find($appliedCoupon['coupon_id']);
-            if ($coupon && $coupon->isValid()) {
-                // Use new CouponDiscountService for proper discount calculation
-                $couponDiscountService = app(\App\Services\CouponDiscountService::class);
-                $couponResult = $couponDiscountService->applyCouponDiscountToProducts(
-                    $coupon,
-                    $targetUser,
-                    collect($cart),
-                    $has_orders
-                );
+        // Load coupons from multi-coupon session (primary) or single-coupon session (backward compat)
+        $validCoupons = $this->loadValidCouponsFromSession();
 
-                if ($couponResult['success']) {
-                    $couponDiscount = $couponResult['total_coupon_discount'];
-                    $couponMessage = "Cupón '{$coupon->code}' aplicado";
-                } else {
-                    // Coupon application failed
-                    session()->forget('applied_coupon');
-                    $appliedCoupon = null;
-                }
+        if (!empty($validCoupons)) {
+            $couponDiscountService = app(\App\Services\CouponDiscountService::class);
+            $couponResult = $couponDiscountService->applyMultipleCouponsToProducts(
+                $validCoupons,
+                $targetUser,
+                collect($cart),
+                $has_orders
+            );
+
+            if ($couponResult['success']) {
+                $couponDiscount = $couponResult['total_coupon_discount'];
+                $codes = collect($validCoupons)->pluck('code')->implode(', ');
+                $couponMessage = count($validCoupons) === 1
+                    ? "Cupón '{$codes}' aplicado"
+                    : "Cupones aplicados: {$codes}";
             } else {
-                // Coupon is no longer valid, remove it
-                session()->forget('applied_coupon');
-                $appliedCoupon = null;
+                // All coupons failed
+                $this->clearAllCouponSessions();
             }
         }
 
@@ -325,7 +321,18 @@ class CartController extends Controller
             ->exists()
             : false; // If disabled, treat as if user has no orders (always apply discount)
 
-        // Coupon calculation is already done above
+        // Build view-friendly coupon data from the multi-coupon session
+        $appliedCoupon = null;
+        $appliedCouponsForView = session()->get('applied_coupons', []);
+        if (!empty($appliedCouponsForView) && $couponDiscount > 0) {
+            // Build legacy-compatible $appliedCoupon for Blade
+            $codes = collect($appliedCouponsForView)->pluck('coupon_code')->implode(', ');
+            $appliedCoupon = [
+                'coupon_code' => $codes,
+                'discount_amount' => $couponDiscount,
+                'coupons' => $appliedCouponsForView, // Full list for multi-coupon views
+            ];
+        }
 
         // Get enabled shipping methods
         $shippingMethods = \App\Models\ShippingMethod::getEnabled();
@@ -541,8 +548,9 @@ class CartController extends Controller
             session()->put('cart', $cart);
 
             // Revalidate applied coupon after quantity changes
-            $appliedCoupon = session()->get('applied_coupon');
-            if ($appliedCoupon) {
+            // Revalidate applied coupons after quantity change
+            $validCoupons = $this->loadValidCouponsFromSession();
+            if (!empty($validCoupons)) {
                 $user = auth()->user();
                 $targetUser = $user;
                 if ($user && $user->hasRole('seller')) {
@@ -556,26 +564,19 @@ class CartController extends Controller
                         ->whereBelongsTo($targetUser)
                         ->exists();
 
-                    $coupon = Coupon::find($appliedCoupon['coupon_id']);
-                    if (!$coupon || !$coupon->isValid()) {
-                        session()->forget('applied_coupon');
-                        $couponRemoved = true;
-                        $couponRemovedMessage = "El cupón ya no es válido y fue removido del carrito.";
-                    } else {
-                        $couponDiscountService = app(\App\Services\CouponDiscountService::class);
-                        $couponResult = $couponDiscountService->applyCouponDiscountToProducts(
-                            $coupon,
-                            $targetUser,
-                            collect($cart),
-                            $has_orders
-                        );
+                    $couponDiscountService = app(\App\Services\CouponDiscountService::class);
+                    $couponResult = $couponDiscountService->applyMultipleCouponsToProducts(
+                        $validCoupons,
+                        $targetUser,
+                        collect($cart),
+                        $has_orders
+                    );
 
-                        $totalCouponDiscount = (float) ($couponResult['total_coupon_discount'] ?? 0);
-                        if (!$couponResult['success'] || $totalCouponDiscount <= 0) {
-                            session()->forget('applied_coupon');
-                            $couponRemoved = true;
-                            $couponRemovedMessage = "El cupón ya no aplica a tu carrito y fue removido.";
-                        }
+                    $totalCouponDiscount = (float) ($couponResult['total_coupon_discount'] ?? 0);
+                    if (!$couponResult['success'] || $totalCouponDiscount <= 0) {
+                        $this->clearAllCouponSessions();
+                        $couponRemoved = true;
+                        $couponRemovedMessage = "Los cupones ya no aplican a tu carrito y fueron removidos.";
                     }
                 }
             }
@@ -597,11 +598,10 @@ class CartController extends Controller
                 }
             }
             
-            // Check for coupon discount
+            // Check for coupon discount from session
             $couponDiscount = 0;
-            $appliedCoupon = session()->get('applied_coupon');
-            if ($appliedCoupon && !$couponRemoved) {
-                $couponDiscount = (float) ($appliedCoupon['discount_amount'] ?? 0);
+            if (!$couponRemoved) {
+                $couponDiscount = (float) session()->get('total_coupon_discount', 0);
             }
             
             $total = $subtotal - $discount - $couponDiscount;
@@ -1033,81 +1033,70 @@ class CartController extends Controller
         $firstOrderDiscountEnabled = config('app.first_order_discount_enabled', true);
         $has_orders = $firstOrderDiscountEnabled ? Order::where('user_id', $user_id)->exists() : false;
 
-        // Check for applied coupon and calculate proper discounts
-        $appliedCoupon = session()->get('applied_coupon');
+        // Check for applied coupons and calculate proper discounts
         $couponDiscount = 0;
-        $coupon = null;
         $couponResult = null;
+        $validCoupons = $this->loadValidCouponsFromSession();
+        $winningCoupons = []; // coupon_id => coupon_code for coupons that actually applied
 
-        if ($appliedCoupon) {
-            // IMPORTANT: Force fresh query to avoid cached values
-            $coupon = Coupon::find($appliedCoupon['coupon_id']);
-            $coupon->refresh(); // Force reload from database to ensure we have the latest limit values
-            
-            if ($coupon && $coupon->isValid()) {
-                // CRITICAL: Re-validate user usage limit before processing order
-                // The user may have already used the coupon since they applied it to the cart
-                
-                // Get current usage count for this user
-                $userUsageCount = $coupon->usages()->where('user_id', $user_id)->count();
-                $usageLimit = $coupon->usage_limit_per_customer;
-                
-                // Debug logging to track the actual values being checked
-                \Log::info('Coupon limit check during order processing', [
-                    'coupon_id' => $coupon->id,
-                    'coupon_code' => $coupon->code,
-                    'user_id' => $user_id,
-                    'usage_limit_per_customer' => $usageLimit,
-                    'usage_limit_type' => gettype($usageLimit),
-                    'usage_limit_is_null' => is_null($usageLimit),
-                    'user_usage_count' => $userUsageCount,
-                    'will_block' => $coupon->hasUserExceededLimit($user_id),
-                ]);
-                
+        if (!empty($validCoupons)) {
+            // Re-validate usage limits for ALL coupons before processing
+            $orderUser = User::find($user_id);
+            $couponsToApply = [];
+
+            foreach ($validCoupons as $coupon) {
+                $coupon->refresh(); // Force reload from database
+
+                if (!$coupon->isValid()) {
+                    \Log::warning('Coupon no longer valid during order processing', [
+                        'coupon_id' => $coupon->id,
+                        'coupon_code' => $coupon->code,
+                        'user_id' => $user_id,
+                    ]);
+                    continue;
+                }
+
                 if ($coupon->hasUserExceededLimit($user_id)) {
                     \Log::warning('Coupon user limit exceeded during order processing', [
                         'coupon_id' => $coupon->id,
                         'coupon_code' => $coupon->code,
                         'user_id' => $user_id,
-                        'usage_limit' => $usageLimit,
-                        'user_usage_count' => $userUsageCount,
                     ]);
-                    session()->forget('applied_coupon');
-                    return back()->with('error', "El cupón '{$coupon->code}' ha alcanzado el límite de uso permitido para tu cuenta (usado {$userUsageCount} de {$usageLimit} veces). Por favor remuévelo del carrito e intenta nuevamente.");
+                    $this->clearAllCouponSessions();
+                    return back()->with('error', "El cupón '{$coupon->code}' ha alcanzado el límite de uso permitido para tu cuenta. Por favor remuévelo del carrito e intenta nuevamente.");
                 }
 
-                // Use new CouponDiscountService for proper discount calculation
+                $couponsToApply[] = $coupon;
+            }
+
+            if (!empty($couponsToApply)) {
                 $couponDiscountService = app(\App\Services\CouponDiscountService::class);
-                $couponResult = $couponDiscountService->applyCouponDiscountToProducts(
-                    $coupon,
-                    User::find($user_id),
+                $couponResult = $couponDiscountService->applyMultipleCouponsToProducts(
+                    $couponsToApply,
+                    $orderUser,
                     collect($cart),
                     $has_orders
                 );
 
                 if ($couponResult['success']) {
                     $couponDiscount = $couponResult['total_coupon_discount'];
-                } else {
-                    // Coupon application failed
-                    \Log::warning('Coupon application failed during order processing', [
-                        'coupon_id' => $coupon->id,
-                        'coupon_code' => $coupon->code,
+                    $winningCoupons = $couponResult['winning_coupons'] ?? [];
+
+                    \Log::info('Multiple coupons applied during order processing', [
                         'user_id' => $user_id,
+                        'coupons_submitted' => count($couponsToApply),
+                        'winning_coupons' => $winningCoupons,
+                        'total_coupon_discount' => $couponDiscount,
+                    ]);
+                } else {
+                    \Log::warning('Coupon application failed during order processing', [
+                        'user_id' => $user_id,
+                        'coupons_count' => count($couponsToApply),
                         'reason' => $couponResult['message'] ?? 'Unknown',
                     ]);
-                    session()->forget('applied_coupon');
-                    $appliedCoupon = null;
-                    $coupon = null; // Ensure coupon is null when application fails
+                    $this->clearAllCouponSessions();
+                    $couponResult = null;
                 }
-            } else {
-                // Coupon is no longer valid
-                \Log::warning('Coupon no longer valid during order processing', [
-                    'coupon_id' => $coupon ? $coupon->id : null,
-                    'user_id' => $user_id,
-                ]);
-                session()->forget('applied_coupon');
-                $appliedCoupon = null;
-                $coupon = null; // Ensure coupon is null
             }
         }
 
@@ -1157,10 +1146,10 @@ class CartController extends Controller
         if ($bonificationsBlockDiscounts) {
             // Clear coupon discount
             $couponDiscount = 0;
-            $coupon = null;
+            $winningCoupons = [];
             $couponResult = null;
             $modifiedProductsLookup = [];
-            session()->forget('applied_coupon');
+            $this->clearAllCouponSessions();
             Log::info('Bonifications block discounts - clearing all discounts', [
                 'user_id' => $user_id,
                 'cart_items' => count($cart)
@@ -1172,6 +1161,15 @@ class CartController extends Controller
 
         try {
             // Use the zone_id determined after rutero sync (ensures current data)
+            // Determine coupon data for order storage
+            $orderCouponId = null;
+            $orderCouponCode = null;
+            if (!empty($winningCoupons)) {
+                $winningIds = array_keys($winningCoupons);
+                $orderCouponId = $winningIds[0]; // FK points to primary winning coupon
+                $orderCouponCode = implode(',', array_values($winningCoupons)); // All winning codes
+            }
+
             $order = Order::create([
                 'user_id' => $user_id,
                 'total' => $total,
@@ -1182,8 +1180,8 @@ class CartController extends Controller
                 'delivery_date' => $delivery_date,
                 'delivery_method' => $delivery_method,
                 'observations' => $observations,
-                'coupon_id' => $coupon ? $coupon->id : null,
-                'coupon_code' => $coupon ? $coupon->code : null,
+                'coupon_id' => $orderCouponId,
+                'coupon_code' => $orderCouponCode,
                 'coupon_discount' => $couponDiscount,
                 'scheduled_transmission_date' => $scheduledTransmissionDate,
             ]);
@@ -1589,8 +1587,8 @@ class CartController extends Controller
                 'coupon_discount' => $couponDiscount,
             ]);
 
-            // Record coupon usage if coupon was applied
-            if ($coupon && $couponDiscount > 0) {
+            // Record coupon usage for ALL winning coupons
+            if (!empty($winningCoupons) && $couponDiscount > 0) {
                 $couponService = app(CouponService::class);
                 $orderUser = User::find($user_id);
 
@@ -1598,7 +1596,30 @@ class CartController extends Controller
                     throw new \Exception("Usuario no encontrado para registrar uso de cupón. ID: {$user_id}");
                 }
 
-                $couponService->recordCouponUsage($coupon, $orderUser, $order, $couponDiscount);
+                // Calculate per-coupon discount contributions from modified products
+                $perCouponDiscount = [];
+                if ($couponResult && $couponResult['success']) {
+                    foreach ($couponResult['modified_products'] as $modProduct) {
+                        $cId = $modProduct['winning_coupon_id'] ?? null;
+                        if ($cId && isset($winningCoupons[$cId])) {
+                            if (!isset($perCouponDiscount[$cId])) {
+                                $perCouponDiscount[$cId] = 0;
+                            }
+                            $perCouponDiscount[$cId] += (float) ($modProduct['coupon_contribution']
+                                ?? $modProduct['actual_discount_amount']
+                                ?? $modProduct['final_discount_amount']
+                                ?? 0);
+                        }
+                    }
+                }
+
+                foreach ($winningCoupons as $winCouponId => $winCouponCode) {
+                    $winCoupon = Coupon::find($winCouponId);
+                    if ($winCoupon) {
+                        $winCouponDiscount = $perCouponDiscount[$winCouponId] ?? 0;
+                        $couponService->recordCouponUsage($winCoupon, $orderUser, $order, $winCouponDiscount);
+                    }
+                }
             }
 
             DB::commit();
@@ -1609,7 +1630,7 @@ class CartController extends Controller
             }
 
             session()->forget('user_id');
-            session()->forget('applied_coupon'); // Clear applied coupon after successful order
+            $this->clearAllCouponSessions(); // Clear all coupon data after successful order
 
             // Dispatch async job to handle XML transmission and email sending
             // This allows the user to get an immediate response while processing happens in the background
@@ -1666,7 +1687,7 @@ class CartController extends Controller
                 if (str_contains($e->getMessage(), 'coupon') || str_contains($e->getMessage(), 'cupón') || 
                     str_contains($e->getMessage(), 'limit') || str_contains($e->getMessage(), 'limite')) {
                     $errorMessage .= 'Hubo un problema con el cupón aplicado. Por favor remuévelo e intenta nuevamente.';
-                    session()->forget('applied_coupon');
+                    $this->clearAllCouponSessions();
                 } else {
                     $errorMessage .= 'Por favor intente nuevamente o contacte al administrador.';
                 }
@@ -1716,12 +1737,16 @@ class CartController extends Controller
             return redirect()->route('cart')->with('error', 'Tu carrito contenía productos inválidos.');
         }
 
-        // Check if there's already a coupon applied
-        if (session()->has('applied_coupon')) {
-            return redirect()->route('cart')->with('error', 'Ya tienes un cupón aplicado. Remuévelo primero para aplicar otro.');
-        }
-
         $couponCode = trim($request->coupon_code);
+
+        // Get existing applied coupons
+        $appliedCoupons = session()->get('applied_coupons', []);
+        $appliedCouponCodes = array_column($appliedCoupons, 'coupon_code');
+
+        // Check if coupon is already applied
+        if (in_array($couponCode, $appliedCouponCodes)) {
+            return redirect()->route('cart')->with('error', 'Este cupón ya está aplicado.');
+        }
 
         // Calculate current cart total (without any existing discounts from promotions)
         $cartProducts = collect($cart);
@@ -1748,31 +1773,72 @@ class CartController extends Controller
 
         $coupon = $validation['coupon'];
 
-        // Apply coupon to cart
-        $application = $couponService->applyCouponToCart($coupon, $user, $cartProducts);
+        // Recalculate all coupons including the new one
+        $allCouponCodes = array_merge($appliedCouponCodes, [$couponCode]);
+        $discountCalculation = $couponService->calculateMultipleCouponDiscounts($allCouponCodes, $user, $cartProducts);
 
-        if (!$application['success']) {
-            return redirect()->route('cart')->with('error', $application['message']);
+        if (!$discountCalculation['success']) {
+            return redirect()->route('cart')->with('error', 'Error al aplicar el cupón.');
         }
 
-        // Store coupon in session
-        session()->put('applied_coupon', [
-            'coupon_id' => $coupon->id,
-            'coupon_code' => $coupon->code,
-            'discount_amount' => $application['discount_amount'],
-            'type' => $coupon->type,
-            'value' => $coupon->value,
-        ]);
+        // Store all applied coupons in session
+        session()->put('applied_coupons', $discountCalculation['applied_coupons']);
+        session()->put('coupon_discounts', $discountCalculation['product_discounts']);
+        session()->put('total_coupon_discount', $discountCalculation['total_discount']);
 
-        return redirect()->route('cart')->with('success', "Cupón '{$coupon->code}' aplicado exitosamente. Descuento: $" . number_format($application['discount_amount'], 2));
+        return redirect()->route('cart')->with('success', "Cupón '{$coupon->code}' aplicado exitosamente.");
     }
 
     /**
-     * Remove the applied coupon from the cart
+     * Remove a specific coupon from the cart
      */
-    public function removeCoupon()
+    public function removeCoupon(Request $request)
     {
-        session()->forget('applied_coupon');
+        $couponCode = $request->input('coupon_code');
+        
+        if (!$couponCode) {
+            // Remove all coupons if no specific code provided (backward compatibility)
+            session()->forget('applied_coupons');
+            session()->forget('coupon_discounts');
+            session()->forget('total_coupon_discount');
+            return redirect()->route('cart')->with('success', 'Cupones removidos exitosamente.');
+        }
+
+        $appliedCoupons = session()->get('applied_coupons', []);
+        $appliedCoupons = array_filter($appliedCoupons, function ($coupon) use ($couponCode) {
+            return $coupon['coupon_code'] !== $couponCode;
+        });
+
+        // Recalculate discounts with remaining coupons
+        $user = auth()->user();
+        if ($user) {
+            $cart = session()->get('cart', []);
+            $cartProducts = collect($cart);
+            $remainingCodes = array_column($appliedCoupons, 'coupon_code');
+            
+            if (!empty($remainingCodes)) {
+                $couponService = app(\App\Services\CouponService::class);
+                $discountCalculation = $couponService->calculateMultipleCouponDiscounts($remainingCodes, $user, $cartProducts);
+                
+                if ($discountCalculation['success']) {
+                    session()->put('applied_coupons', $discountCalculation['applied_coupons']);
+                    session()->put('coupon_discounts', $discountCalculation['product_discounts']);
+                    session()->put('total_coupon_discount', $discountCalculation['total_discount']);
+                } else {
+                    session()->forget('applied_coupons');
+                    session()->forget('coupon_discounts');
+                    session()->forget('total_coupon_discount');
+                }
+            } else {
+                session()->forget('applied_coupons');
+                session()->forget('coupon_discounts');
+                session()->forget('total_coupon_discount');
+            }
+        } else {
+            session()->forget('applied_coupons');
+            session()->forget('coupon_discounts');
+            session()->forget('total_coupon_discount');
+        }
 
         return redirect()->route('cart')->with('success', 'Cupón removido exitosamente.');
     }
@@ -1798,5 +1864,61 @@ class CartController extends Controller
         }
 
         return view('orders.thank-you', compact('order'));
+    }
+
+    /**
+     * Load valid Coupon model instances from session (supports both multi-coupon and legacy single-coupon)
+     * 
+     * @return Coupon[]
+     */
+    private function loadValidCouponsFromSession(): array
+    {
+        $coupons = [];
+
+        // Primary: multi-coupon session key
+        $appliedCoupons = session()->get('applied_coupons', []);
+        if (!empty($appliedCoupons)) {
+            foreach ($appliedCoupons as $entry) {
+                $coupon = Coupon::find($entry['coupon_id'] ?? null);
+                if ($coupon && $coupon->isValid()) {
+                    $coupons[$coupon->id] = $coupon;
+                }
+            }
+        }
+
+        // Backward compatibility: single-coupon session key
+        $singleCoupon = session()->get('applied_coupon');
+        if ($singleCoupon && empty($coupons)) {
+            $coupon = Coupon::find($singleCoupon['coupon_id'] ?? null);
+            if ($coupon && $coupon->isValid()) {
+                $coupons[$coupon->id] = $coupon;
+            }
+        }
+
+        // If any coupons are invalid, update session to keep only valid ones
+        if (!empty($appliedCoupons) && count($coupons) < count($appliedCoupons)) {
+            $validEntries = [];
+            foreach ($coupons as $c) {
+                $validEntries[] = ['coupon_id' => $c->id, 'coupon_code' => $c->code];
+            }
+            session()->put('applied_coupons', $validEntries);
+
+            if (empty($validEntries)) {
+                $this->clearAllCouponSessions();
+            }
+        }
+
+        return array_values($coupons);
+    }
+
+    /**
+     * Clear all coupon-related session data (both multi-coupon and legacy)
+     */
+    private function clearAllCouponSessions(): void
+    {
+        session()->forget('applied_coupon');    // Legacy single-coupon
+        session()->forget('applied_coupons');   // Multi-coupon list
+        session()->forget('coupon_discounts');   // Per-product discount cache
+        session()->forget('total_coupon_discount'); // Total discount cache
     }
 }

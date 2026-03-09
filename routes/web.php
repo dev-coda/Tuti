@@ -74,6 +74,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/ordenes/{order}', [OrderController::class, 'show'])->name('clients.orders.show');
     Route::post('/ordenes/{order}/reorder', [OrderController::class, 'reorder'])->name('clients.orders.reorder');
     
+    // Seller mini-dashboard API
+    Route::get('/api/seller-dashboard', [OrderController::class, 'sellerDashboard'])->name('api.seller.dashboard');
+
     // Thank you page after order placement
     Route::get('/ordenes/{order}/gracias', [CartController::class, 'thankYou'])->name('orders.thank-you');
 });

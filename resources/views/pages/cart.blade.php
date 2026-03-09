@@ -257,8 +257,35 @@
                 Cupón de descuento
             </h3>
             
-            @if($appliedCoupon)
-                <div class="p-4 bg-green-50 border border-green-200 rounded-lg">
+            @if($appliedCoupon && !empty($appliedCoupon['coupons']))
+                {{-- Show each applied coupon with individual remove button --}}
+                <div class="space-y-2 mb-3">
+                    @foreach($appliedCoupon['coupons'] as $couponEntry)
+                    <div class="p-3 bg-green-50 border border-green-200 rounded-lg">
+                        <div class="flex justify-between items-center">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                                    <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                </div>
+                                <span class="text-green-800 font-semibold text-sm">{{$couponEntry['coupon_code']}}</span>
+                            </div>
+                            <form action="{{route('cart.coupon.remove')}}" method="POST" class="inline">
+                                @csrf
+                                <input type="hidden" name="coupon_code" value="{{$couponEntry['coupon_code']}}">
+                                <button type="submit" class="text-red-600 hover:text-red-800 text-xs font-medium hover:underline">
+                                    Remover
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                    @endforeach
+                    <div class="text-sm text-green-700 font-medium text-right">
+                        Total descuento por cupones: -${{currency($appliedCoupon['discount_amount'])}}
+                    </div>
+                </div>
+            @elseif($appliedCoupon)
+                {{-- Legacy single coupon display --}}
+                <div class="p-4 bg-green-50 border border-green-200 rounded-lg mb-3">
                     <div class="flex justify-between items-center">
                         <div class="flex items-center gap-3">
                             <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
@@ -277,19 +304,19 @@
                         </form>
                     </div>
                 </div>
-            @else
-                <form action="{{route('cart.coupon.apply')}}" method="POST">
-                    @csrf
-                    <div class="flex md:gap-3">
-                        <input type="text" name="coupon_code" placeholder="Ingresa tu código de cupón" 
-                               class="flex-1 px-4 py-3 border border-gray-300 rounded-l-lg md:rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all">
-                        <button type="submit" 
-                                class="px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white font-medium text-sm rounded-r-lg md:rounded-lg transition-colors shadow-sm">
-                            Aplicar
-                        </button>
-                    </div>
-                </form>
             @endif
+            {{-- Always show the coupon input form to allow adding more coupons --}}
+            <form action="{{route('cart.coupon.apply')}}" method="POST">
+                @csrf
+                <div class="flex md:gap-3">
+                    <input type="text" name="coupon_code" placeholder="Ingresa tu código de cupón" 
+                           class="flex-1 px-4 py-3 border border-gray-300 rounded-l-lg md:rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all">
+                    <button type="submit" 
+                            class="px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white font-medium text-sm rounded-r-lg md:rounded-lg transition-colors shadow-sm">
+                        Aplicar
+                    </button>
+                </div>
+            </form>
         </div>
 
         {{-- Totals Section --}}

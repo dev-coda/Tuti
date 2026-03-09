@@ -21,6 +21,13 @@
                     </li>
 
                     <li>
+                        <a href="{{ route('admin.campaigns.index') }}">
+                            @svg('heroicon-o-megaphone', 'w-6 h-6 text-gray-500')
+                            <span class="ml-3" sidebar-toggle-item>Campañas</span>
+                        </a>
+                    </li>
+
+                    <li>
                         <a href="{{ route('promociones.index') }}">
                             @svg('heroicon-o-sparkles', 'w-6 h-6 text-gray-500')
                             <span class="ml-3" sidebar-toggle-item>Promociones</span>
@@ -66,6 +73,7 @@
                             'settings.mailer'=>'Configuración de Correo',
                             'admin.email-templates.index'=>'Plantillas de Correo',
                             'settings.inventory-logs'=>'Logs de Inventario',
+                            'settings.ventas'=>'Ventas',
                             'holidays.index'=>'Festivos y Sabados',
                             'delivery-calendars.index'=>'Calendario de Entrega',
                             'route-cycles.index'=>'Ciclos de Rutas',

@@ -61,32 +61,47 @@ class DiscountTrackingService
      */
     private function trackCouponUsage(Order $order, User $user, Collection $cartProducts)
     {
-        $appliedCoupon = session()->get('applied_coupon');
-        if (!$appliedCoupon) {
-            return;
+        // Support both multi-coupon (applied_coupons) and legacy (applied_coupon) session keys
+        $appliedCoupons = session()->get('applied_coupons', []);
+        $legacyCoupon = session()->get('applied_coupon');
+
+        // Build list of coupon entries to track
+        $couponEntries = [];
+        if (!empty($appliedCoupons)) {
+            $couponEntries = $appliedCoupons;
+        } elseif ($legacyCoupon) {
+            $couponEntries = [$legacyCoupon];
         }
 
-        $coupon = \App\Models\Coupon::find($appliedCoupon['coupon_id']);
-        if (!$coupon) {
+        if (empty($couponEntries)) {
             return;
         }
 
         $orderTotal = $order->total ?? 0;
         $orderSubtotal = $order->subtotal ?? 0;
         $itemsCount = $cartProducts->sum('quantity');
+        $totalCouponDiscount = (float) ($order->coupon_discount ?? session()->get('total_coupon_discount', 0));
+        $perCouponDiscount = count($couponEntries) > 0 ? $totalCouponDiscount / count($couponEntries) : 0;
 
-        CouponUsageAnalytic::create([
-            'coupon_id' => $coupon->id,
-            'order_id' => $order->id,
-            'user_id' => $user->id,
-            'discount_amount' => $appliedCoupon['discount_amount'] ?? 0,
-            'order_total' => $orderTotal,
-            'order_subtotal' => $orderSubtotal,
-            'items_count' => $itemsCount,
-            'applied_to_products' => $this->getAppliedProductIds($cartProducts),
-            'user_email' => $user->email,
-            'user_name' => $user->name,
-        ]);
+        foreach ($couponEntries as $entry) {
+            $coupon = \App\Models\Coupon::find($entry['coupon_id'] ?? null);
+            if (!$coupon) {
+                continue;
+            }
+
+            CouponUsageAnalytic::create([
+                'coupon_id' => $coupon->id,
+                'order_id' => $order->id,
+                'user_id' => $user->id,
+                'discount_amount' => $perCouponDiscount,
+                'order_total' => $orderTotal,
+                'order_subtotal' => $orderSubtotal,
+                'items_count' => $itemsCount,
+                'applied_to_products' => $this->getAppliedProductIds($cartProducts),
+                'user_email' => $user->email,
+                'user_name' => $user->name,
+            ]);
+        }
     }
 
     /**

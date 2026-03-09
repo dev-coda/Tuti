@@ -32,6 +32,9 @@ use App\Http\Controllers\Admin\ShippingMethodController;
 use App\Http\Controllers\Admin\TagController;
 use App\Http\Controllers\Admin\DeliveryCalendarController;
 use App\Http\Controllers\Admin\RouteCycleController;
+use App\Http\Controllers\Admin\UpsellZoneController;
+use App\Http\Controllers\Admin\UpsellRuleController;
+use App\Http\Controllers\Admin\CampaignController;
 use Illuminate\Support\Facades\Route;
 
 
@@ -92,8 +95,11 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('categories/{category}/highlights/search', [ProductHighlightController::class, 'search'])->name('categories.highlights.search');
     Route::post('categories/{category}/highlights/reorder', [ProductHighlightController::class, 'reorder'])->name('categories.highlights.reorder');
     Route::resource('labels', LabelController::class);
+    // Custom tag routes must be defined before resource routes to avoid conflicts
+    Route::post('tags/auto-tag-nuevo/toggle', [TagController::class, 'toggleAutoTagNuevo'])->name('tags.auto-tag-nuevo.toggle');
+    Route::post('tags/auto-tag-descuento/toggle', [TagController::class, 'toggleAutoTagDescuento'])->name('tags.auto-tag-descuento.toggle');
+    Route::post('tags/{tag}/toggle', [TagController::class, 'toggle'])->name('tags.toggle')->where('tag', '[0-9]+');
     Route::resource('tags', TagController::class);
-    Route::post('tags/{tag}/toggle', [TagController::class, 'toggle'])->name('tags.toggle');
     Route::resource('vendors', VendorController::class);
     Route::resource('bonifications', BonificationController::class);
     // Custom coupon routes must be defined before resource routes to avoid conflicts
@@ -133,6 +139,8 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::post('settings/process-waiting-orders', [SettingController::class, 'processWaitingOrders'])->name('settings.process-waiting-orders');
     Route::get('settings/mailer-config', [SettingController::class, 'mailer'])->name('settings.mailer');
     Route::post('settings/mailer-config', [SettingController::class, 'updateMailer'])->name('settings.mailer.update');
+    Route::get('settings/ventas', [SettingController::class, 'ventas'])->name('settings.ventas');
+    Route::post('settings/ventas', [SettingController::class, 'updateVentas'])->name('settings.ventas.update');
 
     // Shipping Methods
     Route::get('shipping-methods', [ShippingMethodController::class, 'index'])->name('shipping-methods.index');
@@ -243,6 +251,22 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
 
     // Content Pages CRUD (Dynamic content pages)
     Route::resource('content-pages', ContentPageController::class);
+
+    // Upsell/Cross-sell Management
+    Route::prefix('upsell-zones')->name('admin.upsell-zones.')->group(function () {
+        Route::get('{upsellZone}/manage-products', [UpsellZoneController::class, 'manageProducts'])->name('manage-products');
+        Route::post('{upsellZone}/attach-products', [UpsellZoneController::class, 'attachProducts'])->name('attach-products');
+        Route::delete('{upsellZone}/products/{product}', [UpsellZoneController::class, 'detachProduct'])->name('detach-product');
+        Route::put('{upsellZone}/update-positions', [UpsellZoneController::class, 'updateProductPositions'])->name('update-positions');
+    });
+    Route::resource('upsell-zones', UpsellZoneController::class)->names('admin.upsell-zones');
+    Route::resource('upsell-rules', UpsellRuleController::class)->names('admin.upsell-rules');
+
+    // Campaigns Management
+    Route::prefix('campaigns')->name('admin.campaigns.')->group(function () {
+        Route::get('/', [CampaignController::class, 'index'])->name('index');
+        Route::post('/settings', [CampaignController::class, 'updateSettings'])->name('settings.update');
+    });
 
     // Reports
     Route::prefix('reports')->name('admin.reports.')->group(function () {

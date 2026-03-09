@@ -271,8 +271,9 @@ class PageController extends Controller
             ->active()
             ->with(['related.images', 'items', 'variation', 'labels', 'inventories'])
             ->where('slug', $slug)->firstOrFail();
+        
+        // Get related products for "Complementa tu compra" section
         $related = $product->related;
-
         if (!$related->count()) {
             $related = Product::active()->where('brand_id', $product->brand_id)->where('id', '!=', $product->id)->limit(4)->get();
         }

@@ -379,6 +379,125 @@ class CouponDiscountService
     }
 
     /**
+     * Apply MULTIPLE coupons to cart products, picking the best discount per product
+     * 
+     * For each product, the coupon that gives the highest total line discount wins.
+     * Percentage coupons go in the discount field; fixed-amount coupons modify unit price.
+     * 
+     * @param Coupon[] $coupons
+     * @param User $user
+     * @param Collection $cartProducts
+     * @param bool $hasOrders
+     * @return array Same format as applyCouponDiscountToProducts() plus 'winning_coupons'
+     */
+    public function applyMultipleCouponsToProducts(array $coupons, User $user, Collection $cartProducts, bool $hasOrders = false): array
+    {
+        if (empty($coupons)) {
+            return [
+                'success' => false,
+                'message' => 'No coupons provided',
+                'total_coupon_discount' => 0,
+                'modified_products' => [],
+                'winning_coupons' => [],
+            ];
+        }
+
+        // Shortcut: if only one coupon, use the existing single-coupon method
+        if (count($coupons) === 1) {
+            $result = $this->applyCouponDiscountToProducts($coupons[0], $user, $cartProducts, $hasOrders);
+            if ($result['success']) {
+                $result['winning_coupons'] = [
+                    $coupons[0]->id => $coupons[0]->code,
+                ];
+            } else {
+                $result['winning_coupons'] = [];
+            }
+            return $result;
+        }
+
+        // Run each coupon individually through the full discount calculation
+        $allCouponResults = [];
+        foreach ($coupons as $coupon) {
+            try {
+                $result = $this->applyCouponDiscountToProducts($coupon, $user, $cartProducts, $hasOrders);
+                if ($result['success']) {
+                    $allCouponResults[] = [
+                        'coupon' => $coupon,
+                        'result' => $result,
+                    ];
+                }
+            } catch (\Exception $e) {
+                \Log::warning('Multi-coupon: failed to apply coupon', [
+                    'coupon_id' => $coupon->id,
+                    'coupon_code' => $coupon->code,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        if (empty($allCouponResults)) {
+            return [
+                'success' => false,
+                'message' => 'No coupons could be applied',
+                'total_coupon_discount' => 0,
+                'modified_products' => [],
+                'winning_coupons' => [],
+            ];
+        }
+
+        // Merge results: for each product, pick the coupon result with the highest final_discount_amount
+        $mergedProducts = [];
+
+        foreach ($allCouponResults as $couponData) {
+            $coupon = $couponData['coupon'];
+            $result = $couponData['result'];
+
+            foreach ($result['modified_products'] as $modProduct) {
+                $key = $modProduct['product_id'] . '_' . ($modProduct['variation_id'] ?? 'null');
+                $thisDiscount = (float) ($modProduct['final_discount_amount'] ?? 0);
+                $currentBest = (float) ($mergedProducts[$key]['final_discount_amount'] ?? 0);
+
+                if (!isset($mergedProducts[$key]) || $thisDiscount > $currentBest) {
+                    $mergedProducts[$key] = $modProduct;
+                    $mergedProducts[$key]['winning_coupon_id'] = $coupon->id;
+                    $mergedProducts[$key]['winning_coupon_code'] = $coupon->code;
+                }
+            }
+        }
+
+        // Calculate total coupon discount and identify winning coupons
+        $totalCouponDiscount = 0;
+        $winningCoupons = [];
+
+        foreach ($mergedProducts as $product) {
+            // Use coupon_contribution (percentage) or actual_discount_amount (fixed) if available
+            $contribution = $product['coupon_contribution']
+                ?? $product['actual_discount_amount']
+                ?? $product['final_discount_amount']
+                ?? 0;
+            $totalCouponDiscount += (float) $contribution;
+
+            if (isset($product['winning_coupon_id'])) {
+                $winningCoupons[$product['winning_coupon_id']] = $product['winning_coupon_code'];
+            }
+        }
+
+        \Log::info('Multi-coupon merge result', [
+            'coupons_evaluated' => count($allCouponResults),
+            'winning_coupons' => $winningCoupons,
+            'total_coupon_discount' => $totalCouponDiscount,
+            'products_count' => count($mergedProducts),
+        ]);
+
+        return [
+            'success' => true,
+            'total_coupon_discount' => $totalCouponDiscount,
+            'modified_products' => array_values($mergedProducts),
+            'winning_coupons' => $winningCoupons,
+        ];
+    }
+
+    /**
      * Calculate the final cart totals after applying coupon discounts
      */
     public function calculateFinalCartTotals(array $couponResult, Collection $cartProducts): array
