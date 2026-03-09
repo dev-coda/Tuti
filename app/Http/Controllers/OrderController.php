@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Order;
 use App\Models\Setting;
 use App\Models\User;
+use App\Models\Vendor;
 use App\Models\Zone;
 use App\Models\ZoneWarehouse;
 use Illuminate\Http\Request;
@@ -97,62 +99,100 @@ class OrderController extends Controller
         $ventasTotales  = (clone $ordersQuery)->sum('total');
         $ticketPromedio = $totalPedidos > 0 ? round($ventasTotales / $totalPedidos, 2) : 0;
 
-        // ── Row 2: sales per configured categories ─────────────
-        $configuredIds = json_decode(Setting::getByKey('seller_dashboard_categories') ?? '[]', true);
+        // ── Row 2: six fixed sales buckets ───────────────────────
+        $baseConditions = fn ($q) => $q
+            ->where('orders.seller_id', $user->id)
+            ->where('orders.total', '!=', 0)
+            ->whereBetween('orders.created_at', [$from, $to]);
 
-        // Fall back to top-5 active root categories when nothing is configured
-        if (empty($configuredIds)) {
-            $configuredIds = Category::active()
-                ->whereNull('parent_id')
-                ->orderBy('name')
-                ->limit(5)
-                ->pluck('id')
-                ->toArray();
-        }
-
-        // Get sales for the configured categories
-        $categorySales = collect();
-        if (!empty($configuredIds)) {
-            $salesData = DB::table('orders')
+        // Helper: sales total for products in given category IDs
+        $salesByCategories = function (array $categoryIds) use ($baseConditions) {
+            if (empty($categoryIds)) return 0;
+            return (float) DB::table('orders')
                 ->join('order_products', 'orders.id', '=', 'order_products.order_id')
                 ->join('category_product', 'order_products.product_id', '=', 'category_product.product_id')
-                ->join('categories', 'category_product.category_id', '=', 'categories.id')
-                ->where('orders.seller_id', $user->id)
-                ->where('orders.total', '!=', 0)
-                ->whereBetween('orders.created_at', [$from, $to])
-                ->whereIn('categories.id', $configuredIds)
-                ->select(
-                    'categories.id',
-                    'categories.name',
-                    DB::raw('COALESCE(SUM(order_products.price * order_products.quantity), 0) as total_sales')
-                )
-                ->groupBy('categories.id', 'categories.name')
-                ->get()
-                ->keyBy('id');
+                ->where(fn ($q) => $baseConditions($q))
+                ->whereIn('category_product.category_id', $categoryIds)
+                ->sum(DB::raw('order_products.price * order_products.quantity'));
+        };
 
-            // Build final list preserving configured order, showing $0 for categories with no sales
-            $categorySales = collect($configuredIds)->map(function ($id) use ($salesData) {
-                if ($salesData->has($id)) {
-                    return $salesData->get($id);
-                }
-                $cat = Category::find($id);
-                return (object) [
-                    'id'          => $id,
-                    'name'        => $cat->name ?? 'Categoría',
-                    'total_sales' => 0,
-                ];
-            });
-        }
+        // Helper: sales total for products with given brand IDs
+        $salesByBrands = function (array $brandIds) use ($baseConditions) {
+            if (empty($brandIds)) return 0;
+            return (float) DB::table('orders')
+                ->join('order_products', 'orders.id', '=', 'order_products.order_id')
+                ->join('products', 'order_products.product_id', '=', 'products.id')
+                ->where(fn ($q) => $baseConditions($q))
+                ->whereIn('products.brand_id', $brandIds)
+                ->sum(DB::raw('order_products.price * order_products.quantity'));
+        };
+
+        // Helper: sales total for products whose brand belongs to given vendor IDs
+        $salesByVendors = function (array $vendorIds) use ($baseConditions) {
+            if (empty($vendorIds)) return 0;
+            return (float) DB::table('orders')
+                ->join('order_products', 'orders.id', '=', 'order_products.order_id')
+                ->join('products', 'order_products.product_id', '=', 'products.id')
+                ->join('brands', 'products.brand_id', '=', 'brands.id')
+                ->where(fn ($q) => $baseConditions($q))
+                ->whereIn('brands.vendor_id', $vendorIds)
+                ->sum(DB::raw('order_products.price * order_products.quantity'));
+        };
+
+        // Resolve IDs by name (case-insensitive) so it works across environments
+        $catIdsByName = fn (array $names) => Category::whereRaw(
+            'LOWER(name) IN (' . implode(',', array_fill(0, count($names), '?')) . ')',
+            array_map('strtolower', $names)
+        )->pluck('id')->toArray();
+
+        $brandIdsByName = fn (array $names) => Brand::whereRaw(
+            'LOWER(name) IN (' . implode(',', array_fill(0, count($names), '?')) . ')',
+            array_map('strtolower', $names)
+        )->pluck('id')->toArray();
+
+        $vendorIdsByName = fn (array $names) => Vendor::whereRaw(
+            'LOWER(name) IN (' . implode(',', array_fill(0, count($names), '?')) . ')',
+            array_map('strtolower', $names)
+        )->pluck('id')->toArray();
+
+        // 1. Alcalina — category "Alcalinas Tronex"
+        $alcalinaIds = $catIdsByName(['Alcalinas Tronex']);
+
+        // 2. Manganeso — category "Manganeso Tronex"
+        $manganesoIds = $catIdsByName(['Manganeso Tronex']);
+
+        // 3. Encendedores — parent category + all children
+        $encParent = $catIdsByName(['Encendedores']);
+        $encChildren = !empty($encParent)
+            ? Category::whereIn('parent_id', $encParent)->pluck('id')->toArray()
+            : [];
+        $encendedoresIds = array_merge($encParent, $encChildren);
+
+        // 4. Bombillos — category "Bombillos"
+        $bombillosIds = $catIdsByName(['Bombillos']);
+
+        // 5. Otros — brands GP, Mtek, General Electric (+ GE alias)
+        $otrosBrandIds = $brandIdsByName(['GP', 'Gp', 'Mtek', 'General Electric', 'GE']);
+
+        // 6. Terceros — vendors Eterna, Prebel, Yass, Produsa, Dromatic, Sense, Knight
+        $tercerosVendorIds = $vendorIdsByName([
+            'Eterna', 'Prebel', 'Yass', 'Produsa', 'Dromatic', 'Sense', 'Knight',
+        ]);
+
+        $buckets = [
+            ['label' => 'Alcalina',      'total' => round($salesByCategories($alcalinaIds), 2)],
+            ['label' => 'Manganeso',     'total' => round($salesByCategories($manganesoIds), 2)],
+            ['label' => 'Encendedores',  'total' => round($salesByCategories($encendedoresIds), 2)],
+            ['label' => 'Bombillos',     'total' => round($salesByCategories($bombillosIds), 2)],
+            ['label' => 'Otros',         'total' => round($salesByBrands($otrosBrandIds), 2)],
+            ['label' => 'Terceros',      'total' => round($salesByVendors($tercerosVendorIds), 2)],
+        ];
 
         return response()->json([
             'total_pedidos'    => $totalPedidos,
             'ventas_totales'   => round($ventasTotales, 2),
             'ticket_promedio'  => $ticketPromedio,
-            'category_sales'   => $categorySales->map(fn ($c) => [
-                'id'    => $c->id,
-                'name'  => $c->name,
-                'total' => round((float) $c->total_sales, 2),
-            ])->values(),
+            'sales_buckets'    => $buckets,
             'from_date' => $from->toDateString(),
             'to_date'   => $to->toDateString(),
         ]);
