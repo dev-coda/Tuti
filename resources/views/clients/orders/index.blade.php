@@ -47,7 +47,7 @@
             </div>
 
             {{-- Row 2: Category Sales Cards --}}
-            <div id="category-cards" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+            <div id="category-cards" class="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 {{-- Filled dynamically via JS --}}
             </div>
         </div>
@@ -419,14 +419,14 @@
                 kpiTicket.textContent  = currency(data.ticket_promedio);
             }
 
-            function renderCategories(categories) {
+            function renderBuckets(buckets) {
                 catCards.innerHTML = '';
-                (categories || []).forEach(function(cat) {
+                (buckets || []).forEach(function(b) {
                     const card = document.createElement('div');
                     card.className = 'bg-white border border-gray-200 rounded-2xl shadow-sm p-4 flex flex-col items-center justify-center text-center';
                     card.innerHTML =
-                        '<p class="text-xs font-medium text-gray-500 uppercase tracking-wide leading-tight mb-1">Ventas ' + cat.name + '</p>' +
-                        '<p class="text-lg font-bold text-gray-900">' + currency(cat.total) + '</p>';
+                        '<p class="text-xs font-medium text-gray-500 uppercase tracking-wide leading-tight mb-1">' + b.label + '</p>' +
+                        '<p class="text-lg font-bold text-gray-900">' + currency(b.total) + '</p>';
                     catCards.appendChild(card);
                 });
             }
@@ -442,7 +442,7 @@
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
                     renderKPIs(data);
-                    renderCategories(data.category_sales);
+                    renderBuckets(data.sales_buckets);
                 })
                 .catch(function(err) {
                     console.error('Dashboard fetch error', err);
