@@ -104,6 +104,8 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::resource('bonifications', BonificationController::class);
     // Custom coupon routes must be defined before resource routes to avoid conflicts
     Route::get('coupons/export', [CouponController::class, 'export'])->name('coupons.export');
+    Route::get('coupons/search-products', [CouponController::class, 'searchProducts'])->name('coupons.search-products');
+    Route::get('coupons/search-customers', [CouponController::class, 'searchCustomers'])->name('coupons.search-customers');
     Route::post('coupons/{coupon}/toggle', [CouponController::class, 'toggle'])->name('coupons.toggle')->where('coupon', '[0-9]+');
     Route::post('coupons/{coupon}/mass-create', [CouponController::class, 'massCreate'])->name('coupons.mass-create')->where('coupon', '[0-9]+');
     Route::resource('coupons', CouponController::class);
