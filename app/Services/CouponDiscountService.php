@@ -293,17 +293,17 @@ class CouponDiscountService
                 // Use the fixed amount approach - modify unit price
                 $newUnitPrice = $basePrice - $actualUnitPriceReduction;
                 $appliedDiscountType = 'fixed_amount';
-                $appliedDiscountPercentage = 0;
+                $appliedDiscountPercentage = 0; // Don't use percentage field
                 $finalDiscountAmount = $actualLineDiscount;
             } else {
-                // Existing percentage discount is better - keep it.
-                // The coupon did NOT contribute here so remove this line's
-                // coupon portion from the running total.
+                // Existing percentage discount is better - keep it
                 $newUnitPrice = $basePrice - ($basePrice * $existingDiscountPercentage / 100);
                 $appliedDiscountType = 'existing_percentage';
                 $appliedDiscountPercentage = $existingDiscountPercentage;
                 $finalDiscountAmount = $existingDiscountAmount;
+                // Subtract this from our coupon contribution since we're not using it
                 $actualTotalDiscount -= $actualLineDiscount;
+                $actualTotalDiscount += $existingDiscountAmount;
             }
 
             $modifiedProducts[] = [
@@ -379,14 +379,16 @@ class CouponDiscountService
     }
 
     /**
-     * Apply MULTIPLE coupons to cart products, picking the best discount per product.
-     *
-     * For each product we evaluate every coupon independently, then keep the ONE
-     * result that yields the largest monetary saving on that line.  Discounts are
-     * never added together — each item gets exactly one discount source.
-     *
-     * Percentage coupons populate the discount-percentage field; fixed-amount
-     * coupons reduce the unit price (percentage field stays 0).
+     * Apply MULTIPLE coupons to cart products, picking the best discount per product
+     * 
+     * For each product, the coupon that gives the highest total line discount wins.
+     * Percentage coupons go in the discount field; fixed-amount coupons modify unit price.
+     * 
+     * @param Coupon[] $coupons
+     * @param User $user
+     * @param Collection $cartProducts
+     * @param bool $hasOrders
+     * @return array Same format as applyCouponDiscountToProducts() plus 'winning_coupons'
      */
     public function applyMultipleCouponsToProducts(array $coupons, User $user, Collection $cartProducts, bool $hasOrders = false): array
     {
@@ -398,6 +400,19 @@ class CouponDiscountService
                 'modified_products' => [],
                 'winning_coupons' => [],
             ];
+        }
+
+        // Shortcut: if only one coupon, use the existing single-coupon method
+        if (count($coupons) === 1) {
+            $result = $this->applyCouponDiscountToProducts($coupons[0], $user, $cartProducts, $hasOrders);
+            if ($result['success']) {
+                $result['winning_coupons'] = [
+                    $coupons[0]->id => $coupons[0]->code,
+                ];
+            } else {
+                $result['winning_coupons'] = [];
+            }
+            return $result;
         }
 
         // Run each coupon individually through the full discount calculation
@@ -430,9 +445,7 @@ class CouponDiscountService
             ];
         }
 
-        // For each product, pick the coupon that saves the customer the most money.
-        // We compare the actual monetary saving per line (base_price * qty * pkg - final price)
-        // so percentage and fixed coupons are compared on equal footing.
+        // Merge results: for each product, pick the coupon result with the highest final_discount_amount
         $mergedProducts = [];
 
         foreach ($allCouponResults as $couponData) {
@@ -441,46 +454,28 @@ class CouponDiscountService
 
             foreach ($result['modified_products'] as $modProduct) {
                 $key = $modProduct['product_id'] . '_' . ($modProduct['variation_id'] ?? 'null');
+                $thisDiscount = (float) ($modProduct['final_discount_amount'] ?? 0);
+                $currentBest = (float) ($mergedProducts[$key]['final_discount_amount'] ?? 0);
 
-                // Calculate the actual monetary saving this coupon provides for this line.
-                $basePrice = (float) ($modProduct['base_price'] ?? 0);
-                $quantity  = (int)   ($modProduct['quantity'] ?? 1);
-                $pkgQty    = (int)   ($modProduct['package_quantity'] ?? 1);
-                $lineGross = $basePrice * $quantity * $pkgQty;
-
-                $newUnitPrice = (float) ($modProduct['new_unit_price'] ?? $basePrice);
-                $lineNet      = $newUnitPrice * $quantity * $pkgQty;
-                $thisSaving   = max(0, $lineGross - $lineNet);
-
-                $currentBestSaving = 0;
-                if (isset($mergedProducts[$key])) {
-                    $cb = $mergedProducts[$key];
-                    $cbGross  = (float)$cb['base_price'] * (int)$cb['quantity'] * (int)$cb['package_quantity'];
-                    $cbNet    = (float)$cb['new_unit_price'] * (int)$cb['quantity'] * (int)$cb['package_quantity'];
-                    $currentBestSaving = max(0, $cbGross - $cbNet);
-                }
-
-                if (!isset($mergedProducts[$key]) || $thisSaving > $currentBestSaving) {
+                if (!isset($mergedProducts[$key]) || $thisDiscount > $currentBest) {
                     $mergedProducts[$key] = $modProduct;
-                    $mergedProducts[$key]['winning_coupon_id']   = $coupon->id;
+                    $mergedProducts[$key]['winning_coupon_id'] = $coupon->id;
                     $mergedProducts[$key]['winning_coupon_code'] = $coupon->code;
                 }
             }
         }
 
-        // Calculate total coupon discount (only the portion the coupon itself contributed)
+        // Calculate total coupon discount and identify winning coupons
         $totalCouponDiscount = 0;
         $winningCoupons = [];
 
         foreach ($mergedProducts as $product) {
-            $discountType = $product['applied_discount_type'] ?? 'percentage';
-
-            if ($discountType === 'percentage') {
-                $totalCouponDiscount += (float) ($product['coupon_contribution'] ?? 0);
-            } elseif ($discountType === 'fixed_amount') {
-                $totalCouponDiscount += (float) ($product['actual_discount_amount'] ?? 0);
-            }
-            // 'existing_percentage' means the coupon didn't win — don't count it
+            // Use coupon_contribution (percentage) or actual_discount_amount (fixed) if available
+            $contribution = $product['coupon_contribution']
+                ?? $product['actual_discount_amount']
+                ?? $product['final_discount_amount']
+                ?? 0;
+            $totalCouponDiscount += (float) $contribution;
 
             if (isset($product['winning_coupon_id'])) {
                 $winningCoupons[$product['winning_coupon_id']] = $product['winning_coupon_code'];
