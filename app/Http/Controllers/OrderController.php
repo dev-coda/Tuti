@@ -105,38 +105,44 @@ class OrderController extends Controller
             ->where('orders.total', '!=', 0)
             ->whereBetween('orders.created_at', [$from, $to]);
 
-        // Helper: sales total for products in given category IDs
+        // Helper: sales total + unit quantity for products in given category IDs
         $salesByCategories = function (array $categoryIds) use ($baseConditions) {
-            if (empty($categoryIds)) return 0;
-            return (float) DB::table('orders')
+            if (empty($categoryIds)) return ['total' => 0, 'quantity' => 0];
+            $row = DB::table('orders')
                 ->join('order_products', 'orders.id', '=', 'order_products.order_id')
                 ->join('category_product', 'order_products.product_id', '=', 'category_product.product_id')
                 ->where(fn ($q) => $baseConditions($q))
                 ->whereIn('category_product.category_id', $categoryIds)
-                ->sum(DB::raw('order_products.price * order_products.quantity'));
+                ->selectRaw('COALESCE(SUM(order_products.price * order_products.quantity), 0) as total, COALESCE(SUM(order_products.quantity), 0) as quantity')
+                ->first();
+            return ['total' => (float) $row->total, 'quantity' => (int) $row->quantity];
         };
 
-        // Helper: sales total for products with given brand IDs
+        // Helper: sales total + unit quantity for products with given brand IDs
         $salesByBrands = function (array $brandIds) use ($baseConditions) {
-            if (empty($brandIds)) return 0;
-            return (float) DB::table('orders')
+            if (empty($brandIds)) return ['total' => 0, 'quantity' => 0];
+            $row = DB::table('orders')
                 ->join('order_products', 'orders.id', '=', 'order_products.order_id')
                 ->join('products', 'order_products.product_id', '=', 'products.id')
                 ->where(fn ($q) => $baseConditions($q))
                 ->whereIn('products.brand_id', $brandIds)
-                ->sum(DB::raw('order_products.price * order_products.quantity'));
+                ->selectRaw('COALESCE(SUM(order_products.price * order_products.quantity), 0) as total, COALESCE(SUM(order_products.quantity), 0) as quantity')
+                ->first();
+            return ['total' => (float) $row->total, 'quantity' => (int) $row->quantity];
         };
 
-        // Helper: sales total for products whose brand belongs to given vendor IDs
+        // Helper: sales total + unit quantity for products whose brand belongs to given vendor IDs
         $salesByVendors = function (array $vendorIds) use ($baseConditions) {
-            if (empty($vendorIds)) return 0;
-            return (float) DB::table('orders')
+            if (empty($vendorIds)) return ['total' => 0, 'quantity' => 0];
+            $row = DB::table('orders')
                 ->join('order_products', 'orders.id', '=', 'order_products.order_id')
                 ->join('products', 'order_products.product_id', '=', 'products.id')
                 ->join('brands', 'products.brand_id', '=', 'brands.id')
                 ->where(fn ($q) => $baseConditions($q))
                 ->whereIn('brands.vendor_id', $vendorIds)
-                ->sum(DB::raw('order_products.price * order_products.quantity'));
+                ->selectRaw('COALESCE(SUM(order_products.price * order_products.quantity), 0) as total, COALESCE(SUM(order_products.quantity), 0) as quantity')
+                ->first();
+            return ['total' => (float) $row->total, 'quantity' => (int) $row->quantity];
         };
 
         // Resolve IDs by name (case-insensitive) so it works across environments
@@ -179,13 +185,20 @@ class OrderController extends Controller
             'Eterna', 'Prebel', 'Yass', 'Produsa', 'Dromatic', 'Sense', 'Knight',
         ]);
 
+        $alcalinaSales      = $salesByCategories($alcalinaIds);
+        $manganesoSales     = $salesByCategories($manganesoIds);
+        $encendedoresSales  = $salesByCategories($encendedoresIds);
+        $bombillosSales     = $salesByCategories($bombillosIds);
+        $otrosSales         = $salesByBrands($otrosBrandIds);
+        $tercerosSales      = $salesByVendors($tercerosVendorIds);
+
         $buckets = [
-            ['label' => 'Alcalina',      'total' => round($salesByCategories($alcalinaIds), 2)],
-            ['label' => 'Manganeso',     'total' => round($salesByCategories($manganesoIds), 2)],
-            ['label' => 'Encendedores',  'total' => round($salesByCategories($encendedoresIds), 2)],
-            ['label' => 'Bombillos',     'total' => round($salesByCategories($bombillosIds), 2)],
-            ['label' => 'Otros',         'total' => round($salesByBrands($otrosBrandIds), 2)],
-            ['label' => 'Terceros',      'total' => round($salesByVendors($tercerosVendorIds), 2)],
+            ['label' => 'Alcalina',      'total' => round($alcalinaSales['total'], 2),      'quantity' => $alcalinaSales['quantity']],
+            ['label' => 'Manganeso',     'total' => round($manganesoSales['total'], 2),     'quantity' => $manganesoSales['quantity']],
+            ['label' => 'Encendedores',  'total' => round($encendedoresSales['total'], 2),  'quantity' => $encendedoresSales['quantity']],
+            ['label' => 'Bombillos',     'total' => round($bombillosSales['total'], 2),     'quantity' => $bombillosSales['quantity']],
+            ['label' => 'Otros',         'total' => round($otrosSales['total'], 2),         'quantity' => $otrosSales['quantity']],
+            ['label' => 'Terceros',      'total' => round($tercerosSales['total'], 2),      'quantity' => $tercerosSales['quantity']],
         ];
 
         return response()->json([

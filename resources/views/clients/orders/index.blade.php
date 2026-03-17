@@ -422,11 +422,13 @@
             function renderBuckets(buckets) {
                 catCards.innerHTML = '';
                 (buckets || []).forEach(function(b) {
+                    const qty = b.quantity != null ? Number(b.quantity).toLocaleString('es-CO') : '0';
                     const card = document.createElement('div');
                     card.className = 'bg-white border border-gray-200 rounded-2xl shadow-sm p-4 flex flex-col items-center justify-center text-center';
                     card.innerHTML =
                         '<p class="text-xs font-medium text-gray-500 uppercase tracking-wide leading-tight mb-1">' + b.label + '</p>' +
-                        '<p class="text-lg font-bold text-gray-900">' + currency(b.total) + '</p>';
+                        '<p class="text-lg font-bold text-gray-900">' + currency(b.total) + '</p>' +
+                        '<p class="text-xs text-gray-500 mt-0.5">' + qty + ' uds</p>';
                     catCards.appendChild(card);
                 });
             }
