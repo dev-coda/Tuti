@@ -56,6 +56,7 @@
                         'variations'=>'Variaciones', 
                         'bonifications'=>'Bonificaciones',
                         'coupons'=>'Cupones',
+                        'admin.retentions.index'=>'Retenciones',
                         ]" />
 
                     <x-dropdown title='Contenido'

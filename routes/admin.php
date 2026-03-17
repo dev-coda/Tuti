@@ -35,6 +35,7 @@ use App\Http\Controllers\Admin\RouteCycleController;
 use App\Http\Controllers\Admin\UpsellZoneController;
 use App\Http\Controllers\Admin\UpsellRuleController;
 use App\Http\Controllers\Admin\CampaignController;
+use App\Http\Controllers\Admin\RetentionRuleController;
 use Illuminate\Support\Facades\Route;
 
 
@@ -261,6 +262,9 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     });
     Route::resource('upsell-zones', UpsellZoneController::class)->names('admin.upsell-zones');
     Route::resource('upsell-rules', UpsellRuleController::class)->names('admin.upsell-rules');
+
+    // Retentions Management
+    Route::resource('retentions', RetentionRuleController::class)->names('admin.retentions');
 
     // Campaigns Management
     Route::prefix('campaigns')->name('admin.campaigns.')->group(function () {
