@@ -25,6 +25,9 @@ class ContactController extends Controller
             ->when($request->date_to, function ($query, $dateTo) {
                 $query->whereDate('created_at', '<=', $dateTo);
             })
+            ->when($request->status, function ($query, $status) {
+                $query->where('status', $status);
+            })
             ->orderByDesc('id')
             ->paginate();
 
@@ -68,7 +71,13 @@ class ContactController extends Controller
      */
     public function update(Request $request, Contact $contact)
     {
-        //
+        $validated = $request->validate([
+            'status' => 'required|in:' . implode(',', array_keys(Contact::STATUSES)),
+        ]);
+
+        $contact->update($validated);
+
+        return back()->with('success', 'Estado actualizado a: ' . Contact::STATUSES[$validated['status']]);
     }
 
     /**

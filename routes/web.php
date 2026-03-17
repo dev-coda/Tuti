@@ -64,6 +64,8 @@ Route::post('/carrito/cupon/remover', [CartController::class, 'removeCoupon'])->
 
 Route::get('/formulario', [PageController::class, 'form'])->name('form');
 Route::post('/formulario', [PageController::class, 'form_post'])->name('form_post');
+Route::post('/formulario/check-existing', [PageController::class, 'checkExistingClient'])->name('form.check-existing');
+Route::get('/formulario/cities-by-state', [PageController::class, 'citiesByState'])->name('form.cities-by-state');
 
 Route::post('/carrito', [CartController::class, 'processOrder'])->name('cart.process');
 

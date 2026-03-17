@@ -33,9 +33,32 @@ class Contact extends Model
         });
     }
 
-    protected $fillable = ['name', 'email', 'phone', 'business_name', 'read', 'city', 'city_id', 'nit', 'terms_accepted', 'address'];
+    protected $fillable = [
+        'name', 'email', 'phone', 'business_name', 'read', 'city', 'city_id',
+        'nit', 'terms_accepted', 'address', 'person_type', 'department', 'status', 'documents',
+    ];
+
+    protected $casts = [
+        'terms_accepted' => 'boolean',
+        'read' => 'boolean',
+        'documents' => 'array',
+    ];
 
     protected $appends = ['state'];
+
+    public const STATUSES = [
+        'interesado'     => 'Interesado',
+        'en_validacion'  => 'En validación',
+        'creado'         => 'Creado',
+        'contactado'     => 'Contactado',
+    ];
+
+    public const STATUS_COLORS = [
+        'interesado'     => 'bg-yellow-100 text-yellow-800',
+        'en_validacion'  => 'bg-blue-100 text-blue-800',
+        'creado'         => 'bg-green-100 text-green-800',
+        'contactado'     => 'bg-purple-100 text-purple-800',
+    ];
 
     public function city()
     {
@@ -47,10 +70,29 @@ class Contact extends Model
         return $query->where('read', false);
     }
 
-    //get total row unread
     public function scopeTotalUnRead()
     {
         return $this->unRead()->count();
+    }
+
+    public static function emailExistsAsUser(string $email): bool
+    {
+        return User::where('email', $email)->exists();
+    }
+
+    public static function nitExists(string $nit): bool
+    {
+        return User::where('document', $nit)->exists();
+    }
+
+    public function getStatusLabelAttribute(): string
+    {
+        return self::STATUSES[$this->status] ?? ucfirst($this->status ?? 'interesado');
+    }
+
+    public function getStatusColorAttribute(): string
+    {
+        return self::STATUS_COLORS[$this->status] ?? 'bg-gray-100 text-gray-800';
     }
 
     protected function state(): Attribute
