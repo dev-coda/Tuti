@@ -274,8 +274,9 @@ class MailingService
      */
     public function sendContactFormNotification(Contact $contact)
     {
-        // Get admin emails from settings or use default
         $adminEmails = $this->getAdminEmails();
+
+        $personTypeLabel = $contact->person_type === 'juridica' ? 'Jurídica' : 'Natural';
 
         $data = [
             'contact_name' => $contact->name,
@@ -283,19 +284,76 @@ class MailingService
             'contact_phone' => $contact->phone,
             'business_name' => $contact->business_name,
             'city' => $contact->city->name ?? 'No especificada',
+            'department' => $contact->department ?? 'No especificado',
             'nit' => $contact->nit,
-            'message' => 'Nuevo contacto registrado',
+            'person_type' => $personTypeLabel,
+            'address' => $contact->address ?? 'No especificada',
+            'message' => "Nuevo registro de persona {$personTypeLabel}",
             'contact_date' => $contact->created_at->format('d/m/Y H:i'),
         ];
 
+        $attachmentPaths = [];
+        if (!empty($contact->documents) && is_array($contact->documents)) {
+            foreach ($contact->documents as $docPath) {
+                $fullPath = storage_path('app/public/' . $docPath);
+                if (file_exists($fullPath)) {
+                    $attachmentPaths[] = $fullPath;
+                }
+            }
+        }
+
         $sent = false;
         foreach ($adminEmails as $adminEmail) {
-            if ($this->sendTemplateEmail('contact_form', $data, $adminEmail)) {
+            if ($this->sendTemplateEmailWithAttachments('contact_form', $data, $adminEmail, $attachmentPaths)) {
                 $sent = true;
             }
         }
 
         return $sent;
+    }
+
+    /**
+     * Send a template email with optional file attachments.
+     */
+    public function sendTemplateEmailWithAttachments(string $templateSlug, array $data, $recipient, array $attachmentPaths = [])
+    {
+        try {
+            $this->updateMailConfiguration();
+
+            $template = \App\Models\EmailTemplate::where('slug', $templateSlug)
+                ->where('is_active', true)
+                ->first();
+
+            if (!$template) {
+                Log::warning("Email template not found or inactive: {$templateSlug}");
+                return false;
+            }
+
+            $processedContent = $template->replaceVariables($data);
+
+            if ($this->isInternalTutiEmail($recipient)) {
+                Log::info("Email blocked (internal Tuti domain): {$templateSlug} to {$recipient}");
+                return true;
+            }
+
+            Mail::raw($processedContent['body'], function ($message) use ($processedContent, $recipient, $attachmentPaths) {
+                $message->to($recipient)
+                    ->subject($processedContent['subject'])
+                    ->from(config('mail.from.address'), config('mail.from.name'));
+
+                foreach ($attachmentPaths as $path) {
+                    $message->attach($path);
+                }
+            });
+
+            Log::info("Email with attachments sent: {$templateSlug} to {$recipient}, attachments: " . count($attachmentPaths));
+            return true;
+        } catch (\Exception $e) {
+            Log::error("Failed to send email with attachments: {$templateSlug}", [
+                'error' => $e->getMessage(),
+            ]);
+            return false;
+        }
     }
 
     /**

@@ -13,6 +13,9 @@ use Illuminate\Support\Facades\Auth;
 use Transliterator;
 use App\Models\City;
 use App\Models\Contact;
+use App\Models\State;
+use App\Models\User;
+use Illuminate\Support\Facades\Storage;
 
 class PageController extends Controller
 {
@@ -465,39 +468,87 @@ class PageController extends Controller
 
     public function form()
     {
-        // Use only preferred cities for registration, but keep all cities available for existing data
+        $states = State::orderBy('name')->pluck('name', 'id')->prepend('Selecciona departamento', '');
         $cities = City::forRegistration()->orderBy('name')->pluck('name', 'id')->prepend('Selecciona tu ciudad', '');
-        return view('pages.form', compact('cities'));
+        return view('pages.form', compact('cities', 'states'));
     }
 
     public function form_post(Request $request)
     {
-        $validate = $request->validate([
-            'reg_name' => 'required',
-            'reg_email' => 'required|email',
-            'reg_phone' => 'required',
-            'reg_city_id' => 'required|exists:cities,id',
-            'reg_nit' => 'required',
-            'reg_address' => 'required|string',
-            'terms_accepted' => 'required|accepted',
+        $validated = $request->validate([
+            'reg_person_type' => 'required|in:natural,juridica',
+            'reg_nit'         => 'required',
+            'reg_name'        => 'required',
+            'reg_email'       => 'required|email',
+            'reg_phone'       => 'required',
+            'reg_department'  => 'required|string',
+            'reg_city_id'     => 'required|exists:cities,id',
+            'reg_address'     => 'required|string',
+            'terms_accepted'  => 'required|accepted',
+            'documents'       => 'nullable|array|max:5',
+            'documents.*'     => 'file|mimes:pdf,jpg,jpeg,png|max:5120',
         ]);
 
-        // Remove terms_accepted from data to be saved (we just need to validate it was accepted)
-        unset($validate['terms_accepted']);
+        $documentPaths = [];
+        if ($request->hasFile('documents')) {
+            foreach ($request->file('documents') as $file) {
+                $documentPaths[] = $file->store('contact-documents', 'public');
+            }
+        }
 
-        // Map the prefixed field names to the expected database columns
         $contactData = [
-            'name' => $validate['reg_name'],
-            'email' => $validate['reg_email'],
-            'phone' => $validate['reg_phone'],
-            'city_id' => $validate['reg_city_id'],
-            'nit' => $validate['reg_nit'],
-            'address' => $validate['reg_address'],
+            'person_type'    => $validated['reg_person_type'],
+            'name'           => $validated['reg_name'],
+            'email'          => $validated['reg_email'],
+            'phone'          => $validated['reg_phone'],
+            'city_id'        => $validated['reg_city_id'],
+            'department'     => $validated['reg_department'],
+            'nit'            => $validated['reg_nit'],
+            'address'        => $validated['reg_address'],
+            'terms_accepted' => true,
+            'documents'      => $documentPaths,
+            'status'         => 'interesado',
         ];
 
         Contact::create($contactData);
 
         return back()->with('success', 'Solicitud enviada correctamente. Nos pondremos en contacto contigo pronto.');
+    }
+
+    /**
+     * AJAX endpoint: check if a NIT/cédula or email already belongs to an existing user.
+     */
+    public function checkExistingClient(Request $request)
+    {
+        $request->validate([
+            'nit' => 'nullable|string',
+            'email' => 'nullable|email',
+        ]);
+
+        $exists = false;
+        if ($request->nit) {
+            $exists = User::where('document', $request->nit)->exists();
+        }
+        if (!$exists && $request->email) {
+            $exists = User::where('email', $request->email)->exists();
+        }
+
+        return response()->json(['exists' => $exists]);
+    }
+
+    /**
+     * AJAX endpoint: get cities for a given state (department).
+     */
+    public function citiesByState(Request $request)
+    {
+        $request->validate(['state_id' => 'required|exists:states,id']);
+
+        $cities = City::where('state_id', $request->state_id)
+            ->active()
+            ->orderBy('name')
+            ->pluck('name', 'id');
+
+        return response()->json($cities);
     }
 
     private function getUserBodegaCode(): ?string
