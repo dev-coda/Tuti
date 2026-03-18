@@ -105,14 +105,19 @@ class OrderController extends Controller
             ->where('orders.total', '!=', 0)
             ->whereBetween('orders.created_at', [$from, $to]);
 
-        // Helper: sales total + unit quantity for products in given category IDs
+        // Helper: sales total + unit quantity for products in given category IDs.
+        // Use product_id IN (subquery) so each order line is counted once (products in parent+child categories were double-counted).
         $salesByCategories = function (array $categoryIds) use ($baseConditions) {
             if (empty($categoryIds)) return ['total' => 0, 'quantity' => 0];
             $row = DB::table('orders')
                 ->join('order_products', 'orders.id', '=', 'order_products.order_id')
-                ->join('category_product', 'order_products.product_id', '=', 'category_product.product_id')
                 ->where(fn ($q) => $baseConditions($q))
-                ->whereIn('category_product.category_id', $categoryIds)
+                ->whereIn('order_products.product_id', function ($sub) use ($categoryIds) {
+                    $sub->select('product_id')
+                        ->from('category_product')
+                        ->whereIn('category_id', $categoryIds)
+                        ->distinct();
+                })
                 ->selectRaw('COALESCE(SUM(order_products.price * order_products.quantity), 0) as total, COALESCE(SUM(order_products.quantity), 0) as quantity')
                 ->first();
             return ['total' => (float) $row->total, 'quantity' => (int) $row->quantity];
@@ -177,8 +182,8 @@ class OrderController extends Controller
         // 4. Bombillos — category "Bombillos"
         $bombillosIds = $catIdsByName(['Bombillos']);
 
-        // 5. Otros — brands GP, Mtek, General Electric (+ GE alias)
-        $otrosBrandIds = $brandIdsByName(['GP', 'Gp', 'Mtek', 'General Electric', 'GE']);
+        // 5. Otros — brands GP, Mtek, General Electric (+ GE alias), ROCKET
+        $otrosBrandIds = $brandIdsByName(['GP', 'Gp', 'Mtek', 'General Electric', 'GE', 'ROCKET']);
 
         // 6. Terceros — vendors Eterna, Prebel, Yass, Produsa, Dromatic, Sense, Knight
         $tercerosVendorIds = $vendorIdsByName([
