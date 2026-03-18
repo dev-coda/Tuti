@@ -33,27 +33,9 @@ class CouponController extends Controller
      */
     public function create()
     {
-        $products = Product::active()->get(['id', 'name', 'sku']);
         $categories = Category::active()->get(['id', 'name']);
         $brands = Brand::all(['id', 'name']);
         $vendors = Vendor::all(['id', 'name']);
-        
-        // Get customers: users who are NOT admins or sellers
-        // This includes users with no roles (regular customers) or with customer-type roles
-        $customers = User::where(function ($query) {
-            // Include users without any roles (regular customers)
-            $query->whereDoesntHave('roles')
-                // Or users who only have customer-type roles (not admin/seller)
-                ->orWhereHas('roles', function ($q) {
-                    $q->whereNotIn('name', ['admin', 'seller']);
-                });
-        })
-        // Exclude users who have admin or seller role
-        ->whereDoesntHave('roles', function ($q) {
-            $q->whereIn('name', ['admin', 'seller']);
-        })
-        ->get(['id', 'name', 'email', 'document']);
-        
         $roles = Role::whereNotIn('name', ['admin', 'seller'])->get(['name']);
         
         // Get zones and unique routes for restrictions
@@ -61,7 +43,7 @@ class CouponController extends Controller
         $uniqueZones = Zone::whereNotNull('zone')->distinct()->pluck('zone')->sort()->values();
         $uniqueRoutes = Zone::whereNotNull('route')->distinct()->pluck('route')->sort()->values();
 
-        return view('coupons.create', compact('products', 'categories', 'brands', 'vendors', 'customers', 'roles', 'zones', 'uniqueZones', 'uniqueRoutes'));
+        return view('coupons.create', compact('categories', 'brands', 'vendors', 'roles', 'zones', 'uniqueZones', 'uniqueRoutes'));
     }
 
     /**
@@ -161,27 +143,9 @@ class CouponController extends Controller
      */
     public function edit(Coupon $coupon)
     {
-        $products = Product::active()->get(['id', 'name', 'sku']);
         $categories = Category::active()->get(['id', 'name']);
         $brands = Brand::all(['id', 'name']);
         $vendors = Vendor::all(['id', 'name']);
-        
-        // Get customers: users who are NOT admins or sellers
-        // This includes users with no roles (regular customers) or with customer-type roles
-        $customers = User::where(function ($query) {
-            // Include users without any roles (regular customers)
-            $query->whereDoesntHave('roles')
-                // Or users who only have customer-type roles (not admin/seller)
-                ->orWhereHas('roles', function ($q) {
-                    $q->whereNotIn('name', ['admin', 'seller']);
-                });
-        })
-        // Exclude users who have admin or seller role
-        ->whereDoesntHave('roles', function ($q) {
-            $q->whereIn('name', ['admin', 'seller']);
-        })
-        ->get(['id', 'name', 'email', 'document']);
-        
         $roles = Role::whereNotIn('name', ['admin', 'seller'])->get(['name']);
         
         // Get zones and unique routes for restrictions
@@ -189,7 +153,26 @@ class CouponController extends Controller
         $uniqueZones = Zone::whereNotNull('zone')->distinct()->pluck('zone')->sort()->values();
         $uniqueRoutes = Zone::whereNotNull('route')->distinct()->pluck('route')->sort()->values();
 
-        return view('coupons.edit', compact('coupon', 'products', 'categories', 'brands', 'vendors', 'customers', 'roles', 'zones', 'uniqueZones', 'uniqueRoutes'));
+        // Preload only the currently selected products/customers for the edit form
+        $preselectedItems = [];
+        if ($coupon->applies_to === Coupon::APPLIES_TO_PRODUCT && !empty($coupon->applies_to_ids)) {
+            $preselectedItems = Product::whereIn('id', $coupon->applies_to_ids)
+                ->get(['id', 'name', 'sku'])
+                ->map(fn ($p) => [
+                    'id' => $p->id,
+                    'name' => $p->name,
+                    'display' => ($p->sku ? $p->sku . ' - ' : '') . $p->name,
+                ])->values()->toArray();
+        } elseif ($coupon->applies_to === Coupon::APPLIES_TO_CUSTOMER && !empty($coupon->applies_to_ids)) {
+            $preselectedItems = User::whereIn('id', $coupon->applies_to_ids)
+                ->get(['id', 'name', 'email', 'document'])
+                ->map(fn ($u) => [
+                    'id' => $u->id,
+                    'name' => ($u->name ?? 'Sin nombre') . ' - ' . ($u->document ?? 'Sin doc') . ' (' . ($u->email ?? 'Sin email') . ')',
+                ])->values()->toArray();
+        }
+
+        return view('coupons.edit', compact('coupon', 'categories', 'brands', 'vendors', 'roles', 'zones', 'uniqueZones', 'uniqueRoutes', 'preselectedItems'));
     }
 
     /**
@@ -358,6 +341,68 @@ class CouponController extends Controller
             DB::rollBack();
             return back()->with('error', 'Error al crear los cupones: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * AJAX search for products (used in coupon create/edit forms)
+     */
+    public function searchProducts(Request $request)
+    {
+        $query = $request->input('q', '');
+        
+        if (strlen($query) < 2) {
+            return response()->json([]);
+        }
+
+        $products = Product::active()
+            ->where(function ($q) use ($query) {
+                $q->where('name', 'like', "%{$query}%")
+                  ->orWhere('sku', 'like', "%{$query}%");
+            })
+            ->limit(50)
+            ->get(['id', 'name', 'sku'])
+            ->map(fn ($p) => [
+                'id' => $p->id,
+                'name' => $p->name,
+                'display' => ($p->sku ? $p->sku . ' - ' : '') . $p->name,
+            ]);
+
+        return response()->json($products);
+    }
+
+    /**
+     * AJAX search for customers (used in coupon create/edit forms)
+     */
+    public function searchCustomers(Request $request)
+    {
+        $query = $request->input('q', '');
+
+        if (strlen($query) < 2) {
+            return response()->json([]);
+        }
+
+        $customers = User::where(function ($q) use ($query) {
+                $q->where('name', 'like', "%{$query}%")
+                  ->orWhere('email', 'like', "%{$query}%")
+                  ->orWhere('document', 'like', "%{$query}%");
+            })
+            ->where(function ($outer) {
+                $outer->whereDoesntHave('roles')
+                    ->orWhereHas('roles', function ($q) {
+                        $q->whereNotIn('name', ['admin', 'seller']);
+                    });
+            })
+            ->whereDoesntHave('roles', function ($q) {
+                $q->whereIn('name', ['admin', 'seller']);
+            })
+            ->limit(50)
+            ->get(['id', 'name', 'email', 'document'])
+            ->map(fn ($u) => [
+                'id' => $u->id,
+                'name' => ($u->name ?? 'Sin nombre') . ' - ' . ($u->document ?? 'Sin doc') . ' (' . ($u->email ?? 'Sin email') . ')',
+            ]);
+
+        return response()->json($customers);
     }
 
     /**

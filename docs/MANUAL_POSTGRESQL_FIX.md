@@ -38,7 +38,7 @@ sudo -u postgres pg_lsclusters
 
 The Status should now show `online` instead of `down`.
 
-## Step 4: Verify PostgreSQL Port
+## Step 4: Verify PostgreSQL Port and Listening
 
 Check which port PostgreSQL is actually using:
 
@@ -48,7 +48,16 @@ sudo -u postgres pg_lsclusters
 
 Look at the **Port** column. It might be `5432` (default) or `5433` (if another instance is using 5432).
 
-Also check:
+Verify PostgreSQL is listening:
+```bash
+sudo netstat -tlnp | grep 5432
+# OR
+sudo ss -tlnp | grep 5432
+# OR
+sudo lsof -i :5432
+```
+
+Or more broadly:
 ```bash
 sudo netstat -tlnp | grep postgres
 # OR

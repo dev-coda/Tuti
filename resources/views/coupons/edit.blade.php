@@ -245,67 +245,46 @@
 </div>
 
 @php
-    $productsData = $products->map(function ($p) {
-        return [
-            'id' => $p->id,
-            'name' => $p->name,
-            'sku' => $p->sku ?? '',
-            'display' => ($p->sku ? $p->sku . ' - ' : '') . $p->name,
-        ];
-    })->values();
-    
     $categoriesData = $categories->map(function ($c) {
-        return [
-            'id' => $c->id,
-            'name' => $c->name,
-        ];
+        return ['id' => $c->id, 'name' => $c->name];
     })->values();
     
     $brandsData = $brands->map(function ($b) {
-        return [
-            'id' => $b->id,
-            'name' => $b->name,
-        ];
+        return ['id' => $b->id, 'name' => $b->name];
     })->values();
     
     $vendorsData = $vendors->map(function ($v) {
-        return [
-            'id' => $v->id,
-            'name' => $v->name,
-        ];
-    })->values();
-    
-    $customersData = $customers->map(function ($u) {
-        return [
-            'id' => $u->id,
-            'name' => ($u->name ?? 'Sin nombre') . ' - ' . ($u->document ?? 'Sin doc') . ' (' . ($u->email ?? 'Sin email') . ')',
-        ];
+        return ['id' => $v->id, 'name' => $v->name];
     })->values();
     
     $rolesData = $roles->map(function ($r) {
-        return [
-            'id' => $r->name,
-            'name' => $r->name,
-        ];
+        return ['id' => $r->name, 'name' => $r->name];
     })->values();
 @endphp
 
 <script>
-    // Data for dynamic selections
     const selectionData = {
-        product: @json($productsData),
         category: @json($categoriesData),
         brand: @json($brandsData),
         vendor: @json($vendorsData),
-        customer: @json($customersData),
         customer_type: @json($rolesData)
     };
 
-    // Current coupon's selected IDs
+    const ajaxSearchUrls = {
+        product: "{{ route('coupons.search-products') }}",
+        customer: "{{ route('coupons.search-customers') }}"
+    };
+
+    const ajaxTypes = ['product', 'customer'];
+    let searchDebounceTimer = null;
+    let currentAppliesTo = null;
+
     const currentCouponData = {
         applies_to: '{{ $coupon->applies_to }}',
         applies_to_ids: @json($coupon->applies_to_ids ?? [])
     };
+
+    const preselectedItems = @json($preselectedItems ?? []);
 
     function updateValueLabel(type) {
         const label = document.getElementById('value-label');
@@ -318,89 +297,137 @@
         }
     }
 
+    function createCheckboxItem(item, checked) {
+        const itemLabel = document.createElement('label');
+        itemLabel.className = 'flex items-center py-1.5 px-2 hover:bg-white rounded cursor-pointer applies-to-item';
+        
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.name = 'applies_to_ids[]';
+        checkbox.value = item.id;
+        checkbox.className = 'w-4 h-4 text-blue-600 rounded focus:ring-blue-500';
+        if (checked) checkbox.checked = true;
+        
+        const span = document.createElement('span');
+        span.className = 'ml-2 text-sm text-gray-700';
+        span.setAttribute('data-search', (item.display || item.name).toLowerCase());
+        span.textContent = item.display || item.name;
+        
+        itemLabel.appendChild(checkbox);
+        itemLabel.appendChild(span);
+        return itemLabel;
+    }
+
+    function getCheckedIds() {
+        const checked = document.querySelectorAll('#applies-to-checkboxes input[type="checkbox"]:checked');
+        return Array.from(checked).map(cb => cb.value);
+    }
+
     function updateAppliesTo(appliesTo) {
         const selectionDiv = document.getElementById('applies_to_selection');
         const checkboxesContainer = document.getElementById('applies-to-checkboxes');
         const label = document.getElementById('selection-label');
         const filterInput = document.getElementById('applies-to-filter');
 
+        currentAppliesTo = appliesTo;
+
         if (appliesTo === 'cart') {
             selectionDiv.style.display = 'none';
             return;
         }
 
-        if (selectionData[appliesTo]) {
-            selectionDiv.style.display = 'block';
+        const labels = {
+            product: 'Seleccionar productos',
+            category: 'Seleccionar categorías',
+            brand: 'Seleccionar marcas',
+            vendor: 'Seleccionar proveedores',
+            customer: 'Seleccionar clientes',
+            customer_type: 'Seleccionar tipos de cliente'
+        };
+        label.textContent = labels[appliesTo] || 'Seleccionar elementos';
+        selectionDiv.style.display = 'block';
+        filterInput.value = '';
+
+        if (ajaxTypes.includes(appliesTo)) {
             checkboxesContainer.innerHTML = '';
+
+            if (appliesTo === currentCouponData.applies_to && preselectedItems.length > 0) {
+                preselectedItems.forEach(item => {
+                    checkboxesContainer.appendChild(createCheckboxItem(item, true));
+                });
+            }
+
+            if (checkboxesContainer.children.length === 0) {
+                checkboxesContainer.innerHTML = '<p class="text-sm text-gray-500 p-2">Escribe al menos 2 caracteres para buscar...</p>';
+            }
             
-            selectionData[appliesTo].forEach(item => {
-                const itemLabel = document.createElement('label');
-                itemLabel.className = 'flex items-center py-1.5 px-2 hover:bg-white rounded cursor-pointer applies-to-item';
+            filterInput.oninput = function() {
+                clearTimeout(searchDebounceTimer);
+                const query = this.value.trim();
                 
-                const checkbox = document.createElement('input');
-                checkbox.type = 'checkbox';
-                checkbox.name = 'applies_to_ids[]';
-                checkbox.value = item.id;
-                checkbox.className = 'w-4 h-4 text-blue-600 rounded focus:ring-blue-500';
-                
-                // Check if this item is currently selected
-                if (currentCouponData.applies_to_ids && currentCouponData.applies_to_ids.includes(item.id)) {
-                    checkbox.checked = true;
+                if (query.length < 2) {
+                    const existing = checkboxesContainer.querySelectorAll('.applies-to-item');
+                    if (existing.length === 0) {
+                        checkboxesContainer.innerHTML = '<p class="text-sm text-gray-500 p-2">Escribe al menos 2 caracteres para buscar...</p>';
+                    }
+                    return;
                 }
                 
-                const span = document.createElement('span');
-                span.className = 'ml-2 text-sm text-gray-700';
-                span.setAttribute('data-search', (item.display || item.name).toLowerCase());
-                span.textContent = item.display || item.name;
-                
-                itemLabel.appendChild(checkbox);
-                itemLabel.appendChild(span);
-                checkboxesContainer.appendChild(itemLabel);
-            });
+                searchDebounceTimer = setTimeout(() => {
+                    const checkedIds = getCheckedIds();
+                    
+                    fetch(ajaxSearchUrls[appliesTo] + '?q=' + encodeURIComponent(query))
+                        .then(r => r.json())
+                        .then(results => {
+                            const checkedElements = checkboxesContainer.querySelectorAll('input[type="checkbox"]:checked');
+                            const preservedItems = [];
+                            checkedElements.forEach(cb => {
+                                preservedItems.push(cb.closest('.applies-to-item'));
+                            });
 
-            // Update label
-            const labels = {
-                product: 'Seleccionar productos',
-                category: 'Seleccionar categorías',
-                brand: 'Seleccionar marcas',
-                vendor: 'Seleccionar proveedores',
-                customer: 'Seleccionar clientes',
-                customer_type: 'Seleccionar tipos de cliente'
+                            checkboxesContainer.innerHTML = '';
+
+                            preservedItems.forEach(el => {
+                                checkboxesContainer.appendChild(el);
+                            });
+
+                            results.forEach(item => {
+                                if (!checkedIds.includes(String(item.id))) {
+                                    checkboxesContainer.appendChild(createCheckboxItem(item, false));
+                                }
+                            });
+
+                            if (checkboxesContainer.children.length === 0) {
+                                checkboxesContainer.innerHTML = '<p class="text-sm text-gray-500 p-2">No se encontraron resultados.</p>';
+                            }
+                        });
+                }, 300);
             };
-            label.textContent = labels[appliesTo] || 'Seleccionar elementos';
-
-            // Setup filter
-            filterInput.value = '';
-            filterInput.addEventListener('input', function() {
-                const filter = this.value.toLowerCase();
-                const items = checkboxesContainer.querySelectorAll('.applies-to-item');
-                
-                items.forEach(function(item) {
-                    const searchText = item.querySelector('[data-search]').getAttribute('data-search');
-                    if (searchText.includes(filter)) {
-                        item.style.display = '';
-                    } else {
-                        item.style.display = 'none';
-                    }
-                });
-            });
         } else {
-            selectionDiv.style.display = 'none';
+            checkboxesContainer.innerHTML = '';
+            const selectedIds = (currentCouponData.applies_to === appliesTo) ? currentCouponData.applies_to_ids || [] : [];
+            
+            selectionData[appliesTo].forEach(item => {
+                const isChecked = selectedIds.includes(item.id);
+                checkboxesContainer.appendChild(createCheckboxItem(item, isChecked));
+            });
+
+            filterInput.oninput = function() {
+                const filter = this.value.toLowerCase();
+                checkboxesContainer.querySelectorAll('.applies-to-item').forEach(item => {
+                    const searchText = item.querySelector('[data-search]').getAttribute('data-search');
+                    item.style.display = searchText.includes(filter) ? '' : 'none';
+                });
+            };
         }
     }
 
-    // Initialize on page load
     document.addEventListener('DOMContentLoaded', function() {
         const typeSelect = document.querySelector('select[name="type"]');
         const appliesSelect = document.querySelector('select[name="applies_to"]');
         
-        if (typeSelect.value) {
-            updateValueLabel(typeSelect.value);
-        }
-        
-        if (appliesSelect.value) {
-            updateAppliesTo(appliesSelect.value);
-        }
+        if (typeSelect.value) updateValueLabel(typeSelect.value);
+        if (appliesSelect.value) updateAppliesTo(appliesSelect.value);
     });
 </script>
 
