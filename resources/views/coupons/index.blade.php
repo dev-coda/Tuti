@@ -20,6 +20,10 @@
                     class="text-white bg-purple-700 hover:bg-purple-800 focus:ring-4 focus:ring-purple-300 font-bold rounded-lg text-sm px-5 py-2.5">
                     Exportar Masivos
                 </a>
+                <a href="{{ route('coupon-tests.index') }}"
+                    class="text-white bg-amber-600 hover:bg-amber-700 focus:ring-4 focus:ring-amber-300 font-bold rounded-lg text-sm px-5 py-2.5">
+                    Pruebas XML
+                </a>
                 <a href="{{ route('coupons.create') }}"
                     class="text-white bg-blue-700 hover:bg-primary-800 focus:ring-4 focus:ring-blue-300 font-bold rounded-lg text-sm px-5 py-2.5">
                     Nuevo cupón

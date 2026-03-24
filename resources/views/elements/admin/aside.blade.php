@@ -56,6 +56,7 @@
                         'variations'=>'Variaciones', 
                         'bonifications'=>'Bonificaciones',
                         'coupons'=>'Cupones',
+                        'coupon-tests.index'=>'Pruebas de Cupones',
                         'admin.retentions.index'=>'Retenciones',
                         ]" />
 

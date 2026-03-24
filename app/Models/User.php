@@ -41,6 +41,7 @@ class User extends Authenticatable
         'document',
         'phone',
         'status_id',
+        'tronex_migration_pending',
         'terms_accepted',
         'zone',
         // New fields from getRuteros API
@@ -82,6 +83,7 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
+        'tronex_migration_pending' => 'boolean',
     ];
 
     public function city()

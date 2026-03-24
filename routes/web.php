@@ -5,6 +5,7 @@ use App\Http\Controllers\CartController;
 use App\Http\Controllers\Admin\ContentController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PageController;
+use App\Http\Controllers\TronexMigrationController;
 use App\Http\Controllers\Seller\PageController as SellerPageController;
 use App\Http\Controllers\Shopper\PageController as ShopperPageController;
 use App\Http\Controllers\UserController;
@@ -67,11 +68,18 @@ Route::post('/formulario', [PageController::class, 'form_post'])->name('form_pos
 Route::post('/formulario/check-existing', [PageController::class, 'checkExistingClient'])->name('form.check-existing');
 Route::get('/formulario/cities-by-state', [PageController::class, 'citiesByState'])->name('form.cities-by-state');
 
+// Tronex existing client migration (self-service)
+Route::post('/tronex/migrate', [TronexMigrationController::class, 'migrate'])->name('tronex.migrate');
+
 Route::post('/carrito', [CartController::class, 'processOrder'])->name('cart.process');
 
 
 
 Route::middleware(['auth'])->group(function () {
+    // Tronex migration: complete profile (email + password) - only for tronex_migration_pending users
+    Route::get('/tronex/completar-perfil', [TronexMigrationController::class, 'showCompleteProfile'])->name('tronex.complete-profile');
+    Route::post('/tronex/completar-perfil', [TronexMigrationController::class, 'storeCompleteProfile'])->name('tronex.complete-profile.store');
+
     Route::get('/ordenes', [OrderController::class, 'index'])->name('clients.orders.index');
     Route::get('/ordenes/{order}', [OrderController::class, 'show'])->name('clients.orders.show');
     Route::post('/ordenes/{order}/reorder', [OrderController::class, 'reorder'])->name('clients.orders.reorder');

@@ -109,8 +109,8 @@ class DiscountService
             $unitPrice = $this->getProductBasePrice($product, $cartItem['variation_id'] ?? null);
             $lineTotal = $unitPrice * $quantity * ($product->package_quantity ?? 1);
 
-            // Check brand discount
-            if ($product->brand && $product->brand->discount > 0) {
+            // Check brand discount (skip if product excluded)
+            if (!$product->exclude_from_brand_discount && $product->brand && $product->brand->discount > 0) {
                 if (!$hasOrders || !$product->brand->first_purchase_only) {
                     $brandDiscount = $this->calculateDiscountAmount(
                         $lineTotal,
@@ -127,8 +127,8 @@ class DiscountService
                 }
             }
 
-            // Check vendor discount
-            if ($product->brand && $product->brand->vendor && $product->brand->vendor->discount > 0) {
+            // Check vendor discount (skip if product excluded)
+            if (!$product->exclude_from_vendor_discount && $product->brand && $product->brand->vendor && $product->brand->vendor->discount > 0) {
                 if (!$hasOrders || !$product->brand->vendor->first_purchase_only) {
                     $vendorDiscount = $this->calculateDiscountAmount(
                         $lineTotal,

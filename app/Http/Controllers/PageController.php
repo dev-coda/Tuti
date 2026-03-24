@@ -485,7 +485,7 @@ class PageController extends Controller
             'reg_city_id'     => 'required|exists:cities,id',
             'reg_address'     => 'required|string',
             'terms_accepted'  => 'required|accepted',
-            'documents'       => 'nullable|array|max:5',
+            'documents'       => 'nullable|array|max:10',
             'documents.*'     => 'file|mimes:pdf,jpg,jpeg,png|max:5120',
         ]);
 

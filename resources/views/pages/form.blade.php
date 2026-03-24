@@ -100,6 +100,23 @@
                 </button>
                 <p class="text-center text-xs text-gray-500 mt-2" id="magic-link-hint">Te enviaremos un código de verificación a tu correo.</p>
                 <p class="text-center text-xs text-red-600 mt-2 hidden" id="magic-link-error"></p>
+
+                <!-- Tronex existing client -->
+                <div class="relative my-6">
+                    <div class="absolute inset-0 flex items-center">
+                        <div class="w-full border-t border-gray-300"></div>
+                    </div>
+                    <div class="relative flex justify-center text-sm">
+                        <span class="px-4 bg-white text-gray-500 uppercase tracking-wider text-xs font-semibold">O bien</span>
+                    </div>
+                </div>
+                <button type="button" id="tronex-btn" class="w-full border-2 border-blue-200 hover:border-blue-400 text-blue-700 hover:text-blue-900 font-semibold py-3 px-4 rounded-lg transition duration-300 flex items-center justify-center space-x-2 bg-blue-50 hover:bg-blue-100">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                    <span>¿Ya eres cliente Tronex?</span>
+                </button>
+                <p class="text-center text-xs text-gray-500 mt-2">Si ya compras con Tronex, ingresa tu cédula para crear tu cuenta Tuti.</p>
             </div>
         </div>
         <div id="register-section" class="border border-3 border-blue-900 p-5 rounded-lg flex flex-col items-center justify-center xl:flex xl:flex-col xl:items-center xl:justify-center hidden">
@@ -301,6 +318,11 @@
                                 <div class="flex items-center gap-2 file-input-row">
                                     <input type="file" name="documents[]" accept=".pdf,.jpg,.jpeg,.png"
                                         class="flex-1 text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 border border-gray-300 rounded-lg cursor-pointer">
+                                    <button type="button" class="text-red-500 hover:text-red-700 remove-file-btn p-1" title="Quitar">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                        </svg>
+                                    </button>
                                 </div>
                             </div>
                             <button type="button" id="add-file-btn" class="text-sm text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1">
@@ -309,7 +331,7 @@
                                 </svg>
                                 Agregar otro archivo
                             </button>
-                            <p class="text-xs text-gray-400">Formatos: PDF, JPG, PNG. Máximo 5MB por archivo.</p>
+                            <p class="text-xs text-gray-400">Formatos: PDF, JPG, PNG. Máximo 10 archivos, 5MB por archivo.</p>
                         </div>
                         @error('documents.*')
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -409,6 +431,47 @@
                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
                     <span class="text-sm text-gray-500">Procesando...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tronex Client Modal -->
+<div id="tronex-modal" class="fixed inset-0 z-50 hidden">
+    <div class="fixed inset-0 bg-black bg-opacity-50 transition-opacity" id="tronex-modal-backdrop"></div>
+    <div class="fixed inset-0 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-8 relative transform transition-all" id="tronex-modal-content">
+            <button type="button" id="tronex-modal-close" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+            <div class="flex justify-center mb-4">
+                <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                </div>
+            </div>
+            <h3 class="text-xl font-bold text-center text-gray-900 mb-1">Cliente Tronex</h3>
+            <p class="text-center text-sm text-gray-500 mb-6">Ingresa tu número de cédula para crear tu cuenta en Tuti</p>
+            <div class="mb-4">
+                <label for="tronex-cedula-input" class="block text-sm font-medium text-gray-700 mb-2">Cédula</label>
+                <input type="text" id="tronex-cedula-input" placeholder="Número de cédula" inputmode="numeric"
+                    class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" autocomplete="off">
+                <p id="tronex-error" class="mt-2 text-sm text-red-600 hidden"></p>
+            </div>
+            <button type="button" id="tronex-submit-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
+                Crear cuenta Tuti
+            </button>
+            <div id="tronex-loading" class="hidden absolute inset-0 bg-white bg-opacity-80 rounded-xl flex items-center justify-center">
+                <div class="flex flex-col items-center">
+                    <svg class="animate-spin h-8 w-8 text-blue-600 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span class="text-sm text-gray-500">Verificando...</span>
                 </div>
             </div>
         </div>
@@ -542,7 +605,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (addFileBtn) {
         addFileBtn.addEventListener('click', function() {
-            if (fileCount >= 5) return;
+            if (fileCount >= 10) return;
             fileCount++;
             const row = document.createElement('div');
             row.className = 'flex items-center gap-2 file-input-row mt-2';
@@ -555,12 +618,20 @@ document.addEventListener('DOMContentLoaded', function() {
                     </svg>
                 </button>`;
             fileContainer.appendChild(row);
-            row.querySelector('.remove-file-btn').addEventListener('click', function() {
-                row.remove();
-                fileCount--;
-                addFileBtn.classList.toggle('hidden', fileCount >= 5);
-            });
-            addFileBtn.classList.toggle('hidden', fileCount >= 5);
+            addFileBtn.classList.toggle('hidden', fileCount >= 10);
+        });
+    }
+
+    // Delegate remove-file-btn clicks (covers first row + dynamically added rows)
+    if (fileContainer) {
+        fileContainer.addEventListener('click', function(e) {
+            const btn = e.target.closest('.remove-file-btn');
+            if (!btn) return;
+            const row = btn.closest('.file-input-row');
+            if (!row || fileContainer.querySelectorAll('.file-input-row').length <= 1) return; // keep at least one
+            row.remove();
+            fileCount--;
+            if (addFileBtn) addFileBtn.classList.toggle('hidden', fileCount >= 10);
         });
     }
 
@@ -788,6 +859,85 @@ document.addEventListener('DOMContentLoaded', function() {
     if (magicModalClose) magicModalClose.addEventListener('click', closeMagicModal);
     if (magicModalBackdrop) magicModalBackdrop.addEventListener('click', closeMagicModal);
     document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && !magicModal.classList.contains('hidden')) closeMagicModal(); });
+
+    // =============================================
+    // Tronex existing client
+    // =============================================
+    const tronexBtn = document.getElementById('tronex-btn');
+    const tronexModal = document.getElementById('tronex-modal');
+    const tronexModalClose = document.getElementById('tronex-modal-close');
+    const tronexModalBackdrop = document.getElementById('tronex-modal-backdrop');
+    const tronexCedulaInput = document.getElementById('tronex-cedula-input');
+    const tronexSubmitBtn = document.getElementById('tronex-submit-btn');
+    const tronexError = document.getElementById('tronex-error');
+    const tronexLoading = document.getElementById('tronex-loading');
+
+    function openTronexModal() {
+        if (tronexModal) {
+            tronexModal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+            tronexCedulaInput.value = '';
+            tronexError.classList.add('hidden');
+            tronexError.textContent = '';
+            setTimeout(() => tronexCedulaInput?.focus(), 100);
+        }
+    }
+    function closeTronexModal() {
+        if (tronexModal) {
+            tronexModal.classList.add('hidden');
+            document.body.style.overflow = '';
+        }
+    }
+    function showTronexError(msg) {
+        if (tronexError) { tronexError.textContent = msg; tronexError.classList.remove('hidden'); }
+        if (window.showToast) window.showToast(msg, 'error', 6000);
+    }
+
+    if (tronexBtn) tronexBtn.addEventListener('click', openTronexModal);
+    if (tronexModalClose) tronexModalClose.addEventListener('click', closeTronexModal);
+    if (tronexModalBackdrop) tronexModalBackdrop.addEventListener('click', closeTronexModal);
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && tronexModal && !tronexModal.classList.contains('hidden')) closeTronexModal();
+    });
+
+    if (tronexSubmitBtn && tronexCedulaInput) {
+        tronexSubmitBtn.addEventListener('click', async function() {
+            const cedula = tronexCedulaInput.value.trim().replace(/\D/g, '');
+            if (!cedula || cedula.length < 5) {
+                showTronexError('Ingresa un número de cédula válido.');
+                return;
+            }
+            tronexError.classList.add('hidden');
+            tronexLoading.classList.remove('hidden');
+            tronexSubmitBtn.disabled = true;
+            try {
+                const response = await fetch('{{ route("tronex.migrate") }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({ document: cedula }),
+                });
+                const data = await response.json();
+                if (data.success && data.redirect) {
+                    closeTronexModal();
+                    window.location.href = data.redirect;
+                    return;
+                }
+                showTronexError(data.message || 'No se pudo crear la cuenta. Intenta de nuevo.');
+            } catch (err) {
+                showTronexError('Error de conexión. Intenta de nuevo.');
+            } finally {
+                tronexLoading.classList.add('hidden');
+                tronexSubmitBtn.disabled = false;
+            }
+        });
+        tronexCedulaInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') { e.preventDefault(); tronexSubmitBtn.click(); }
+        });
+    }
 });
 </script>
 @endsection

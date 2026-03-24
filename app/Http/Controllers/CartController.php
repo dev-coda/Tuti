@@ -1712,6 +1712,23 @@ class CartController extends Controller
     }
 
     /**
+     * Get the user for coupon validation/application.
+     * When a seller is acting for a client (session has user_id), use the client for APPLIES_TO_CUSTOMER checks.
+     */
+    private function getCouponTargetUser(): ?User
+    {
+        $user = auth()->user();
+        if (!$user) {
+            return null;
+        }
+        if ($user->hasRole('seller')) {
+            $clientId = session()->get('user_id');
+            return $clientId ? User::find($clientId) : $user;
+        }
+        return $user;
+    }
+
+    /**
      * Apply a coupon to the cart
      */
     public function applyCoupon(Request $request, CouponService $couponService)
@@ -1722,6 +1739,12 @@ class CartController extends Controller
 
         $user = auth()->user();
         if (!$user) {
+            return redirect()->route('login');
+        }
+
+        // Use client when seller is acting for a client (APPLIES_TO_CUSTOMER checks the order's customer)
+        $targetUser = $this->getCouponTargetUser();
+        if (!$targetUser) {
             return redirect()->route('login');
         }
 
@@ -1764,8 +1787,8 @@ class CartController extends Controller
             }
         }
 
-        // Validate coupon
-        $validation = $couponService->validateCoupon($couponCode, $user, $cartProducts, $cartTotal);
+        // Validate coupon (use targetUser = client when seller acting)
+        $validation = $couponService->validateCoupon($couponCode, $targetUser, $cartProducts, $cartTotal);
 
         if (!$validation['valid']) {
             return redirect()->route('cart')->with('error', $validation['message']);
@@ -1773,9 +1796,9 @@ class CartController extends Controller
 
         $coupon = $validation['coupon'];
 
-        // Recalculate all coupons including the new one
+        // Recalculate all coupons including the new one (use targetUser for APPLIES_TO_CUSTOMER)
         $allCouponCodes = array_merge($appliedCouponCodes, [$couponCode]);
-        $discountCalculation = $couponService->calculateMultipleCouponDiscounts($allCouponCodes, $user, $cartProducts);
+        $discountCalculation = $couponService->calculateMultipleCouponDiscounts($allCouponCodes, $targetUser, $cartProducts);
 
         if (!$discountCalculation['success']) {
             return redirect()->route('cart')->with('error', 'Error al aplicar el cupón.');
@@ -1809,16 +1832,16 @@ class CartController extends Controller
             return $coupon['coupon_code'] !== $couponCode;
         });
 
-        // Recalculate discounts with remaining coupons
-        $user = auth()->user();
-        if ($user) {
+        // Recalculate discounts with remaining coupons (use client when seller acting)
+        $targetUser = $this->getCouponTargetUser();
+        if ($targetUser) {
             $cart = session()->get('cart', []);
             $cartProducts = collect($cart);
             $remainingCodes = array_column($appliedCoupons, 'coupon_code');
             
             if (!empty($remainingCodes)) {
                 $couponService = app(\App\Services\CouponService::class);
-                $discountCalculation = $couponService->calculateMultipleCouponDiscounts($remainingCodes, $user, $cartProducts);
+                $discountCalculation = $couponService->calculateMultipleCouponDiscounts($remainingCodes, $targetUser, $cartProducts);
                 
                 if ($discountCalculation['success']) {
                     session()->put('applied_coupons', $discountCalculation['applied_coupons']);

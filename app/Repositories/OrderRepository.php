@@ -16,6 +16,175 @@ use Illuminate\Support\Facades\Log;
 
 class OrderRepository
 {
+    /**
+     * Build SOAP XML for an order without transmitting (for diagnostics/tests).
+     * Returns the full SOAP envelope or null if zone is missing.
+     *
+     * @param Order $order
+     * @param bool $includeBonifications
+     * @param \Illuminate\Support\Collection|null $productsOverride Optional. Use when order has in-memory products (e.g. mock tests).
+     */
+    public static function buildOrderXmlForDiagnostic(Order $order, bool $includeBonifications = true, $productsOverride = null): ?string
+    {
+        if ($productsOverride === null) {
+            $order->load(['zone', 'user', 'products.product.brand.vendor']);
+        } else {
+            $order->load(['zone', 'user']);
+            $order->setRelation('products', $productsOverride);
+        }
+        $zone = $order->zone;
+        if (!$zone) {
+            return null;
+        }
+        $products = $order->products;
+        $xml = self::buildSoapXmlBody($order, $products, 0);
+        if ($includeBonifications && $order->bonifications->count() > 0) {
+            $order->load('bonifications');
+            $bonifOrder = new Order([
+                'id' => $order->id,
+                'user_id' => $order->user_id,
+                'zone_id' => $order->zone_id,
+                'delivery_date' => $order->delivery_date,
+                'observations' => 'Bonificaciones',
+            ]);
+            $bonifOrder->setRelation('zone', $zone);
+            $xml .= "\n\n<!-- BONIFICATIONS -->\n\n";
+            $xml .= self::buildSoapXmlBody($bonifOrder, $order->bonifications, 1);
+        }
+        return $xml;
+    }
+
+    /**
+     * Build SOAP envelope body for given order and products (shared with sendData).
+     */
+    private static function buildSoapXmlBody($order, $products, int $bonification = 0): string
+    {
+        $zone = $order->zone;
+        if (!$zone) {
+            return '';
+        }
+        $delivery_date = $order->delivery_date;
+        $forceDeliveryDate = Setting::getByKey('force_delivery_date_enabled') == '1';
+        if ($forceDeliveryDate) {
+            $delivery_date = self::getBusinessDay(0);
+        }
+        $observations = $order->observations ?? '';
+        $day = $zone->day ?? '';
+        $route = $zone->route ?? '';
+        $code = $zone->code ?? '';
+        $zoneNum = $zone->zone ?? '';
+        $order_id = $order->id;
+        $transactionDate = $order->created_at ? $order->created_at->format('Y-m-d') : now()->format('Y-m-d');
+
+        $productIds = $products->pluck('product_id')->toArray();
+        $variationIds = $products->pluck('variation_item_id')->filter()->toArray();
+        $productsData = \App\Models\Product::whereIn('id', $productIds)->with('brand.vendor')->get()->keyBy('id');
+
+        $variationSkus = [];
+        if (!empty($variationIds)) {
+            $productIdsWithVariations = $products->filter(fn($p) => !is_null($p->variation_item_id))->pluck('product_id')->unique()->toArray();
+            $variationSkuData = DB::table('product_item_variation')
+                ->whereIn('variation_item_id', $variationIds)
+                ->whereIn('product_id', $productIdsWithVariations)
+                ->select('product_id', 'variation_item_id', 'sku')
+                ->get();
+            foreach ($variationSkuData as $item) {
+                $variationSkus[$item->product_id . '-' . $item->variation_item_id] = $item->sku;
+            }
+        }
+
+        $productList = '';
+        $vendor_type = '';
+
+        foreach ($products as $product) {
+            $productData = $productsData[$product->product_id] ?? null;
+            if (!$productData) continue;
+
+            $vendor_type = $productData->brand->vendor->vendor_type ?? '';
+            $discountType = $product->discount_type ?? 'percentage';
+            $flatDiscountAmount = (float) ($product->flat_discount_amount ?? 0);
+            $rawPercentage = $product->percentage ?? 0;
+            $discountPercentage = max(0, min(100, (int) $rawPercentage));
+
+            if ($bonification) {
+                $effectivePackageQuantity = 1;
+                $unitPrice = 0;
+                $discountPercentage = 0;
+            } else {
+                $shouldCalculatePackage = $productData->calculate_package_price;
+                $packageQty = $product->package_quantity ?? 1;
+                if ($shouldCalculatePackage && $packageQty > 1) {
+                    $baseUnitPrice = parseCurrency($product->price / $packageQty);
+                } else {
+                    $baseUnitPrice = parseCurrency($product->price);
+                }
+                if ($discountType === 'fixed_amount' && $flatDiscountAmount > 0) {
+                    $minAllowedPrice = (float)$baseUnitPrice * 0.1;
+                    $maxAllowedReduction = max(0, (float)$baseUnitPrice - $minAllowedPrice);
+                    $effectiveFlatDiscount = min((float)$flatDiscountAmount, $maxAllowedReduction);
+                    $unitPrice = parseCurrency(max($minAllowedPrice, (float)$baseUnitPrice - $effectiveFlatDiscount));
+                    $discountPercentage = 0;
+                } else {
+                    $unitPrice = $baseUnitPrice;
+                }
+            }
+
+            $sku = $productData->sku;
+            if ($product->variation_item_id && isset($variationSkus[$product->product_id . '-' . $product->variation_item_id])) {
+                $sku = $variationSkus[$product->product_id . '-' . $product->variation_item_id];
+            }
+            if (empty($sku)) continue;
+
+            $packageQty = $product->package_quantity ?? 1;
+            $qty = $bonification ? $product->quantity : ($productData->calculate_package_price ? $product->quantity * $packageQty : $product->quantity);
+
+            $escapedSku = htmlspecialchars($sku, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+            $escapedVendorType = htmlspecialchars($vendor_type ?? '', ENT_XML1 | ENT_QUOTES, 'UTF-8');
+
+            $productList .= '<dyn:listDetails>
+                            <dyn:discount>' . $discountPercentage . '</dyn:discount>
+                            <dyn:itemId>' . $escapedSku . '</dyn:itemId>
+                            <dyn:qty>' . $qty . '</dyn:qty>
+                            <dyn:qtyCust>' . $qty . '</dyn:qtyCust>
+                            <dyn:um>Unidad</dyn:um>
+                            <dyn:umCust>None</dyn:umCust>
+                            <dyn:unitPrice>' . $unitPrice . '</dyn:unitPrice>
+                            <dyn:vendorType>' . $escapedVendorType . '</dyn:vendorType>
+                        </dyn:listDetails>';
+        }
+
+        return '<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:dat="http://schemas.microsoft.com/dynamics/2013/01/datacontracts" xmlns:tem="http://tempuri.org" xmlns:dyn="http://schemas.datacontract.org/2004/07/Dynamics.AX.Application">
+            <soapenv:Header>
+                <dat:CallContext>
+                    <dat:Company>trx</dat:Company>
+                    <dat:Language/>
+                    <dat:MessageId/>
+                    <dat:PartitionKey/>
+                </dat:CallContext>
+            </soapenv:Header>
+            <soapenv:Body>
+                <tem:PreSaslesProcess>
+                    <tem:ArrayOfPreSalesOrder>
+                        <dyn:preSalesOrder>
+                            <dyn:TRO_E_obsequio>' . $bonification . '</dyn:TRO_E_obsequio>
+                            <dyn:codCustomer>' . htmlspecialchars($code, ENT_XML1 | ENT_QUOTES, 'UTF-8') . '</dyn:codCustomer>
+                            <dyn:deliveryDate>' . htmlspecialchars($delivery_date ?? '', ENT_XML1 | ENT_QUOTES, 'UTF-8') . '</dyn:deliveryDate>
+                            <dyn:diaRecorrido>' . htmlspecialchars($day ?? '', ENT_XML1 | ENT_QUOTES, 'UTF-8') . '</dyn:diaRecorrido>
+                            <dyn:listDetails>' . $productList . '</dyn:listDetails>
+                            <dyn:orderSales>' . $order_id . '</dyn:orderSales>
+                            <dyn:ruta>' . htmlspecialchars($route ?? '', ENT_XML1 | ENT_QUOTES, 'UTF-8') . '</dyn:ruta>
+                            <dyn:salesCons>' . htmlspecialchars($zoneNum ?? '', ENT_XML1 | ENT_QUOTES, 'UTF-8') . '-' . $order_id . '</dyn:salesCons>
+                            <dyn:transactionDate>' . $transactionDate . '</dyn:transactionDate>
+                            <dyn:tutiObservation>' . htmlspecialchars($observations ?? '', ENT_XML1 | ENT_QUOTES, 'UTF-8') . '</dyn:tutiObservation>
+                            <dyn:vendorType>' . htmlspecialchars($vendor_type ?? '', ENT_XML1 | ENT_QUOTES, 'UTF-8') . '</dyn:vendorType>
+                            <dyn:zona>' . htmlspecialchars($zoneNum ?? '', ENT_XML1 | ENT_QUOTES, 'UTF-8') . '</dyn:zona>
+                        </dyn:preSalesOrder>
+                    </tem:ArrayOfPreSalesOrder>
+                </tem:PreSaslesProcess>
+            </soapenv:Body>
+        </soapenv:Envelope>';
+    }
+
     public static function presalesOrder($order)
     {
         Log::channel('soap')->info('Starting presalesOrder process', [

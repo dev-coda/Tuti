@@ -38,6 +38,8 @@ class Product extends Model
         'calculate_package_price',
         'safety_stock',
         'inventory_opt_out',
+        'exclude_from_brand_discount',
+        'exclude_from_vendor_discount',
         'sales_count',
         'sync_variations_with_dynamics',
     ];
@@ -288,13 +290,13 @@ class Product extends Model
             return true;
         }
 
-        // Brand-level discount
-        if ($this->brand && $this->brand->discount > 0) {
+        // Brand-level discount (unless product excluded)
+        if (!$this->exclude_from_brand_discount && $this->brand && $this->brand->discount > 0) {
             return true;
         }
 
-        // Vendor-level discount (through brand)
-        if ($this->brand && $this->brand->vendor && $this->brand->vendor->discount > 0) {
+        // Vendor-level discount (unless product excluded)
+        if (!$this->exclude_from_vendor_discount && $this->brand && $this->brand->vendor && $this->brand->vendor->discount > 0) {
             return true;
         }
 
@@ -330,8 +332,8 @@ class Product extends Model
             $bestDiscountSource = 'product';
         }
 
-        // Brand discount
-        if ($this->brand && $this->brand->discount > 0) {
+        // Brand discount (skip if product explicitly excluded)
+        if (!$this->exclude_from_brand_discount && $this->brand && $this->brand->discount > 0) {
             $brandDiscount = $this->brand->discount;
             $brandDiscountType = $this->brand->discount_type ?? 'percentage';
             
@@ -352,8 +354,8 @@ class Product extends Model
             }
         }
 
-        // Vendor discount (highest priority - always wins if better or equal)
-        if ($this->brand && $this->brand->vendor && $this->brand->vendor->discount > 0) {
+        // Vendor discount (skip if product explicitly excluded; highest priority - always wins if better or equal)
+        if (!$this->exclude_from_vendor_discount && $this->brand && $this->brand->vendor && $this->brand->vendor->discount > 0) {
             $vendorDiscount = $this->brand->vendor->discount;
             $vendorDiscountType = $this->brand->vendor->discount_type ?? 'percentage';
             
@@ -411,16 +413,16 @@ class Product extends Model
             }
         }
 
-        // Brand discount (higher priority than product)
-        if ($this->brand && $this->brand->discount > $discount) {
+        // Brand discount (higher priority than product; skip if product excluded)
+        if (!$this->exclude_from_brand_discount && $this->brand && $this->brand->discount > $discount) {
             if (!$enforce_first_purchase || !$has_orders || !$this->brand->first_purchase_only) {
                 $discount = $this->brand->discount;
                 $discount_on = 'Marca';
             }
         }
 
-        // Vendor discount (highest priority) - with minimum amount check
-        if ($this->brand && $this->brand->vendor && $this->brand->vendor->discount >= $discount) {
+        // Vendor discount (highest priority; skip if product excluded) - with minimum amount check
+        if (!$this->exclude_from_vendor_discount && $this->brand && $this->brand->vendor && $this->brand->vendor->discount >= $discount) {
             $vendor = $this->brand->vendor;
 
             // Check if vendor discount should apply based on first purchase rules

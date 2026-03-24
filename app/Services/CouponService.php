@@ -232,7 +232,11 @@ class CouponService
     {
         switch ($coupon->applies_to) {
             case Coupon::APPLIES_TO_CUSTOMER:
-                return $coupon->applies_to_ids && in_array($user->id, $coupon->applies_to_ids);
+                if (empty($coupon->applies_to_ids)) {
+                    return false;
+                }
+                $normalizedIds = array_map('intval', $coupon->applies_to_ids);
+                return in_array((int) $user->id, $normalizedIds, true);
 
             case Coupon::APPLIES_TO_CUSTOMER_TYPE:
                 if (!$coupon->applies_to_ids) return false;

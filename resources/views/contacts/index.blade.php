@@ -94,6 +94,9 @@
                 <table class="min-w-full divide-y divide-gray-200 table-fixed ">
                     <thead class="bg-gray-100">
                         <tr>
+                            <th scope="col" class="p-4 text-xs font-medium text-left text-gray-500 uppercase w-20">
+                                Acciones
+                            </th>
                             <th scope="col" class="p-4 text-xs font-medium text-left text-gray-500 uppercase w-16">
                                 ID
                             </th>
@@ -142,6 +145,12 @@
                             $cityName = $contact->city ?: ($cityRelation ? $cityRelation->name : '');
                         @endphp
                         <tr class="hover:bg-gray-100">
+                            <td class="p-4 whitespace-nowrap">
+                                <a href="{{ route('contacts.show', $contact) }}" class="inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-800">
+                                    @svg('heroicon-o-eye', 'w-4 h-4')
+                                    Ver
+                                </a>
+                            </td>
                             <td class="p-4 text-sm font-mono text-gray-900 whitespace-nowrap">
                                 {{ $contact->id }}
                             </td>

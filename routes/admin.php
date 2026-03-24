@@ -111,6 +111,14 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::post('coupons/{coupon}/mass-create', [CouponController::class, 'massCreate'])->name('coupons.mass-create')->where('coupon', '[0-9]+');
     Route::resource('coupons', CouponController::class);
 
+    // Coupon test / diagnostic module (mock orders, XML inspection)
+    Route::prefix('coupon-tests')->name('coupon-tests.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Admin\CouponTestController::class, 'index'])->name('index');
+        Route::get('/preview', [\App\Http\Controllers\Admin\CouponTestController::class, 'previewOrderXml'])->name('preview');
+        Route::get('/mock', [\App\Http\Controllers\Admin\CouponTestController::class, 'showMockForm'])->name('mock');
+        Route::post('/mock', [\App\Http\Controllers\Admin\CouponTestController::class, 'runMockTest'])->name('mock.run');
+    });
+
     // Promociones routes
     Route::prefix('promociones')->name('promociones.')->group(function () {
         Route::get('/', [PromocionesController::class, 'index'])->name('index');

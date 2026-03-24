@@ -51,11 +51,12 @@ class ContactController extends Controller
     }
 
     /**
-     * Display the specified resource.
+     * Display the specified resource (detail view with all data and uploads).
      */
     public function show(Contact $contact)
     {
-        //
+        $contact->load('city');
+        return view('contacts.show', compact('contact'));
     }
 
     /**
