@@ -25,10 +25,16 @@ On many servers **SQLite is not installed** (`could not find driver`). Then test
 - Default name: `{DB_DATABASE from .env}_phpunit` (e.g. `apptuti_phpunit`)
 - Override: set `PHPUNIT_DB_DATABASE`, `PHPUNIT_DB_HOST`, `PHPUNIT_DB_USERNAME`, `PHPUNIT_DB_PASSWORD` as needed
 
-Create the database once (PostgreSQL):
+Create the database once (PostgreSQL). **Use the app's DB connection** so host/user match:
 
-```sql
-CREATE DATABASE apptuti_phpunit;
+```bash
+php artisan test:create-db
+```
+
+Or manually with the same host/user as `.env`:
+
+```bash
+PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USERNAME -d postgres -c "CREATE DATABASE apptuti_phpunit;"
 ```
 
 (Adjust the name to match your `DB_DATABASE` + `_phpunit` or `PHPUNIT_DB_DATABASE`.)
