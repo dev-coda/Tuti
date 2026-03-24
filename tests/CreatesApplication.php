@@ -9,6 +9,25 @@ use Illuminate\Foundation\Application;
 trait CreatesApplication
 {
     /**
+     * Read env after Dotenv: variables live in $_ENV; getenv() is often unset.
+     */
+    protected function testingEnv(string $key, ?string $default = null): ?string
+    {
+        if (array_key_exists($key, $_ENV) && $_ENV[$key] !== '') {
+            return (string) $_ENV[$key];
+        }
+        if (array_key_exists($key, $_SERVER) && $_SERVER[$key] !== '') {
+            return (string) $_SERVER[$key];
+        }
+        $g = getenv($key);
+        if ($g !== false && $g !== '') {
+            return $g;
+        }
+
+        return $default;
+    }
+
+    /**
      * Creates the application.
      */
     public function createApplication(): Application
@@ -56,46 +75,54 @@ trait CreatesApplication
         }
 
         if (extension_loaded('pdo_pgsql')) {
-            $dbName = getenv('PHPUNIT_DB_DATABASE');
-            if ($dbName === false || $dbName === '') {
-                $main = getenv('DB_DATABASE');
-                $dbName = $main !== false && $main !== ''
-                    ? $main . '_phpunit'
-                    : 'testing';
+            $dbName = $this->testingEnv('PHPUNIT_DB_DATABASE');
+            if ($dbName === null || $dbName === '') {
+                $main = $this->testingEnv('DB_DATABASE');
+                // Avoid appending repeatedly when createApplication runs multiple times
+                $dbName = ($main !== null && $main !== '')
+                    ? (str_ends_with($main, '_phpunit') ? $main : $main . '_phpunit')
+                    : null;
+            }
+            if ($dbName === null || $dbName === '') {
+                throw new \RuntimeException(
+                    'Set PHPUNIT_DB_DATABASE in .env, or ensure DB_DATABASE is set so tests can use {DB_DATABASE}_phpunit. '
+                    . 'Example: createdb apptuti_phpunit'
+                );
             }
 
             $set([
                 'DB_CONNECTION' => 'pgsql',
-                'DB_HOST' => getenv('PHPUNIT_DB_HOST') ?: getenv('DB_HOST') ?: '127.0.0.1',
-                'DB_PORT' => getenv('PHPUNIT_DB_PORT') ?: getenv('DB_PORT') ?: '5432',
+                'DB_HOST' => $this->testingEnv('PHPUNIT_DB_HOST') ?: $this->testingEnv('DB_HOST', '127.0.0.1'),
+                'DB_PORT' => $this->testingEnv('PHPUNIT_DB_PORT') ?: $this->testingEnv('DB_PORT', '5432'),
                 'DB_DATABASE' => $dbName,
-                'DB_USERNAME' => getenv('PHPUNIT_DB_USERNAME') ?: getenv('DB_USERNAME') ?: 'postgres',
-                'DB_PASSWORD' => getenv('PHPUNIT_DB_PASSWORD') !== false
-                    ? getenv('PHPUNIT_DB_PASSWORD')
-                    : (getenv('DB_PASSWORD') ?: ''),
+                'DB_USERNAME' => $this->testingEnv('PHPUNIT_DB_USERNAME') ?: $this->testingEnv('DB_USERNAME', 'postgres'),
+                'DB_PASSWORD' => $this->testingEnv('PHPUNIT_DB_PASSWORD') ?: $this->testingEnv('DB_PASSWORD', ''),
             ]);
 
             return;
         }
 
         if (extension_loaded('pdo_mysql')) {
-            $dbName = getenv('PHPUNIT_DB_DATABASE');
-            if ($dbName === false || $dbName === '') {
-                $main = getenv('DB_DATABASE');
-                $dbName = $main !== false && $main !== ''
-                    ? $main . '_phpunit'
-                    : 'testing';
+            $dbName = $this->testingEnv('PHPUNIT_DB_DATABASE');
+            if ($dbName === null || $dbName === '') {
+                $main = $this->testingEnv('DB_DATABASE');
+                $dbName = ($main !== null && $main !== '')
+                    ? (str_ends_with($main, '_phpunit') ? $main : $main . '_phpunit')
+                    : null;
+            }
+            if ($dbName === null || $dbName === '') {
+                throw new \RuntimeException(
+                    'Set PHPUNIT_DB_DATABASE in .env, or ensure DB_DATABASE is set so tests can use {DB_DATABASE}_phpunit.'
+                );
             }
 
             $set([
                 'DB_CONNECTION' => 'mysql',
-                'DB_HOST' => getenv('PHPUNIT_DB_HOST') ?: getenv('DB_HOST') ?: '127.0.0.1',
-                'DB_PORT' => getenv('PHPUNIT_DB_PORT') ?: getenv('DB_PORT') ?: '3306',
+                'DB_HOST' => $this->testingEnv('PHPUNIT_DB_HOST') ?: $this->testingEnv('DB_HOST', '127.0.0.1'),
+                'DB_PORT' => $this->testingEnv('PHPUNIT_DB_PORT') ?: $this->testingEnv('DB_PORT', '3306'),
                 'DB_DATABASE' => $dbName,
-                'DB_USERNAME' => getenv('PHPUNIT_DB_USERNAME') ?: getenv('DB_USERNAME') ?: 'root',
-                'DB_PASSWORD' => getenv('PHPUNIT_DB_PASSWORD') !== false
-                    ? getenv('PHPUNIT_DB_PASSWORD')
-                    : (getenv('DB_PASSWORD') ?: ''),
+                'DB_USERNAME' => $this->testingEnv('PHPUNIT_DB_USERNAME') ?: $this->testingEnv('DB_USERNAME', 'root'),
+                'DB_PASSWORD' => $this->testingEnv('PHPUNIT_DB_PASSWORD') ?: $this->testingEnv('DB_PASSWORD', ''),
             ]);
 
             return;
