@@ -42,6 +42,10 @@ class Product extends Model
         'exclude_from_vendor_discount',
         'sales_count',
         'sync_variations_with_dynamics',
+        'coordinadora_weight_kg',
+        'coordinadora_height_cm',
+        'coordinadora_width_cm',
+        'coordinadora_length_cm',
     ];
 
 

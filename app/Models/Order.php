@@ -36,6 +36,8 @@ class Order extends Model
         'seller_id',
         'delivery_date',
         'delivery_method',
+        'shipping_provider',
+        'shipping_quote_amount',
         'observations',
         'coupon_id',
         'coupon_code',
@@ -44,6 +46,21 @@ class Order extends Model
         'last_processing_attempt',
         'manually_retried',
         'scheduled_transmission_date',
+        'coordinadora_guide_number',
+        'coordinadora_status_code',
+        'coordinadora_status_text',
+        'coordinadora_status_at',
+        'fv_number',
+        'fv_request_payload',
+        'fv_response_payload',
+        'coordinadora_request_payload',
+        'coordinadora_response_payload',
+    ];
+
+    protected $casts = [
+        'last_processing_attempt' => 'datetime',
+        'coordinadora_status_at' => 'datetime',
+        'shipping_quote_amount' => 'decimal:2',
     ];
 
 
@@ -58,6 +75,8 @@ class Order extends Model
 
     const DELIVERY_METHOD_EXPRESS = 'express';
     const DELIVERY_METHOD_TRONEX = 'tronex';
+    const SHIPPING_PROVIDER_COORDINADORA = 'coordinadora';
+    const SHIPPING_PROVIDER_TRONEX = 'tronex';
 
     /**
      * Get status slug from status ID

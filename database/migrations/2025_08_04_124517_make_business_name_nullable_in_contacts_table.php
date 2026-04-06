@@ -1,7 +1,7 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -11,9 +11,20 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('contacts', function (Blueprint $table) {
-            $table->string('business_name')->nullable()->change();
-        });
+        if (!Schema::hasTable('contacts') || !Schema::hasColumn('contacts', 'business_name')) {
+            return;
+        }
+
+        $driver = DB::connection()->getDriverName();
+
+        if ($driver === 'pgsql') {
+            DB::statement('ALTER TABLE contacts ALTER COLUMN business_name DROP NOT NULL');
+            return;
+        }
+
+        if ($driver === 'mysql') {
+            DB::statement('ALTER TABLE contacts MODIFY business_name VARCHAR(255) NULL');
+        }
     }
 
     /**
@@ -21,8 +32,19 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('contacts', function (Blueprint $table) {
-            $table->string('business_name')->nullable(false)->change();
-        });
+        if (!Schema::hasTable('contacts') || !Schema::hasColumn('contacts', 'business_name')) {
+            return;
+        }
+
+        $driver = DB::connection()->getDriverName();
+
+        if ($driver === 'pgsql') {
+            DB::statement('ALTER TABLE contacts ALTER COLUMN business_name SET NOT NULL');
+            return;
+        }
+
+        if ($driver === 'mysql') {
+            DB::statement('ALTER TABLE contacts MODIFY business_name VARCHAR(255) NOT NULL');
+        }
     }
 };

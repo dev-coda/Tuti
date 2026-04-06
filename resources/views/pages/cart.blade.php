@@ -337,7 +337,8 @@
             } else {
                 $discount = 0;
             }
-            $finalTotal = $totalAfterDiscounts;
+            $shippingAmount = 0;
+            $finalTotal = $totalAfterDiscounts + $shippingAmount;
             @endphp
 
             <div class="space-y-3">
@@ -357,6 +358,11 @@
                     <span class="font-medium">-${{currency($appliedCoupon['discount_amount'])}}</span>
                 </div>
                 @endif
+
+                <div class="flex justify-between text-gray-600 hidden" id="cart-shipping-row">
+                    <span>Envío 48H</span>
+                    <span class="font-medium" id="cart-shipping">$0</span>
+                </div>
                 
                 <div class="pt-3 border-t border-gray-200">
                     <div class="flex justify-between items-center">
@@ -489,6 +495,7 @@
                             @endforeach
                         </div>
                         <input type="hidden" name="delivery_method" id="delivery_method" value="{{ $shippingMethods->first()->code ?? 'tronex' }}">
+                        <input type="hidden" name="shipping_quote_amount" id="shipping_quote_amount" value="0">
                     </div>
                     @else
                     <div class="p-4 bg-red-50 border border-red-200 rounded-lg">
@@ -535,6 +542,7 @@
 
 <script>
     $(function() {
+        let currentShippingAmount = 0;
         // Currency formatter
         function formatCurrency(amount) {
             return '$' + new Intl.NumberFormat('es-CO', {
@@ -633,7 +641,7 @@
         // Recalculate all totals
         function recalculateTotals() {
             let subtotal = 0;
-            let total = 0;
+            let totalWithoutShipping = 0;
 
             document.querySelectorAll('.cart-item').forEach(item => {
                 const oldPrice = parseFloat(item.dataset.oldPrice);
@@ -641,10 +649,10 @@
                 const qty = parseInt(item.querySelector('.qty-input').value);
                 
                 subtotal += oldPrice * qty;
-                total += unitPrice * qty;
+                totalWithoutShipping += unitPrice * qty;
             });
 
-            const discount = subtotal - total;
+            const discount = subtotal - totalWithoutShipping;
 
             // Update subtotal
             const subtotalEl = document.getElementById('cart-subtotal');
@@ -667,8 +675,55 @@
             // Update total
             const totalEl = document.getElementById('cart-total');
             if (totalEl) {
-                totalEl.textContent = formatCurrency(total);
+                totalEl.textContent = formatCurrency(totalWithoutShipping + currentShippingAmount);
             }
+        }
+
+        function setShippingAmount(amount) {
+            currentShippingAmount = Number(amount || 0);
+            const shippingRow = document.getElementById('cart-shipping-row');
+            const shippingAmountEl = document.getElementById('cart-shipping');
+            const shippingInput = document.getElementById('shipping_quote_amount');
+
+            if (shippingInput) {
+                shippingInput.value = currentShippingAmount.toFixed(2);
+            }
+
+            if (shippingRow && shippingAmountEl) {
+                if (currentShippingAmount > 0) {
+                    shippingRow.classList.remove('hidden');
+                    shippingAmountEl.textContent = formatCurrency(currentShippingAmount);
+                } else {
+                    shippingRow.classList.add('hidden');
+                    shippingAmountEl.textContent = formatCurrency(0);
+                }
+            }
+
+            recalculateTotals();
+        }
+
+        function fetchShippingQuote(method) {
+            const zoneId = zoneSelect ? zoneSelect.value : null;
+            if (!zoneId) {
+                setShippingAmount(0);
+                return;
+            }
+
+            const url = `/api/shipping-quote/${method}?zone_id=${zoneId}`;
+
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.success) {
+                        setShippingAmount(0);
+                        return;
+                    }
+
+                    setShippingAmount(Number(data.shipping_cost || 0));
+                })
+                .catch(() => {
+                    setShippingAmount(0);
+                });
         }
 
         // Handle quantity decrease
@@ -823,6 +878,7 @@
             });
             
             fetchDeliveryDate(method);
+            fetchShippingQuote(method);
         }
         
         function fetchDeliveryDate(method) {
@@ -866,12 +922,14 @@
             zoneSelect.addEventListener('change', function() {
                 const currentMethod = deliveryMethodInput ? deliveryMethodInput.value : 'tronex';
                 fetchDeliveryDate(currentMethod);
+                fetchShippingQuote(currentMethod);
             });
         }
         
         // Initialize
         updateDeliveryOption('tronex');
         fetchDeliveryDate('express');
+        setShippingAmount(0);
     })
 </script>
 

@@ -202,6 +202,17 @@
                 </div>
                 @endif
 
+                @if($order->shipping_provider === \App\Models\Order::SHIPPING_PROVIDER_COORDINADORA)
+                <div class="border-t border-gray-200 pt-4 mb-4">
+                    <p class="text-sm font-semibold text-gray-700 mb-2">Seguimiento Coordinadora</p>
+                    <div class="text-sm text-gray-600 space-y-1">
+                        <p><span class="font-medium text-gray-800">Estado:</span> {{ $order->coordinadora_status_text ?? 'Pendiente de procesamiento' }}</p>
+                        <p><span class="font-medium text-gray-800">Guía:</span> {{ $order->coordinadora_guide_number ?? '-' }}</p>
+                        <p><span class="font-medium text-gray-800">Última actualización:</span> {{ optional($order->coordinadora_status_at)->format('d/m/Y H:i') ?? '-' }}</p>
+                    </div>
+                </div>
+                @endif
+
                 @if($order->observations)
                 <div class="border-t border-gray-200 pt-4">
                     <p class="text-sm font-semibold text-gray-700 mb-2">Observaciones</p>

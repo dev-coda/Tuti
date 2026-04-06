@@ -51,6 +51,53 @@
     </div>
 </div>
 
+<div class="p-4 bg-white border-b border-gray-200">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+        <div class="rounded-lg border border-gray-200 p-4">
+            <p class="font-semibold text-gray-800 mb-2">Envío / Proveedor</p>
+            <p><span class="text-gray-500">Proveedor:</span> {{ $order->shipping_provider ?? 'tronex' }}</p>
+            <p><span class="text-gray-500">Costo cotizado:</span> ${{ number_format((float)($order->shipping_quote_amount ?? 0), 2) }}</p>
+            <p><span class="text-gray-500">Método:</span> {{ $order->delivery_method }}</p>
+        </div>
+        <div class="rounded-lg border border-gray-200 p-4">
+            <p class="font-semibold text-gray-800 mb-2">Integración Coordinadora / FV</p>
+            <p><span class="text-gray-500">FV:</span> {{ $order->fv_number ?? '-' }}</p>
+            <p><span class="text-gray-500">Guía:</span> {{ $order->coordinadora_guide_number ?? '-' }}</p>
+            <p><span class="text-gray-500">Estado:</span> {{ $order->coordinadora_status_text ?? '-' }}</p>
+            <p><span class="text-gray-500">Actualizado:</span> {{ optional($order->coordinadora_status_at)->format('d/m/Y H:i') ?? '-' }}</p>
+        </div>
+    </div>
+
+    @if($order->fv_request_payload || $order->fv_response_payload || $order->coordinadora_request_payload || $order->coordinadora_response_payload)
+        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+            @if($order->fv_request_payload)
+                <details class="rounded border border-gray-200 p-3">
+                    <summary class="cursor-pointer font-semibold">FV Request</summary>
+                    <pre class="mt-2 overflow-auto">{{ $order->fv_request_payload }}</pre>
+                </details>
+            @endif
+            @if($order->fv_response_payload)
+                <details class="rounded border border-gray-200 p-3">
+                    <summary class="cursor-pointer font-semibold">FV Response</summary>
+                    <pre class="mt-2 overflow-auto">{{ $order->fv_response_payload }}</pre>
+                </details>
+            @endif
+            @if($order->coordinadora_request_payload)
+                <details class="rounded border border-gray-200 p-3">
+                    <summary class="cursor-pointer font-semibold">Coordinadora Request</summary>
+                    <pre class="mt-2 overflow-auto">{{ $order->coordinadora_request_payload }}</pre>
+                </details>
+            @endif
+            @if($order->coordinadora_response_payload)
+                <details class="rounded border border-gray-200 p-3">
+                    <summary class="cursor-pointer font-semibold">Coordinadora Response</summary>
+                    <pre class="mt-2 overflow-auto">{{ $order->coordinadora_response_payload }}</pre>
+                </details>
+            @endif
+        </div>
+    @endif
+</div>
+
 @if(!request()->filled('code'))
     <div class="flex flex-col">
         <div class="overflow-x-auto">

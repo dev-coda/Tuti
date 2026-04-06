@@ -138,6 +138,15 @@
                                 <div class="mt-2 flex items-center gap-3">
                                     <x-order-status :status="$order->status_id" />
                                 </div>
+                                @if($order->shipping_provider === \App\Models\Order::SHIPPING_PROVIDER_COORDINADORA)
+                                    <div class="mt-2 text-xs text-gray-600">
+                                        <span class="font-semibold">Coordinadora:</span>
+                                        {{ $order->coordinadora_status_text ?? 'Pendiente de guía' }}
+                                        @if($order->coordinadora_guide_number)
+                                            · Guía {{ $order->coordinadora_guide_number }}
+                                        @endif
+                                    </div>
+                                @endif
                             </div>
                             <div class="flex flex-col sm:items-end gap-2">
                                 <a href="{{ route('clients.orders.show', $order) }}" class="text-sm text-orange-600 hover:text-orange-700 font-medium">
@@ -290,7 +299,7 @@
                                         </span>
                                         Información de Rutero
                                     </div>
-                                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm text-gray-600">
+                                    <div class="grid grid-cols-1 sm:grid-cols-5 gap-4 text-sm text-gray-600">
                                         <div>
                                             <p class="text-xs text-gray-500 uppercase">Zona</p>
                                             <p class="font-semibold text-gray-800">{{ $zone->zone ?? '-' }}</p>
@@ -302,6 +311,14 @@
                                         <div>
                                             <p class="text-xs text-gray-500 uppercase">Rutero</p>
                                             <p class="font-semibold text-gray-800">{{ $zone->code ?? '-' }}</p>
+                                        </div>
+                                        <div>
+                                            <p class="text-xs text-gray-500 uppercase">ZIP</p>
+                                            <p class="font-semibold text-gray-800">{{ $zone->zip_code ?? '-' }}</p>
+                                        </div>
+                                        <div>
+                                            <p class="text-xs text-gray-500 uppercase">48H</p>
+                                            <p class="font-semibold text-gray-800">{{ $zone->fulfillment_provider_48h ?? 'coordinadora' }}</p>
                                         </div>
                                     </div>
                                 </div>

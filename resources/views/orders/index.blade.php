@@ -139,6 +139,9 @@
                                 <th scope="col" class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
                                     Unidades
                                 </th>
+                                <th scope="col" class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
+                                    Integración
+                                </th>
 
                             </tr>
                         </thead>
@@ -207,6 +210,16 @@
 
                                         <td class="p-4  text-gray-900 whitespace-nowra">
                                             {{ $order->products_sum_quantity ?? 0 }}
+                                        </td>
+
+                                        <td class="p-4 text-xs text-gray-900 whitespace-nowrap">
+                                            @if($order->shipping_provider === \App\Models\Order::SHIPPING_PROVIDER_COORDINADORA)
+                                                <div class="font-semibold text-indigo-700">Coordinadora</div>
+                                                <div>FV: {{ $order->fv_number ?? '-' }}</div>
+                                                <div>Guía: {{ $order->coordinadora_guide_number ?? '-' }}</div>
+                                            @else
+                                                <span class="text-gray-500">Tronex/XML</span>
+                                            @endif
                                         </td>
 
                                     </tr>

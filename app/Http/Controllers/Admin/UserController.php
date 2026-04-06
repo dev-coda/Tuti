@@ -7,6 +7,7 @@ use App\Models\City;
 use App\Models\Order;
 use App\Models\State;
 use App\Models\User;
+use App\Models\Zone;
 use App\Repositories\OrderRepository;
 use App\Repositories\UserRepository;
 use Illuminate\Http\Request;
@@ -181,5 +182,21 @@ class UserController extends Controller
     public function export()
     {
         return Excel::download(new UsersExport, 'usuarios.xlsx');
+    }
+
+    public function updateZone48h(Request $request, User $user, Zone $zone)
+    {
+        if ((int) $zone->user_id !== (int) $user->id) {
+            return back()->with('error', 'La zona no pertenece al usuario seleccionado.');
+        }
+
+        $validated = $request->validate([
+            'zip_code' => ['nullable', 'string', 'max:50'],
+            'fulfillment_provider_48h' => ['required', 'in:coordinadora,tronex'],
+        ]);
+
+        $zone->update($validated);
+
+        return back()->with('success', 'Zona 48H actualizada correctamente.');
     }
 }

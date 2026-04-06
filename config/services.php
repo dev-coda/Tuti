@@ -31,4 +31,17 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'coordinadora' => [
+        'base_url' => env('COORDINADORA_BASE_URL', 'https://sandbox.coordinadora.com/api/v1'),
+        'oauth_url' => env('COORDINADORA_OAUTH_URL', 'https://sandbox.coordinadora.com/oauth/token'),
+        'key' => env('COORDINADORA_KEY'),
+        'secret' => env('COORDINADORA_SECRET'),
+        'id_proceso' => env('COORDINADORA_ID_PROCESO'),
+    ],
+
+    'fv_mock' => [
+        'endpoint' => env('FV_MOCK_ENDPOINT', '/api/internal/fv-mock'),
+        'token' => env('FV_MOCK_TOKEN', 'fv-mock-local-token'),
+    ],
+
 ];

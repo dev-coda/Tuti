@@ -18,6 +18,7 @@ use App\Models\Setting;
 use App\Models\Coupon;
 use App\Models\CouponUsage;
 use App\Services\CouponService;
+use App\Services\Shipping\CoordinadoraQuoteService;
 use App\Repositories\OrderRepository;
 use App\Repositories\UserRepository;
 use App\Settings\GeneralSettings;
@@ -864,6 +865,25 @@ class CartController extends Controller
 
         // Get delivery method from request, default to 'tronex'
         $delivery_method = $request->input('delivery_method', 'tronex');
+        $shippingProvider = Order::SHIPPING_PROVIDER_TRONEX;
+        $shippingQuoteAmount = null;
+
+        if ($delivery_method === Order::DELIVERY_METHOD_EXPRESS && $zone?->usesCoordinadoraFor48h()) {
+            $shippingProvider = Order::SHIPPING_PROVIDER_COORDINADORA;
+
+            try {
+                $quote = app(CoordinadoraQuoteService::class)->quoteFromCart(collect($cart), $zone);
+                $shippingQuoteAmount = (float) ($quote['shipping_cost'] ?? 0);
+            } catch (\Throwable $e) {
+                Log::warning('Coordinadora quote failed during checkout', [
+                    'zone_id' => $zone?->id,
+                    'user_id' => $user_id,
+                    'message' => $e->getMessage(),
+                ]);
+
+                return back()->with('error', 'No pudimos cotizar el envío Coordinadora para esta dirección. Verifica el código postal o intenta de nuevo.');
+            }
+        }
 
         // Calculate delivery date based on selected method and zone
         $delivery_date = OrderRepository::getDeliveryDateByMethod($delivery_method, $zone);
@@ -1179,6 +1199,8 @@ class CartController extends Controller
                 'seller_id' => $seller_id,
                 'delivery_date' => $delivery_date,
                 'delivery_method' => $delivery_method,
+                'shipping_provider' => $shippingProvider,
+                'shipping_quote_amount' => $shippingQuoteAmount,
                 'observations' => $observations,
                 'coupon_id' => $orderCouponId,
                 'coupon_code' => $orderCouponCode,

@@ -1,5 +1,8 @@
 <?php
 
+// Suppress deprecation noise on PHP 8.4/8.5 before autoloading vendors.
+error_reporting(E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED);
+
 use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Http\Request;
 

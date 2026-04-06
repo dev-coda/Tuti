@@ -1,6 +1,9 @@
 #!/usr/bin/env php
 <?php
 
+// Suppress deprecation noise on PHP 8.4/8.5 before autoloading vendors.
+error_reporting(E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED);
+
 define('LARAVEL_START', microtime(true));
 
 /*
