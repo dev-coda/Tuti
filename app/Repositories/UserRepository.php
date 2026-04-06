@@ -395,6 +395,24 @@ class UserRepository
                     ];
                 }
 
+                $routeCount = is_countable($newRoutes) ? count($newRoutes) : 0;
+                if ($routeCount > 1) {
+                    $missingCustId = 0;
+                    foreach ($newRoutes as $route) {
+                        $c = $route['code'] ?? null;
+                        if ($c === null || $c === '') {
+                            $missingCustId++;
+                        }
+                    }
+                    if ($missingCustId > 0) {
+                        \Log::warning('Rutero sync: multiple sucursales but at least one route is missing CustRuteroID (zones.code)', [
+                            'user_id' => $user->id,
+                            'routes_count' => $routeCount,
+                            'routes_missing_code' => $missingCustId,
+                        ]);
+                    }
+                }
+
                 // Only delete zones that are NOT referenced by any orders
                 $zonesToDelete = $existingZones->whereNotIn('id', $processedZoneIds);
                 foreach ($zonesToDelete as $zoneToDelete) {

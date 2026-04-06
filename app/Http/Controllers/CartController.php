@@ -137,8 +137,8 @@ class CartController extends Controller
             return redirect()->route('home')->with('error', 'Tu carrito estaba vacío o contenía productos inválidos.');
         }
 
-        $user = auth()->user();
-        $zones = $user->zones->pluck('address', 'id')->toArray();
+        $user = auth()->user()->load('zones');
+        $zoneOptions = $user->zones;
 
         $set_user = false;
         $client = null;
@@ -147,7 +147,7 @@ class CartController extends Controller
             $set_user = true;
             if ($user_id) {
                 $client = User::with('zones')->find($user_id);
-                $zones = $client->zones->pluck('address', 'id')->toArray();
+                $zoneOptions = $client->zones;
                 $set_user = false;
             }
         }
@@ -338,7 +338,7 @@ class CartController extends Controller
         // Get enabled shipping methods
         $shippingMethods = \App\Models\ShippingMethod::getEnabled();
 
-        $context = compact('products', 'alertVendors', 'vendorDiscountAlerts', 'zones', 'set_user', 'client', 'alertTotal', 'min_amount', 'total_cart', 'has_orders', 'appliedCoupon', 'couponDiscount', 'couponMessage', 'shippingMethods');
+        $context = compact('products', 'alertVendors', 'vendorDiscountAlerts', 'zoneOptions', 'set_user', 'client', 'alertTotal', 'min_amount', 'total_cart', 'has_orders', 'appliedCoupon', 'couponDiscount', 'couponMessage', 'shippingMethods');
 
         return view('pages.cart', $context);
     }
@@ -700,42 +700,77 @@ class CartController extends Controller
             }
         }
 
-        // After syncing rutero data, determine zone_id
-        // The sync might have updated zones, so we need to ensure zone_id is still valid
-        $zoneId = $request->zone_id ?? session()->get('zone_id');
-        
-        // Reload zones to ensure we have fresh data after sync
+        // After syncing rutero data, resolve the selected zone. Sync may replace zone rows (new IDs)
+        // while the form still posts the old id — match by stable Dynamics CustRuteroID (zones.code).
+        $requestedZoneId = $this->normalizedCheckoutZoneId($request->input('zone_id'))
+            ?? $this->normalizedCheckoutZoneId(session()->get('zone_id'));
+
+        $rawSucursalCode = $request->input('sucursal_code');
+        $trimmedSucursalCode = is_string($rawSucursalCode) ? trim($rawSucursalCode) : '';
+        $trimmedSucursalCode = $trimmedSucursalCode !== '' ? $trimmedSucursalCode : null;
+
         $actingUser->load('zones');
-        
-        if ($zoneId) {
-            // Verify zone still exists and belongs to acting user
-            $zone = Zone::where('id', $zoneId)
+
+        $zone = null;
+        $zoneId = null;
+
+        if ($requestedZoneId !== null) {
+            $zone = Zone::where('id', $requestedZoneId)
                 ->where('user_id', $actingUser->id)
                 ->first();
-            
-            // If zone doesn't exist or doesn't belong to user, try to find a valid zone
-            if (!$zone && $actingUser->zones->count() > 0) {
-                $zoneId = $actingUser->zones->first()->id;
-                session()->put('zone_id', $zoneId);
-                $zone = Zone::find($zoneId);
+        }
+
+        if (!$zone && $trimmedSucursalCode !== null) {
+            $candidates = Zone::where('user_id', $actingUser->id)
+                ->where('code', $trimmedSucursalCode)
+                ->orderBy('id')
+                ->get();
+
+            if ($candidates->count() > 1) {
+                \Log::warning('Multiple zones share the same sucursal code for user; using lowest id', [
+                    'acting_user_id' => $actingUser->id,
+                    'code' => $trimmedSucursalCode,
+                    'zone_ids' => $candidates->pluck('id')->all(),
+                ]);
             }
+
+            $zone = $candidates->first();
+        }
+
+        if ($zone) {
+            $zoneId = $zone->id;
+            session()->put('zone_id', $zoneId);
+        } elseif ($actingUser->zones->count() === 0) {
+            $zone = null;
+            $zoneId = null;
+        } elseif ($actingUser->zones->count() === 1) {
+            $zone = $actingUser->zones->first();
+            $zoneId = $zone->id;
+            session()->put('zone_id', $zoneId);
+        } elseif ($requestedZoneId !== null || $trimmedSucursalCode !== null) {
+            return back()->with(
+                'error',
+                'La dirección seleccionada ya no coincide con tus datos actualizados. Recarga la página del carrito y vuelve a elegir la sucursal. Si tienes varias sucursales y esto se repite, contacta a soporte (puede faltar el código de sucursal en tus datos).'
+            );
         } else {
-            // If no zone_id, get first zone from synced zones
-            if ($actingUser->zones->count() > 0) {
-                $zoneId = $actingUser->zones->first()->id;
-                session()->put('zone_id', $zoneId);
-                $zone = Zone::find($zoneId);
-            } else {
-                $zone = null;
-            }
+            $zone = $actingUser->zones->first();
+            $zoneId = $zone->id;
+            session()->put('zone_id', $zoneId);
+        }
+
+        if (!$zone || $zoneId === null) {
+            return back()->with(
+                'error',
+                'No hay dirección de entrega disponible. Actualiza tus datos de rutero e intenta de nuevo.'
+            );
         }
 
         // Inventory validation based on zone/bodega
         $inventoryEnabled = Setting::getByKey('inventory_enabled');
         $isInventoryEnabled = ($inventoryEnabled === '1' || $inventoryEnabled === 1 || $inventoryEnabled === true);
         
-        // Use zone field only (actual zone number like "933")
-        // Note: code field contains CustRuteroID and should NOT be used for zone determination
+        // Bodega mapping uses logistics zone number (zones.zone, e.g. "933"), not CustRuteroID (zones.code).
+        // zones.code is the stable key for checkout sucursal selection after rutero sync.
         $zoneCode = $zone?->zone ?? null;
         
         \Log::info('Zone determination after rutero sync', [
@@ -756,9 +791,9 @@ class CartController extends Controller
         $bodega = $isInventoryEnabled ? ZoneWarehouse::getBodegaForZone($zoneCode) : null;
         
         if ($isInventoryEnabled && !$bodega) {
-            // Log detailed debugging information
-            \Log::warning('Bodega determination failed', [
+            \Log::warning('Bodega determination failed for selected zone', [
                 'user_id' => $user->id,
+                'acting_user_id' => $actingUser->id,
                 'user_email' => $user->email,
                 'zone_id' => $zoneId,
                 'zone_code' => $zoneCode,
@@ -771,96 +806,31 @@ class CartController extends Controller
                 'is_seller' => $user->hasRole('seller'),
                 'session_user_id' => session()->get('user_id'),
             ]);
-            
-            // Attempt fallback: choose the first zone of the acting user that has a mapped bodega
-            // Reload zones to ensure we have the latest data after sync
-            $actingUser->refresh();
-            $actingUser->load('zones');
-            
-            $fallbackZoneId = null;
-            if ($actingUser && $actingUser->zones->count() > 0) {
-                \Log::info('Attempting fallback zone selection', [
-                    'user_id' => $actingUser->id,
-                    'zones_count' => $actingUser->zones->count(),
-                    'available_zones' => $actingUser->zones->map(function($z) {
-                        // Use zone field only (actual zone number like "933")
-                        // Note: code field contains CustRuteroID and should NOT be used for zone determination
-                        $zoneCode = $z->zone;
-                        $bodega = $zoneCode ? ZoneWarehouse::getBodegaForZone($zoneCode) : null;
-                        return [
-                            'id' => $z->id,
-                            'code' => $z->code, // CustRuteroID (not used for bodega mapping)
-                            'zone' => $z->zone, // Actual zone number (used for bodega mapping)
-                            'has_bodega' => !is_null($bodega),
-                            'bodega' => $bodega,
-                        ];
-                    })->toArray(),
-                ]);
-                
-                foreach ($actingUser->zones as $candidateZone) {
-                    // Use zone field only (actual zone number like "933")
-                    // Note: code field contains CustRuteroID and should NOT be used for zone determination
-                    $candidateCode = $candidateZone?->zone;
-                    if (!$candidateCode) {
-                        \Log::debug('Skipping zone without zone field', [
-                            'zone_id' => $candidateZone->id,
-                            'zone_field' => $candidateZone->zone,
-                        ]);
-                        continue;
-                    }
-                    
-                    // Check if this zone has a bodega mapping
-                    $hasMapping = ZoneWarehouse::getBodegaForZone($candidateCode) !== null;
-                    
-                    if ($hasMapping) {
-                        $fallbackZoneId = $candidateZone->id;
-                        \Log::info('Found fallback zone with bodega mapping', [
-                            'zone_id' => $fallbackZoneId,
-                            'zone_code' => $candidateCode,
-                            'bodega' => ZoneWarehouse::getBodegaForZone($candidateCode),
-                        ]);
-                        break;
-                    }
-                }
-            }
-            if ($fallbackZoneId) {
-                $zoneId = $fallbackZoneId;
-                session()->put('zone_id', $zoneId);
-                $zone = Zone::find($zoneId);
-                // Use zone field only (actual zone number like "933")
-                // Note: code field contains CustRuteroID and should NOT be used for zone determination
-                $zoneCode = $zone?->zone;
-                $bodega = ZoneWarehouse::getBodegaForZone($zoneCode);
-                
-                \Log::info('Using fallback zone', [
-                    'zone_id' => $zoneId,
-                    'zone_code' => $zoneCode,
-                    'bodega' => $bodega,
-                ]);
-            }
-            if (!$bodega) {
-                // Log final failure with all available mappings for debugging
-                $allMappings = ZoneWarehouse::all()->map(function($zw) {
-                    return ['zone_code' => $zw->zone_code, 'bodega_code' => $zw->bodega_code];
-                })->toArray();
-                $configMappings = config('zone_warehouses.mappings', []);
-                
-                \Log::error('Bodega determination failed - no mapping found', [
-                    'user_id' => $user->id,
-                    'user_email' => $user->email,
-                    'zone_id' => $zoneId,
-                    'zone_code' => $zoneCode,
-                    'acting_user_zones' => $actingUser ? $actingUser->zones->map(function($z) {
-                        return ['id' => $z->id, 'code' => $z->code, 'zone' => $z->zone];
-                    })->toArray() : null,
-                    'db_mappings_count' => count($allMappings),
-                    'db_mappings' => $allMappings,
-                    'config_mappings_count' => count($configMappings),
-                    'config_mappings_keys' => array_keys($configMappings),
-                ]);
-                
-                return back()->with('error', 'No se pudo determinar la bodega para su zona.');
-            }
+
+            $allMappings = ZoneWarehouse::all()->map(function ($zw) {
+                return ['zone_code' => $zw->zone_code, 'bodega_code' => $zw->bodega_code];
+            })->toArray();
+            $configMappings = config('zone_warehouses.mappings', []);
+
+            \Log::error('Bodega determination failed - no mapping for selected address', [
+                'user_id' => $user->id,
+                'acting_user_id' => $actingUser->id,
+                'user_email' => $user->email,
+                'zone_id' => $zoneId,
+                'zone_code' => $zoneCode,
+                'acting_user_zones' => $actingUser ? $actingUser->zones->map(function ($z) {
+                    return ['id' => $z->id, 'code' => $z->code, 'zone' => $z->zone];
+                })->toArray() : null,
+                'db_mappings_count' => count($allMappings),
+                'db_mappings' => $allMappings,
+                'config_mappings_count' => count($configMappings),
+                'config_mappings_keys' => array_keys($configMappings),
+            ]);
+
+            return back()->with(
+                'error',
+                'No hay cobertura de inventario para la dirección seleccionada. Elige otra sucursal o contacta a soporte.'
+            );
         }
 
         // Get delivery method from request, default to 'tronex'
@@ -1000,7 +970,7 @@ class CartController extends Controller
 
         // First, get potential duplicate orders
         $potentialDuplicates = Order::where('user_id', $user_id)
-            ->where('zone_id', $request->zone_id)
+            ->where('zone_id', $zoneId)
             ->where('created_at', '>=', $threeMinutesAgo)
             ->with('products')
             ->get();
@@ -1969,5 +1939,29 @@ class CartController extends Controller
         session()->forget('applied_coupons');   // Multi-coupon list
         session()->forget('coupon_discounts');   // Per-product discount cache
         session()->forget('total_coupon_discount'); // Total discount cache
+    }
+
+    /**
+     * Positive integer zone id from request/session (rejects 0, negative, non-numeric strings).
+     */
+    private function normalizedCheckoutZoneId(mixed $value): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        if (is_int($value)) {
+            return $value > 0 ? $value : null;
+        }
+        if (is_string($value)) {
+            $value = trim($value);
+            if ($value === '' || !ctype_digit($value)) {
+                return null;
+            }
+            $id = (int) $value;
+
+            return $id > 0 ? $id : null;
+        }
+
+        return null;
     }
 }

@@ -442,9 +442,10 @@
                             </svg>
                             Dirección de entrega
                         </label>
+                        <input type="hidden" name="sucursal_code" id="checkout-sucursal-code" value="">
                         <select name="zone_id" id="states" class="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all">
-                            @foreach($zones as $id => $address)
-                                <option value="{{ $id }}" {{ session('zone_id') == $id ? 'selected' : '' }}>{{ $address }}</option>
+                            @foreach($zoneOptions as $z)
+                                <option value="{{ $z->id }}" data-sucursal-code="{{ $z->code ?? '' }}" {{ (int) session('zone_id') === (int) $z->id ? 'selected' : '' }}>{{ $z->address }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -802,7 +803,16 @@
         const deliveryOptions = document.querySelectorAll('.delivery-option');
         const deliveryMethodInput = document.getElementById('delivery_method');
         const zoneSelect = document.getElementById('states');
-        
+        const sucursalCodeInput = document.getElementById('checkout-sucursal-code');
+
+        function syncCheckoutSucursalCode() {
+            if (!zoneSelect || !sucursalCodeInput) {
+                return;
+            }
+            const opt = zoneSelect.options[zoneSelect.selectedIndex];
+            sucursalCodeInput.value = opt ? (opt.getAttribute('data-sucursal-code') || '') : '';
+        }
+
         function updateDeliveryOption(method) {
             if (deliveryMethodInput) {
                 deliveryMethodInput.value = method;
@@ -920,12 +930,15 @@
         
         if (zoneSelect) {
             zoneSelect.addEventListener('change', function() {
+                syncCheckoutSucursalCode();
                 const currentMethod = deliveryMethodInput ? deliveryMethodInput.value : 'tronex';
                 fetchDeliveryDate(currentMethod);
                 fetchShippingQuote(currentMethod);
             });
         }
-        
+
+        syncCheckoutSucursalCode();
+
         // Initialize
         updateDeliveryOption('tronex');
         fetchDeliveryDate('express');
