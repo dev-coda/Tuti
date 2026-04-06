@@ -29,6 +29,17 @@
         </div>
     @endif
 
+    @if(!empty($assertions))
+        <div class="mb-4 p-4 border rounded-lg {{ collect($assertions)->where('passed', false)->count() === 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200' }}">
+            <h3 class="font-semibold {{ collect($assertions)->where('passed', false)->count() === 0 ? 'text-emerald-900' : 'text-amber-900' }}">Validaciones XML</h3>
+            <ul class="text-sm mt-2 space-y-1 {{ collect($assertions)->where('passed', false)->count() === 0 ? 'text-emerald-800' : 'text-amber-800' }}">
+                @foreach($assertions as $assertion)
+                    <li>{{ ($assertion['passed'] ?? false) ? '✓' : '✗' }} {{ $assertion['message'] ?? '' }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
     <div class="mb-6">
         <h2 class="text-lg font-semibold text-gray-900 mb-2">Productos en la orden</h2>
         <table class="min-w-full divide-y divide-gray-200 text-sm">

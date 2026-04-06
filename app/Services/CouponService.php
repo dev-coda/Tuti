@@ -342,86 +342,68 @@ class CouponService
      */
     public function calculateMultipleCouponDiscounts(array $couponCodes, User $user, Collection $cartProducts): array
     {
-        $productDiscounts = []; // product_id => ['coupon_id' => X, 'discount' => Y, 'coupon_code' => Z]
-        $totalDiscount = 0;
-        $appliedCoupons = [];
+        $codes = collect($couponCodes)
+            ->map(fn ($code) => trim((string) $code))
+            ->filter()
+            ->values();
 
-        foreach ($couponCodes as $couponCode) {
-            $coupon = Coupon::byCode($couponCode)->first();
-            if (!$coupon || !$coupon->isValid()) {
-                continue;
-            }
-
-            // Validate coupon for user
-            $validation = $this->validateCoupon($couponCode, $user, $cartProducts, 0);
-            if (!$validation['valid']) {
-                continue;
-            }
-
-            // Calculate discount for each product
-            foreach ($cartProducts as $cartItem) {
-                $product = Product::with(['brand.vendor', 'categories'])->find($cartItem['product_id']);
-                if (!$product) continue;
-
-                // Check if coupon applies to this product
-                if ($coupon->applies_to === Coupon::APPLIES_TO_CART || $coupon->appliesToProduct($product, $user)) {
-                    $quantity = $cartItem['quantity'];
-                    $basePrice = $product->price;
-                    $variation = $product->items->where('id', $cartItem['variation_id'])->first();
-                    if ($variation) {
-                        $basePrice = $variation->pivot->price;
-                    }
-                    $productTotal = $basePrice * $quantity * ($product->package_quantity ?? 1);
-
-                    // Calculate discount for this product
-                    $discount = 0;
-                    if ($coupon->applies_to === Coupon::APPLIES_TO_CART) {
-                        // For cart-level coupons, calculate proportionally
-                        $cartTotal = $cartProducts->sum(function ($item) {
-                            $p = Product::find($item['product_id']);
-                            if (!$p) return 0;
-                            $price = $p->price;
-                            $v = $p->items->where('id', $item['variation_id'])->first();
-                            if ($v) $price = $v->pivot->price;
-                            return $price * $item['quantity'] * ($p->package_quantity ?? 1);
-                        });
-                        $cartDiscount = $coupon->calculateDiscount($cartTotal);
-                        $discount = ($productTotal / $cartTotal) * $cartDiscount;
-                    } else {
-                        $discount = $coupon->calculateDiscount($productTotal);
-                    }
-
-                    $productId = $product->id;
-
-                    // Only apply if this is the best discount for this product
-                    if (!isset($productDiscounts[$productId]) || $discount > $productDiscounts[$productId]['discount']) {
-                        $productDiscounts[$productId] = [
-                            'coupon_id' => $coupon->id,
-                            'coupon_code' => $coupon->code,
-                            'discount' => $discount,
-                            'type' => $coupon->type,
-                            'value' => $coupon->value,
-                        ];
-                    }
-                }
-            }
-
-            // Track applied coupons
-            if (!in_array($coupon->id, array_column($appliedCoupons, 'coupon_id'))) {
-                $appliedCoupons[] = [
-                    'coupon_id' => $coupon->id,
-                    'coupon_code' => $coupon->code,
-                ];
-            }
+        if ($codes->isEmpty()) {
+            return [
+                'success' => false,
+                'product_discounts' => [],
+                'total_discount' => 0,
+                'applied_coupons' => [],
+            ];
         }
 
-        // Calculate total discount
-        $totalDiscount = array_sum(array_column($productDiscounts, 'discount'));
+        $coupons = Coupon::whereIn('code', $codes->all())->get();
+        if ($coupons->isEmpty()) {
+            return [
+                'success' => false,
+                'product_discounts' => [],
+                'total_discount' => 0,
+                'applied_coupons' => [],
+            ];
+        }
+
+        $couponResult = app(CouponDiscountService::class)->applyMultipleCouponsToProducts(
+            $coupons->all(),
+            $user,
+            $cartProducts
+        );
+
+        if (!$couponResult['success']) {
+            return [
+                'success' => false,
+                'product_discounts' => [],
+                'total_discount' => 0,
+                'applied_coupons' => [],
+            ];
+        }
+
+        $productDiscounts = [];
+        foreach ($couponResult['modified_products'] as $line) {
+            $lineKey = $line['product_id'] . '_' . ($line['variation_id'] ?? 'null');
+            $productDiscounts[$lineKey] = [
+                'coupon_id' => $line['winning_coupon_id'] ?? null,
+                'coupon_code' => $line['winning_coupon_code'] ?? null,
+                'discount' => (float) ($line['coupon_contribution'] ?? 0),
+                'type' => $line['applied_discount_type'] ?? 'percentage',
+                'value' => (float) ($line['applied_discount_percentage'] ?? 0),
+                'line_savings' => (float) ($line['line_savings'] ?? 0),
+                'line_total' => (float) ($line['line_total'] ?? 0),
+            ];
+        }
+
+        $appliedCoupons = collect($couponResult['winning_coupons'] ?? [])
+            ->map(fn ($code, $id) => ['coupon_id' => (int) $id, 'coupon_code' => $code])
+            ->values()
+            ->all();
 
         return [
             'success' => true,
             'product_discounts' => $productDiscounts,
-            'total_discount' => $totalDiscount,
+            'total_discount' => (float) ($couponResult['total_coupon_discount'] ?? 0),
             'applied_coupons' => $appliedCoupons,
         ];
     }

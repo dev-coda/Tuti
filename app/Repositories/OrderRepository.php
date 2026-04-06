@@ -101,33 +101,9 @@ class OrderRepository
             if (!$productData) continue;
 
             $vendor_type = $productData->brand->vendor->vendor_type ?? '';
-            $discountType = $product->discount_type ?? 'percentage';
-            $flatDiscountAmount = (float) ($product->flat_discount_amount ?? 0);
-            $rawPercentage = $product->percentage ?? 0;
-            $discountPercentage = max(0, min(100, (int) $rawPercentage));
-
-            if ($bonification) {
-                $effectivePackageQuantity = 1;
-                $unitPrice = 0;
-                $discountPercentage = 0;
-            } else {
-                $shouldCalculatePackage = $productData->calculate_package_price;
-                $packageQty = $product->package_quantity ?? 1;
-                if ($shouldCalculatePackage && $packageQty > 1) {
-                    $baseUnitPrice = parseCurrency($product->price / $packageQty);
-                } else {
-                    $baseUnitPrice = parseCurrency($product->price);
-                }
-                if ($discountType === 'fixed_amount' && $flatDiscountAmount > 0) {
-                    $minAllowedPrice = (float)$baseUnitPrice * 0.1;
-                    $maxAllowedReduction = max(0, (float)$baseUnitPrice - $minAllowedPrice);
-                    $effectiveFlatDiscount = min((float)$flatDiscountAmount, $maxAllowedReduction);
-                    $unitPrice = parseCurrency(max($minAllowedPrice, (float)$baseUnitPrice - $effectiveFlatDiscount));
-                    $discountPercentage = 0;
-                } else {
-                    $unitPrice = $baseUnitPrice;
-                }
-            }
+            $pricing = self::resolveXmlPricing($product, $productData, $bonification, (int) ($order->id ?? 0), false);
+            $discountPercentage = $pricing['discount_percentage'];
+            $unitPrice = $pricing['unit_price'];
 
             $sku = $productData->sku;
             if ($product->variation_item_id && isset($variationSkus[$product->product_id . '-' . $product->variation_item_id])) {
@@ -183,6 +159,80 @@ class OrderRepository
                 </tem:PreSaslesProcess>
             </soapenv:Body>
         </soapenv:Envelope>';
+    }
+
+    /**
+     * Canonical XML pricing resolver for both diagnostic and send paths.
+     * Percentage discounts map to dyn:discount; fixed discounts reduce dyn:unitPrice with discount=0.
+     */
+    private static function resolveXmlPricing($orderProduct, $productData, int $bonification, int $orderId = 0, bool $logToSoapChannel = true): array
+    {
+        if ($bonification) {
+            return [
+                'unit_price' => 0,
+                'discount_percentage' => 0,
+                'discount_type' => 'bonification',
+                'flat_discount_amount' => 0.0,
+            ];
+        }
+
+        $discountType = (string) ($orderProduct->discount_type ?? 'percentage');
+        $flatDiscountAmount = (float) ($orderProduct->flat_discount_amount ?? 0);
+        $rawPercentage = (float) ($orderProduct->percentage ?? 0);
+        $discountPercentage = max(0, min(100, (int) round($rawPercentage)));
+
+        $shouldCalculatePackage = (bool) ($productData->calculate_package_price ?? false);
+        $packageQty = (int) ($orderProduct->package_quantity ?? 1);
+        $baseUnitPrice = $shouldCalculatePackage && $packageQty > 1
+            ? parseCurrency($orderProduct->price / $packageQty)
+            : parseCurrency($orderProduct->price);
+
+        if ($discountType === 'fixed_amount') {
+            if ($flatDiscountAmount <= 0 && $discountPercentage > 0) {
+                self::logDiscountMappingWarning(
+                    $orderId,
+                    $orderProduct->product_id ?? null,
+                    'fixed_amount without flat_discount_amount but percentage present',
+                    $logToSoapChannel
+                );
+            }
+
+            if ($flatDiscountAmount > 0) {
+                $minAllowedPrice = (float) $baseUnitPrice * 0.1;
+                $maxAllowedReduction = max(0, (float) $baseUnitPrice - $minAllowedPrice);
+                $effectiveFlatDiscount = min($flatDiscountAmount, $maxAllowedReduction);
+                $unitPrice = parseCurrency(max($minAllowedPrice, (float) $baseUnitPrice - $effectiveFlatDiscount));
+
+                return [
+                    'unit_price' => $unitPrice,
+                    'discount_percentage' => 0,
+                    'discount_type' => $discountType,
+                    'flat_discount_amount' => $flatDiscountAmount,
+                ];
+            }
+        }
+
+        return [
+            'unit_price' => $baseUnitPrice,
+            'discount_percentage' => $discountPercentage,
+            'discount_type' => $discountType,
+            'flat_discount_amount' => $flatDiscountAmount,
+        ];
+    }
+
+    private static function logDiscountMappingWarning(int $orderId, $productId, string $message, bool $soapChannel = true): void
+    {
+        $context = [
+            'order_id' => $orderId,
+            'product_id' => $productId,
+            'message' => $message,
+        ];
+
+        if ($soapChannel) {
+            Log::channel('soap')->warning('XML discount mapping inconsistency', $context);
+        } else {
+            Log::warning('XML discount mapping inconsistency', $context);
+        }
     }
 
     public static function presalesOrder($order)
@@ -338,77 +388,11 @@ class OrderRepository
 
             $vendor_type = $productData->brand->vendor->vendor_type;
 
-            // Handle package calculation differently for bonifications vs regular products
-            // Also handle flat discount type by applying it to unit price instead of percentage field
-            $discountType = $product->discount_type ?? 'percentage';
-            $flatDiscountAmount = (float) ($product->flat_discount_amount ?? 0);
-
-            // Validate and clamp discount percentage to valid range (0-100)
-            // This prevents SOAP errors from invalid percentage values
-            $rawPercentage = $product->percentage ?? 0;
-            $discountPercentage = max(0, min(100, (int) $rawPercentage));
-            
-            // NOTE: We intentionally do NOT recalculate discounts here.
-            // The order_products table is the source of truth — it stores exactly
-            // what discount_type, percentage, and flat_discount_amount were decided
-            // at order-creation time by the coupon/discount service.  Recalculating
-            // could override coupon decisions (e.g. a fixed-amount coupon that set
-            // percentage=0 and reduced the price instead).
-
-            if ($bonification) {
-                // For bonifications: always send the exact quantity specified, never multiply by package_quantity
-                // Bonifications are always individual items, not package units
-                $effectivePackageQuantity = 1;
-                $unitPrice = 0; // Bonifications always have 0 price
-                $discountPercentage = 0; // No discount on bonifications
-            } else {
-                // For regular products:
-                // calculate_package_price flag controls BOTH price division AND qty multiplication
-                
-                // If calculate_package_price = TRUE:
-                //   - Divide stored price by package_qty to get unit price for SOAP
-                //   - Multiply order qty by package_qty in SOAP
-                // If calculate_package_price = FALSE:
-                //   - Use stored price as-is (package treated as 1 unit)
-                //   - Use order qty as-is (no multiplication)
-                
-                $shouldCalculatePackage = $productData->calculate_package_price;
-                $packageQty = $product->package_quantity ?? 1;
-                
-                if ($shouldCalculatePackage && $packageQty > 1) {
-                    // Stored price is package price, divide to get unit price for SOAP
-                    $baseUnitPrice = parseCurrency($product->price / $packageQty);
-                } else {
-                    // Stored price is package price, use as-is (package = 1 unit)
-                    $baseUnitPrice = parseCurrency($product->price);
-                }
-                // Handle flat discount: apply it to unit price, set percentage to 0
-                if ($discountType === 'fixed_amount' && $flatDiscountAmount > 0) {
-                    // Ensure minimum price of 10% of base to prevent zero prices in SOAP
-                    $minAllowedPrice = (float)$baseUnitPrice * 0.1;
-                    $maxAllowedReduction = max(0, (float)$baseUnitPrice - $minAllowedPrice);
-                    $effectiveFlatDiscount = min((float)$flatDiscountAmount, $maxAllowedReduction);
-
-                    // Apply flat discount to unit price with safeguard
-                    $unitPrice = parseCurrency(max($minAllowedPrice, (float)$baseUnitPrice - $effectiveFlatDiscount));
-                    $discountPercentage = 0; // No percentage when using flat amount
-
-                    Log::channel('soap')->info('Applying flat discount to unit price', [
-                        'order_id' => $order->id,
-                        'product_id' => $product->product_id,
-                        'base_unit_price' => $baseUnitPrice,
-                        'original_flat_discount' => $flatDiscountAmount,
-                        'effective_flat_discount' => $effectiveFlatDiscount,
-                        'min_allowed_price' => $minAllowedPrice,
-                        'final_unit_price' => $unitPrice,
-                        'was_capped' => $effectiveFlatDiscount < (float)$flatDiscountAmount,
-                    ]);
-                } else {
-                    // Use base price and percentage discount
-                    $unitPrice = $baseUnitPrice;
-                    // discountPercentage is already set from $product->percentage
-                }
-            }
+            $pricing = self::resolveXmlPricing($product, $productData, (int) $bonification, (int) $order->id, true);
+            $discountType = $pricing['discount_type'];
+            $flatDiscountAmount = $pricing['flat_discount_amount'];
+            $discountPercentage = $pricing['discount_percentage'];
+            $unitPrice = $pricing['unit_price'];
 
             // Use cached data instead of making individual queries
             $sku = $productData->sku;
@@ -453,7 +437,7 @@ class OrderRepository
                     'order_id' => $order->id,
                     'product_id' => $product->product_id,
                     'bonification_quantity' => $product->quantity,
-                    'effective_package_quantity' => $effectivePackageQuantity,
+                    'effective_package_quantity' => 1,
                     'final_qty' => $qty,
                     'product_calculate_package_price' => $productData->calculate_package_price,
                     'product_package_quantity' => $productData->package_quantity ?? 'null'

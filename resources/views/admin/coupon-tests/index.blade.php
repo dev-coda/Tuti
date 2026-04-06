@@ -37,6 +37,9 @@
             <a href="{{ route('coupon-tests.mock') }}" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium">
                 Ejecutar prueba simulada
             </a>
+            <a href="{{ route('coupon-tests.suite') }}" class="ml-2 inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium">
+                Ejecutar suite de escenarios
+            </a>
         </div>
     </div>
 
@@ -45,6 +48,7 @@
         <ul class="text-sm text-amber-800 space-y-1">
             <li>• <strong>Descuentos %:</strong> Deben usar el campo <code>&lt;dyn:discount&gt;</code></li>
             <li>• <strong>Descuentos monto fijo:</strong> Deben modificar <code>&lt;dyn:unitPrice&gt;</code> (precio transmitido reducido), discount = 0</li>
+            <li>• <strong>Diagnóstico:</strong> Este módulo solo previsualiza XML. No transmite órdenes.</li>
         </ul>
     </div>
 </div>

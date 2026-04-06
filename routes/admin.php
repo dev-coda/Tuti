@@ -117,6 +117,9 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
         Route::get('/preview', [\App\Http\Controllers\Admin\CouponTestController::class, 'previewOrderXml'])->name('preview');
         Route::get('/mock', [\App\Http\Controllers\Admin\CouponTestController::class, 'showMockForm'])->name('mock');
         Route::post('/mock', [\App\Http\Controllers\Admin\CouponTestController::class, 'runMockTest'])->name('mock.run');
+        Route::get('/suite', [\App\Http\Controllers\Admin\CouponTestController::class, 'showScenarioSuiteForm'])->name('suite');
+        Route::post('/suite', [\App\Http\Controllers\Admin\CouponTestController::class, 'runScenarioSuite'])->name('suite.run');
+        Route::get('/suite/export', [\App\Http\Controllers\Admin\CouponTestController::class, 'exportScenarioSuite'])->name('suite.export');
     });
 
     // Promociones routes

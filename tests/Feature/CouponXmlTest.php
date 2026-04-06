@@ -266,8 +266,33 @@ it('applies single fixed amount coupon and returns fixed_amount discount type', 
     expect($result['success'])->toBeTrue();
     $mod = collect($result['modified_products'])->firstWhere('product_id', $product->id);
     expect($mod)->not->toBeNull()
-        ->and($mod['applied_discount_type'])->toBeIn(['fixed_amount', 'existing_percentage'])
+        ->and($mod['applied_discount_type'])->toBeIn(['fixed_amount', 'percentage'])
         ->and($mod)->toHaveKeys(['unit_price_reduction', 'base_price', 'new_unit_price']);
+});
+
+it('tracks coupon contribution only when coupon improves existing percentage', function () {
+    $tax = createTestTax();
+    $vendor = createTestVendor();
+    $brand = createTestBrand($vendor);
+    $zone = createTestZone();
+    $user = createTestUser($zone);
+    $product = createTestProduct($brand, $tax, [
+        'price' => 1000,
+        'discount' => 30, // existing direct discount beats coupon
+    ]);
+
+    $coupon = createCoupon(['type' => 'percentage', 'value' => 20, 'applies_to' => 'cart']);
+    $cart = collect([['product_id' => $product->id, 'quantity' => 1, 'variation_id' => null]]);
+
+    $svc = app(CouponDiscountService::class);
+    $result = $svc->applyCouponDiscountToProducts($coupon, $user, $cart, false);
+    $line = $result['modified_products'][0] ?? null;
+
+    expect($line)->not->toBeNull()
+        ->and($line['applied_discount_percentage'])->toBe(30.0)
+        ->and($line['discount_source'])->toBe('existing')
+        ->and($line['coupon_contribution'])->toBe(0.0)
+        ->and($result['total_coupon_discount'])->toBe(0.0);
 });
 
 // --- Client-specific (APPLIES_TO_CUSTOMER) ---
@@ -372,6 +397,34 @@ it('applyMultipleCouponsToProducts handles percentage plus fixed and picks bette
     expect($mod)->not->toBeNull();
     // 20% of 1000 = 200, fixed 100 = 100. Percentage should win.
     expect($mod['applied_discount_type'])->toBeIn(['percentage', 'fixed_amount']);
+});
+
+it('distributes fixed amount coupon proportionally across applicable lines', function () {
+    $tax = createTestTax();
+    $vendor = createTestVendor();
+    $brand = createTestBrand($vendor);
+    $zone = createTestZone();
+    $user = createTestUser($zone);
+    $p1 = createTestProduct($brand, $tax, ['price' => 1000]);
+    $p2 = createTestProduct($brand, $tax, ['price' => 500]);
+
+    $fix = createCoupon(['code' => 'FIX300', 'type' => 'fixed_amount', 'value' => 300, 'applies_to' => 'cart']);
+    $cart = collect([
+        ['product_id' => $p1->id, 'quantity' => 1, 'variation_id' => null],
+        ['product_id' => $p2->id, 'quantity' => 1, 'variation_id' => null],
+    ]);
+
+    $svc = app(CouponDiscountService::class);
+    $result = $svc->applyCouponDiscountToProducts($fix, $user, $cart, false);
+    expect($result['success'])->toBeTrue();
+
+    $byProduct = collect($result['modified_products'])->keyBy('product_id');
+    $r1 = $byProduct[$p1->id]['unit_price_reduction'] ?? 0;
+    $r2 = $byProduct[$p2->id]['unit_price_reduction'] ?? 0;
+
+    // 1000:500 ratio -> 2:1 line reductions
+    expect(round($r1, 2))->toBe(200.0)
+        ->and(round($r2, 2))->toBe(100.0);
 });
 
 // --- Product-specific coupon ---
@@ -600,4 +653,26 @@ it('generates correct XML for mixed discount types in same order', function () {
         ->and($xml)->toContain('<dyn:discount>0</dyn:discount>')
         ->and($xml)->toContain('<dyn:unitPrice>1000</dyn:unitPrice>')
         ->and($xml)->toContain('<dyn:unitPrice>400</dyn:unitPrice>');
+});
+
+it('caps fixed discount in XML so unit price never goes below 10 percent floor', function () {
+    $tax = createTestTax();
+    $vendor = createTestVendor();
+    $brand = createTestBrand($vendor);
+    $zone = createTestZone();
+    $user = createTestUser($zone);
+    $product = createTestProduct($brand, $tax, ['price' => 1000]);
+
+    [$order, $products] = buildMockOrder($user, $zone, [[
+        'product' => $product,
+        'quantity' => 1,
+        'price' => 1000,
+        'percentage' => 25, // should be ignored because fixed_amount wins XML mapping
+        'discount_type' => 'fixed_amount',
+        'flat_discount_amount' => 950, // should cap to min unit price = 100
+    ]]);
+
+    $xml = OrderRepository::buildOrderXmlForDiagnostic($order, false, $products);
+    expect($xml)->toContain('<dyn:discount>0</dyn:discount>')
+        ->and($xml)->toContain('<dyn:unitPrice>100</dyn:unitPrice>');
 });

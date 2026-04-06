@@ -219,32 +219,67 @@ class DiscountService
             return ['type' => 'coupon', 'amount' => 0, 'description' => 'Sin cupón aplicado', 'details' => []];
         }
 
-        $cartTotal = $this->calculateCartTotal($cartProducts, $hasOrders);
-        $totalDiscountAmount = 0;
-        $details = [];
-        $codes = [];
+        $couponIds = collect($couponEntries)
+            ->pluck('coupon_id')
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
 
+        if ($couponIds->isEmpty()) {
+            return ['type' => 'coupon', 'amount' => 0, 'description' => 'Cupón inválido', 'details' => []];
+        }
+
+        $coupons = Coupon::whereIn('id', $couponIds->all())->get();
+        if ($coupons->isEmpty()) {
+            return ['type' => 'coupon', 'amount' => 0, 'description' => 'Cupón inválido', 'details' => []];
+        }
+
+        $couponResult = app(CouponDiscountService::class)->applyMultipleCouponsToProducts(
+            $coupons->all(),
+            $user,
+            $cartProducts,
+            $hasOrders
+        );
+
+        if (!$couponResult['success']) {
+            return ['type' => 'coupon', 'amount' => 0, 'description' => 'Sin cupón aplicado', 'details' => []];
+        }
+
+        $details = [];
         foreach ($couponEntries as $entry) {
             $coupon = Coupon::find($entry['coupon_id'] ?? null);
             if (!$coupon || !$coupon->isValid()) {
                 continue;
             }
 
-            $discountAmount = $coupon->calculateDiscount($cartTotal);
-            $totalDiscountAmount += $discountAmount;
-            $codes[] = $coupon->code;
-
             $details[] = [
                 'type' => 'coupon',
                 'name' => $coupon->name,
-                'amount' => $discountAmount,
+                'amount' => 0,
                 'coupon_id' => $coupon->id
             ];
         }
 
+        foreach (($couponResult['modified_products'] ?? []) as $line) {
+            $couponId = $line['winning_coupon_id'] ?? null;
+            if (!$couponId) {
+                continue;
+            }
+            foreach ($details as &$detail) {
+                if ((int) $detail['coupon_id'] === (int) $couponId) {
+                    $detail['amount'] += (float) ($line['coupon_contribution'] ?? 0);
+                    break;
+                }
+            }
+            unset($detail);
+        }
+
+        $codes = collect($couponResult['winning_coupons'] ?? [])->values()->all();
+
         return [
             'type' => 'coupon',
-            'amount' => $totalDiscountAmount,
+            'amount' => (float) ($couponResult['total_coupon_discount'] ?? 0),
             'description' => empty($codes) ? 'Cupón inválido' : 'Cupones: ' . implode(', ', $codes),
             'details' => $details
         ];
