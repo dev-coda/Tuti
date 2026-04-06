@@ -1298,7 +1298,9 @@ class CartController extends Controller
                         $lineDiscountPercent = 0; // No percentage for fixed amount
                         $orderDiscountType = 'fixed_amount';
                         // Calculate per-unit flat discount for XML
-                        $flatDiscountAmount = $modProduct['unit_price_reduction'] ?? 0;
+                        $flatDiscountAmount = (float) ($modProduct['fixed_discount_per_unit']
+                            ?? $modProduct['unit_price_reduction']
+                            ?? 0);
                     } else {
                         // For percentage discounts, use the applied percentage
                         $basePrice = $modProduct['base_price'];
@@ -1307,7 +1309,9 @@ class CartController extends Controller
                         } else {
                             $unitPrice = $basePrice;
                         }
-                        $lineDiscountPercent = (int) ($modProduct['applied_discount_percentage'] ?? 0);
+                        $lineDiscountPercent = (int) round((float) ($modProduct['effective_discount_percentage']
+                            ?? $modProduct['applied_discount_percentage']
+                            ?? 0));
                     }
                 } else {
                     // Use original product pricing logic with vendor total for proper discount
@@ -1510,14 +1514,13 @@ class CartController extends Controller
                     $discountType = $modProduct['applied_discount_type'] ?? 'percentage';
 
                     if ($discountType === 'fixed_amount') {
-                        // For fixed amount: price is already reduced, so total is simply price * quantity * package
-                        $lineTotal = $modProduct['new_unit_price'] * $row['quantity'] * ($p->package_quantity ?? 1);
-                        $lineDiscount = $modProduct['final_discount_amount'];
+                        $lineTotal = (float) ($modProduct['line_total']
+                            ?? ($modProduct['new_unit_price'] * $row['quantity'] * ($p->package_quantity ?? 1)));
+                        $lineDiscount = (float) ($modProduct['line_savings'] ?? $modProduct['final_discount_amount']);
                     } else {
-                        // For percentage: calculate based on base price and percentage
-                        $lineSubtotal = $modProduct['base_price'] * $row['quantity'] * ($p->package_quantity ?? 1);
-                        $lineDiscount = $modProduct['final_discount_amount'];
-                        $lineTotal = $lineSubtotal - $lineDiscount;
+                        $lineDiscount = (float) ($modProduct['line_savings'] ?? $modProduct['final_discount_amount']);
+                        $lineTotal = (float) ($modProduct['line_total']
+                            ?? (($modProduct['base_price'] * $row['quantity'] * ($p->package_quantity ?? 1)) - $lineDiscount));
                     }
                 } else {
                     // Use original calculation for non-coupon affected products
@@ -1551,12 +1554,13 @@ class CartController extends Controller
                         $discountType = $modProduct['applied_discount_type'] ?? 'percentage';
 
                         if ($discountType === 'fixed_amount') {
-                            $lineTotal = $modProduct['new_unit_price'] * $row['quantity'] * ($p->package_quantity ?? 1);
-                            $lineDiscount = $modProduct['final_discount_amount'];
-                        } else if ($discountType === 'coupon') {
+                            $lineTotal = (float) ($modProduct['line_total']
+                                ?? ($modProduct['new_unit_price'] * $row['quantity'] * ($p->package_quantity ?? 1)));
+                            $lineDiscount = (float) ($modProduct['line_savings'] ?? $modProduct['final_discount_amount']);
+                        } elseif (($modProduct['discount_source'] ?? null) === 'coupon') {
                             // Only apply coupon discount, ignore existing discounts
                             $lineSubtotal = $modProduct['base_price'] * $row['quantity'] * ($p->package_quantity ?? 1);
-                            $lineDiscount = $modProduct['coupon_contribution'];
+                            $lineDiscount = (float) ($modProduct['coupon_contribution'] ?? 0);
                             $lineTotal = $lineSubtotal - $lineDiscount;
                         } else {
                             // No discount for users with orders if it's existing discount

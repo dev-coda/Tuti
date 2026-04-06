@@ -6,6 +6,7 @@ use App\Models\Coupon;
 use App\Models\Product;
 use App\Models\User;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 
 class CouponDiscountService
 {
@@ -26,7 +27,7 @@ class CouponDiscountService
             // First validate and get basic coupon application data
             $couponResult = $couponService->applyCouponToCart($coupon, $user, $cartProducts, $hasOrders);
 
-            \Log::info('CouponDiscountService: applyCouponToCart result', [
+            Log::info('CouponDiscountService: applyCouponToCart result', [
                 'coupon_id' => $coupon->id,
                 'coupon_code' => $coupon->code,
                 'coupon_type' => $coupon->type,
@@ -53,7 +54,7 @@ class CouponDiscountService
                 $result = $this->applyFixedAmountCouponDiscount($coupon, $cartProducts, $applicableProducts, $totalDiscountAmount, $hasOrders);
             }
 
-            \Log::info('CouponDiscountService: Final result', [
+            Log::info('CouponDiscountService: Final result', [
                 'coupon_id' => $coupon->id,
                 'coupon_type' => $coupon->type,
                 'success' => $result['success'],
@@ -71,7 +72,7 @@ class CouponDiscountService
 
             return $result;
         } catch (\Exception $e) {
-            \Log::error('CouponDiscountService: Exception during coupon application', [
+            Log::error('CouponDiscountService: Exception during coupon application', [
                 'coupon_id' => $coupon->id ?? null,
                 'coupon_code' => $coupon->code ?? null,
                 'error' => $e->getMessage(),
@@ -97,48 +98,32 @@ class CouponDiscountService
         $totalCouponDiscount = 0;
 
         foreach ($cartProducts as $cartItem) {
-            $product = Product::with(['brand.vendor', 'categories'])->find($cartItem['product_id']);
-            if (!$product) continue;
-
-            $quantity = $cartItem['quantity'];
-            $couponPercentage = 0;
-
-            // Check if this product is applicable for the coupon
-            $isApplicable = $this->isProductApplicableForCoupon($product, $applicableProducts);
-
-            if ($isApplicable) {
-                // Ensure coupon value is a valid number and within reasonable bounds (0-100%)
-                $couponPercentage = (float) $coupon->value;
-                $couponPercentage = max(0, min(100, $couponPercentage)); // Clamp to 0-100
+            $product = Product::with(['brand.vendor', 'categories', 'items'])->find($cartItem['product_id']);
+            if (!$product) {
+                continue;
             }
 
-            // Get existing discount information with null-safe handling
+            $quantity = (int) ($cartItem['quantity'] ?? 1);
+            $packageQuantity = (int) ($product->package_quantity ?? 1);
+            $basePrice = $this->resolveBasePrice($product, $cartItem['variation_id'] ?? null);
+
             $existingPriceInfo = $product->getFinalPriceForUser($hasOrders);
-            $existingDiscountPercentage = (float) ($existingPriceInfo['discount'] ?? 0);
-            
-            // Ensure percentage is valid
-            $existingDiscountPercentage = max(0, min(100, $existingDiscountPercentage));
+            $existingDiscountPercentage = $this->clampPercentage((float) ($existingPriceInfo['discount'] ?? 0));
+            $isApplicable = $this->isProductApplicableForCoupon($product, $applicableProducts);
+            $couponPercentage = $isApplicable ? $this->clampPercentage((float) $coupon->value) : 0.0;
 
-            // Use the larger discount percentage (best for customer)
             $finalDiscountPercentage = max($existingDiscountPercentage, $couponPercentage);
+            $totalUnits = max(1, $quantity * $packageQuantity);
+            $lineSubtotal = $basePrice * $totalUnits;
+            $newUnitPrice = max(0, $basePrice - ($basePrice * $finalDiscountPercentage / 100));
+            $lineTotal = $newUnitPrice * $totalUnits;
+            $lineDiscountAmount = max(0, $lineSubtotal - $lineTotal);
 
-            // Calculate base price (with variations if applicable)
-            $basePrice = $product->price;
-            $variation = $product->items->where('id', $cartItem['variation_id'])->first();
-            if ($variation) {
-                $basePrice = $variation->pivot->price;
-            }
-
-            // Calculate discount amounts
-            $packageQuantity = $product->package_quantity ?? 1;
-            $lineDiscountAmount = ($basePrice * $finalDiscountPercentage / 100) * $quantity * $packageQuantity;
-            $couponContribution = ($basePrice * $couponPercentage / 100) * $quantity * $packageQuantity;
-
+            // Coupon contribution is the incremental improvement over existing line pricing.
+            $couponContributionPct = max(0, $finalDiscountPercentage - $existingDiscountPercentage);
+            $couponContribution = ($basePrice * $couponContributionPct / 100) * $totalUnits;
             $totalCouponDiscount += $couponContribution;
 
-            // Calculate the new unit price after percentage discount
-            $newUnitPrice = $basePrice - ($basePrice * $finalDiscountPercentage / 100);
-            
             $modifiedProducts[] = [
                 'product_id' => $product->id,
                 'variation_id' => $cartItem['variation_id'] ?? null,
@@ -148,12 +133,17 @@ class CouponDiscountService
                 'package_quantity' => $packageQuantity,
                 'applied_discount_type' => 'percentage',
                 'applied_discount_percentage' => $finalDiscountPercentage,
-                'existing_discount_percentage' => $existingDiscountPercentage,
-                'coupon_discount_percentage' => $couponPercentage,
+                'discount_source' => $couponContribution > 0 ? 'coupon' : 'existing',
+                'effective_discount_percentage' => $finalDiscountPercentage,
+                'fixed_discount_per_unit' => 0.0,
+                'line_subtotal' => $lineSubtotal,
+                'line_total' => $lineTotal,
+                'line_savings' => $lineDiscountAmount,
                 'coupon_contribution' => $couponContribution,
+                'coupon_discount_percentage' => $couponPercentage,
+                'existing_discount_percentage' => $existingDiscountPercentage,
                 'line_discount_amount' => $lineDiscountAmount,
                 'final_discount_amount' => $lineDiscountAmount,
-                'discount_source' => $finalDiscountPercentage > $existingDiscountPercentage ? 'coupon' : 'existing',
             ];
         }
 
@@ -175,7 +165,7 @@ class CouponDiscountService
         $modifiedProducts = [];
         $applicableProductsTotal = 0;
 
-        \Log::debug('applyFixedAmountCouponDiscount: Starting', [
+        Log::debug('applyFixedAmountCouponDiscount: Starting', [
             'coupon_id' => $coupon->id,
             'coupon_applies_to' => $coupon->applies_to,
             'total_discount_amount' => $totalDiscountAmount,
@@ -187,13 +177,13 @@ class CouponDiscountService
         // First pass: calculate total value of applicable products and their existing discounts
         $applicableProductsData = [];
         foreach ($cartProducts as $cartItem) {
-            $product = Product::with(['brand.vendor', 'categories'])->find($cartItem['product_id']);
+            $product = Product::with(['brand.vendor', 'categories', 'items'])->find($cartItem['product_id']);
             if (!$product) continue;
 
-            $quantity = $cartItem['quantity'];
+            $quantity = (int) ($cartItem['quantity'] ?? 1);
             $isApplicable = $this->isProductApplicableForCoupon($product, $applicableProducts);
 
-            \Log::debug('applyFixedAmountCouponDiscount: Checking product applicability', [
+            Log::debug('applyFixedAmountCouponDiscount: Checking product applicability', [
                 'product_id' => $product->id,
                 'product_name' => $product->name,
                 'is_applicable' => $isApplicable,
@@ -202,14 +192,9 @@ class CouponDiscountService
 
             if (!$isApplicable) continue;
 
-            // Get base price
-            $basePrice = $product->price;
-            $variation = $product->items->where('id', $cartItem['variation_id'])->first();
-            if ($variation) {
-                $basePrice = $variation->pivot->price;
-            }
+            $basePrice = $this->resolveBasePrice($product, $cartItem['variation_id'] ?? null);
 
-            $packageQuantity = $product->package_quantity ?? 1;
+            $packageQuantity = (int) ($product->package_quantity ?? 1);
             $lineTotal = $basePrice * $quantity * $packageQuantity;
             $applicableProductsTotal += $lineTotal;
 
@@ -241,15 +226,14 @@ class CouponDiscountService
         }
 
         // Second pass: distribute the fixed discount amount proportionally
-        $remainingDiscountToDistribute = $totalDiscountAmount;
         $actualTotalDiscount = 0;
 
         foreach ($applicableProductsData as $productData) {
             $product = $productData['product'];
             $cartItem = $productData['cart_item'];
             $basePrice = $productData['base_price'];
-            $quantity = $productData['quantity'];
-            $packageQuantity = $productData['package_quantity'];
+            $quantity = (int) $productData['quantity'];
+            $packageQuantity = (int) $productData['package_quantity'];
             $lineTotal = $productData['line_total'];
             $existingDiscountAmount = $productData['existing_discount_amount'];
 
@@ -257,7 +241,7 @@ class CouponDiscountService
             $proportionalDiscount = ($lineTotal / $applicableProductsTotal) * $totalDiscountAmount;
 
             // Calculate what the unit price reduction would be
-            $totalUnits = $quantity * $packageQuantity;
+            $totalUnits = max(1, $quantity * $packageQuantity);
             $unitPriceReduction = $proportionalDiscount / $totalUnits;
 
             // IMPORTANT: When calculate_package_price is true, the SOAP transmission divides
@@ -274,7 +258,6 @@ class CouponDiscountService
 
             // Calculate the actual discount we can apply
             $actualLineDiscount = $actualUnitPriceReduction * $totalUnits;
-            $actualTotalDiscount += $actualLineDiscount;
 
             // Calculate equivalent percentage for comparison with existing discounts
             // Use soapUnitPrice for accurate comparison since that's the price sent to SOAP
@@ -289,22 +272,26 @@ class CouponDiscountService
             $existingSavingsPerUnit = $soapUnitPrice * $existingDiscountPercentage / 100;
             $shouldUseFixedDiscount = $actualUnitPriceReduction > $existingSavingsPerUnit;
 
+            $lineSubtotal = $lineTotal;
             if ($shouldUseFixedDiscount) {
                 // Use the fixed amount approach - modify unit price
-                $newUnitPrice = $basePrice - $actualUnitPriceReduction;
+                $newUnitPrice = max(0, $basePrice - $actualUnitPriceReduction);
                 $appliedDiscountType = 'fixed_amount';
                 $appliedDiscountPercentage = 0;
                 $finalDiscountAmount = $actualLineDiscount;
+                $couponContribution = $actualLineDiscount;
+                $actualTotalDiscount += $couponContribution;
             } else {
                 // Existing percentage discount is better - keep it.
-                // The coupon did NOT contribute here so remove this line's
-                // coupon portion from the running total.
                 $newUnitPrice = $basePrice - ($basePrice * $existingDiscountPercentage / 100);
-                $appliedDiscountType = 'existing_percentage';
+                $appliedDiscountType = 'percentage';
                 $appliedDiscountPercentage = $existingDiscountPercentage;
                 $finalDiscountAmount = $existingDiscountAmount;
-                $actualTotalDiscount -= $actualLineDiscount;
+                $couponContribution = 0;
             }
+
+            $lineTotalAfterDiscount = max(0, $newUnitPrice * $totalUnits);
+            $lineSavings = max(0, $lineSubtotal - $lineTotalAfterDiscount);
 
             $modifiedProducts[] = [
                 'product_id' => $product->id,
@@ -321,6 +308,13 @@ class CouponDiscountService
                 'applied_discount_percentage' => $appliedDiscountPercentage,
                 'final_discount_amount' => $finalDiscountAmount,
                 'unit_price_reduction' => $actualUnitPriceReduction,
+                'fixed_discount_per_unit' => $appliedDiscountType === 'fixed_amount' ? $actualUnitPriceReduction : 0.0,
+                'line_subtotal' => $lineSubtotal,
+                'line_total' => $lineTotalAfterDiscount,
+                'line_savings' => $lineSavings,
+                'coupon_contribution' => $couponContribution,
+                'discount_source' => $couponContribution > 0 ? 'coupon' : 'existing',
+                'effective_discount_percentage' => $appliedDiscountPercentage,
             ];
         }
 
@@ -332,27 +326,7 @@ class CouponDiscountService
             $isApplicable = $this->isProductApplicableForCoupon($product, $applicableProducts);
             if ($isApplicable) continue; // Already handled above
 
-            // Keep existing discount
-            $basePrice = $product->price;
-            $variation = $product->items->where('id', $cartItem['variation_id'])->first();
-            if ($variation) {
-                $basePrice = $variation->pivot->price;
-            }
-
-            $existingPriceInfo = $product->getFinalPriceForUser($hasOrders);
-
-            $modifiedProducts[] = [
-                'product_id' => $product->id,
-                'variation_id' => $cartItem['variation_id'] ?? null,
-                'quantity' => $cartItem['quantity'],
-                'base_price' => $basePrice,
-                'new_unit_price' => $basePrice,
-                'package_quantity' => $product->package_quantity ?? 1,
-                'applied_discount_type' => 'existing_percentage',
-                'applied_discount_percentage' => $existingPriceInfo['discount'],
-                'final_discount_amount' => $existingPriceInfo['totalDiscount'],
-                'unit_price_reduction' => 0,
-            ];
+            $modifiedProducts[] = $this->buildExistingLineResult($product, $cartItem, $hasOrders);
         }
 
         return [
@@ -412,7 +386,7 @@ class CouponDiscountService
                     ];
                 }
             } catch (\Exception $e) {
-                \Log::warning('Multi-coupon: failed to apply coupon', [
+                Log::warning('Multi-coupon: failed to apply coupon', [
                     'coupon_id' => $coupon->id,
                     'coupon_code' => $coupon->code,
                     'error' => $e->getMessage(),
@@ -442,22 +416,26 @@ class CouponDiscountService
             foreach ($result['modified_products'] as $modProduct) {
                 $key = $modProduct['product_id'] . '_' . ($modProduct['variation_id'] ?? 'null');
 
-                // Calculate the actual monetary saving this coupon provides for this line.
-                $basePrice = (float) ($modProduct['base_price'] ?? 0);
-                $quantity  = (int)   ($modProduct['quantity'] ?? 1);
-                $pkgQty    = (int)   ($modProduct['package_quantity'] ?? 1);
-                $lineGross = $basePrice * $quantity * $pkgQty;
-
-                $newUnitPrice = (float) ($modProduct['new_unit_price'] ?? $basePrice);
-                $lineNet      = $newUnitPrice * $quantity * $pkgQty;
-                $thisSaving   = max(0, $lineGross - $lineNet);
+                $thisSaving = (float) ($modProduct['line_savings'] ?? 0);
+                if ($thisSaving <= 0) {
+                    $basePrice = (float) ($modProduct['base_price'] ?? 0);
+                    $quantity  = (int) ($modProduct['quantity'] ?? 1);
+                    $pkgQty    = (int) ($modProduct['package_quantity'] ?? 1);
+                    $lineGross = $basePrice * $quantity * $pkgQty;
+                    $newUnitPrice = (float) ($modProduct['new_unit_price'] ?? $basePrice);
+                    $lineNet = $newUnitPrice * $quantity * $pkgQty;
+                    $thisSaving = max(0, $lineGross - $lineNet);
+                }
 
                 $currentBestSaving = 0;
                 if (isset($mergedProducts[$key])) {
                     $cb = $mergedProducts[$key];
-                    $cbGross  = (float)$cb['base_price'] * (int)$cb['quantity'] * (int)$cb['package_quantity'];
-                    $cbNet    = (float)$cb['new_unit_price'] * (int)$cb['quantity'] * (int)$cb['package_quantity'];
-                    $currentBestSaving = max(0, $cbGross - $cbNet);
+                    $currentBestSaving = (float) ($cb['line_savings'] ?? 0);
+                    if ($currentBestSaving <= 0) {
+                        $cbGross  = (float)$cb['base_price'] * (int)$cb['quantity'] * (int)$cb['package_quantity'];
+                        $cbNet    = (float)$cb['new_unit_price'] * (int)$cb['quantity'] * (int)$cb['package_quantity'];
+                        $currentBestSaving = max(0, $cbGross - $cbNet);
+                    }
                 }
 
                 if (!isset($mergedProducts[$key]) || $thisSaving > $currentBestSaving) {
@@ -473,21 +451,14 @@ class CouponDiscountService
         $winningCoupons = [];
 
         foreach ($mergedProducts as $product) {
-            $discountType = $product['applied_discount_type'] ?? 'percentage';
-
-            if ($discountType === 'percentage') {
-                $totalCouponDiscount += (float) ($product['coupon_contribution'] ?? 0);
-            } elseif ($discountType === 'fixed_amount') {
-                $totalCouponDiscount += (float) ($product['actual_discount_amount'] ?? 0);
-            }
-            // 'existing_percentage' means the coupon didn't win — don't count it
+            $totalCouponDiscount += (float) ($product['coupon_contribution'] ?? 0);
 
             if (isset($product['winning_coupon_id'])) {
                 $winningCoupons[$product['winning_coupon_id']] = $product['winning_coupon_code'];
             }
         }
 
-        \Log::info('Multi-coupon merge result', [
+        Log::info('Multi-coupon merge result', [
             'coupons_evaluated' => count($allCouponResults),
             'winning_coupons' => $winningCoupons,
             'total_coupon_discount' => $totalCouponDiscount,
@@ -499,6 +470,60 @@ class CouponDiscountService
             'total_coupon_discount' => $totalCouponDiscount,
             'modified_products' => array_values($mergedProducts),
             'winning_coupons' => $winningCoupons,
+        ];
+    }
+
+    private function resolveBasePrice(Product $product, $variationId = null): float
+    {
+        $basePrice = (float) $product->price;
+        if ($variationId) {
+            $variation = $product->items->where('id', $variationId)->first();
+            if ($variation && $variation->pivot) {
+                $basePrice = (float) $variation->pivot->price;
+            }
+        }
+        return $basePrice;
+    }
+
+    private function clampPercentage(float $value): float
+    {
+        return max(0, min(100, $value));
+    }
+
+    private function buildExistingLineResult(Product $product, array $cartItem, bool $hasOrders): array
+    {
+        $quantity = (int) ($cartItem['quantity'] ?? 1);
+        $packageQuantity = (int) ($product->package_quantity ?? 1);
+        $basePrice = $this->resolveBasePrice($product, $cartItem['variation_id'] ?? null);
+
+        $existingPriceInfo = $product->getFinalPriceForUser($hasOrders);
+        $existingDiscountPercentage = $this->clampPercentage((float) ($existingPriceInfo['discount'] ?? 0));
+        $totalUnits = max(1, $quantity * $packageQuantity);
+        $newUnitPrice = max(0, $basePrice - ($basePrice * $existingDiscountPercentage / 100));
+        $lineSubtotal = $basePrice * $totalUnits;
+        $lineTotal = $newUnitPrice * $totalUnits;
+        $lineSavings = max(0, $lineSubtotal - $lineTotal);
+
+        return [
+            'product_id' => $product->id,
+            'variation_id' => $cartItem['variation_id'] ?? null,
+            'quantity' => $quantity,
+            'base_price' => $basePrice,
+            'new_unit_price' => $newUnitPrice,
+            'package_quantity' => $packageQuantity,
+            'applied_discount_type' => 'percentage',
+            'applied_discount_percentage' => $existingDiscountPercentage,
+            'discount_source' => 'existing',
+            'effective_discount_percentage' => $existingDiscountPercentage,
+            'fixed_discount_per_unit' => 0.0,
+            'line_subtotal' => $lineSubtotal,
+            'line_total' => $lineTotal,
+            'line_savings' => $lineSavings,
+            'coupon_contribution' => 0.0,
+            'existing_discount_percentage' => $existingDiscountPercentage,
+            'line_discount_amount' => $lineSavings,
+            'final_discount_amount' => $lineSavings,
+            'unit_price_reduction' => 0.0,
         ];
     }
 
