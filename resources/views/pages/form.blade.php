@@ -455,15 +455,23 @@
                 </div>
             </div>
             <h3 class="text-xl font-bold text-center text-gray-900 mb-1">Cliente Tronex</h3>
-            <p class="text-center text-sm text-gray-500 mb-6">Ingresa tu número de cédula para crear tu cuenta en Tuti</p>
-            <div class="mb-4">
+            <p id="tronex-step-description" class="text-center text-sm text-gray-500 mb-6">Ingresa tu número de cédula para continuar con la validación</p>
+            <div id="tronex-cedula-field" class="mb-4">
                 <label for="tronex-cedula-input" class="block text-sm font-medium text-gray-700 mb-2">Cédula</label>
                 <input type="text" id="tronex-cedula-input" placeholder="Número de cédula" inputmode="numeric"
                     class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" autocomplete="off">
+            </div>
+            <div id="tronex-phone-field" class="mb-4 hidden">
+                <label for="tronex-phone-input" class="block text-sm font-medium text-gray-700 mb-2">Celular registrado</label>
+                <input type="text" id="tronex-phone-input" placeholder="Número de celular" inputmode="tel"
+                    class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" autocomplete="off">
+                <p class="mt-2 text-xs text-gray-500">Usa el número que tienes registrado con Tronex. Acepta formato con o sin +57.</p>
+            </div>
+            <div class="mb-4">
                 <p id="tronex-error" class="mt-2 text-sm text-red-600 hidden"></p>
             </div>
             <button type="button" id="tronex-submit-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
-                Crear cuenta Tuti
+                Validar cédula
             </button>
             <div id="tronex-loading" class="hidden absolute inset-0 bg-white bg-opacity-80 rounded-xl flex items-center justify-center">
                 <div class="flex flex-col items-center">
@@ -868,17 +876,52 @@ document.addEventListener('DOMContentLoaded', function() {
     const tronexModalClose = document.getElementById('tronex-modal-close');
     const tronexModalBackdrop = document.getElementById('tronex-modal-backdrop');
     const tronexCedulaInput = document.getElementById('tronex-cedula-input');
+    const tronexPhoneInput = document.getElementById('tronex-phone-input');
+    const tronexPhoneField = document.getElementById('tronex-phone-field');
+    const tronexStepDescription = document.getElementById('tronex-step-description');
     const tronexSubmitBtn = document.getElementById('tronex-submit-btn');
     const tronexError = document.getElementById('tronex-error');
     const tronexLoading = document.getElementById('tronex-loading');
+    let tronexStep = 'document';
+    let tronexPendingDocument = '';
+
+    function resetTronexFlow() {
+        tronexStep = 'document';
+        tronexPendingDocument = '';
+        tronexCedulaInput.value = '';
+        if (tronexPhoneInput) tronexPhoneInput.value = '';
+        if (tronexPhoneField) tronexPhoneField.classList.add('hidden');
+        if (tronexStepDescription) {
+            tronexStepDescription.textContent = 'Ingresa tu número de cédula para continuar con la validación';
+        }
+        if (tronexSubmitBtn) {
+            tronexSubmitBtn.textContent = 'Validar cédula';
+            tronexSubmitBtn.disabled = false;
+        }
+        tronexError.classList.add('hidden');
+        tronexError.textContent = '';
+    }
+
+    function moveToTronexPhoneStep(documentNumber) {
+        tronexStep = 'phone';
+        tronexPendingDocument = documentNumber;
+        if (tronexPhoneField) tronexPhoneField.classList.remove('hidden');
+        if (tronexStepDescription) {
+            tronexStepDescription.textContent = 'Ingresa tu celular registrado para validar tu identidad.';
+        }
+        if (tronexSubmitBtn) {
+            tronexSubmitBtn.textContent = 'Validar y continuar';
+        }
+        tronexError.classList.add('hidden');
+        tronexError.textContent = '';
+        setTimeout(() => tronexPhoneInput?.focus(), 100);
+    }
 
     function openTronexModal() {
         if (tronexModal) {
             tronexModal.classList.remove('hidden');
             document.body.style.overflow = 'hidden';
-            tronexCedulaInput.value = '';
-            tronexError.classList.add('hidden');
-            tronexError.textContent = '';
+            resetTronexFlow();
             setTimeout(() => tronexCedulaInput?.focus(), 100);
         }
     }
@@ -886,6 +929,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (tronexModal) {
             tronexModal.classList.add('hidden');
             document.body.style.overflow = '';
+            resetTronexFlow();
         }
     }
     function showTronexError(msg) {
@@ -902,11 +946,24 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (tronexSubmitBtn && tronexCedulaInput) {
         tronexSubmitBtn.addEventListener('click', async function() {
-            const cedula = tronexCedulaInput.value.trim().replace(/\D/g, '');
-            if (!cedula || cedula.length < 5) {
-                showTronexError('Ingresa un número de cédula válido.');
-                return;
+            const cedula = tronexStep === 'phone'
+                ? tronexPendingDocument
+                : tronexCedulaInput.value.trim().replace(/\D/g, '');
+            const phone = tronexPhoneInput?.value?.trim() ?? '';
+
+            if (tronexStep === 'document') {
+                if (!cedula || cedula.length < 5) {
+                    showTronexError('Ingresa un número de cédula válido.');
+                    return;
+                }
+            } else {
+                const normalizedPhone = phone.replace(/\D/g, '');
+                if (!normalizedPhone || normalizedPhone.length < 7) {
+                    showTronexError('Ingresa un número de celular válido.');
+                    return;
+                }
             }
+
             tronexError.classList.add('hidden');
             tronexLoading.classList.remove('hidden');
             tronexSubmitBtn.disabled = true;
@@ -918,12 +975,19 @@ document.addEventListener('DOMContentLoaded', function() {
                         'X-CSRF-TOKEN': csrfToken,
                         'Accept': 'application/json',
                     },
-                    body: JSON.stringify({ document: cedula }),
+                    body: JSON.stringify({
+                        document: cedula,
+                        ...(tronexStep === 'phone' ? { phone } : {}),
+                    }),
                 });
                 const data = await response.json();
-                if (data.success && data.redirect) {
+                if (data.success && data.requires_phone_verification) {
+                    moveToTronexPhoneStep(cedula);
+                    return;
+                }
+                if (data.success && (data.verified_redirect || data.redirect)) {
                     closeTronexModal();
-                    window.location.href = data.redirect;
+                    window.location.href = data.verified_redirect || data.redirect;
                     return;
                 }
                 showTronexError(data.message || 'No se pudo crear la cuenta. Intenta de nuevo.');
@@ -937,6 +1001,11 @@ document.addEventListener('DOMContentLoaded', function() {
         tronexCedulaInput.addEventListener('keydown', function(e) {
             if (e.key === 'Enter') { e.preventDefault(); tronexSubmitBtn.click(); }
         });
+        if (tronexPhoneInput) {
+            tronexPhoneInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') { e.preventDefault(); tronexSubmitBtn.click(); }
+            });
+        }
     }
 });
 </script>
