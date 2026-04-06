@@ -100,6 +100,9 @@
                                     @endif
                                 </a>
                             </th>
+                            <th scope="col" class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
+                                Coord. Dimensiones
+                            </th>
             
                            
                             <th scope="col"
@@ -153,6 +156,10 @@
                                         ])></div>
                                     {{ $product->active ? 'Activo' : 'Inactivo' }}
                                 </div>
+                            </td>
+                            <td class="p-4 text-xs text-gray-900 whitespace-nowrap">
+                                <div>P: {{ $product->coordinadora_weight_kg ?? '-' }} kg</div>
+                                <div>{{ $product->coordinadora_height_cm ?? '-' }} x {{ $product->coordinadora_width_cm ?? '-' }} x {{ $product->coordinadora_length_cm ?? '-' }} cm</div>
                             </td>
                            
 

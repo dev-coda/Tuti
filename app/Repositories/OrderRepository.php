@@ -129,6 +129,8 @@ class OrderRepository
                         </dyn:listDetails>';
         }
 
+        $productList .= self::buildShippingServiceXmlLine($order, $bonification);
+
         return '<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:dat="http://schemas.microsoft.com/dynamics/2013/01/datacontracts" xmlns:tem="http://tempuri.org" xmlns:dyn="http://schemas.datacontract.org/2004/07/Dynamics.AX.Application">
             <soapenv:Header>
                 <dat:CallContext>
@@ -482,6 +484,8 @@ class OrderRepository
                         </dyn:listDetails>';
         }
 
+        $productList .= self::buildShippingServiceXmlLine($order, (int) $bonification);
+
         $order_id = $order->id;
         $transactionDate = $order->created_at->format('Y-m-d');
 
@@ -700,6 +704,29 @@ class OrderRepository
 
             throw $e;
         }
+    }
+
+    private static function buildShippingServiceXmlLine($order, int $bonification): string
+    {
+        if ($bonification === 1) {
+            return '';
+        }
+
+        $shippingAmount = (float) ($order->shipping_quote_amount ?? 0);
+        if ($shippingAmount <= 0) {
+            return '';
+        }
+
+        return '<dyn:listDetails>
+                            <dyn:discount>0</dyn:discount>
+                            <dyn:itemId>FL0001</dyn:itemId>
+                            <dyn:qty>1</dyn:qty>
+                            <dyn:qtyCust>1</dyn:qtyCust>
+                            <dyn:um>Unidad</dyn:um>
+                            <dyn:umCust>None</dyn:umCust>
+                            <dyn:unitPrice>' . parseCurrency($shippingAmount) . '</dyn:unitPrice>
+                            <dyn:vendorType></dyn:vendorType>
+                        </dyn:listDetails>';
     }
 
     public static function isBussinessDay($date)

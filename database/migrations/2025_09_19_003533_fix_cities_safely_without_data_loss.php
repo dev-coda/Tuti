@@ -24,31 +24,54 @@ return new class extends Migration
 
         // Step 3: Add new preferred cities (without destroying existing ones)
         $preferredCities = [
-            ['name' => 'Bogotá', 'state_id' => 31, 'active' => true, 'is_preferred' => true],
-            ['name' => 'Villavicencio', 'state_id' => 7, 'active' => true, 'is_preferred' => true],
-            ['name' => 'Medellín', 'state_id' => 1, 'active' => true, 'is_preferred' => true],
-            ['name' => 'Montería', 'state_id' => 3, 'active' => true, 'is_preferred' => true],
-            ['name' => 'Cali', 'state_id' => 33, 'active' => true, 'is_preferred' => true],
-            ['name' => 'Pereira', 'state_id' => 19, 'active' => true, 'is_preferred' => true],
-            ['name' => 'Cúcuta', 'state_id' => 32, 'active' => true, 'is_preferred' => true],
-            ['name' => 'Bucaramanga', 'state_id' => 6, 'active' => true, 'is_preferred' => true],
-            ['name' => 'Barranquilla', 'state_id' => 8, 'active' => true, 'is_preferred' => true],
-            ['name' => 'Cartagena', 'state_id' => 9, 'active' => true, 'is_preferred' => true],
-            ['name' => 'Valledupar', 'state_id' => 13, 'active' => true, 'is_preferred' => true],
+            ['name' => 'Bogotá', 'state_name' => 'BOGOTA D.C.', 'active' => true, 'is_preferred' => true],
+            ['name' => 'Villavicencio', 'state_name' => 'META', 'active' => true, 'is_preferred' => true],
+            ['name' => 'Medellín', 'state_name' => 'ANTIOQUIA', 'active' => true, 'is_preferred' => true],
+            ['name' => 'Montería', 'state_name' => 'CORDOBA', 'active' => true, 'is_preferred' => true],
+            ['name' => 'Cali', 'state_name' => 'VALLE DEL CAUCA', 'active' => true, 'is_preferred' => true],
+            ['name' => 'Pereira', 'state_name' => 'RISARALDA', 'active' => true, 'is_preferred' => true],
+            ['name' => 'Cúcuta', 'state_name' => 'NORTE DE SANTANDER', 'active' => true, 'is_preferred' => true],
+            ['name' => 'Bucaramanga', 'state_name' => 'SANTANDER', 'active' => true, 'is_preferred' => true],
+            ['name' => 'Barranquilla', 'state_name' => 'ATLANTICO', 'active' => true, 'is_preferred' => true],
+            ['name' => 'Cartagena', 'state_name' => 'BOLIVAR', 'active' => true, 'is_preferred' => true],
+            ['name' => 'Valledupar', 'state_name' => 'CESAR', 'active' => true, 'is_preferred' => true],
         ];
 
         foreach ($preferredCities as $cityData) {
+            $stateId = State::query()
+                ->whereRaw('LOWER(name) = ?', [mb_strtolower($cityData['state_name'])])
+                ->value('id');
+
+            if (!$stateId) {
+                continue;
+            }
+
+            $payload = [
+                'name' => $cityData['name'],
+                'state_id' => $stateId,
+                'active' => $cityData['active'],
+                'is_preferred' => $cityData['is_preferred'],
+            ];
+
             // Only create if it doesn't already exist (avoid duplicates)
             City::firstOrCreate(
-                ['name' => $cityData['name'], 'state_id' => $cityData['state_id']],
-                $cityData
+                ['name' => $payload['name'], 'state_id' => $payload['state_id']],
+                $payload
             );
         }
 
         // Step 4: Update any existing matching cities to be preferred
         foreach ($preferredCities as $cityData) {
+            $stateId = State::query()
+                ->whereRaw('LOWER(name) = ?', [mb_strtolower($cityData['state_name'])])
+                ->value('id');
+
+            if (!$stateId) {
+                continue;
+            }
+
             City::where('name', $cityData['name'])
-                ->where('state_id', $cityData['state_id'])
+                ->where('state_id', $stateId)
                 ->update(['is_preferred' => true]);
         }
     }

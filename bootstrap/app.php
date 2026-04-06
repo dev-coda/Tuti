@@ -1,5 +1,22 @@
 <?php
 
+// PHP 8.4/8.5 emits vendor deprecations that can break HTTP output when displayed.
+// Keep deprecations out of responses while still allowing normal errors/exceptions.
+if (!defined('E_DEPRECATED')) {
+    define('E_DEPRECATED', 8192);
+}
+if (!defined('E_USER_DEPRECATED')) {
+    define('E_USER_DEPRECATED', 16384);
+}
+error_reporting(E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED);
+set_error_handler(static function (int $severity, string $message, string $file = '', int $line = 0): bool {
+    if ($severity === E_DEPRECATED || $severity === E_USER_DEPRECATED) {
+        return true;
+    }
+
+    return false;
+});
+
 /*
 |--------------------------------------------------------------------------
 | Create The Application

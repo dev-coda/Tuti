@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\Order;
 use App\Models\User;
 use App\Repositories\OrderRepository;
+use App\Services\Shipping\CoordinadoraOrderProcessingService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -114,7 +115,14 @@ class ProcessOrderAsync implements ShouldQueue, ShouldBeUnique
 
         try {
             // Step 1: Process XML transmission
-            OrderRepository::presalesOrder($this->order);
+            if (
+                $this->order->delivery_method === Order::DELIVERY_METHOD_EXPRESS
+                && $this->order->shipping_provider === Order::SHIPPING_PROVIDER_COORDINADORA
+            ) {
+                app(CoordinadoraOrderProcessingService::class)->process($this->order);
+            } else {
+                OrderRepository::presalesOrder($this->order);
+            }
 
             Log::info("XML transmission completed for order {$this->order->id}");
 

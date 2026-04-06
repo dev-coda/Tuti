@@ -98,6 +98,11 @@
 
                 {{Aire::input('step', 'Steps')->min(1)->max(100)->groupClass('col-span-3')->helpText('Salto de cantidad para el precio')}}
 
+                {{ Aire::input('coordinadora_weight_kg', 'Peso Coordinadora (kg)')->type('number')->step(0.001)->min(0)->groupClass('col-span-3') }}
+                {{ Aire::input('coordinadora_height_cm', 'Alto Coordinadora (cm)')->type('number')->step(0.01)->min(0)->groupClass('col-span-1') }}
+                {{ Aire::input('coordinadora_width_cm', 'Ancho Coordinadora (cm)')->type('number')->step(0.01)->min(0)->groupClass('col-span-1') }}
+                {{ Aire::input('coordinadora_length_cm', 'Largo Coordinadora (cm)')->type('number')->step(0.01)->min(0)->groupClass('col-span-1') }}
+
                 <div class="col-span-3">
                     {{ Aire::hidden('calculate_package_price')->value(0)}}
                     <label class="relative inline-flex items-center cursor-pointer">
