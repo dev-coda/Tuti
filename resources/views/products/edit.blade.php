@@ -60,21 +60,27 @@
                     </label>
                 </div>
 
-                <div class="col-span-3 flex items-center">
-                    {{ Aire::hidden('exclude_from_brand_discount')->value(0)}}
-                    <label class="relative inline-flex items-center cursor-pointer">
-                        <input @checked($product->exclude_from_brand_discount ?? false) type="checkbox" name="exclude_from_brand_discount" value="1" class="sr-only peer">
-                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                        <span class="ml-3 text-sm font-medium text-gray-900">Excluir del descuento de marca</span>
-                    </label>
-                </div>
-                <div class="col-span-3 flex items-center">
-                    {{ Aire::hidden('exclude_from_vendor_discount')->value(0)}}
-                    <label class="relative inline-flex items-center cursor-pointer">
-                        <input @checked($product->exclude_from_vendor_discount ?? false) type="checkbox" name="exclude_from_vendor_discount" value="1" class="sr-only peer">
-                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                        <span class="ml-3 text-sm font-medium text-gray-900">Excluir del descuento de proveedor</span>
-                    </label>
+                <div class="col-span-6 border border-gray-200 rounded-lg p-4 bg-gray-50">
+                    <h4 class="text-sm font-semibold text-gray-900">Descuentos por marca y proveedor</h4>
+                    <p class="mt-1 text-xs text-gray-600 mb-4">Marca o proveedor pueden tener descuentos globales. Activa estas opciones para que <strong>este producto no reciba</strong> ese descuento de marca o de proveedor. El descuento configurado en este producto (tipo y valor más abajo) sigue aplicando con normalidad.</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="flex items-center">
+                            {{ Aire::hidden('exclude_from_brand_discount')->value(0)}}
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input @checked($product->exclude_from_brand_discount ?? false) type="checkbox" name="exclude_from_brand_discount" value="1" class="sr-only peer">
+                                <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                <span class="ml-3 text-sm font-medium text-gray-900">Ignorar descuento de marca</span>
+                            </label>
+                        </div>
+                        <div class="flex items-center">
+                            {{ Aire::hidden('exclude_from_vendor_discount')->value(0)}}
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input @checked($product->exclude_from_vendor_discount ?? false) type="checkbox" name="exclude_from_vendor_discount" value="1" class="sr-only peer">
+                                <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                <span class="ml-3 text-sm font-medium text-gray-900">Ignorar descuento de proveedor</span>
+                            </label>
+                        </div>
+                    </div>
                 </div>
 
                 @if(!$product->is_combined)

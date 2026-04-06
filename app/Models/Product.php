@@ -48,6 +48,10 @@ class Product extends Model
         'coordinadora_length_cm',
     ];
 
+    protected $casts = [
+        'exclude_from_brand_discount' => 'boolean',
+        'exclude_from_vendor_discount' => 'boolean',
+    ];
 
     public function brand()
     {
