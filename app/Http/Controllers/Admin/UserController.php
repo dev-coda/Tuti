@@ -9,9 +9,12 @@ use App\Models\State;
 use App\Models\User;
 use App\Models\Zone;
 use App\Repositories\OrderRepository;
+use App\Models\Setting;
 use App\Repositories\UserRepository;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
+use Carbon\Carbon;
 use App\Exports\UsersExport;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -25,52 +28,43 @@ class UserController extends Controller
         $users = User::query()
             ->whereDoesntHave('roles')
             ->when(request('q'), function ($query, $q) {
-                $query->where('name', 'ilike', "%{$q}%")
-                    ->orWhere('email', 'ilike', "%{$q}%");
+                $query->where(function ($inner) use ($q) {
+                    $inner->where('name', 'ilike', "%{$q}%")
+                        ->orWhere('email', 'ilike', "%{$q}%")
+                        ->orWhere('document', 'ilike', "%{$q}%");
+                });
             })
-            // ->when(request('zone') !== null, function ($query, $zone) {
-            //     if ($zone === 'sin_zona') {
-            //         $query->where('zone', '0')
-            //         ->orWhereNull('zone');
-            //     } else {
-            //         $query->where('zone', $zone);
-            //     }
-            // })
             ->orderBy('name')
             ->paginate();
 
+        $lastRuteroBulkAt = Setting::getByKey('last_client_rutero_bulk_sync_at');
+        $lastRuteroBulkSession = Setting::getByKey('last_client_rutero_bulk_sync_session');
+        $lastRuteroReportFilename = Setting::getByKey('last_client_rutero_bulk_sync_report');
+        $dailyRuteroSyncEnabled = Setting::getByKeyWithDefault('daily_client_rutero_sync_enabled', '1');
 
-        $users = User::query()->whereDoesntHave('roles')
-            ->when(request('q'), function ($query, $q) {
-                $query->where('name', 'ilike', "%{$q}%")
-                    ->orWhere('email', 'ilike', "%{$q}%")->orderBy("name")
-                    ->paginate();
-            })
-            // ->when(request('zone') !== null, function ($query, $zone) {
-            //     if ($zone === 'sin_zona') {
-            //         $query->where('zone', '0')
-            //         ->orWhereNull('zone');
-            //     } else {
-            //         $query->where('zone', $zone);
-            //     }
-            // })
-            ->orderBy('name')
-            ->paginate();
+        $lastRuteroBulkAtFormatted = null;
+        if ($lastRuteroBulkAt) {
+            try {
+                $lastRuteroBulkAtFormatted = Carbon::parse($lastRuteroBulkAt)
+                    ->timezone(config('app.timezone'))
+                    ->format('d/m/Y H:i');
+            } catch (\Throwable) {
+                $lastRuteroBulkAtFormatted = (string) $lastRuteroBulkAt;
+            }
+        }
 
-        // Obtener todas las zonas únicas, excluyendo NULL y "0"
-        // $zones = User::select('zone')
-        //     ->whereDoesntHave('roles')
-        //     ->distinct()
-        //     ->whereNotNull('zone') // Excluir NULL
-        //     ->where('zone', '!=', '0') // Excluir "0" exacto
-        //     ->orderBy('zone', 'asc')
-        //     ->pluck('zone', 'zone')
-        //     ->toArray();
+        $lastRuteroReportExists = $lastRuteroReportFilename
+            && Storage::disk('local')->exists('reports/' . $lastRuteroReportFilename);
 
-        // Agregar la opción "Sin zona" manualmente
-        // $zones = ['sin_zona' => 'Sin zona'] + $zones;
-
-        return view('users.index', compact('users'));
+        return view('users.index', compact(
+            'users',
+            'lastRuteroBulkAt',
+            'lastRuteroBulkAtFormatted',
+            'lastRuteroBulkSession',
+            'lastRuteroReportFilename',
+            'lastRuteroReportExists',
+            'dailyRuteroSyncEnabled'
+        ));
     }
 
 

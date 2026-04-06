@@ -93,6 +93,7 @@ class BulkOperationsController extends Controller
      */
     public function downloadReport($filename)
     {
+        $filename = basename($filename);
         $path = "reports/{$filename}";
 
         if (!Storage::disk('local')->exists($path)) {

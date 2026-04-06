@@ -3,13 +3,78 @@
 namespace App\Repositories;
 
 use App\Models\Setting;
+use App\Models\User;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
-
-use function Laravel\Prompts\error;
 
 class UserRepository
 {
+    /**
+     * Pick a valid email from Dynamics getRuteros detail payload (field names vary by version).
+     */
+    private static function extractDynamicsEmailFromDetail(array $detail): ?string
+    {
+        $keys = [
+            'aEmail',
+            'aElectronicMail',
+            'aCustEmail',
+            'aPrimaryEmail',
+            'aContactEmail',
+            'aCommercialEmail',
+            'aInvoiceEmail',
+        ];
+
+        foreach ($keys as $key) {
+            if (empty($detail[$key]) || !is_string($detail[$key])) {
+                continue;
+            }
+            $normalized = self::normalizeDynamicsEmail($detail[$key]);
+            if ($normalized !== null) {
+                return $normalized;
+            }
+        }
+
+        return null;
+    }
+
+    private static function normalizeDynamicsEmail(string $raw): ?string
+    {
+        $email = strtolower(trim($raw));
+        if ($email === '') {
+            return null;
+        }
+
+        return filter_var($email, FILTER_VALIDATE_EMAIL) ? $email : null;
+    }
+
+    /**
+     * True if the stored user value already matches the incoming rutero value (avoids noisy updates / updated_at bumps).
+     */
+    private static function ruteroScalarUnchanged(User $user, string $field, $incoming): bool
+    {
+        $current = $user->getAttribute($field);
+
+        if ($field === 'is_locked') {
+            return (bool) $current === (bool) $incoming;
+        }
+
+        if (in_array($field, ['balance', 'quota_value', 'line_discount'], true)) {
+            return abs((float) $current - (float) $incoming) < 0.00001;
+        }
+
+        if ($field === 'order_sequence') {
+            return (int) $current === (int) $incoming;
+        }
+
+        $c = $current === null ? '' : trim((string) $current);
+        $i = $incoming === null ? '' : trim((string) $incoming);
+        if ($field === 'email') {
+            return strtolower($c) === strtolower($i);
+        }
+
+        return $c === $i;
+    }
 
     private static function processData($aListDetailsRuteros, $data)
     {
@@ -18,10 +83,12 @@ class UserRepository
 
         $aZona = $data['aZona'];
         $aRoute = $data['aRoute'];
-        $aDiaRecorrido = $data['aDiaRecorrido'];
+        $aDiaRecorrido = (string) ($data['aDiaRecorrido'] ?? '');
 
-        preg_match('/^\d+/', $aDiaRecorrido, $matches);
-        $day = $matches[0];
+        $day = '0';
+        if (preg_match('/^\d+/', $aDiaRecorrido, $matches)) {
+            $day = $matches[0];
+        }
 
 
         $aCustRuteroID = $aListDetailsRuteros['aCustRuteroID'];
@@ -31,11 +98,12 @@ class UserRepository
 
 
 
-        // Log all available fields for debugging what additional data is available
-        \Log::debug('Available fields in aListDetailsRuteros', [
-            'all_fields' => array_keys($aListDetailsRuteros),
-            'sample_data' => $aListDetailsRuteros
-        ]);
+        if (config('microsoft.log_rutero_soap_payload')) {
+            \Log::debug('Rutero SOAP detail row (full payload)', [
+                'all_fields' => array_keys($aListDetailsRuteros),
+                'sample_data' => $aListDetailsRuteros,
+            ]);
+        }
 
         return [
             'zone' => $aZona,
@@ -61,6 +129,7 @@ class UserRepository
             'customer_status' => $aListDetailsRuteros['aCustStatus'] ?? null,
             'is_locked' => ($aListDetailsRuteros['aLocked'] ?? 'No') === 'Yes',
             'order_sequence' => $aListDetailsRuteros['aOrden'] ?? null,
+            'dynamics_contact_email' => self::extractDynamicsEmailFromDetail($aListDetailsRuteros),
         ];
     }
 
@@ -336,17 +405,18 @@ class UserRepository
                     }
                 }
 
-                // Update user data if available from the first route
-                $firstRoute = $data['routes']->first();
-                if ($firstRoute) {
-                    $updateData = [];
+                $routes = $data['routes'] instanceof \Illuminate\Support\Collection
+                    ? $data['routes']
+                    : collect($data['routes']);
 
-                    // Update name if available
-                    if (isset($firstRoute['name']) && $firstRoute['name'] !== 'Sin Nombre') {
-                        $updateData['name'] = $firstRoute['name'];
+                $profilePayload = [];
+                $firstRoute = $routes->first();
+
+                if ($firstRoute) {
+                    if (isset($firstRoute['name']) && $firstRoute['name'] !== '' && $firstRoute['name'] !== 'Sin Nombre') {
+                        $profilePayload['name'] = $firstRoute['name'];
                     }
 
-                    // Update additional customer fields
                     $fieldsToUpdate = [
                         'phone',
                         'mobile_phone',
@@ -363,24 +433,77 @@ class UserRepository
                         'quota_value',
                         'customer_status',
                         'is_locked',
-                        'order_sequence'
+                        'order_sequence',
                     ];
 
                     foreach ($fieldsToUpdate as $field) {
-                        if (isset($firstRoute[$field]) && $firstRoute[$field] !== null && $firstRoute[$field] !== '') {
-                            $updateData[$field] = $firstRoute[$field];
+                        if (!array_key_exists($field, $firstRoute)) {
+                            continue;
                         }
+                        $value = $firstRoute[$field];
+                        if ($value === null || $value === '') {
+                            continue;
+                        }
+                        $profilePayload[$field] = $value;
                     }
+                }
 
-                    if (!empty($updateData)) {
-                        $user->update($updateData);
+                $emailFromDynamics = null;
+                foreach ($routes as $route) {
+                    $candidate = $route['dynamics_contact_email'] ?? null;
+                    if (!is_string($candidate) || trim($candidate) === '') {
+                        continue;
+                    }
+                    $normalized = self::normalizeDynamicsEmail($candidate);
+                    if ($normalized !== null) {
+                        $emailFromDynamics = $normalized;
+                        break;
+                    }
+                }
 
-                        \Log::info('User data updated from rutero sync', [
+                if ($emailFromDynamics !== null) {
+                    $emailTaken = User::where('email', $emailFromDynamics)
+                        ->where('id', '!=', $user->id)
+                        ->exists();
+                    if (!$emailTaken) {
+                        $profilePayload['email'] = $emailFromDynamics;
+                    } else {
+                        \Log::warning('Rutero sync skipped email: already used by another user', [
                             'user_id' => $user->id,
-                            'updated_fields' => array_keys($updateData),
-                            'sample_data' => $updateData
+                            'document' => $user->document,
+                            'email' => $emailFromDynamics,
                         ]);
                     }
+                }
+
+                $user->refresh();
+
+                $toApply = [];
+                foreach ($profilePayload as $field => $value) {
+                    if (!self::ruteroScalarUnchanged($user, $field, $value)) {
+                        $toApply[$field] = $value;
+                    }
+                }
+
+                $syncedAt = now();
+
+                if ($toApply === []) {
+                    DB::table('users')->where('id', $user->id)->update([
+                        'rutero_synced_at' => $syncedAt,
+                    ]);
+                } else {
+                    $toApply['rutero_synced_at'] = $syncedAt;
+                    $user->update($toApply);
+                }
+
+                $logPayload = $toApply;
+                unset($logPayload['rutero_synced_at']);
+                if (!empty($logPayload)) {
+                    \Log::info('User data updated from rutero sync', [
+                        'user_id' => $user->id,
+                        'updated_fields' => array_keys($logPayload),
+                        'sample_data' => $logPayload,
+                    ]);
                 }
 
                 $user->refresh();

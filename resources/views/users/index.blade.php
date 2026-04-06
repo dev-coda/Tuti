@@ -19,6 +19,46 @@
         </div>
     </div>
 </div>
+
+<div class="mx-4 mb-4 p-4 bg-slate-50 border border-slate-200 rounded-lg text-sm">
+    <h2 class="font-semibold text-gray-900 mb-2">Sincronización con Dynamics (rutero)</h2>
+    <p class="text-gray-600 mb-2 text-xs">Los datos de cliente (nombre, teléfonos, saldo, correo si viene en la respuesta, zonas) se actualizan desde el servicio getRuteros. También se ejecuta al crear un pedido.</p>
+    <ul class="text-gray-600 space-y-1 mb-3 text-xs sm:text-sm">
+        <li>
+            <span class="font-medium">Sync diaria (03:20):</span>
+            @if ($dailyRuteroSyncEnabled === '1' || $dailyRuteroSyncEnabled === 1 || $dailyRuteroSyncEnabled === true)
+                <span class="text-green-700">activada</span>
+            @else
+                <span class="text-amber-700">desactivada</span> (ajuste <code class="bg-white px-1 rounded">daily_client_rutero_sync_enabled</code> en configuración)
+            @endif
+        </li>
+        <li>
+            <span class="font-medium">Última sync masiva completada:</span>
+            {{ $lastRuteroBulkAtFormatted ?? 'Aún no registrada' }}
+        </li>
+        @if ($lastRuteroBulkSession)
+            <li><span class="font-medium">Sesión:</span> <code class="text-xs bg-white px-1 rounded">{{ $lastRuteroBulkSession }}</code></li>
+        @endif
+    </ul>
+    <div class="flex flex-wrap items-center gap-2">
+        <form method="post" action="{{ route('bulk-operations.sync-clients-data') }}" class="inline">
+            @csrf
+            <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
+                Sincronizar ahora
+            </button>
+        </form>
+        @if ($lastRuteroReportExists && $lastRuteroReportFilename)
+            <a href="{{ route('bulk-operations.download-report', ['filename' => $lastRuteroReportFilename]) }}"
+                class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                Descargar CSV del último informe
+            </a>
+        @else
+            <span class="text-xs text-gray-500">El CSV del informe aparecerá cuando termine el trabajo en cola.</span>
+        @endif
+        <a href="{{ route('bulk-operations.index') }}" class="text-sm text-blue-600 hover:underline">Ver todos los informes</a>
+    </div>
+</div>
+
 <div class="flex flex-col">
     <div class="overflow-x-auto">
         <div class="inline-block min-w-full align-middle">
@@ -50,6 +90,10 @@
                             <th scope="col"
                                 class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
                                 Saldo
+                            </th>
+
+                            <th scope="col" class="p-4 text-xs font-medium text-left text-gray-500 uppercase whitespace-nowrap">
+                                Sync Dynamics
                             </th>
 
                             <th scope="col"
@@ -93,6 +137,14 @@
 
                             <td class="p-4 text-sm text-gray-900 whitespace-nowrap">
                                 ${{ number_format($user->balance ?? 0, 0, ',', '.') }}
+                            </td>
+
+                            <td class="p-4 text-xs text-gray-600 whitespace-nowrap">
+                                @if ($user->rutero_synced_at)
+                                    {{ $user->rutero_synced_at->timezone(config('app.timezone'))->format('d/m/y H:i') }}
+                                @else
+                                    —
+                                @endif
                             </td>
 
                             <td class="p-4 text-sm text-gray-900 whitespace-nowrap">

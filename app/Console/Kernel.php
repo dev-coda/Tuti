@@ -61,6 +61,12 @@ class Kernel extends ConsoleKernel
             ->daily()
             ->withoutOverlapping()
             ->runInBackground();
+
+        // Client profiles from Dynamics (getRuteros): phones, balances, email, zones — guarded by setting
+        $schedule->command('clients:sync-rutero-daily')
+            ->dailyAt('03:20')
+            ->withoutOverlapping()
+            ->runInBackground();
     }
 
     /**

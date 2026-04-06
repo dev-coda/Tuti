@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Models\Setting;
 use App\Models\User;
 use App\Repositories\UserRepository;
 use Illuminate\Bus\Queueable;
@@ -95,6 +96,7 @@ class BulkSyncClientsData implements ShouldQueue
                 // Store original data to detect changes
                 $originalData = $user->only([
                     'name',
+                    'email',
                     'phone',
                     'mobile_phone',
                     'whatsapp',
@@ -126,7 +128,7 @@ class BulkSyncClientsData implements ShouldQueue
 
                     foreach ($originalData as $field => $originalValue) {
                         $newValue = $newData[$field] ?? null;
-                        if ($originalValue != $newValue) {
+                        if (self::syncReportScalarChanged($field, $originalValue, $newValue)) {
                             $updatedFields[] = $field;
                         }
                     }
@@ -175,20 +177,33 @@ class BulkSyncClientsData implements ShouldQueue
             }
         }
 
-        // Generate CSV report
-        $this->generateReport($results);
+        $reportFilename = $this->generateReport($results);
+
+        Setting::updateOrCreate(
+            ['key' => 'last_client_rutero_bulk_sync_at'],
+            ['name' => 'Última sincronización rutero (clientes)', 'value' => now()->toIso8601String(), 'show' => false]
+        );
+        Setting::updateOrCreate(
+            ['key' => 'last_client_rutero_bulk_sync_session'],
+            ['name' => 'Sesión última sync rutero', 'value' => $this->sessionId, 'show' => false]
+        );
+        Setting::updateOrCreate(
+            ['key' => 'last_client_rutero_bulk_sync_report'],
+            ['name' => 'Archivo CSV última sync rutero', 'value' => $reportFilename, 'show' => false]
+        );
 
         Log::info("Bulk client sync completed", [
             'session_id' => $this->sessionId,
             'total_users' => $totalUsers,
             'processed' => $processed,
+            'report' => $reportFilename,
         ]);
     }
 
     /**
      * Generate CSV report of the sync results
      */
-    protected function generateReport(array $results): void
+    protected function generateReport(array $results): string
     {
         $csvData = [];
 
@@ -240,6 +255,34 @@ class BulkSyncClientsData implements ShouldQueue
             'filename' => $filename,
             'path' => storage_path("app/reports/{$filename}"),
         ]);
+
+        return $filename;
+    }
+
+    /**
+     * Stable comparison for CSV "updated fields" (matches UserRepository ruteroScalarUnchanged logic).
+     */
+    private static function syncReportScalarChanged(string $field, $old, $new): bool
+    {
+        if ($field === 'is_locked') {
+            return (bool) $old !== (bool) $new;
+        }
+
+        if (in_array($field, ['balance', 'quota_value', 'line_discount'], true)) {
+            return abs((float) $old - (float) $new) >= 0.00001;
+        }
+
+        if ($field === 'order_sequence') {
+            return (int) $old !== (int) $new;
+        }
+
+        $so = $old === null ? '' : trim((string) $old);
+        $sn = $new === null ? '' : trim((string) $new);
+        if ($field === 'email') {
+            return strtolower($so) !== strtolower($sn);
+        }
+
+        return $so !== $sn;
     }
 
     /**

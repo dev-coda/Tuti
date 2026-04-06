@@ -59,7 +59,8 @@ class User extends Authenticatable
         'quota_value',
         'customer_status',
         'is_locked',
-        'order_sequence'
+        'order_sequence',
+        'rutero_synced_at',
     ];
 
     const PENDING = 1;
@@ -84,6 +85,8 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
         'tronex_migration_pending' => 'boolean',
+        'rutero_synced_at' => 'datetime',
+        'is_locked' => 'boolean',
     ];
 
     public function city()
