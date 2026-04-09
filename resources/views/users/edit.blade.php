@@ -62,7 +62,7 @@
                 <div class="col-span-6 justify-between  items-center mt-5 space-x-2 flex">
 
                     <p class="flex space-x-2 items-center">
-                        {{ Aire::submit('Actualizar')->variant() }}
+                        {{ Aire::submit('Actualizar')->variant('submit') }}
                         <a href="{{ route('users.index') }}">Cancelar</a>
                     </p>               
                 </div>
@@ -79,7 +79,7 @@
             {{ Aire::open()->route('users.password', $user)}}
                 {{ Aire::password('password', 'Contraseña')->groupClass('mb-5') }}
                 {{ Aire::password('password_confirmation', 'Confirme Contraseña')->groupClass('mb-5') }}
-                {{ Aire::submit('Actualizar')->variant() }}
+                {{ Aire::submit('Actualizar')->variant('submit') }}
             {{ Aire::close() }}
         
         </div>
@@ -158,7 +158,7 @@
                                     {{ Aire::select(['coordinadora' => 'Coordinadora', 'tronex' => 'Tronex'], 'fulfillment_provider_48h')->value($zone->fulfillment_provider_48h ?? 'coordinadora')->groupClass('mb-0') }}
                                 </td>
                                 <td class="px-6 py-4">
-                                    {{ Aire::submit('Guardar')->variant()->secondary()->class('text-xs') }}
+                                    {{ Aire::submit('Guardar')->variant('submit')->class('text-xs') }}
                                     {{ Aire::close() }}
                                 </td>
                             </tr>
