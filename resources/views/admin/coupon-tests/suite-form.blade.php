@@ -33,7 +33,10 @@
                 Cada escenario requiere: <code>name</code>, <code>coupon_codes</code> (array o texto con comas) y <code>products</code> (array con <code>product_id</code>, <code>quantity</code>, opcional <code>variation_id</code>).
             </p>
             <p class="mt-1 text-xs text-gray-500">
-                Incluye semilla automática con baseline, todos los cupones activos individuales, combinaciones por pares (máx. 50) y ternas (máx. 20), y casos edge de XML.
+                Semilla automática: baselines (sin cupón, cantidad alta, variaciones, package_price),
+                cupones individuales (todos los activos), pares (máx. 50) y ternas (máx. 20),
+                y casos edge (carrito, marca/categoría con producto no-aplicable, competencia fijo vs %,
+                cantidad alta + cupón, variación + cupón, cupones por cliente/tipo).
                 La suite se ejecuta en segundo plano.
             </p>
             <button type="button" id="reset-seed" class="mt-2 px-3 py-1.5 bg-gray-100 border border-gray-300 rounded text-xs text-gray-800 hover:bg-gray-200">

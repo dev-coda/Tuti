@@ -16,7 +16,6 @@ class RunCouponTestSuite implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public $queue = 'coupon-tests';
     public $tries = 1;
     public $timeout = 3600;
 
@@ -31,6 +30,7 @@ class RunCouponTestSuite implements ShouldQueue
         $this->scenarios = $scenarios;
         $this->runId = $runId;
         $this->actorEmail = $actorEmail;
+        $this->onQueue('coupon-tests');
     }
 
     public function handle(CouponTestDiagnosticService $diagnosticService): void

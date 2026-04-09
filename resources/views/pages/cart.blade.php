@@ -136,9 +136,9 @@
                 <div class="cart-item py-4 {{ !$loop->last ? 'border-b border-gray-100' : '' }}" 
                      data-cart-key="{{ $key }}"
                      data-product-id="{{ $product->id }}"
-                     data-unit-price="{{ $has_orders ? $product->calculatedFinalPrice['old'] : $product->calculatedFinalPrice['price'] }}"
+                     data-unit-price="{{ $product->calculatedFinalPrice['price'] }}"
                      data-old-price="{{ $product->calculatedFinalPrice['old'] }}"
-                     data-has-discount="{{ $product->calculatedFinalPrice['has_discount'] && !$has_orders ? '1' : '0' }}">
+                     data-has-discount="{{ $product->calculatedFinalPrice['has_discount'] ? '1' : '0' }}">
                     
                     {{-- Mobile Layout --}}
                     <div class="md:hidden space-y-3">
@@ -184,8 +184,8 @@
                             
                             {{-- Price --}}
                             <div class="text-right">
-                                <span class="item-price font-semibold text-gray-900">${{currency(($has_orders ? $product->calculatedFinalPrice['old'] : $product->calculatedFinalPrice['price']) * $product->quantity)}}</span>
-                                @if($product->calculatedFinalPrice['has_discount'] && !$has_orders)
+                                <span class="item-price font-semibold text-gray-900">${{currency($product->calculatedFinalPrice['price'] * $product->quantity)}}</span>
+                                @if($product->calculatedFinalPrice['has_discount'])
                                 <span class="item-old-price block text-xs text-gray-400 line-through">${{currency($product->calculatedFinalPrice['old'] * $product->quantity)}}</span>
                                 @endif
                             </div>
@@ -230,8 +230,8 @@
                         
                         {{-- Price --}}
                         <div class="text-right min-w-[100px]">
-                            <span class="item-price font-semibold text-gray-900">${{currency(($has_orders ? $product->calculatedFinalPrice['old'] : $product->calculatedFinalPrice['price']) * $product->quantity)}}</span>
-                            @if($product->calculatedFinalPrice['has_discount'] && !$has_orders)
+                            <span class="item-price font-semibold text-gray-900">${{currency($product->calculatedFinalPrice['price'] * $product->quantity)}}</span>
+                            @if($product->calculatedFinalPrice['has_discount'])
                             <span class="item-old-price block text-sm text-gray-400 line-through">${{currency($product->calculatedFinalPrice['old'] * $product->quantity)}}</span>
                             @endif
                         </div>
@@ -320,7 +320,8 @@
         </div>
 
         {{-- Totals Section --}}
-        <div class="px-6 py-5 bg-gray-50 border-t border-gray-200 rounded-b-xl" id="cart-totals-section">
+        <div class="px-6 py-5 bg-gray-50 border-t border-gray-200 rounded-b-xl" id="cart-totals-section"
+             data-coupon-discount="{{ $appliedCoupon ? ($appliedCoupon['discount_amount'] ?? 0) : 0 }}">
             @php
             $subtotal = $products->sum(function($product){
                 return $product->calculatedFinalPrice['old'] * $product->quantity;
@@ -330,13 +331,9 @@
                 return $product->calculatedFinalPrice['price'] * $product->quantity;
             });
 
-            if(!$has_orders) {
-                $totalDiscount = $subtotal - $totalAfterDiscounts;
-                $couponDiscountAmount = $appliedCoupon ? ($appliedCoupon['discount_amount'] ?? 0) : 0;
-                $discount = $appliedCoupon ? ($totalDiscount - $couponDiscountAmount) : $totalDiscount;
-            } else {
-                $discount = 0;
-            }
+            $totalDiscount = $subtotal - $totalAfterDiscounts;
+            $couponDiscountAmount = $appliedCoupon ? ($appliedCoupon['discount_amount'] ?? 0) : 0;
+            $discount = max(0, $totalDiscount - $couponDiscountAmount);
             $shippingAmount = 0;
             $finalTotal = $totalAfterDiscounts + $shippingAmount;
             @endphp
@@ -653,7 +650,11 @@
                 totalWithoutShipping += unitPrice * qty;
             });
 
-            const discount = subtotal - totalWithoutShipping;
+            const allDiscounts = subtotal - totalWithoutShipping;
+            const couponDiscountAmount = parseFloat(
+                document.getElementById('cart-totals-section').dataset.couponDiscount || 0
+            );
+            const nonCouponDiscount = Math.max(0, allDiscounts - couponDiscountAmount);
 
             // Update subtotal
             const subtotalEl = document.getElementById('cart-subtotal');
@@ -661,13 +662,13 @@
                 subtotalEl.textContent = formatCurrency(subtotal);
             }
 
-            // Update discount (show/hide row)
+            // Update non-coupon discount (show/hide row); coupon has its own server-rendered row
             const discountRow = document.getElementById('cart-discount-row');
             const discountEl = document.getElementById('cart-discount');
             if (discountRow && discountEl) {
-                if (discount > 0) {
+                if (nonCouponDiscount > 0) {
                     discountRow.classList.remove('hidden');
-                    discountEl.textContent = '-' + formatCurrency(discount);
+                    discountEl.textContent = '-' + formatCurrency(nonCouponDiscount);
                 } else {
                     discountRow.classList.add('hidden');
                 }

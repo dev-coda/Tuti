@@ -340,7 +340,8 @@ class CouponTestController extends Controller
 
         $scenarios = [];
 
-        // Baseline (without coupon) for XML and discount control comparison.
+        // ── BASELINES (coupon-independent, always generated) ───────────────
+
         $scenarios[] = [
             'name' => 'BASELINE - Sin cupon',
             'coupon_codes' => [],
@@ -350,8 +351,61 @@ class CouponTestController extends Controller
             ],
         ];
 
-        // One scenario per active coupon.
+        $scenarios[] = [
+            'name' => 'BASELINE - Cantidad alta sin cupon',
+            'coupon_codes' => [],
+            'products' => [
+                ['product_id' => $firstProductId, 'quantity' => 5],
+            ],
+        ];
+
+        $scenarios[] = [
+            'name' => 'BASELINE - Tres productos cantidades variadas',
+            'coupon_codes' => [],
+            'products' => [
+                ['product_id' => $firstProductId, 'quantity' => 3],
+                ['product_id' => $secondProductId, 'quantity' => 1],
+                ['product_id' => $thirdProductId, 'quantity' => 2],
+            ],
+        ];
+
+        $variationProduct = Product::where('active', true)
+            ->whereHas('items')
+            ->with('items')
+            ->first();
+        if ($variationProduct) {
+            $variationItem = $variationProduct->items->first();
+            $scenarios[] = [
+                'name' => 'BASELINE - Producto con variacion',
+                'coupon_codes' => [],
+                'products' => [
+                    ['product_id' => (int) $variationProduct->id, 'quantity' => 1, 'variation_id' => $variationItem ? (int) $variationItem->id : null],
+                    ['product_id' => $firstProductId, 'quantity' => 1],
+                ],
+            ];
+        }
+
+        $packageProduct = Product::where('active', true)
+            ->where('calculate_package_price', true)
+            ->first();
+        if ($packageProduct) {
+            $scenarios[] = [
+                'name' => 'BASELINE - Producto package_price sin cupon',
+                'coupon_codes' => [],
+                'products' => [
+                    ['product_id' => (int) $packageProduct->id, 'quantity' => 2],
+                    ['product_id' => $firstProductId, 'quantity' => 1],
+                ],
+            ];
+        }
+
+        // ── SINGLES (one per active coupon, smart product matching) ────────
+
+        $couponSeedProducts = [];
         foreach ($coupons as $coupon) {
+            $seedProducts = $this->seedProductsForCoupon($coupon, $products, $firstProductId, $secondProductId);
+            $couponSeedProducts[$coupon->code] = $seedProducts;
+
             $scenarios[] = [
                 'name' => sprintf(
                     'SINGLE - %s (%s, %s)',
@@ -360,12 +414,12 @@ class CouponTestController extends Controller
                     (string) $coupon->applies_to
                 ),
                 'coupon_codes' => [(string) $coupon->code],
-                'products' => $this->seedProductsForCoupon($coupon, $products, $firstProductId, $secondProductId),
+                'products' => $seedProducts,
             ];
         }
 
-        // Pair combinations (best-per-line and stacking behavior checks).
-        // Capped to prevent combinatorial explosion with many active coupons.
+        // ── PAIRS (merged products from both coupons for realistic carts) ──
+
         $codes = $coupons->pluck('code')->filter()->values()->all();
         $maxPairs = 50;
         $pairCount = 0;
@@ -374,17 +428,17 @@ class CouponTestController extends Controller
                 $scenarios[] = [
                     'name' => "PAIR - {$codes[$i]} + {$codes[$j]}",
                     'coupon_codes' => [$codes[$i], $codes[$j]],
-                    'products' => [
-                        ['product_id' => $firstProductId, 'quantity' => 2],
-                        ['product_id' => $secondProductId, 'quantity' => 1],
-                    ],
+                    'products' => $this->mergeProductSets(
+                        $couponSeedProducts[$codes[$i]] ?? [],
+                        $couponSeedProducts[$codes[$j]] ?? []
+                    ),
                 ];
                 $pairCount++;
             }
         }
 
-        // Triple combinations (stacking of several coupons in one run).
-        // Capped to prevent O(n³) blowup.
+        // ── TRIPLES ────────────────────────────────────────────────────────
+
         $maxTriples = 20;
         $tripleCount = 0;
         for ($i = 0; $i < count($codes) && $tripleCount < $maxTriples; $i++) {
@@ -393,18 +447,19 @@ class CouponTestController extends Controller
                     $scenarios[] = [
                         'name' => "TRIPLE - {$codes[$i]} + {$codes[$j]} + {$codes[$k]}",
                         'coupon_codes' => [$codes[$i], $codes[$j], $codes[$k]],
-                        'products' => [
-                            ['product_id' => $firstProductId, 'quantity' => 2],
-                            ['product_id' => $secondProductId, 'quantity' => 1],
-                            ['product_id' => $thirdProductId, 'quantity' => 1],
-                        ],
+                        'products' => $this->mergeProductSets(
+                            $couponSeedProducts[$codes[$i]] ?? [],
+                            $couponSeedProducts[$codes[$j]] ?? [],
+                            $couponSeedProducts[$codes[$k]] ?? []
+                        ),
                     ];
                     $tripleCount++;
                 }
             }
         }
 
-        // Explicit edge/use-case templates to cover known risk paths.
+        // ── EDGE CASES ─────────────────────────────────────────────────────
+
         $fixedCodes = $coupons->where('type', Coupon::TYPE_FIXED_AMOUNT)->pluck('code')->filter()->values()->all();
         $percentageCodes = $coupons->where('type', Coupon::TYPE_PERCENTAGE)->pluck('code')->filter()->values()->all();
 
@@ -429,12 +484,9 @@ class CouponTestController extends Controller
             ];
         }
 
-        $packageProduct = Product::where('active', true)
-            ->where('calculate_package_price', true)
-            ->first(['id']);
         if ($packageProduct && !empty($percentageCodes)) {
             $scenarios[] = [
-                'name' => 'EDGE - Producto con calculate_package_price',
+                'name' => 'EDGE - Producto con calculate_package_price + cupon',
                 'coupon_codes' => [$percentageCodes[0]],
                 'products' => [
                     ['product_id' => (int) $packageProduct->id, 'quantity' => 1],
@@ -452,7 +504,147 @@ class CouponTestController extends Controller
             ];
         }
 
-        // Remove scenarios with invalid product placeholders.
+        // Cart-scoped coupon with multi-line cart.
+        $cartCoupons = $coupons->where('applies_to', Coupon::APPLIES_TO_CART);
+        if ($cartCoupons->isNotEmpty()) {
+            $cartCoupon = $cartCoupons->first();
+            $scenarios[] = [
+                'name' => sprintf('EDGE - Cupon de carrito con 3 lineas (%s)', $cartCoupon->code),
+                'coupon_codes' => [(string) $cartCoupon->code],
+                'products' => [
+                    ['product_id' => $firstProductId, 'quantity' => 2],
+                    ['product_id' => $secondProductId, 'quantity' => 1],
+                    ['product_id' => $thirdProductId, 'quantity' => 3],
+                ],
+            ];
+        }
+
+        // High quantity + percentage coupon (per-unit math).
+        if (!empty($percentageCodes)) {
+            $scenarios[] = [
+                'name' => 'EDGE - Cantidad alta + cupon porcentaje',
+                'coupon_codes' => [$percentageCodes[0]],
+                'products' => [
+                    ['product_id' => $firstProductId, 'quantity' => 10],
+                ],
+            ];
+        }
+
+        // High quantity + fixed amount coupon (proportional distribution per unit).
+        if (!empty($fixedCodes)) {
+            $scenarios[] = [
+                'name' => 'EDGE - Cantidad alta + cupon fijo',
+                'coupon_codes' => [$fixedCodes[0]],
+                'products' => [
+                    ['product_id' => $firstProductId, 'quantity' => 10],
+                ],
+            ];
+        }
+
+        // Brand coupon with non-matching product in cart (mixed applicability).
+        $brandCoupons = $coupons->where('applies_to', Coupon::APPLIES_TO_BRAND);
+        if ($brandCoupons->isNotEmpty()) {
+            $brandCoupon = $brandCoupons->first();
+            $seedProds = $couponSeedProducts[$brandCoupon->code] ?? [];
+            $matchingId = !empty($seedProds) ? (int) $seedProds[0]['product_id'] : $firstProductId;
+            $brandId = (int) (collect($brandCoupon->applies_to_ids ?? [])->first() ?? 0);
+            $nonMatchingProduct = $brandId > 0
+                ? Product::where('active', true)->where(fn ($q) => $q->where('brand_id', '!=', $brandId)->orWhereNull('brand_id'))->first(['id'])
+                : null;
+            $nonMatchingId = $nonMatchingProduct ? (int) $nonMatchingProduct->id : $secondProductId;
+            $scenarios[] = [
+                'name' => sprintf('EDGE - Marca cupon + producto no-aplicable (%s)', $brandCoupon->code),
+                'coupon_codes' => [(string) $brandCoupon->code],
+                'products' => [
+                    ['product_id' => $matchingId, 'quantity' => 1],
+                    ['product_id' => $nonMatchingId, 'quantity' => 1],
+                ],
+            ];
+        }
+
+        // Category coupon with non-matching product.
+        $categoryCoupons = $coupons->where('applies_to', Coupon::APPLIES_TO_CATEGORY);
+        if ($categoryCoupons->isNotEmpty()) {
+            $catCoupon = $categoryCoupons->first();
+            $seedProds = $couponSeedProducts[$catCoupon->code] ?? [];
+            $matchingId = !empty($seedProds) ? (int) $seedProds[0]['product_id'] : $firstProductId;
+            $categoryId = (int) (collect($catCoupon->applies_to_ids ?? [])->first() ?? 0);
+            $nonMatchCat = $categoryId > 0
+                ? Product::where('active', true)->whereDoesntHave('categories', fn ($q) => $q->where('categories.id', $categoryId))->first(['id'])
+                : null;
+            $nonMatchCatId = $nonMatchCat ? (int) $nonMatchCat->id : $secondProductId;
+            $scenarios[] = [
+                'name' => sprintf('EDGE - Categoria cupon + producto no-aplicable (%s)', $catCoupon->code),
+                'coupon_codes' => [(string) $catCoupon->code],
+                'products' => [
+                    ['product_id' => $matchingId, 'quantity' => 1],
+                    ['product_id' => $nonMatchCatId, 'quantity' => 1],
+                ],
+            ];
+        }
+
+        // Variation product + coupon.
+        if ($variationProduct && !empty($percentageCodes)) {
+            $variationItem = $variationProduct->items->first();
+            $scenarios[] = [
+                'name' => 'EDGE - Variacion + cupon porcentaje',
+                'coupon_codes' => [$percentageCodes[0]],
+                'products' => [
+                    ['product_id' => (int) $variationProduct->id, 'quantity' => 1, 'variation_id' => $variationItem ? (int) $variationItem->id : null],
+                    ['product_id' => $firstProductId, 'quantity' => 1],
+                ],
+            ];
+        }
+
+        // Customer-scoped coupon.
+        $customerCoupons = $coupons->where('applies_to', Coupon::APPLIES_TO_CUSTOMER);
+        if ($customerCoupons->isNotEmpty()) {
+            $custCoupon = $customerCoupons->first();
+            $scenarios[] = [
+                'name' => sprintf('EDGE - Cupon por cliente (%s)', $custCoupon->code),
+                'coupon_codes' => [(string) $custCoupon->code],
+                'products' => [
+                    ['product_id' => $firstProductId, 'quantity' => 2],
+                    ['product_id' => $secondProductId, 'quantity' => 1],
+                ],
+            ];
+        }
+
+        // Customer-type-scoped coupon.
+        $customerTypeCoupons = $coupons->where('applies_to', Coupon::APPLIES_TO_CUSTOMER_TYPE);
+        if ($customerTypeCoupons->isNotEmpty()) {
+            $ctCoupon = $customerTypeCoupons->first();
+            $scenarios[] = [
+                'name' => sprintf('EDGE - Cupon por tipo de cliente (%s)', $ctCoupon->code),
+                'coupon_codes' => [(string) $ctCoupon->code],
+                'products' => [
+                    ['product_id' => $firstProductId, 'quantity' => 2],
+                    ['product_id' => $secondProductId, 'quantity' => 1],
+                ],
+            ];
+        }
+
+        // Vendor coupon with non-matching product.
+        $vendorCoupons = $coupons->where('applies_to', Coupon::APPLIES_TO_VENDOR);
+        if ($vendorCoupons->isNotEmpty()) {
+            $vendorCoupon = $vendorCoupons->first();
+            $seedProds = $couponSeedProducts[$vendorCoupon->code] ?? [];
+            $matchingId = !empty($seedProds) ? (int) $seedProds[0]['product_id'] : $firstProductId;
+            $vendorId = (int) (collect($vendorCoupon->applies_to_ids ?? [])->first() ?? 0);
+            $nonMatchVendor = $vendorId > 0
+                ? Product::where('active', true)->whereHas('brand.vendor', fn ($q) => $q->where('vendors.id', '!=', $vendorId))->first(['id'])
+                : null;
+            $nonMatchVendorId = $nonMatchVendor ? (int) $nonMatchVendor->id : $secondProductId;
+            $scenarios[] = [
+                'name' => sprintf('EDGE - Vendor cupon + producto no-aplicable (%s)', $vendorCoupon->code),
+                'coupon_codes' => [(string) $vendorCoupon->code],
+                'products' => [
+                    ['product_id' => $matchingId, 'quantity' => 1],
+                    ['product_id' => $nonMatchVendorId, 'quantity' => 1],
+                ],
+            ];
+        }
+
         return collect($scenarios)
             ->map(function ($scenario) {
                 $scenario['products'] = collect($scenario['products'] ?? [])
@@ -464,6 +656,28 @@ class CouponTestController extends Controller
             ->filter(fn ($scenario) => !empty($scenario['products']))
             ->values()
             ->all();
+    }
+
+    private function mergeProductSets(array ...$sets): array
+    {
+        $merged = [];
+        foreach ($sets as $set) {
+            foreach ($set as $row) {
+                $pid = (int) ($row['product_id'] ?? 0);
+                if ($pid <= 0) {
+                    continue;
+                }
+                if (!isset($merged[$pid])) {
+                    $merged[$pid] = $row;
+                } else {
+                    $merged[$pid]['quantity'] = max(
+                        (int) ($merged[$pid]['quantity'] ?? 1),
+                        (int) ($row['quantity'] ?? 1)
+                    );
+                }
+            }
+        }
+        return array_values(array_slice($merged, 0, 4));
     }
 
     private function seedProductsForCoupon(Coupon $coupon, Collection $products, int $fallbackA, int $fallbackB): array

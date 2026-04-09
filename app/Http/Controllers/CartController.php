@@ -284,14 +284,11 @@ class CartController extends Controller
         $products = collect($products)->map(function ($product) use ($vendorTotals, $has_orders, $modifiedProductsLookup) {
             $vendorTotal = $vendorTotals[$product->vendor_id] ?? 0;
 
-            // Check if this product was modified by coupon - if so, keep the coupon pricing
-            $lookupKey = $product->id . '_' . ($product->item->id ?? 'null');
+            $lookupKey = $product->id . '_' . ($product->item?->id ?? 'null');
             if (isset($modifiedProductsLookup[$lookupKey])) {
-                // Keep the coupon-modified pricing - don't recalculate
                 return $product;
             }
 
-            // Recalculate with vendor total for discount qualification (non-coupon products only)
             $finalPrice = $product->getFinalPriceForUser($has_orders, $vendorTotal);
             $product->calculatedFinalPrice = $finalPrice;
             return $product;
