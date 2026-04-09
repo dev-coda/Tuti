@@ -17,8 +17,8 @@
             <span><strong>Actor:</strong> {{ $summary['actor'] ?? '' }}</span>
         </div>
         <div class="mt-3">
-            <a href="{{ route('coupon-tests.suite.export', ['format' => 'json']) }}" class="inline-flex px-3 py-2 bg-gray-800 text-white rounded text-xs">Exportar JSON</a>
-            <a href="{{ route('coupon-tests.suite.export', ['format' => 'csv']) }}" class="inline-flex px-3 py-2 bg-gray-600 text-white rounded text-xs ml-2">Exportar CSV</a>
+            <a href="{{ route('coupon-tests.suite.export', ['format' => 'json', 'run_id' => $runId ?? '']) }}" class="inline-flex px-3 py-2 bg-gray-800 text-white rounded text-xs">Exportar JSON</a>
+            <a href="{{ route('coupon-tests.suite.export', ['format' => 'csv', 'run_id' => $runId ?? '']) }}" class="inline-flex px-3 py-2 bg-gray-600 text-white rounded text-xs ml-2">Exportar CSV</a>
         </div>
     </div>
 
@@ -50,12 +50,34 @@
                         </ul>
                         <details>
                             <summary class="cursor-pointer text-sm text-blue-700 font-medium">Ver XML</summary>
-                            <pre class="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto text-xs whitespace-pre-wrap max-h-[380px] overflow-y-auto mt-2"><code>{{ $result['xml'] }}</code></pre>
+                            <pre class="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto text-xs whitespace-pre-wrap max-h-[380px] overflow-y-auto mt-2"><code>{{ $result['xml'] ?? '' }}</code></pre>
                         </details>
                     @endif
                 </div>
             </div>
         @endforeach
     </div>
+
+    @if(($totalPages ?? 1) > 1)
+        <div class="mt-8 flex items-center justify-center gap-2">
+            @if($page > 1)
+                <a href="{{ route('coupon-tests.suite.results', ['run_id' => $runId ?? '', 'page' => $page - 1]) }}"
+                   class="px-3 py-2 bg-gray-100 border border-gray-300 rounded text-sm hover:bg-gray-200">
+                    ← Anterior
+                </a>
+            @endif
+
+            <span class="px-3 py-2 text-sm text-gray-600">
+                Página {{ $page }} de {{ $totalPages }}
+            </span>
+
+            @if($page < $totalPages)
+                <a href="{{ route('coupon-tests.suite.results', ['run_id' => $runId ?? '', 'page' => $page + 1]) }}"
+                   class="px-3 py-2 bg-gray-100 border border-gray-300 rounded text-sm hover:bg-gray-200">
+                    Siguiente →
+                </a>
+            @endif
+        </div>
+    @endif
 </div>
 @endsection

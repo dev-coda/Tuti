@@ -747,15 +747,18 @@ class CartController extends Controller
             $zone = $actingUser->zones->first();
             $zoneId = $zone->id;
             session()->put('zone_id', $zoneId);
-        } elseif ($requestedZoneId !== null || $trimmedSucursalCode !== null) {
+        } else {
+            \Log::warning('Zone resolution failed for multi-zone user', [
+                'acting_user_id' => $actingUser->id,
+                'requested_zone_id' => $requestedZoneId,
+                'sucursal_code' => $trimmedSucursalCode,
+                'available_zone_ids' => $actingUser->zones->pluck('id')->all(),
+                'available_zone_codes' => $actingUser->zones->pluck('code')->all(),
+            ]);
             return back()->with(
                 'error',
                 'La dirección seleccionada ya no coincide con tus datos actualizados. Recarga la página del carrito y vuelve a elegir la sucursal. Si tienes varias sucursales y esto se repite, contacta a soporte (puede faltar el código de sucursal en tus datos).'
             );
-        } else {
-            $zone = $actingUser->zones->first();
-            $zoneId = $zone->id;
-            session()->put('zone_id', $zoneId);
         }
 
         if (!$zone || $zoneId === null) {

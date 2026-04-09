@@ -272,7 +272,7 @@ class PageController extends Controller
     {
         $product = Product::query()
             ->active()
-            ->with(['related.images', 'items', 'variation', 'labels', 'inventories'])
+            ->with(['brand.vendor', 'related.images', 'items', 'variation', 'labels', 'inventories'])
             ->where('slug', $slug)->firstOrFail();
         
         // Get related products for "Complementa tu compra" section
@@ -315,14 +315,14 @@ class PageController extends Controller
 
 
         if ($slug2) {
-            $productsQuery = Product::active()->with(['inventories', 'categories'])->whereHas('categories', function ($query) use ($category) {
+            $productsQuery = Product::active()->with(['brand.vendor', 'inventories', 'categories'])->whereHas('categories', function ($query) use ($category) {
                 $query->where('category_id', $category->id);
             });
         } else {
             $ids = $category->children->pluck('id')->toArray();
             $ids[] = $category->id;
 
-            $productsQuery = Product::active()->with(['inventories', 'categories'])->whereHas('categories', function ($query) use ($ids) {
+            $productsQuery = Product::active()->with(['brand.vendor', 'inventories', 'categories'])->whereHas('categories', function ($query) use ($ids) {
                 $query->whereIn('category_id', $ids);
             });
         }
@@ -444,7 +444,7 @@ class PageController extends Controller
     public function label($slug)
     {
         $label = Label::whereActive(1)->where('slug', $slug)->firstOrFail();
-        $products = $label->products()->paginate();
+        $products = $label->products()->with(['brand.vendor'])->paginate();
         $context = compact('label', 'products');
         return view('pages.label', $context);
     }
@@ -460,7 +460,7 @@ class PageController extends Controller
     public function brand($slug)
     {
         $brand = Brand::whereActive(1)->where('slug', $slug)->firstOrFail();
-        $products = $brand->products()->paginate();
+        $products = $brand->products()->with(['brand.vendor'])->paginate();
         $context = compact('brand', 'products');
         return view('pages.brand', $context);
     }

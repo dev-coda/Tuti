@@ -129,18 +129,16 @@
                                 {{ $product->sku }}
                             </td>
                             <td class="p-4 text-base font-medium text-gray-900 whitespace-nowra">
-                                
-                                @if ($product->discount)
+                                @if ($product->finalPrice['has_discount'])
                                     <div class="flex flex-col">
                                         <span>
-                                            ${{ number_format($product->finalPrice['price'] * (1 - $product->discount/100),2) }}
-                                            <small class="text-gray-500">({{ $product->discount }}%)</small>
+                                            ${{ number_format($product->finalPrice['price'],2) }}
+                                            <small class="text-gray-500">({{ $product->finalPrice['discount'] }}% {{ $product->finalPrice['discount_on'] }})</small>
                                         </span>
-                                        <small class="line-through">${{ number_format($product->finalPrice['price'],2) }}</small>
+                                        <small class="line-through">${{ number_format($product->finalPrice['old'],2) }}</small>
                                     </div>
-                                    
                                 @else
-                                ${{ number_format($product->finalPrice['price'],2) }}
+                                    ${{ number_format($product->finalPrice['price'],2) }}
                                 @endif
                             </td>
 

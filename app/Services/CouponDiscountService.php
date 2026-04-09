@@ -47,11 +47,13 @@ class CouponDiscountService
             $applicableProducts = $couponResult['applicable_products'];
             $totalCartValue = $couponResult['total_cart_value'];
 
+            $vendorTotals = $this->calculateVendorTotals($cartProducts);
+
             // Apply discount based on coupon type
             if ($coupon->type === Coupon::TYPE_PERCENTAGE) {
-                $result = $this->applyPercentageCouponDiscount($coupon, $cartProducts, $applicableProducts, $hasOrders);
+                $result = $this->applyPercentageCouponDiscount($coupon, $cartProducts, $applicableProducts, $hasOrders, $vendorTotals);
             } else {
-                $result = $this->applyFixedAmountCouponDiscount($coupon, $cartProducts, $applicableProducts, $totalDiscountAmount, $hasOrders);
+                $result = $this->applyFixedAmountCouponDiscount($coupon, $cartProducts, $applicableProducts, $totalDiscountAmount, $hasOrders, $vendorTotals);
             }
 
             Log::info('CouponDiscountService: Final result', [
@@ -92,7 +94,7 @@ class CouponDiscountService
      * Apply percentage coupon discount to product discount fields
      * Rule: Apply percentage to each product's discount field, using larger value if competing discounts exist
      */
-    private function applyPercentageCouponDiscount(Coupon $coupon, Collection $cartProducts, array $applicableProducts, bool $hasOrders): array
+    private function applyPercentageCouponDiscount(Coupon $coupon, Collection $cartProducts, array $applicableProducts, bool $hasOrders, array $vendorTotals = []): array
     {
         $modifiedProducts = [];
         $totalCouponDiscount = 0;
@@ -107,7 +109,9 @@ class CouponDiscountService
             $packageQuantity = (int) ($product->package_quantity ?? 1);
             $basePrice = $this->resolveBasePrice($product, $cartItem['variation_id'] ?? null);
 
-            $existingPriceInfo = $product->getFinalPriceForUser($hasOrders);
+            $vendorId = $product->brand?->vendor?->id;
+            $vendorTotal = $vendorId ? ($vendorTotals[$vendorId] ?? null) : null;
+            $existingPriceInfo = $product->getFinalPriceForUser($hasOrders, $vendorTotal);
             $existingDiscountPercentage = $this->clampPercentage((float) ($existingPriceInfo['discount'] ?? 0));
             $isApplicable = $this->isProductApplicableForCoupon($product, $applicableProducts);
             $couponPercentage = $isApplicable ? $this->clampPercentage((float) $coupon->value) : 0.0;
@@ -160,7 +164,7 @@ class CouponDiscountService
      * Apply fixed amount coupon discount proportionally to unit prices
      * Rule: Subtract proportionally from unit prices, never going negative/zero, negate other discounts unless they're larger
      */
-    private function applyFixedAmountCouponDiscount(Coupon $coupon, Collection $cartProducts, array $applicableProducts, float $totalDiscountAmount, bool $hasOrders): array
+    private function applyFixedAmountCouponDiscount(Coupon $coupon, Collection $cartProducts, array $applicableProducts, float $totalDiscountAmount, bool $hasOrders, array $vendorTotals = []): array
     {
         $modifiedProducts = [];
         $applicableProductsTotal = 0;
@@ -198,8 +202,10 @@ class CouponDiscountService
             $lineTotal = $basePrice * $quantity * $packageQuantity;
             $applicableProductsTotal += $lineTotal;
 
-            // Get existing discount info with null-safe handling
-            $existingPriceInfo = $product->getFinalPriceForUser($hasOrders);
+            // Get existing discount info with vendor totals for proper minimum check
+            $vendorId = $product->brand?->vendor?->id;
+            $vendorTotal = $vendorId ? ($vendorTotals[$vendorId] ?? null) : null;
+            $existingPriceInfo = $product->getFinalPriceForUser($hasOrders, $vendorTotal);
             $existingDiscountPercentage = (float) ($existingPriceInfo['discount'] ?? 0);
             $existingDiscountPercentage = max(0, min(100, $existingDiscountPercentage));
             $existingDiscountAmount = ($basePrice * $existingDiscountPercentage / 100) * $quantity * $packageQuantity;
@@ -244,12 +250,11 @@ class CouponDiscountService
             $totalUnits = max(1, $quantity * $packageQuantity);
             $unitPriceReduction = $proportionalDiscount / $totalUnits;
 
-            // IMPORTANT: When calculate_package_price is true, the SOAP transmission divides
-            // the stored price by packageQuantity to get per-individual-unit price.
-            // The safeguard must use this actual SOAP unit price to prevent zero prices.
-            $soapUnitPrice = $product->calculate_package_price 
-                ? ($basePrice / $packageQuantity) 
-                : $basePrice;
+            // The SOAP XML unit price equals basePrice in all cases:
+            // - Non-package: CartController stores basePrice, SOAP uses it as-is
+            // - Package (calculate_package_price): CartController stores basePrice * pkgQty,
+            //   then resolveXmlPricing divides back by pkgQty → net result is basePrice
+            $soapUnitPrice = $basePrice;
             
             // Ensure we don't go below a minimum price (10% of the actual SOAP unit price)
             $minAllowedPrice = $soapUnitPrice * 0.1;
@@ -320,13 +325,13 @@ class CouponDiscountService
 
         // Handle non-applicable products (they keep their existing discounts)
         foreach ($cartProducts as $cartItem) {
-            $product = Product::find($cartItem['product_id']);
+            $product = Product::with(['brand.vendor'])->find($cartItem['product_id']);
             if (!$product) continue;
 
             $isApplicable = $this->isProductApplicableForCoupon($product, $applicableProducts);
             if ($isApplicable) continue; // Already handled above
 
-            $modifiedProducts[] = $this->buildExistingLineResult($product, $cartItem, $hasOrders);
+            $modifiedProducts[] = $this->buildExistingLineResult($product, $cartItem, $hasOrders, $vendorTotals);
         }
 
         return [
@@ -473,6 +478,29 @@ class CouponDiscountService
         ];
     }
 
+    /**
+     * Calculate per-vendor cart totals (base prices) for vendor minimum discount checks.
+     */
+    private function calculateVendorTotals(Collection $cartProducts): array
+    {
+        $vendorTotals = [];
+        foreach ($cartProducts as $cartItem) {
+            $product = Product::with(['brand.vendor', 'items'])->find($cartItem['product_id']);
+            if (!$product || !$product->brand || !$product->brand->vendor) {
+                continue;
+            }
+
+            $vendorId = $product->brand->vendor->id;
+            $basePrice = $this->resolveBasePrice($product, $cartItem['variation_id'] ?? null);
+            $quantity = (int) ($cartItem['quantity'] ?? 1);
+            $packageQuantity = (int) ($product->package_quantity ?? 1);
+            $lineTotal = $basePrice * $quantity * $packageQuantity;
+
+            $vendorTotals[$vendorId] = ($vendorTotals[$vendorId] ?? 0) + $lineTotal;
+        }
+        return $vendorTotals;
+    }
+
     private function resolveBasePrice(Product $product, $variationId = null): float
     {
         $basePrice = (float) $product->price;
@@ -490,13 +518,15 @@ class CouponDiscountService
         return max(0, min(100, $value));
     }
 
-    private function buildExistingLineResult(Product $product, array $cartItem, bool $hasOrders): array
+    private function buildExistingLineResult(Product $product, array $cartItem, bool $hasOrders, array $vendorTotals = []): array
     {
         $quantity = (int) ($cartItem['quantity'] ?? 1);
         $packageQuantity = (int) ($product->package_quantity ?? 1);
         $basePrice = $this->resolveBasePrice($product, $cartItem['variation_id'] ?? null);
 
-        $existingPriceInfo = $product->getFinalPriceForUser($hasOrders);
+        $vendorId = $product->brand?->vendor?->id;
+        $vendorTotal = $vendorId ? ($vendorTotals[$vendorId] ?? null) : null;
+        $existingPriceInfo = $product->getFinalPriceForUser($hasOrders, $vendorTotal);
         $existingDiscountPercentage = $this->clampPercentage((float) ($existingPriceInfo['discount'] ?? 0));
         $totalUnits = max(1, $quantity * $packageQuantity);
         $newUnitPrice = max(0, $basePrice - ($basePrice * $existingDiscountPercentage / 100));

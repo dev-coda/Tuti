@@ -355,17 +355,28 @@ class UserRepository
                 // Update existing zones or create new ones (don't delete - they may be referenced by orders)
                 $syncedZones = [];
                 $processedZoneIds = [];
+                $matchedExistingIds = [];
 
                 foreach ($newRoutes as $index => $route) {
-                    // Try to match by code first, then by index position
-                    $existingZone = $existingZones->firstWhere('code', $route['code'] ?? null);
+                    $routeCode = $route['code'] ?? null;
 
-                    if (!$existingZone && isset($existingZones[$index])) {
-                        $existingZone = $existingZones[$index];
+                    // Match by code, skipping zones already matched by a previous route
+                    $existingZone = null;
+                    if ($routeCode !== null && $routeCode !== '') {
+                        $existingZone = $existingZones
+                            ->whereNotIn('id', $matchedExistingIds)
+                            ->firstWhere('code', $routeCode);
+                    }
+
+                    // Fall back to next available unmatched zone
+                    if (!$existingZone) {
+                        $existingZone = $existingZones
+                            ->whereNotIn('id', $matchedExistingIds)
+                            ->first();
                     }
 
                     if ($existingZone) {
-                        // Update existing zone
+                        $matchedExistingIds[] = $existingZone->id;
                         $existingZone->update([
                             'route' => $route['route'] ?? null,
                             'zone' => $route['zone'] ?? null,

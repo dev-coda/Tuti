@@ -95,27 +95,12 @@
               
 
 
-                <p class="mb-5  text-gray-700 text-2xl ">
-                    @if ($product->discount)
-
-                        <div class="flex flex-col">
-                            <span>
-                               <strong> {{ price($product->price, $product->discount) }}</strong>
-                                <small class="text-gray-500">({{ $product->discount }}%)</small>
-                            </span>
-                            <small class="line-through">{{ price($product->price) }}</small>
-                        </div>
-                        
-                    @else
-
-                        <div class="flex flex-col">
-                            <span>
-                               <strong> {{ price($product->price) }}</strong>
-                            </span> 
-                        </div>
-                        
+                <div class="flex items-baseline gap-2 mt-2">
+                    <span class="text-orange-500 font-bold text-xl">${{ currency($product->final_price['price']) }}</span>
+                    @if($product->final_price['has_discount'])
+                    <span class="line-through text-gray-400 text-sm font-semibold">${{ currency($product->final_price['old']) }}</span>
                     @endif
-                </p>
+                </div>
             
             </div>
         </div>

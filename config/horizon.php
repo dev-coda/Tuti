@@ -219,6 +219,19 @@ return [
             'timeout' => 600, // 10 minutes timeout
             'nice' => 0,
         ],
+        'supervisor-coupon-tests' => [
+            'connection' => 'redis',
+            'queue' => ['coupon-tests'],
+            'balance' => 'auto',
+            'autoScalingStrategy' => 'time',
+            'maxProcesses' => 1,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 256,
+            'tries' => 1,
+            'timeout' => 3600,
+            'nice' => 0,
+        ],
     ],
 
     'environments' => [
@@ -262,6 +275,19 @@ return [
                 'timeout' => 600, // 10 minutes for inventory sync
                 'nice' => 0,
             ],
+            'supervisor-coupon-tests' => [
+                'connection' => 'redis',
+                'queue' => ['coupon-tests'],
+                'balance' => 'auto',
+                'autoScalingStrategy' => 'time',
+                'maxProcesses' => 1,
+                'maxTime' => 0,
+                'maxJobs' => 0,
+                'memory' => 256,
+                'tries' => 1,
+                'timeout' => 3600,
+                'nice' => 0,
+            ],
         ],
 
         'local' => [
@@ -293,6 +319,16 @@ return [
                 'memory' => 256,
                 'tries' => 3,
                 'timeout' => 600,
+                'nice' => 0,
+            ],
+            'supervisor-coupon-tests' => [
+                'connection' => 'redis',
+                'queue' => ['coupon-tests'],
+                'balance' => 'auto',
+                'maxProcesses' => 1,
+                'memory' => 256,
+                'tries' => 1,
+                'timeout' => 3600,
                 'nice' => 0,
             ],
         ],

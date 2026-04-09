@@ -3,14 +3,13 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\RunCouponTestSuite;
 use App\Models\Coupon;
 use App\Models\Order;
-use App\Models\OrderProduct;
 use App\Models\Product;
 use App\Models\User;
 use App\Repositories\OrderRepository;
-use App\Services\CouponDiscountService;
-use Illuminate\Support\Facades\DB;
+use App\Services\CouponTestDiagnosticService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Response;
@@ -119,7 +118,8 @@ class CouponTestController extends Controller
             ];
         }
 
-        $diagnostic = $this->buildMockDiagnostic(
+        $diagnosticService = app(CouponTestDiagnosticService::class);
+        $diagnostic = $diagnosticService->buildMockDiagnostic(
             $user,
             $zone,
             $cart,
@@ -171,82 +171,113 @@ class CouponTestController extends Controller
             return back()->with('error', 'Define al menos un escenario.')->withInput();
         }
 
-        $results = [];
-        foreach ($scenarios as $index => $scenario) {
-            $scenarioName = $scenario['name'] ?? ('Escenario #' . ($index + 1));
-            $products = is_array($scenario['products'] ?? null) ? $scenario['products'] : [];
-            $couponCodes = $scenario['coupon_codes'] ?? [];
-            $couponCodes = is_array($couponCodes)
-                ? array_values(array_filter(array_map('trim', $couponCodes)))
-                : $this->parseCouponCodes((string) $couponCodes);
+        $runId = now()->format('YmdHis') . '_' . Str::random(12);
+        $actorEmail = auth()->user()->email ?? (string) auth()->id();
 
-            if (empty($products)) {
-                $results[] = [
-                    'name' => $scenarioName,
-                    'passed' => false,
-                    'error' => 'Sin productos en el escenario.',
-                    'assertions' => [],
-                    'coupon_codes' => $couponCodes,
-                ];
-                continue;
-            }
-
-            $cart = collect($products)->map(function ($row) {
-                return [
-                    'product_id' => (int) ($row['product_id'] ?? 0),
-                    'quantity' => max(1, (int) ($row['quantity'] ?? 1)),
-                    'variation_id' => $row['variation_id'] ?? null,
-                ];
-            })->values()->all();
-
-            $diagnostic = $this->buildMockDiagnostic($user, $zone, $cart, $couponCodes, false);
-            $failedAssertions = collect($diagnostic['assertions'])->where('passed', false)->count();
-
-            $results[] = [
-                'name' => $scenarioName,
-                'passed' => $failedAssertions === 0,
-                'coupon_codes' => $couponCodes,
-                'coupon_total_discount' => (float) (($diagnostic['couponResult']['total_coupon_discount'] ?? 0)),
-                'assertions' => $diagnostic['assertions'],
-                'product_summary' => $diagnostic['productSummary']->toArray(),
-                'xml' => $diagnostic['xml'],
-            ];
+        $queueConnection = config('queue.default');
+        if ($queueConnection === 'sync') {
+            $queueConnection = 'redis';
         }
 
-        $summary = [
-            'total' => count($results),
-            'passed' => collect($results)->where('passed', true)->count(),
-            'failed' => collect($results)->where('passed', false)->count(),
-            'ran_at' => now()->toDateTimeString(),
-            'actor' => auth()->user()->email ?? auth()->id(),
-            'transmission' => 'diagnostic_only',
-        ];
+        RunCouponTestSuite::dispatch($user->id, $scenarios, $runId, $actorEmail)
+            ->onConnection($queueConnection)
+            ->onQueue('coupon-tests');
 
-        $payload = [
-            'summary' => $summary,
-            'results' => $results,
-        ];
-        $runId = $this->persistScenarioSuitePayload($payload);
         session()->put('coupon_test_suite_last_run_id', $runId);
+
+        return redirect()->route('coupon-tests.suite.progress', ['run_id' => $runId]);
+    }
+
+    public function suiteProgress(Request $request)
+    {
+        $runId = $this->resolveRunId($request);
+        if ($runId === '') {
+            return redirect()->route('coupon-tests.suite')->with('error', 'No hay corrida en progreso.');
+        }
+
+        return view('admin.coupon-tests.suite-progress', compact('runId'));
+    }
+
+    public function suiteStatus(Request $request)
+    {
+        $runId = $this->resolveRunId($request);
+        if ($runId === '') {
+            return response()->json(['status' => 'not_found']);
+        }
+
+        $statusPath = "coupon-tests/suites/{$runId}/status.json";
+        if (!Storage::disk('local')->exists($statusPath)) {
+            return response()->json(['status' => 'pending', 'processed' => 0, 'total' => 0, 'percent' => 0]);
+        }
+
+        $status = json_decode(Storage::disk('local')->get($statusPath), true);
+        return response()->json($status ?? ['status' => 'pending']);
+    }
+
+    public function suiteResults(Request $request)
+    {
+        $runId = $this->resolveRunId($request);
+        if ($runId === '') {
+            return redirect()->route('coupon-tests.suite')->with('error', 'No hay resultados para mostrar.');
+        }
+
+        $summaryPath = "coupon-tests/suites/{$runId}/summary.json";
+        if (!Storage::disk('local')->exists($summaryPath)) {
+            return redirect()->route('coupon-tests.suite.progress', ['run_id' => $runId]);
+        }
+
+        $summary = json_decode(Storage::disk('local')->get($summaryPath), true);
+        $total = $summary['total'] ?? 0;
+
+        $page = max(1, (int) $request->query('page', 1));
+        $perPage = 20;
+        $offset = ($page - 1) * $perPage;
+
+        $results = [];
+        for ($i = $offset; $i < min($offset + $perPage, $total); $i++) {
+            $resultPath = "coupon-tests/suites/{$runId}/result-{$i}.json";
+            if (Storage::disk('local')->exists($resultPath)) {
+                $results[] = json_decode(Storage::disk('local')->get($resultPath), true);
+            }
+        }
+
+        $totalPages = (int) ceil($total / $perPage);
 
         return view('admin.coupon-tests.suite-results', [
             'summary' => $summary,
             'results' => $results,
+            'runId' => $runId,
+            'page' => $page,
+            'totalPages' => $totalPages,
+            'perPage' => $perPage,
         ]);
     }
 
     public function exportScenarioSuite(Request $request)
     {
         $format = $request->query('format', 'json');
-        $runId = (string) session('coupon_test_suite_last_run_id', '');
-        $payload = $this->loadScenarioSuitePayload($runId);
-        if (!$payload) {
+        $runId = $this->resolveRunId($request);
+
+        if ($runId === '') {
             return back()->with('error', 'No hay resultados para exportar. Ejecuta primero una corrida.');
         }
 
+        $summaryPath = "coupon-tests/suites/{$runId}/summary.json";
+        if (!Storage::disk('local')->exists($summaryPath)) {
+            return back()->with('error', 'No hay resultados para exportar. Ejecuta primero una corrida.');
+        }
+
+        $summary = json_decode(Storage::disk('local')->get($summaryPath), true);
+        $total = $summary['total'] ?? 0;
+
         if ($format === 'csv') {
             $rows = ['scenario,passed,coupon_codes,coupon_total_discount,failed_assertions'];
-            foreach ($payload['results'] as $result) {
+            for ($i = 0; $i < $total; $i++) {
+                $resultPath = "coupon-tests/suites/{$runId}/result-{$i}.json";
+                if (!Storage::disk('local')->exists($resultPath)) {
+                    continue;
+                }
+                $result = json_decode(Storage::disk('local')->get($resultPath), true);
                 $failed = collect($result['assertions'] ?? [])->where('passed', false)->count();
                 $rows[] = sprintf(
                     '"%s",%s,"%s",%s,%d',
@@ -263,261 +294,42 @@ class CouponTestController extends Controller
             ]);
         }
 
-        return Response::make(
-            json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE),
-            200,
-            [
-                'Content-Type' => 'application/json',
-                'Content-Disposition' => 'attachment; filename="coupon-suite-results.json"',
-            ]
-        );
+        return response()->stream(function () use ($summary, $runId, $total) {
+            echo '{"summary":' . json_encode($summary, JSON_UNESCAPED_UNICODE) . ',"results":[';
+            $first = true;
+            for ($i = 0; $i < $total; $i++) {
+                $resultPath = "coupon-tests/suites/{$runId}/result-{$i}.json";
+                if (!Storage::disk('local')->exists($resultPath)) {
+                    continue;
+                }
+                if (!$first) {
+                    echo ',';
+                }
+                $first = false;
+                echo Storage::disk('local')->get($resultPath);
+                flush();
+            }
+            echo ']}';
+        }, 200, [
+            'Content-Type' => 'application/json',
+            'Content-Disposition' => 'attachment; filename="coupon-suite-results.json"',
+        ]);
     }
 
-    private function persistScenarioSuitePayload(array $payload): string
+    private function resolveRunId(Request $request): string
     {
-        $runId = now()->format('YmdHis') . '_' . Str::random(12);
-        $relativePath = 'coupon-tests/suites/' . $runId . '.json';
-        Storage::disk('local')->put($relativePath, json_encode($payload, JSON_UNESCAPED_UNICODE));
+        $runId = $request->query('run_id', (string) session('coupon_test_suite_last_run_id', ''));
+
+        if ($runId !== '' && !preg_match('/^[\w-]+$/', $runId)) {
+            return '';
+        }
 
         return $runId;
-    }
-
-    private function loadScenarioSuitePayload(string $runId): ?array
-    {
-        if ($runId === '') {
-            return null;
-        }
-
-        $relativePath = 'coupon-tests/suites/' . $runId . '.json';
-        if (!Storage::disk('local')->exists($relativePath)) {
-            return null;
-        }
-
-        $contents = Storage::disk('local')->get($relativePath);
-        $decoded = json_decode($contents, true);
-        return is_array($decoded) ? $decoded : null;
     }
 
     private function parseCouponCodes(string $couponCodesText): array
     {
         return array_values(array_filter(array_map('trim', explode(',', $couponCodesText))));
-    }
-
-    private function buildMockDiagnostic(User $user, $zone, array $cart, array $couponCodes, bool $includeBonifications = false): array
-    {
-        $hasOrders = $user->orders()->exists();
-        $modifiedProductsLookup = [];
-        $couponResult = ['success' => true, 'total_coupon_discount' => 0, 'modified_products' => []];
-
-        if (!empty($couponCodes)) {
-            $coupons = Coupon::whereIn('code', $couponCodes)->get();
-            $couponDiscountService = app(CouponDiscountService::class);
-            $couponResult = $couponDiscountService->applyMultipleCouponsToProducts(
-                $coupons->all(),
-                $user,
-                collect($cart),
-                $hasOrders
-            );
-            if ($couponResult['success']) {
-                foreach ($couponResult['modified_products'] ?? [] as $modProduct) {
-                    $key = $modProduct['product_id'] . '_' . ($modProduct['variation_id'] ?? 'null');
-                    $modifiedProductsLookup[$key] = $modProduct;
-                }
-            }
-        }
-
-        $order = new Order([
-            'id' => 0,
-            'user_id' => $user->id,
-            'zone_id' => $zone->id,
-            'total' => 0,
-            'delivery_date' => now()->addDays(2)->format('Y-m-d'),
-            'observations' => '[TEST] Mock order - not transmitted',
-            'created_at' => now(),
-        ]);
-        $order->id = 0;
-        $order->setRelation('zone', $zone);
-        $order->setRelation('user', $user);
-
-        $orderProducts = collect();
-        $totalOrder = 0;
-
-        foreach ($cart as $row) {
-            $product = Product::with(['brand.vendor', 'items'])->find($row['product_id']);
-            if (!$product) {
-                continue;
-            }
-
-            $lookupKey = $row['product_id'] . '_' . ($row['variation_id'] ?? 'null');
-            $basePrice = $product->price;
-            $variation = $row['variation_id']
-                ? $product->items()->where('variation_items.id', $row['variation_id'])->first()
-                : null;
-            if ($variation && $variation->pivot) {
-                $basePrice = $variation->pivot->price;
-            }
-
-            $lineDiscountPercent = 0;
-            $orderDiscountType = 'percentage';
-            $flatDiscountAmount = 0;
-            $unitPrice = 0;
-
-            if (isset($modifiedProductsLookup[$lookupKey])) {
-                $modProduct = $modifiedProductsLookup[$lookupKey];
-                $discountType = $modProduct['applied_discount_type'] ?? 'percentage';
-                $basePrice = $modProduct['base_price'];
-                if ($discountType === 'fixed_amount') {
-                    $unitPrice = $product->calculate_package_price
-                        ? $basePrice * ($product->package_quantity ?? 1)
-                        : $basePrice;
-                    $lineDiscountPercent = 0;
-                    $orderDiscountType = 'fixed_amount';
-                    $flatDiscountAmount = (float) ($modProduct['fixed_discount_per_unit']
-                        ?? $modProduct['unit_price_reduction']
-                        ?? 0);
-                } else {
-                    $unitPrice = $product->calculate_package_price
-                        ? $basePrice * ($product->package_quantity ?? 1)
-                        : $basePrice;
-                    $lineDiscountPercent = (int) round((float) ($modProduct['effective_discount_percentage']
-                        ?? $modProduct['applied_discount_percentage']
-                        ?? 0));
-                }
-            } else {
-                $vendorId = $product->brand && $product->brand->vendor ? $product->brand->vendor->id : null;
-                $vendorTotal = $vendorId ? 0 : null;
-                $lineFinal = $product->getFinalPriceForUser($hasOrders, $vendorTotal);
-                $lineDiscountPercent = max(0, min(100, (int) ($lineFinal['discount'] ?? 0)));
-                $unitPrice = $product->calculate_package_price
-                    ? ($lineFinal['originalPrice'] ?? ($basePrice * ($product->package_quantity ?? 1)))
-                    : ($lineFinal['price'] ?? $basePrice);
-                if ($variation && isset($variation->pivot->price)) {
-                    $unitPrice = $product->calculate_package_price
-                        ? $variation->pivot->price * ($product->package_quantity ?? 1)
-                        : $variation->pivot->price;
-                }
-            }
-
-            $lineTotal = $unitPrice * (int) $row['quantity'];
-            $op = new OrderProduct([
-                'order_id' => 0,
-                'product_id' => $product->id,
-                'quantity' => (int) $row['quantity'],
-                'price' => $unitPrice,
-                'percentage' => $lineDiscountPercent,
-                'discount_type' => $orderDiscountType,
-                'flat_discount_amount' => $flatDiscountAmount,
-                'variation_item_id' => $row['variation_id'] ?? null,
-                'package_quantity' => (int) ($product->package_quantity ?? 1),
-            ]);
-            $op->setRelation('product', $product);
-            $orderProducts->push($op);
-            $totalOrder += $lineTotal;
-        }
-
-        $order->total = $totalOrder;
-        $order->setRelation('products', $orderProducts);
-
-        $xml = OrderRepository::buildOrderXmlForDiagnostic($order, $includeBonifications, $orderProducts) ?? '<!-- No zone -->';
-        $assertions = $this->buildXmlAssertions($orderProducts, $xml);
-
-        $productSummary = $orderProducts->map(fn ($op) => [
-            'product_id' => $op->product_id,
-            'name' => $op->product?->name ?? 'N/A',
-            'sku' => $op->product?->sku ?? 'N/A',
-            'quantity' => $op->quantity,
-            'price' => $op->price,
-            'percentage' => $op->percentage,
-            'discount_type' => $op->discount_type ?? 'percentage',
-            'flat_discount_amount' => $op->flat_discount_amount ?? 0,
-        ]);
-
-        return [
-            'order' => $order,
-            'xml' => $xml,
-            'couponResult' => $couponResult,
-            'assertions' => $assertions,
-            'productSummary' => $productSummary,
-        ];
-    }
-
-    private function buildXmlAssertions(Collection $orderProducts, string $xml): array
-    {
-        preg_match_all(
-            '/<dyn:listDetails>\s*<dyn:discount>(.*?)<\/dyn:discount>.*?<dyn:itemId>(.*?)<\/dyn:itemId>.*?<dyn:qty>.*?<\/dyn:qty>.*?<dyn:unitPrice>(.*?)<\/dyn:unitPrice>.*?<\/dyn:listDetails>/s',
-            $xml,
-            $matches,
-            PREG_SET_ORDER
-        );
-
-        $xmlBySku = [];
-        foreach ($matches as $match) {
-            $sku = trim($match[2]);
-            if (!isset($xmlBySku[$sku])) {
-                $xmlBySku[$sku] = [];
-            }
-            $xmlBySku[$sku][] = [
-                'discount' => (int) trim($match[1]),
-                'unit_price' => (float) trim($match[3]),
-            ];
-        }
-
-        $variationSkuMap = [];
-        $variationRows = $orderProducts
-            ->filter(fn ($op) => !empty($op->variation_item_id))
-            ->map(fn ($op) => ['product_id' => (int) $op->product_id, 'variation_item_id' => (int) $op->variation_item_id])
-            ->unique()
-            ->values()
-            ->all();
-        if (!empty($variationRows)) {
-            $variationSkuData = DB::table('product_item_variation')
-                ->whereIn('product_id', collect($variationRows)->pluck('product_id')->all())
-                ->whereIn('variation_item_id', collect($variationRows)->pluck('variation_item_id')->all())
-                ->select('product_id', 'variation_item_id', 'sku')
-                ->get();
-            foreach ($variationSkuData as $row) {
-                $variationSkuMap[$row->product_id . '_' . $row->variation_item_id] = (string) $row->sku;
-            }
-        }
-
-        $assertions = [];
-        foreach ($orderProducts as $op) {
-            $sku = (string) ($op->product?->sku ?? '');
-            if (!empty($op->variation_item_id)) {
-                $sku = $variationSkuMap[$op->product_id . '_' . $op->variation_item_id] ?? $sku;
-            }
-
-            if ($sku === '' || empty($xmlBySku[$sku])) {
-                $assertions[] = [
-                    'passed' => false,
-                    'message' => "SKU {$sku} no encontrado en XML.",
-                ];
-                continue;
-            }
-
-            $row = array_shift($xmlBySku[$sku]);
-            $expectedDiscount = ($op->discount_type === 'fixed_amount')
-                ? 0
-                : max(0, min(100, (int) ($op->percentage ?? 0)));
-
-            $packageQty = max(1, (int) ($op->package_quantity ?? 1));
-            $baseUnitPrice = $op->product?->calculate_package_price ? ((float) $op->price / $packageQty) : (float) $op->price;
-            if ($op->discount_type === 'fixed_amount' && (float) $op->flat_discount_amount > 0) {
-                $minAllowed = $baseUnitPrice * 0.1;
-                $expectedUnitPrice = max($minAllowed, $baseUnitPrice - (float) $op->flat_discount_amount);
-            } else {
-                $expectedUnitPrice = $baseUnitPrice;
-            }
-
-            $discountOk = ((int) $row['discount']) === (int) $expectedDiscount;
-            $priceOk = abs(((float) $row['unit_price']) - ((float) $expectedUnitPrice)) < 0.01;
-            $assertions[] = [
-                'passed' => $discountOk && $priceOk,
-                'message' => "{$sku}: discount={$row['discount']} (esp {$expectedDiscount}), unitPrice={$row['unit_price']} (esp " . number_format($expectedUnitPrice, 2, '.', '') . ')',
-            ];
-        }
-
-        return $assertions;
     }
 
     private function buildSeededScenarios(Collection $products, Collection $coupons): array
@@ -553,9 +365,12 @@ class CouponTestController extends Controller
         }
 
         // Pair combinations (best-per-line and stacking behavior checks).
+        // Capped to prevent combinatorial explosion with many active coupons.
         $codes = $coupons->pluck('code')->filter()->values()->all();
-        for ($i = 0; $i < count($codes); $i++) {
-            for ($j = $i + 1; $j < count($codes); $j++) {
+        $maxPairs = 50;
+        $pairCount = 0;
+        for ($i = 0; $i < count($codes) && $pairCount < $maxPairs; $i++) {
+            for ($j = $i + 1; $j < count($codes) && $pairCount < $maxPairs; $j++) {
                 $scenarios[] = [
                     'name' => "PAIR - {$codes[$i]} + {$codes[$j]}",
                     'coupon_codes' => [$codes[$i], $codes[$j]],
@@ -564,13 +379,17 @@ class CouponTestController extends Controller
                         ['product_id' => $secondProductId, 'quantity' => 1],
                     ],
                 ];
+                $pairCount++;
             }
         }
 
         // Triple combinations (stacking of several coupons in one run).
-        for ($i = 0; $i < count($codes); $i++) {
-            for ($j = $i + 1; $j < count($codes); $j++) {
-                for ($k = $j + 1; $k < count($codes); $k++) {
+        // Capped to prevent O(n³) blowup.
+        $maxTriples = 20;
+        $tripleCount = 0;
+        for ($i = 0; $i < count($codes) && $tripleCount < $maxTriples; $i++) {
+            for ($j = $i + 1; $j < count($codes) && $tripleCount < $maxTriples; $j++) {
+                for ($k = $j + 1; $k < count($codes) && $tripleCount < $maxTriples; $k++) {
                     $scenarios[] = [
                         'name' => "TRIPLE - {$codes[$i]} + {$codes[$j]} + {$codes[$k]}",
                         'coupon_codes' => [$codes[$i], $codes[$j], $codes[$k]],
@@ -580,6 +399,7 @@ class CouponTestController extends Controller
                             ['product_id' => $thirdProductId, 'quantity' => 1],
                         ],
                     ];
+                    $tripleCount++;
                 }
             }
         }

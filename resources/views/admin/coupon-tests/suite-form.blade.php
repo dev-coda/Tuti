@@ -33,7 +33,8 @@
                 Cada escenario requiere: <code>name</code>, <code>coupon_codes</code> (array o texto con comas) y <code>products</code> (array con <code>product_id</code>, <code>quantity</code>, opcional <code>variation_id</code>).
             </p>
             <p class="mt-1 text-xs text-gray-500">
-                Incluye semilla automática con baseline, todos los cupones activos individuales, todas las combinaciones por pares y ternas, y casos edge de XML.
+                Incluye semilla automática con baseline, todos los cupones activos individuales, combinaciones por pares (máx. 50) y ternas (máx. 20), y casos edge de XML.
+                La suite se ejecuta en segundo plano.
             </p>
             <button type="button" id="reset-seed" class="mt-2 px-3 py-1.5 bg-gray-100 border border-gray-300 rounded text-xs text-gray-800 hover:bg-gray-200">
                 Restablecer JSON semilla
@@ -41,7 +42,7 @@
         </div>
 
         <div class="flex gap-2">
-            <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">
+            <button type="submit" id="submit-suite" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">
                 Ejecutar suite
             </button>
             <a href="{{ route('coupon-tests.index') }}" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 font-medium">
@@ -59,6 +60,15 @@ document.addEventListener('DOMContentLoaded', function () {
     resetBtn.addEventListener('click', function () {
         textarea.value = seed;
     });
+
+    const form = textarea.closest('form');
+    const submitBtn = document.getElementById('submit-suite');
+    if (form && submitBtn) {
+        form.addEventListener('submit', function () {
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Enviando…';
+        });
+    }
 });
 </script>
 @endsection

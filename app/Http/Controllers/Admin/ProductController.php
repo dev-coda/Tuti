@@ -31,7 +31,7 @@ class ProductController extends Controller
     public function index(Request $request)
     {
         // Inicializamos la consulta de productos
-        $products = Product::query()->with('tax');
+        $products = Product::query()->with(['tax', 'brand.vendor']);
 
         // Si hay un filtro de búsqueda
         //Filtro por nombre

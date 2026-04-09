@@ -120,6 +120,9 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
         Route::post('/mock', [\App\Http\Controllers\Admin\CouponTestController::class, 'runMockTest'])->name('mock.run');
         Route::get('/suite', [\App\Http\Controllers\Admin\CouponTestController::class, 'showScenarioSuiteForm'])->name('suite');
         Route::post('/suite', [\App\Http\Controllers\Admin\CouponTestController::class, 'runScenarioSuite'])->name('suite.run');
+        Route::get('/suite/progress', [\App\Http\Controllers\Admin\CouponTestController::class, 'suiteProgress'])->name('suite.progress');
+        Route::get('/suite/status', [\App\Http\Controllers\Admin\CouponTestController::class, 'suiteStatus'])->name('suite.status');
+        Route::get('/suite/results', [\App\Http\Controllers\Admin\CouponTestController::class, 'suiteResults'])->name('suite.results');
         Route::get('/suite/export', [\App\Http\Controllers\Admin\CouponTestController::class, 'exportScenarioSuite'])->name('suite.export');
     });
 
