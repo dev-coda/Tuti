@@ -55,12 +55,19 @@ class Order extends Model
         'fv_response_payload',
         'coordinadora_request_payload',
         'coordinadora_response_payload',
+        'tax_group',
+        'retention_fuente',
+        'retention_iva',
+        'retention_total',
     ];
 
     protected $casts = [
         'last_processing_attempt' => 'datetime',
         'coordinadora_status_at' => 'datetime',
         'shipping_quote_amount' => 'decimal:2',
+        'retention_fuente' => 'decimal:2',
+        'retention_iva' => 'decimal:2',
+        'retention_total' => 'decimal:2',
     ];
 
 

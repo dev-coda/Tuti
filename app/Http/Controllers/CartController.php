@@ -201,7 +201,7 @@ class CartController extends Controller
         }
 
         foreach ($cart as $item) {
-            $product = Product::with('brand.vendor', 'variation')->find($item['product_id']);
+            $product = Product::with('brand.vendor', 'variation', 'tax', 'bonifications')->find($item['product_id']);
 
             // Skip if product not found (might have been deleted)
             if (!$product) {
@@ -335,7 +335,13 @@ class CartController extends Controller
         // Get enabled shipping methods
         $shippingMethods = \App\Models\ShippingMethod::getEnabled();
 
-        $context = compact('products', 'alertVendors', 'vendorDiscountAlerts', 'zoneOptions', 'set_user', 'client', 'alertTotal', 'min_amount', 'total_cart', 'has_orders', 'appliedCoupon', 'couponDiscount', 'couponMessage', 'shippingMethods');
+        $cartRetentions = app(\App\Services\CartRetentionService::class)->calculateForCart(
+            $targetUser->tax_group ?? null,
+            $products,
+            0.0
+        );
+
+        $context = compact('products', 'alertVendors', 'vendorDiscountAlerts', 'zoneOptions', 'set_user', 'client', 'alertTotal', 'min_amount', 'total_cart', 'has_orders', 'appliedCoupon', 'couponDiscount', 'couponMessage', 'shippingMethods', 'cartRetentions');
 
         return view('pages.cart', $context);
     }
@@ -1192,7 +1198,7 @@ class CartController extends Controller
             $vendorTotals = [];
             $productsByVendor = [];
             foreach ($cart as $key => $row) {
-                $tempProduct = Product::with('brand.vendor')->find($row['product_id']);
+                $tempProduct = Product::with('brand.vendor', 'bonifications')->find($row['product_id']);
                 if ($tempProduct && $tempProduct->brand && $tempProduct->brand->vendor) {
                     $vendorId = $tempProduct->brand->vendor->id;
 
@@ -1236,9 +1242,12 @@ class CartController extends Controller
                 // Note: If product not found, it will be caught in the main loop below
             }
 
+            $retentionBaseArticulos = 0.0;
+            $retentionIvaArticulos = 0.0;
+
             foreach ($cart as $key => $row) {
                 $id = $row['product_id'];
-                $p = Product::with('brand.vendor', 'bonifications')->find($id);
+                $p = Product::with('brand.vendor', 'bonifications', 'tax')->find($id);
                 
                 // Skip if product not found (might have been deleted)
                 if (!$p) {
@@ -1527,6 +1536,14 @@ class CartController extends Controller
                 $total += $lineTotal;
                 $discount += $lineDiscount;
 
+                $taxPctRetention = (float) (optional($p->tax)->tax ?? 0);
+                [$retentionBaseArticulos, $retentionIvaArticulos] = \App\Services\CartRetentionService::accumulateFromTaxInclusiveLine(
+                    $lineTotal,
+                    $taxPctRetention,
+                    $retentionBaseArticulos,
+                    $retentionIvaArticulos
+                );
+
                 // Increment sales count for best-selling tracking
                 $p->incrementSalesCount($row['quantity']);
             }
@@ -1536,9 +1553,11 @@ class CartController extends Controller
                 // Recalculate totals to exclude traditional discounts but keep coupon effects
                 $total = 0;
                 $discount = 0;
+                $retentionBaseArticulos = 0.0;
+                $retentionIvaArticulos = 0.0;
 
                 foreach ($cart as $key => $row) {
-                    $p = Product::find($row['product_id']);
+                    $p = Product::with('tax', 'items', 'brand.vendor', 'bonifications')->find($row['product_id']);
                     $lookupKey = $row['product_id'] . '_' . ($row['variation_id'] ?? 'null');
 
                     if (isset($modifiedProductsLookup[$lookupKey])) {
@@ -1570,6 +1589,25 @@ class CartController extends Controller
                         $lineDiscount = 0;
                     }
 
+                    $taxPctRetention = (float) (optional($p->tax)->tax ?? 0);
+                    $useInclusiveRetention = isset($modifiedProductsLookup[$lookupKey])
+                        && (($modifiedProductsLookup[$lookupKey]['applied_discount_type'] ?? '') === 'fixed_amount');
+                    if ($useInclusiveRetention) {
+                        [$retentionBaseArticulos, $retentionIvaArticulos] = \App\Services\CartRetentionService::accumulateFromTaxInclusiveLine(
+                            $lineTotal,
+                            $taxPctRetention,
+                            $retentionBaseArticulos,
+                            $retentionIvaArticulos
+                        );
+                    } else {
+                        [$retentionBaseArticulos, $retentionIvaArticulos] = \App\Services\CartRetentionService::accumulateFromTaxExclusiveLine(
+                            $lineTotal,
+                            $taxPctRetention,
+                            $retentionBaseArticulos,
+                            $retentionIvaArticulos
+                        );
+                    }
+
                     $total += $lineTotal;
                     $discount += $lineDiscount;
                 }
@@ -1577,10 +1615,23 @@ class CartController extends Controller
 
             $finalTotal = $total;
 
+            $shippingForRetention = (float) ($shippingQuoteAmount ?? 0);
+            $retentionCalc = app(\App\Services\CartRetentionService::class)->calculateFromAggregates(
+                $actingUser->tax_group ?? null,
+                $retentionBaseArticulos,
+                $retentionIvaArticulos,
+                $shippingForRetention,
+                false
+            );
+
             $order->update([
                 'total' => $finalTotal,
                 'discount' => $discount,
                 'coupon_discount' => $couponDiscount,
+                'tax_group' => $actingUser->tax_group,
+                'retention_fuente' => $retentionCalc['retention_fuente'],
+                'retention_iva' => $retentionCalc['retention_iva'],
+                'retention_total' => $retentionCalc['retention_total'],
             ]);
 
             // Record coupon usage for ALL winning coupons

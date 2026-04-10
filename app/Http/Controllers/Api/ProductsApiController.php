@@ -56,12 +56,12 @@ class ProductsApiController extends Controller
 
         if ($featuredProductIds->isEmpty()) {
             // If no featured products, fallback to latest
-            $query = Product::with(['brand.vendor', 'categories', 'images'])
+            $query = Product::with(['brand.vendor', 'categories', 'images', 'bonifications'])
                 ->latest()->where('active', 1)
                 ->take(12);
         } else {
             // Get featured products maintaining the order
-            $query = Product::with(['brand.vendor', 'categories', 'images'])
+            $query = Product::with(['brand.vendor', 'categories', 'images', 'bonifications'])
                 ->whereIn('id', $featuredProductIds)
                 ->where('active', 1)
                 ->take(12);
@@ -160,7 +160,7 @@ class ProductsApiController extends Controller
         }
 
         // Get products maintaining the order of most sold
-        $products = Product::with(['brand.vendor', 'categories', 'images'])
+        $products = Product::with(['brand.vendor', 'categories', 'images', 'bonifications'])
             ->whereIn('id', $mostSoldProductIds)
             ->where('active', 1)
             ->get()

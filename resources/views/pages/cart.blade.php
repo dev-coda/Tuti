@@ -138,7 +138,8 @@
                      data-product-id="{{ $product->id }}"
                      data-unit-price="{{ $product->calculatedFinalPrice['price'] }}"
                      data-old-price="{{ $product->calculatedFinalPrice['old'] }}"
-                     data-has-discount="{{ $product->calculatedFinalPrice['has_discount'] ? '1' : '0' }}">
+                     data-has-discount="{{ $product->calculatedFinalPrice['has_discount'] ? '1' : '0' }}"
+                     data-tax-pct="{{ optional($product->tax)->tax ?? 0 }}">
                     
                     {{-- Mobile Layout --}}
                     <div class="md:hidden space-y-3">
@@ -321,7 +322,10 @@
 
         {{-- Totals Section --}}
         <div class="px-6 py-5 bg-gray-50 border-t border-gray-200 rounded-b-xl" id="cart-totals-section"
-             data-coupon-discount="{{ $appliedCoupon ? ($appliedCoupon['discount_amount'] ?? 0) : 0 }}">
+             data-coupon-discount="{{ $appliedCoupon ? ($appliedCoupon['discount_amount'] ?? 0) : 0 }}"
+             @if(!empty($cartRetentions['rules_for_js']))
+             data-retention-rules="{{ e(json_encode($cartRetentions['rules_for_js'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT)) }}"
+             @endif>
             @php
             $subtotal = $products->sum(function($product){
                 return $product->calculatedFinalPrice['old'] * $product->quantity;
@@ -353,6 +357,20 @@
                 <div class="flex justify-between text-green-600">
                     <span>Cupón ({{$appliedCoupon['coupon_code']}})</span>
                     <span class="font-medium">-${{currency($appliedCoupon['discount_amount'])}}</span>
+                </div>
+                @endif
+
+                @if(!empty($cartRetentions['rules_for_js']))
+                <div class="text-xs text-gray-500 -mt-1 mb-1">
+                    Retenciones ({{ $cartRetentions['tax_group'] }}) — estimado según reglas activas
+                </div>
+                <div class="flex justify-between text-amber-800 {{ ($cartRetentions['retention_fuente'] ?? 0) > 0 ? '' : 'hidden' }}" id="cart-retention-fuente-row">
+                    <span>Retención en la fuente</span>
+                    <span class="font-medium" id="cart-retention-fuente">-${{currency($cartRetentions['retention_fuente'] ?? 0)}}</span>
+                </div>
+                <div class="flex justify-between text-amber-800 {{ ($cartRetentions['retention_iva'] ?? 0) > 0 ? '' : 'hidden' }}" id="cart-retention-iva-row">
+                    <span>Retención de IVA</span>
+                    <span class="font-medium" id="cart-retention-iva">-${{currency($cartRetentions['retention_iva'] ?? 0)}}</span>
                 </div>
                 @endif
 
@@ -549,6 +567,90 @@
             }).format(Math.round(amount));
         }
 
+        function roundMoney(n) {
+            return Math.round(n * 100) / 100;
+        }
+
+        function calcReteFuenteSubtotal(subtotal, rule) {
+            if (!rule || rule.pct_rte_fuente <= 0 || rule.base_rte_fuente <= 0) return 0;
+            if (subtotal < rule.base_rte_fuente) return 0;
+            return roundMoney((subtotal * rule.pct_rte_fuente) / 100);
+        }
+
+        function calcReteIvaAmount(ivaAmount, rule) {
+            if (!rule || rule.pct_rte_iva <= 0 || rule.base_rte_iva <= 0) return 0;
+            if (ivaAmount < rule.base_rte_iva) return 0;
+            return roundMoney((ivaAmount * rule.pct_rte_iva) / 100);
+        }
+
+        function updateCartRetentions() {
+            const totalsSection = document.getElementById('cart-totals-section');
+            if (!totalsSection || !totalsSection.dataset.retentionRules) return;
+            let rules;
+            try {
+                rules = JSON.parse(totalsSection.dataset.retentionRules);
+            } catch (e) {
+                return;
+            }
+            let baseArt = 0;
+            let ivaArt = 0;
+            document.querySelectorAll('.cart-item').forEach((item) => {
+                const unit = parseFloat(item.dataset.unitPrice);
+                const taxPct = parseFloat(item.dataset.taxPct || 0);
+                const qtyInput = item.querySelector('.qty-input');
+                const qty = qtyInput ? (parseInt(qtyInput.value, 10) || 0) : 0;
+                const lineTotal = unit * qty;
+                if (taxPct > 0) {
+                    const base = lineTotal / (1 + taxPct / 100);
+                    ivaArt += lineTotal - base;
+                    baseArt += base;
+                } else {
+                    baseArt += lineTotal;
+                }
+            });
+            const shipPct = rules.shipping_iva_percent || 19;
+            let baseFlete = 0;
+            let ivaFlete = 0;
+            if (currentShippingAmount > 0) {
+                if (shipPct > 0) {
+                    baseFlete = currentShippingAmount / (1 + shipPct / 100);
+                    ivaFlete = currentShippingAmount - baseFlete;
+                } else {
+                    baseFlete = currentShippingAmount;
+                }
+            }
+            const art = rules.articulo;
+            const fl = rules.flete;
+            const reteFuenteArt = art ? calcReteFuenteSubtotal(baseArt, art) : 0;
+            const reteIvaArt = art ? calcReteIvaAmount(ivaArt, art) : 0;
+            const reteFuenteFl = fl ? calcReteFuenteSubtotal(baseFlete, fl) : 0;
+            const reteIvaFl = fl ? calcReteIvaAmount(ivaFlete, fl) : 0;
+            const totalFuente = roundMoney(reteFuenteArt + reteFuenteFl);
+            const totalIva = roundMoney(reteIvaArt + reteIvaFl);
+
+            const rowFuente = document.getElementById('cart-retention-fuente-row');
+            const elFuente = document.getElementById('cart-retention-fuente');
+            const rowIva = document.getElementById('cart-retention-iva-row');
+            const elIva = document.getElementById('cart-retention-iva');
+
+            if (rowFuente && elFuente) {
+                if (totalFuente > 0) {
+                    rowFuente.classList.remove('hidden');
+                    elFuente.textContent = '-' + formatCurrency(totalFuente);
+                } else {
+                    rowFuente.classList.add('hidden');
+                }
+            }
+            if (rowIva && elIva) {
+                if (totalIva > 0) {
+                    rowIva.classList.remove('hidden');
+                    elIva.textContent = '-' + formatCurrency(totalIva);
+                } else {
+                    rowIva.classList.add('hidden');
+                }
+            }
+        }
+
         // Debounce function to prevent too many API calls
         let updateTimeout = null;
         function debounceUpdate(callback, delay = 500) {
@@ -679,6 +781,8 @@
             if (totalEl) {
                 totalEl.textContent = formatCurrency(totalWithoutShipping + currentShippingAmount);
             }
+
+            updateCartRetentions();
         }
 
         function setShippingAmount(amount) {

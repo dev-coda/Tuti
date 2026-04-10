@@ -30,7 +30,7 @@ class PreciosApiController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $query = Product::where('active', true);
+        $query = Product::with(['brand.vendor', 'tax', 'items', 'bonifications'])->where('active', true);
 
         // Apply filters
         if ($request->has('product_ids')) {
@@ -96,7 +96,7 @@ class PreciosApiController extends Controller
      */
     public function show(Request $request, Product $product): JsonResponse
     {
-        $product->load(['tax', 'items']);
+        $product->load(['brand.vendor', 'tax', 'items', 'bonifications']);
 
         $data = [
             'product_id' => $product->id,

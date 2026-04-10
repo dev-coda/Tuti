@@ -15,13 +15,15 @@ class ProductosApiController extends Controller
     public function index(Request $request): JsonResponse
     {
         $query = Product::with([
-            'brand',
+            'brand.vendor',
             'categories',
             'labels',
             'tax',
             'variation',
             'images',
-            'inventories'
+            'inventories',
+            'items',
+            'bonifications',
         ])->where('active', true);
 
         // Apply filters
@@ -119,7 +121,7 @@ class ProductosApiController extends Controller
     public function show(Request $request, Product $product): JsonResponse
     {
         $product->load([
-            'brand',
+            'brand.vendor',
             'categories',
             'labels',
             'tax',
@@ -128,7 +130,8 @@ class ProductosApiController extends Controller
             'inventories',
             'combinations',
             'items',
-            'related'
+            'related',
+            'bonifications',
         ]);
 
         $bodegaCode = $request->get('bodega_code');

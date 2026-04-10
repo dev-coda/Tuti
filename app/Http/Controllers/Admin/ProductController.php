@@ -31,7 +31,7 @@ class ProductController extends Controller
     public function index(Request $request)
     {
         // Inicializamos la consulta de productos
-        $products = Product::query()->with(['tax', 'brand.vendor']);
+        $products = Product::query()->with(['tax', 'brand.vendor', 'bonifications']);
 
         // Si hay un filtro de búsqueda
         //Filtro por nombre
@@ -237,7 +237,7 @@ class ProductController extends Controller
     public function edit(Product $product)
     {
         $product->load([
-            'brand',
+            'brand.vendor',
             'combinations',
             'related',
             'items' => ['variation'],
@@ -245,7 +245,7 @@ class ProductController extends Controller
             'images',
             'bonifications',
             'inventories',
-        ]); // eager loading
+        ]);
 
 
 

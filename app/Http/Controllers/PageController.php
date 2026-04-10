@@ -57,7 +57,7 @@ class PageController extends Controller
             }
         }
 
-        $productsQuery = Product::active()->with(['brand.vendor', 'inventories', 'categories']);
+        $productsQuery = Product::active()->with(['brand.vendor', 'inventories', 'categories', 'bonifications']);
 
         // Only apply search filter if we have valid search words
         if (!empty($searchWords)) {
@@ -272,13 +272,13 @@ class PageController extends Controller
     {
         $product = Product::query()
             ->active()
-            ->with(['brand.vendor', 'related.images', 'items', 'variation', 'labels', 'inventories'])
+            ->with(['brand.vendor', 'related.images', 'related.brand.vendor', 'related.bonifications', 'items', 'variation', 'labels', 'inventories', 'bonifications'])
             ->where('slug', $slug)->firstOrFail();
         
         // Get related products for "Complementa tu compra" section
         $related = $product->related;
         if (!$related->count()) {
-            $related = Product::active()->where('brand_id', $product->brand_id)->where('id', '!=', $product->id)->limit(4)->get();
+            $related = Product::active()->with(['brand.vendor', 'images', 'bonifications'])->where('brand_id', $product->brand_id)->where('id', '!=', $product->id)->limit(4)->get();
         }
 
         $quantity = $product->step;
@@ -315,14 +315,14 @@ class PageController extends Controller
 
 
         if ($slug2) {
-            $productsQuery = Product::active()->with(['brand.vendor', 'inventories', 'categories'])->whereHas('categories', function ($query) use ($category) {
+            $productsQuery = Product::active()->with(['brand.vendor', 'inventories', 'categories', 'bonifications'])->whereHas('categories', function ($query) use ($category) {
                 $query->where('category_id', $category->id);
             });
         } else {
             $ids = $category->children->pluck('id')->toArray();
             $ids[] = $category->id;
 
-            $productsQuery = Product::active()->with(['brand.vendor', 'inventories', 'categories'])->whereHas('categories', function ($query) use ($ids) {
+            $productsQuery = Product::active()->with(['brand.vendor', 'inventories', 'categories', 'bonifications'])->whereHas('categories', function ($query) use ($ids) {
                 $query->whereIn('category_id', $ids);
             });
         }
@@ -444,7 +444,7 @@ class PageController extends Controller
     public function label($slug)
     {
         $label = Label::whereActive(1)->where('slug', $slug)->firstOrFail();
-        $products = $label->products()->with(['brand.vendor'])->paginate();
+        $products = $label->products()->with(['brand.vendor', 'bonifications'])->paginate();
         $context = compact('label', 'products');
         return view('pages.label', $context);
     }
@@ -460,7 +460,7 @@ class PageController extends Controller
     public function brand($slug)
     {
         $brand = Brand::whereActive(1)->where('slug', $slug)->firstOrFail();
-        $products = $brand->products()->with(['brand.vendor'])->paginate();
+        $products = $brand->products()->with(['brand.vendor', 'bonifications'])->paginate();
         $context = compact('brand', 'products');
         return view('pages.brand', $context);
     }

@@ -290,9 +290,17 @@ class Product extends Model
 
     /**
      * Check if this product has any type of discount (product, brand, or vendor)
+     * Respects exclusion flags and bonification discount-blocking rules.
      */
     public function hasAnyDiscount(): bool
     {
+        if ($this->bonifications->count() > 0) {
+            $allBlockDiscounts = $this->bonifications->every(fn ($b) => !$b->allow_discounts);
+            if ($allBlockDiscounts) {
+                return false;
+            }
+        }
+
         // Product-level discount
         if ($this->discount > 0) {
             return true;

@@ -240,6 +240,23 @@
                         <span class="text-green-600 font-medium">-${{ number_format($order->discount, 0) }}</span>
                     </div>
                     @endif
+                    @if(($order->retention_total ?? 0) > 0)
+                    <div class="space-y-1 text-sm text-amber-900">
+                        <p class="font-medium text-xs text-gray-600">Retenciones ({{ $order->tax_group ?? '—' }})</p>
+                        @if(($order->retention_fuente ?? 0) > 0)
+                        <div class="flex justify-between">
+                            <span>Retención en la fuente</span>
+                            <span class="font-medium">${{ number_format($order->retention_fuente, 0) }}</span>
+                        </div>
+                        @endif
+                        @if(($order->retention_iva ?? 0) > 0)
+                        <div class="flex justify-between">
+                            <span>Retención de IVA</span>
+                            <span class="font-medium">${{ number_format($order->retention_iva, 0) }}</span>
+                        </div>
+                        @endif
+                    </div>
+                    @endif
                     <div class="border-t border-gray-200 pt-3">
                         <div class="flex justify-between">
                             <span class="text-base font-semibold text-gray-900">Total</span>

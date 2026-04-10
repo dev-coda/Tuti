@@ -119,13 +119,13 @@
     <script>
         $(function(){
             
-            const discount =  '{{$product->finalPrice['discount']}}'
+            const discount = Number('{{$product->finalPrice['discount']}}')
            
             $('#selectPrice').on('change', function(){
              
                 let price = $(this).find(':selected').data('price')
                 
-                if(discount){
+                if(discount > 0){
                     $('#oldprice').html(currency(parseInt(price)))
                     price = price - (price * (discount/100))
                 }

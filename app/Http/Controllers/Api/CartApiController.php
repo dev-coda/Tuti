@@ -20,7 +20,7 @@ class CartApiController extends Controller
         }
 
         $items = collect($cart)->map(function ($item) {
-            $product = Product::with(['brand', 'variation', 'items'])->find($item['product_id']);
+            $product = Product::with(['brand.vendor', 'variation', 'items', 'bonifications'])->find($item['product_id']);
             if (!$product) return null;
 
             $variation = $product->items->where('id', $item['variation_id'])->first();

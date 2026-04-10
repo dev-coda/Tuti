@@ -62,6 +62,24 @@
                 </div>
                 @endif
 
+                @if(($order->retention_total ?? 0) > 0)
+                <div class="rounded-lg bg-amber-50 border border-amber-100 px-3 py-3 space-y-2 text-sm">
+                    <p class="text-amber-900 font-medium">Retenciones aplicables ({{ $order->tax_group ?? '—' }})</p>
+                    @if(($order->retention_fuente ?? 0) > 0)
+                    <div class="flex justify-between text-amber-900">
+                        <span>Retención en la fuente</span>
+                        <span class="font-semibold">${{ number_format($order->retention_fuente, 0, ',', '.') }}</span>
+                    </div>
+                    @endif
+                    @if(($order->retention_iva ?? 0) > 0)
+                    <div class="flex justify-between text-amber-900">
+                        <span>Retención de IVA</span>
+                        <span class="font-semibold">${{ number_format($order->retention_iva, 0, ',', '.') }}</span>
+                    </div>
+                    @endif
+                </div>
+                @endif
+
                 <div class="flex justify-between items-center pt-4">
                     <span class="text-base font-medium text-gray-900">Total</span>
                     <span class="text-2xl font-bold text-orange-600">${{ number_format($order->total, 0, ',', '.') }}</span>
