@@ -42,10 +42,16 @@ class OrderController extends Controller
                 $query->whereRaw('CAST(id AS TEXT) ILIKE ?', ["%{$idq}%"]);
             })
             ->when($request->filled('from_date') && $request->filled('to_date'), function ($query) use ($request) {
-                $query->whereBetween('created_at', [
-                    Carbon::parse($request->from_date)->startOfDay(),
-                    Carbon::parse($request->to_date)->endOfDay(),
-                ]);
+                $bounds = $this->utcBoundsFromOrderFilterDates($request->from_date, $request->to_date);
+                if ($bounds) {
+                    $query->whereBetween('created_at', [$bounds[0], $bounds[1]]);
+                } else {
+                    \Log::warning('clients.orders.index: date filter ignored (invalid or unparsable Y-m-d)', [
+                        'from_date' => $request->from_date,
+                        'to_date' => $request->to_date,
+                        'user_id' => $request->user()?->id,
+                    ]);
+                }
             })
             ->when($request->filled('status_id') || $request->status_id === '0', function ($query) use ($request) {
                 if ($request->status_id !== '') {
@@ -66,8 +72,9 @@ class OrderController extends Controller
 
         $accountUser = $user->load(['zones', 'city']);
         $isSeller = $user->hasRole('seller');
+        $sellerDashToday = Carbon::now($this->sellerReportTimezone())->format('Y-m-d');
 
-        return view('clients.orders.index', compact('orders', 'statuses', 'accountUser', 'isSeller'));
+        return view('clients.orders.index', compact('orders', 'statuses', 'accountUser', 'isSeller', 'sellerDashToday'));
     }
 
     /**
@@ -82,18 +89,12 @@ class OrderController extends Controller
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
-        $from = $request->filled('from_date')
-            ? Carbon::parse($request->from_date)->startOfDay()
-            : Carbon::today();
-
-        $to = $request->filled('to_date')
-            ? Carbon::parse($request->to_date)->endOfDay()
-            : Carbon::today()->endOfDay();
+        [$fromUtc, $toUtc, $canonicalFrom, $canonicalTo] = $this->resolveSellerDashboardUtcRange($request);
 
         // ── Row 1: aggregate KPIs ──────────────────────────────
         $ordersQuery = Order::where('seller_id', $user->id)
             ->whereNot('total', '0')
-            ->whereBetween('created_at', [$from, $to]);
+            ->whereBetween('created_at', [$fromUtc, $toUtc]);
 
         $totalPedidos   = (clone $ordersQuery)->count();
         $ventasTotales  = (clone $ordersQuery)->sum('total');
@@ -103,10 +104,11 @@ class OrderController extends Controller
         $baseConditions = fn ($q) => $q
             ->where('orders.seller_id', $user->id)
             ->where('orders.total', '!=', 0)
-            ->whereBetween('orders.created_at', [$from, $to]);
+            ->whereBetween('orders.created_at', [$fromUtc, $toUtc]);
 
         // Helper: sales total + unit quantity for products in given category IDs.
-        // Use product_id IN (subquery) so each order line is counted once (products in parent+child categories were double-counted).
+        // product_id IN (subquery on category_product) counts each order line once; the id list includes
+        // descendant categories so pivot rows on child categories match without duplicating lines.
         $salesByCategories = function (array $categoryIds) use ($baseConditions) {
             if (empty($categoryIds)) return ['total' => 0, 'quantity' => 0];
             $row = DB::table('orders')
@@ -166,21 +168,12 @@ class OrderController extends Controller
             array_map('strtolower', $names)
         )->pluck('id')->toArray();
 
-        // 1. Alcalina — category "Alcalinas Tronex"
-        $alcalinaIds = $catIdsByName(['Alcalinas Tronex']);
-
-        // 2. Manganeso — category "Manganeso Tronex"
-        $manganesoIds = $catIdsByName(['Manganeso Tronex']);
-
-        // 3. Encendedores — parent category + all children
-        $encParent = $catIdsByName(['Encendedores']);
-        $encChildren = !empty($encParent)
-            ? Category::whereIn('parent_id', $encParent)->pluck('id')->toArray()
-            : [];
-        $encendedoresIds = array_merge($encParent, $encChildren);
-
-        // 4. Bombillos — category "Bombillos"
-        $bombillosIds = $catIdsByName(['Bombillos']);
+        // 1–4: category roots (name match) + all descendant categories so products
+        // attached only to child categories still count (pivot uses leaf/junction ids).
+        $alcalinaIds = $this->categoryIdsWithDescendants($catIdsByName(['Alcalinas Tronex']));
+        $manganesoIds = $this->categoryIdsWithDescendants($catIdsByName(['Manganeso Tronex']));
+        $encendedoresIds = $this->categoryIdsWithDescendants($catIdsByName(['Encendedores']));
+        $bombillosIds = $this->categoryIdsWithDescendants($catIdsByName(['Bombillos']));
 
         // 5. Otros — brands GP, Mtek, General Electric (+ GE alias), ROCKET
         $otrosBrandIds = $brandIdsByName(['GP', 'Gp', 'Mtek', 'General Electric', 'GE', 'ROCKET']);
@@ -211,9 +204,104 @@ class OrderController extends Controller
             'ventas_totales'   => round($ventasTotales, 2),
             'ticket_promedio'  => $ticketPromedio,
             'sales_buckets'    => $buckets,
-            'from_date' => $from->toDateString(),
-            'to_date'   => $to->toDateString(),
+            'from_date' => $canonicalFrom,
+            'to_date'   => $canonicalTo,
         ]);
+    }
+
+    /**
+     * Calendar-day range in seller timezone, as UTC bounds for DB timestamps.
+     *
+     * @return array{0: \Carbon\Carbon, 1: \Carbon\Carbon, 2: string, 3: string}
+     */
+    private function resolveSellerDashboardUtcRange(Request $request): array
+    {
+        $tz = $this->sellerReportTimezone();
+
+        if (!$request->filled('from_date') || !$request->filled('to_date')) {
+            $local = Carbon::now($tz);
+            $fromUtc = $local->copy()->startOfDay()->utc();
+            $toUtc = $local->copy()->endOfDay()->utc();
+            $d = $local->format('Y-m-d');
+
+            return [$fromUtc, $toUtc, $d, $d];
+        }
+
+        $fromStr = (string) $request->from_date;
+        $toStr = (string) $request->to_date;
+        if (strcmp($fromStr, $toStr) > 0) {
+            [$fromStr, $toStr] = [$toStr, $fromStr];
+        }
+
+        try {
+            $fromUtc = Carbon::createFromFormat('Y-m-d', $fromStr, $tz)->startOfDay()->utc();
+            $toUtc = Carbon::createFromFormat('Y-m-d', $toStr, $tz)->endOfDay()->utc();
+        } catch (\Throwable) {
+            $local = Carbon::now($tz);
+            $fromUtc = $local->copy()->startOfDay()->utc();
+            $toUtc = $local->copy()->endOfDay()->utc();
+            $d = $local->format('Y-m-d');
+
+            return [$fromUtc, $toUtc, $d, $d];
+        }
+
+        return [$fromUtc, $toUtc, $fromStr, $toStr];
+    }
+
+    /**
+     * @return array{0: \Carbon\Carbon, 1: \Carbon\Carbon}|null
+     */
+    private function utcBoundsFromOrderFilterDates(string $fromDate, string $toDate): ?array
+    {
+        $tz = $this->sellerReportTimezone();
+        if (strcmp($fromDate, $toDate) > 0) {
+            [$fromDate, $toDate] = [$toDate, $fromDate];
+        }
+
+        try {
+            $fromUtc = Carbon::createFromFormat('Y-m-d', $fromDate, $tz)->startOfDay()->utc();
+            $toUtc = Carbon::createFromFormat('Y-m-d', $toDate, $tz)->endOfDay()->utc();
+
+            return [$fromUtc, $toUtc];
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private function sellerReportTimezone(): string
+    {
+        return (string) config('app.seller_dashboard_timezone', 'America/Bogota');
+    }
+
+    /**
+     * Include every descendant category id so pivot rows on child categories match.
+     *
+     * @param  array<int>  $rootIds
+     * @return array<int>
+     */
+    private function categoryIdsWithDescendants(array $rootIds): array
+    {
+        $ids = collect($rootIds)->filter()->unique()->values();
+        if ($ids->isEmpty()) {
+            return [];
+        }
+
+        $frontier = $ids->all();
+        while ($frontier !== []) {
+            $children = Category::query()
+                ->whereIn('parent_id', $frontier)
+                ->pluck('id')
+                ->all();
+            $frontier = [];
+            foreach ($children as $cid) {
+                if (!$ids->contains($cid)) {
+                    $ids->push($cid);
+                    $frontier[] = $cid;
+                }
+            }
+        }
+
+        return $ids->unique()->values()->all();
     }
 
     public function show($id)

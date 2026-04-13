@@ -74,6 +74,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Seller dashboard & order filters (Mi Cuenta)
+    |--------------------------------------------------------------------------
+    |
+    | Date-only filters (Y-m-d) are interpreted as calendar days in this zone,
+    | then converted to UTC for created_at queries. Colombia (America/Bogota).
+    |
+    */
+
+    'seller_dashboard_timezone' => env('SELLER_DASHBOARD_TZ', 'America/Bogota'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Locale Configuration
     |--------------------------------------------------------------------------
     |

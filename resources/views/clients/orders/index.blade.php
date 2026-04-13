@@ -21,12 +21,21 @@
         @if(!empty($isSeller))
         <div id="seller-dashboard" class="mb-8">
             {{-- Date Range Picker --}}
-            <div class="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
-                <span class="text-sm font-medium text-gray-600">Filtrar por fecha:</span>
-                <div class="flex items-center gap-2">
-                    <input type="date" id="dash-from" class="border-gray-300 rounded-lg text-sm px-3 py-2 focus:ring-orange-500 focus:border-orange-500" />
-                    <span class="text-gray-400">—</span>
-                    <input type="date" id="dash-to" class="border-gray-300 rounded-lg text-sm px-3 py-2 focus:ring-orange-500 focus:border-orange-500" />
+            <div class="flex flex-col gap-3 mb-4">
+                <span class="text-sm font-medium text-gray-600">Filtrar por fecha</span>
+                <div class="flex flex-col sm:flex-row sm:items-end gap-3 w-full">
+                    <div class="flex-1 min-w-0">
+                        <label for="dash-from" class="block text-xs font-medium text-gray-500 mb-1">Desde</label>
+                        <input type="date" id="dash-from" autocomplete="off"
+                               max="{{ $sellerDashToday }}"
+                               class="w-full min-h-[44px] border-gray-300 rounded-lg text-base sm:text-sm px-3 py-2 focus:ring-orange-500 focus:border-orange-500 touch-manipulation" />
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <label for="dash-to" class="block text-xs font-medium text-gray-500 mb-1">Hasta</label>
+                        <input type="date" id="dash-to" autocomplete="off"
+                               max="{{ $sellerDashToday }}"
+                               class="w-full min-h-[44px] border-gray-300 rounded-lg text-base sm:text-sm px-3 py-2 focus:ring-orange-500 focus:border-orange-500 touch-manipulation" />
+                    </div>
                 </div>
             </div>
 
@@ -102,11 +111,15 @@
                             </div>
                             <div>
                                 <label class="block text-xs font-medium text-gray-500 mb-1">Desde</label>
-                                <input type="date" name="from_date" value="{{ request('from_date') }}" class="w-full border-gray-300 rounded-lg text-sm">
+                                <input type="date" name="from_date" value="{{ request('from_date') }}" max="{{ $sellerDashToday }}"
+                                       autocomplete="off"
+                                       class="w-full min-h-[44px] border-gray-300 rounded-lg text-base sm:text-sm touch-manipulation">
                             </div>
                             <div>
                                 <label class="block text-xs font-medium text-gray-500 mb-1">Hasta</label>
-                                <input type="date" name="to_date" value="{{ request('to_date') }}" class="w-full border-gray-300 rounded-lg text-sm">
+                                <input type="date" name="to_date" value="{{ request('to_date') }}" max="{{ $sellerDashToday }}"
+                                       autocomplete="off"
+                                       class="w-full min-h-[44px] border-gray-300 rounded-lg text-base sm:text-sm touch-manipulation">
                             </div>
                             <div>
                                 <label class="block text-xs font-medium text-gray-500 mb-1">Filtrar</label>
@@ -408,6 +421,7 @@
         @if(!empty($isSeller))
         (function(){
             const DASH_URL   = @json(route('api.seller.dashboard'));
+            const SERVER_TODAY = @json($sellerDashToday);
             const fromInput  = document.getElementById('dash-from');
             const toInput    = document.getElementById('dash-to');
             const kpiPedidos = document.getElementById('kpi-pedidos');
@@ -415,16 +429,18 @@
             const kpiTicket  = document.getElementById('kpi-ticket');
             const catCards   = document.getElementById('category-cards');
 
-            function todayStr() {
-                const d = new Date();
-                return d.getFullYear() + '-' +
-                    String(d.getMonth()+1).padStart(2,'0') + '-' +
-                    String(d.getDate()).padStart(2,'0');
+            function normalizeDateOrder() {
+                if (!fromInput.value || !toInput.value) return;
+                if (fromInput.value > toInput.value) {
+                    const t = fromInput.value;
+                    fromInput.value = toInput.value;
+                    toInput.value = t;
+                }
             }
 
-            // Default dates = today
-            fromInput.value = todayStr();
-            toInput.value   = todayStr();
+            // Default = server calendar day (Colombia), avoids device clock / timezone drift
+            fromInput.value = SERVER_TODAY;
+            toInput.value = SERVER_TODAY;
 
             function currency(n) {
                 return '$' + Number(n).toLocaleString('es-CO', {minimumFractionDigits: 0, maximumFractionDigits: 0});
@@ -451,15 +467,19 @@
             }
 
             function fetchDashboard() {
+                normalizeDateOrder();
                 const params = new URLSearchParams();
                 if (fromInput.value) params.set('from_date', fromInput.value);
-                if (toInput.value)   params.set('to_date', toInput.value);
+                if (toInput.value) params.set('to_date', toInput.value);
 
                 fetch(DASH_URL + '?' + params.toString(), {
+                    credentials: 'same-origin',
                     headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
                 })
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
+                    if (data.from_date) fromInput.value = data.from_date;
+                    if (data.to_date) toInput.value = data.to_date;
                     renderKPIs(data);
                     renderBuckets(data.sales_buckets);
                 })
@@ -468,10 +488,16 @@
                 });
             }
 
-            fromInput.addEventListener('change', fetchDashboard);
-            toInput.addEventListener('change', fetchDashboard);
+            function onDashDateAdjust() {
+                normalizeDateOrder();
+                fetchDashboard();
+            }
 
-            // Initial load
+            fromInput.addEventListener('change', onDashDateAdjust);
+            toInput.addEventListener('change', onDashDateAdjust);
+            fromInput.addEventListener('input', function() { normalizeDateOrder(); });
+            toInput.addEventListener('input', function() { normalizeDateOrder(); });
+
             fetchDashboard();
         })();
         @endif
