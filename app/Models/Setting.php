@@ -31,6 +31,21 @@ class Setting extends Model
     }
 
     /**
+     * Envío 48h (Coordinadora quote + provider) — admin Setting express_48h_enabled.
+     * Default off. COORDINADORA_EXPRESS_48H_DISABLED=true in .env forces off in production.
+     */
+    public static function isExpress48hEnabled(): bool
+    {
+        if (config('services.coordinadora.express_48h_disabled')) {
+            return false;
+        }
+
+        $v = self::getByKeyWithDefault('express_48h_enabled', '0');
+
+        return $v === '1' || $v === 1 || $v === true;
+    }
+
+    /**
      * Check if vacation mode is currently active
      * Returns true if vacation mode is enabled AND current date is within the date range
      */

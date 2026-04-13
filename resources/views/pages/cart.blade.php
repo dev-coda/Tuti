@@ -16,8 +16,7 @@
     // Define delivery settings variables at top level for use throughout the view
     $forceDeliveryDateEnabled = \App\Models\Setting::getByKey('force_delivery_date_enabled');
     $isForceEnabled = ($forceDeliveryDateEnabled === '1' || $forceDeliveryDateEnabled === 1 || $forceDeliveryDateEnabled === true);
-    $express48hEnabled = \App\Models\Setting::getByKey('express_48h_enabled');
-    $isEnabled = ($express48hEnabled === '1' || $express48hEnabled === 1 || $express48hEnabled === true);
+    $isEnabled = \App\Models\Setting::isExpress48hEnabled();
 @endphp
 
 @if($set_user)
@@ -1044,9 +1043,15 @@
 
         syncCheckoutSucursalCode();
 
-        // Initialize
-        updateDeliveryOption('tronex');
-        fetchDeliveryDate('express');
+        const shippingMethodCodes = @json($shippingMethods->pluck('code')->values()->all());
+
+        // Initialize (only methods shown in checkout — no hard-coded express when 48h is off)
+        if (shippingMethodCodes.length) {
+            updateDeliveryOption(shippingMethodCodes[0]);
+            shippingMethodCodes.forEach(function(code) {
+                fetchDeliveryDate(code);
+            });
+        }
         setShippingAmount(0);
     })
 </script>

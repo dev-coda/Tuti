@@ -4,6 +4,7 @@ use App\Models\Brand;
 use App\Models\Order;
 use App\Models\OrderProduct;
 use App\Models\Product;
+use App\Models\Setting;
 use App\Models\Tax;
 use App\Models\User;
 use App\Models\Vendor;
@@ -11,6 +12,7 @@ use App\Models\Zone;
 use App\Repositories\OrderRepository;
 use App\Services\Shipping\CoordinadoraOrderProcessingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Hash;
 
@@ -60,6 +62,12 @@ function makeTaxBrandProduct(): array
 }
 
 it('quotes express shipping for coordinadora zones', function () {
+    Setting::updateOrCreate(
+        ['key' => 'express_48h_enabled'],
+        ['name' => 'Express 48h', 'value' => '1', 'show' => false]
+    );
+    Cache::forget('setting_express_48h_enabled');
+
     $zone = Zone::create([
         'route' => 'R1',
         'zone' => 'Z1',

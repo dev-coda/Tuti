@@ -37,6 +37,8 @@ return [
         'key' => env('COORDINADORA_KEY'),
         'secret' => env('COORDINADORA_SECRET'),
         'id_proceso' => env('COORDINADORA_ID_PROCESO'),
+        /** When true, hides Envío 48h / Coordinadora everywhere regardless of admin Setting */
+        'express_48h_disabled' => filter_var(env('COORDINADORA_EXPRESS_48H_DISABLED', false), FILTER_VALIDATE_BOOL),
     ],
 
     'fv_mock' => [

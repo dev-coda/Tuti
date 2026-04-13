@@ -332,8 +332,13 @@ class CartController extends Controller
             ];
         }
 
-        // Get enabled shipping methods
+        // Get enabled shipping methods (hide Envío 48h / Coordinadora unless explicitly enabled)
         $shippingMethods = \App\Models\ShippingMethod::getEnabled();
+        if (!Setting::isExpress48hEnabled()) {
+            $shippingMethods = $shippingMethods->filter(
+                fn ($m) => $m->code !== Order::DELIVERY_METHOD_EXPRESS
+            )->values();
+        }
 
         $cartRetentions = app(\App\Services\CartRetentionService::class)->calculateForCart(
             $targetUser->tax_group ?? null,
@@ -841,6 +846,13 @@ class CartController extends Controller
 
         // Get delivery method from request, default to 'tronex'
         $delivery_method = $request->input('delivery_method', 'tronex');
+        if ($delivery_method === Order::DELIVERY_METHOD_EXPRESS && !Setting::isExpress48hEnabled()) {
+            Log::info('Express 48h / Coordinadora requested while disabled; using Tronex', [
+                'user_id' => $user_id,
+                'zone_id' => $zone?->id,
+            ]);
+            $delivery_method = Order::DELIVERY_METHOD_TRONEX;
+        }
         $shippingProvider = Order::SHIPPING_PROVIDER_TRONEX;
         $shippingQuoteAmount = null;
 

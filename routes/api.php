@@ -94,6 +94,14 @@ Route::get('/shipping-quote/{method}', function (Request $request, string $metho
         ], 422);
     }
 
+    if ($method === Order::DELIVERY_METHOD_EXPRESS && !\App\Models\Setting::isExpress48hEnabled()) {
+        return response()->json([
+            'success' => true,
+            'provider' => Order::SHIPPING_PROVIDER_TRONEX,
+            'shipping_cost' => 0,
+        ]);
+    }
+
     if ($method !== Order::DELIVERY_METHOD_EXPRESS) {
         return response()->json([
             'success' => true,
