@@ -123,71 +123,72 @@ Route::middleware(['auth'])->group(function () {});
 // Cart API route
 Route::get('/api/cart', [CartApiController::class, 'index'])->name('api.cart');
 
-// Temporary debug route for variation investigation
-Route::get('/debug-variations/{id}', function ($id) {
-    $product = App\Models\Product::with(['variation', 'items.variation'])->find($id);
+if (! app()->isProduction()) {
+    // Dev-only: unauthenticated product inspection / one-off data repair — never expose in prod
+    Route::get('/debug-variations/{id}', function ($id) {
+        $product = App\Models\Product::with(['variation', 'items.variation'])->find($id);
 
-    if (!$product) {
-        return "Product not found";
-    }
+        if (!$product) {
+            return "Product not found";
+        }
 
-    return [
-        'product_id' => $product->id,
-        'product_name' => $product->name,
-        'has_variation' => $product->variation ? true : false,
-        'variation' => $product->variation ? [
-            'id' => $product->variation->id,
-            'name' => $product->variation->name
-        ] : null,
-        'variation_id' => $product->variation_id,
-        'items_count' => $product->items->count(),
-        'items' => $product->items->map(function ($item) {
-            return [
-                'id' => $item->id,
-                'name' => $item->name,
-                'variation_name' => $item->variation ? $item->variation->name : null,
-                'pivot' => [
-                    'price' => $item->pivot->price,
-                    'enabled' => $item->pivot->enabled,
-                    'sku' => $item->pivot->sku
-                ]
-            ];
-        })
-    ];
-});
+        return [
+            'product_id' => $product->id,
+            'product_name' => $product->name,
+            'has_variation' => $product->variation ? true : false,
+            'variation' => $product->variation ? [
+                'id' => $product->variation->id,
+                'name' => $product->variation->name
+            ] : null,
+            'variation_id' => $product->variation_id,
+            'items_count' => $product->items->count(),
+            'items' => $product->items->map(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'name' => $item->name,
+                    'variation_name' => $item->variation ? $item->variation->name : null,
+                    'pivot' => [
+                        'price' => $item->pivot->price,
+                        'enabled' => $item->pivot->enabled,
+                        'sku' => $item->pivot->sku
+                    ]
+                ];
+            })
+        ];
+    });
 
-// Temporary fix route for product variation items
-Route::get('/fix-product-variations/{id}', function ($id) {
-    $product = App\Models\Product::find($id);
+    Route::get('/fix-product-variations/{id}', function ($id) {
+        $product = App\Models\Product::find($id);
 
-    if (!$product) {
-        return "Product not found";
-    }
+        if (!$product) {
+            return "Product not found";
+        }
 
-    if (!$product->variation_id) {
-        return "Product has no variation assigned";
-    }
+        if (!$product->variation_id) {
+            return "Product has no variation assigned";
+        }
 
-    if ($product->items->count() > 0) {
-        return "Product already has variation items";
-    }
+        if ($product->items->count() > 0) {
+            return "Product already has variation items";
+        }
 
-    $variationItems = App\Models\VariationItem::where('variation_id', $product->variation_id)->get();
+        $variationItems = App\Models\VariationItem::where('variation_id', $product->variation_id)->get();
 
-    foreach ($variationItems as $item) {
-        $product->items()->attach($item->id, [
-            'price' => $product->price,
-            'sku' => $product->sku . '-' . $item->name,
-            'enabled' => true
-        ]);
-    }
+        foreach ($variationItems as $item) {
+            $product->items()->attach($item->id, [
+                'price' => $product->price,
+                'sku' => $product->sku . '-' . $item->name,
+                'enabled' => true
+            ]);
+        }
 
-    return [
-        'message' => 'Variation items attached successfully',
-        'product' => $product->name,
-        'items_attached' => $variationItems->count()
-    ];
-});
+        return [
+            'message' => 'Variation items attached successfully',
+            'product' => $product->name,
+            'items_attached' => $variationItems->count()
+        ];
+    });
+}
 
 
 

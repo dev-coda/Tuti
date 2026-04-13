@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\Api\CityController;
-use App\Http\Controllers\Api\InternalFvMockController;
 use App\Http\Controllers\Api\CategoriesApiController;
 use App\Http\Controllers\Api\ProductsApiController;
 use App\Http\Controllers\Api\ClientesApiController;
@@ -77,7 +76,9 @@ Route::middleware('api')->group(function () {
     });
 });
 
-Route::post('/internal/fv-mock', [InternalFvMockController::class, 'store']);
+if (! app()->isProduction()) {
+    Route::post('/internal/fv-mock', [\App\Http\Controllers\Api\InternalFvMockController::class, 'store']);
+}
 
 Route::get('/shipping-quote/{method}', function (Request $request, string $method) {
     $zone = null;
