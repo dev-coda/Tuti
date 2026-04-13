@@ -9,7 +9,10 @@
 
 
 @section('content')
-    
+    @php
+        $sellerDashToday = $sellerDashToday ?? \Carbon\Carbon::now(config('app.seller_dashboard_timezone', 'America/Bogota'))->format('Y-m-d');
+    @endphp
+
 <section class="w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
     <div class="py-6 sm:py-8">
         <div class="mb-6">
