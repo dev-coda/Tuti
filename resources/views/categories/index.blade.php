@@ -54,8 +54,8 @@
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200 ">
 
+                        @foreach ($categories as $category)
                         <tr class="hover:bg-gray-100">
-                            @foreach ($categories as $category)
                             <td class="p-4 text-sm font-normal text-gray-500 whitespace-nowrap">
                                 <a class="flex flex-col text-gray-900  hover:text-blue-500" href="{{ route('categories.edit', $category) }}">
                                     <span class="text-base font-semibold ">
@@ -110,7 +110,6 @@
                               
                             </td>
                         </tr>
-
                         @endforeach
             
 

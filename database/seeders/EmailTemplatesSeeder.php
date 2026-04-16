@@ -99,53 +99,53 @@ class EmailTemplatesSeeder extends Seeder
     {
         return '<h2>Estado del pedido actualizado</h2>
         <p>Hola {customer_name},</p>
-        <p>Tu pedido #{order_id} está actualmente <strong>{order_status}</strong>.</p>
+        <p>Tu pedido <strong>#{order_id}</strong> está actualmente <strong>{order_status}</strong>.</p>
         <p>Te notificaremos cuando cambie el estado de tu pedido.</p>
-        <p><strong>Detalles del pedido:</strong></p>
+        <p><strong>Detalles del pedido</strong></p>
         <ul>
             <li>Total: ${order_total}</li>
             <li>Fecha del pedido: {order_date}</li>
             <li>Fecha de entrega estimada: {delivery_date}</li>
         </ul>
-        <p>Puedes seguir tu pedido en: <a href="{tracking_url}">Ver pedido</a></p>';
+        <p><a href="{tracking_url}" style="display:inline-block;background-color:#EE4E34;color:#ffffff;padding:12px 22px;text-decoration:none;border-radius:6px;font-weight:600;">Ver pedido</a></p>';
     }
 
     private function getOrderStatusProcessedBody()
     {
         return '<h2>Pedido procesado exitosamente</h2>
         <p>Hola {customer_name},</p>
-        <p>¡Buenas noticias! Tu pedido #{order_id} ha sido <strong>{order_status}</strong> y está siendo preparado para envío.</p>
-        <p><strong>Detalles del pedido:</strong></p>
+        <p>¡Buenas noticias! Tu pedido <strong>#{order_id}</strong> ha sido <strong>{order_status}</strong> y está siendo preparado para envío.</p>
+        <p><strong>Detalles del pedido</strong></p>
         <ul>
             <li>Total: ${order_total}</li>
             <li>Fecha del pedido: {order_date}</li>
             <li>Fecha de entrega estimada: {delivery_date}</li>
         </ul>
-        <p>Puedes seguir tu pedido en: <a href="{tracking_url}">Ver pedido</a></p>';
+        <p><a href="{tracking_url}" style="display:inline-block;background-color:#EE4E34;color:#ffffff;padding:12px 22px;text-decoration:none;border-radius:6px;font-weight:600;">Ver pedido</a></p>';
     }
 
     private function getOrderStatusShippedBody()
     {
         return '<h2>Tu pedido ha sido enviado</h2>
         <p>Hola {customer_name},</p>
-        <p>¡Tu pedido #{order_id} ha sido <strong>{order_status}</strong>!</p>
+        <p>¡Tu pedido <strong>#{order_id}</strong> ha sido <strong>{order_status}</strong>!</p>
         <p>Ya está en camino hacia ti. Recibirás una notificación cuando sea entregado.</p>
-        <p><strong>Detalles del pedido:</strong></p>
+        <p><strong>Detalles del pedido</strong></p>
         <ul>
             <li>Total: ${order_total}</li>
             <li>Fecha del pedido: {order_date}</li>
             <li>Fecha de entrega estimada: {delivery_date}</li>
         </ul>
-        <p>Puedes seguir tu pedido en: <a href="{tracking_url}">Ver pedido</a></p>';
+        <p><a href="{tracking_url}" style="display:inline-block;background-color:#EE4E34;color:#ffffff;padding:12px 22px;text-decoration:none;border-radius:6px;font-weight:600;">Ver pedido</a></p>';
     }
 
     private function getOrderStatusDeliveredBody()
     {
         return '<h2>¡Pedido entregado!</h2>
         <p>Hola {customer_name},</p>
-        <p>¡Tu pedido #{order_id} ha sido <strong>{order_status}</strong> exitosamente!</p>
+        <p>¡Tu pedido <strong>#{order_id}</strong> ha sido <strong>{order_status}</strong> exitosamente!</p>
         <p>Esperamos que disfrutes de tu compra. ¡Gracias por elegir Tuti!</p>
-        <p><strong>Detalles del pedido:</strong></p>
+        <p><strong>Detalles del pedido</strong></p>
         <ul>
             <li>Total: ${order_total}</li>
             <li>Fecha del pedido: {order_date}</li>
@@ -158,9 +158,9 @@ class EmailTemplatesSeeder extends Seeder
     {
         return '<h2>Pedido cancelado</h2>
         <p>Hola {customer_name},</p>
-        <p>Tu pedido #{order_id} ha sido <strong>{order_status}</strong>.</p>
+        <p>Tu pedido <strong>#{order_id}</strong> ha sido <strong>{order_status}</strong>.</p>
         <p>Si tienes alguna pregunta sobre esta cancelación o necesitas ayuda con algo más, no dudes en contactarnos.</p>
-        <p><strong>Detalles del pedido:</strong></p>
+        <p><strong>Detalles del pedido</strong></p>
         <ul>
             <li>Total: ${order_total}</li>
             <li>Fecha del pedido: {order_date}</li>
@@ -172,9 +172,9 @@ class EmailTemplatesSeeder extends Seeder
     {
         return '<h2>Confirmación de pedido</h2>
         <p>Hola {customer_name},</p>
-        <p>¡Gracias por tu compra! Hemos recibido tu pedido #{order_id} y está siendo procesado.</p>
-        <p><strong>Resumen de tu pedido:</strong></p>
-        <table border="1" style="border-collapse: collapse; width: 100%;">
+        <p>¡Gracias por tu compra! Hemos recibido tu pedido <strong>#{order_id}</strong> y está siendo procesado.</p>
+        <p><strong>Resumen de tu pedido</strong></p>
+        <table>
             <thead>
                 <tr>
                     <th>Producto</th>
@@ -187,8 +187,8 @@ class EmailTemplatesSeeder extends Seeder
             </tbody>
         </table>
         <p><strong>Total: ${order_total}</strong></p>
-        <p><strong>Fecha de entrega estimada: {delivery_date}</strong></p>
-        <p>Puedes ver los detalles completos en: <a href="{order_url}">Ver pedido</a></p>';
+        <p><strong>Fecha de entrega estimada:</strong> {delivery_date}</p>
+        <p><a href="{order_url}" style="display:inline-block;background-color:#EE4E34;color:#ffffff;padding:12px 22px;text-decoration:none;border-radius:6px;font-weight:600;">Ver pedido completo</a></p>';
     }
 
     private function getUserRegistrationBody()
@@ -197,9 +197,9 @@ class EmailTemplatesSeeder extends Seeder
         <p>Hola {customer_name},</p>
         <p>¡Gracias por registrarte en Tuti! Tu cuenta ha sido creada exitosamente.</p>
         <p>Para activar tu cuenta y comenzar a disfrutar de todos nuestros beneficios, haz clic en el siguiente enlace:</p>
-        <p><a href="{activation_link}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Activar mi cuenta</a></p>
+        <p><a href="{activation_link}" style="display:inline-block;background-color:#EE4E34;color:#ffffff;padding:12px 22px;text-decoration:none;border-radius:6px;font-weight:600;">Activar mi cuenta</a></p>
         <p>Si el botón no funciona, copia y pega este enlace en tu navegador:</p>
-        <p>{activation_link}</p>
+        <p style="word-break:break-all;"><a href="{activation_link}">{activation_link}</a></p>
         <p>Una vez activada tu cuenta, podrás:</p>
         <ul>
             <li>Hacer pedidos en línea</li>
@@ -213,37 +213,39 @@ class EmailTemplatesSeeder extends Seeder
     private function getContactFormBody()
     {
         return '<h2>Nuevo contacto registrado</h2>
-        <p>Se ha registrado un nuevo contacto en el sitio web:</p>
-        <table border="1" style="border-collapse: collapse; width: 100%;">
+        <p>Se ha registrado un nuevo contacto en el sitio web.</p>
+        <table>
+            <tbody>
             <tr>
-                <td><strong>Nombre:</strong></td>
+                <td><strong>Nombre</strong></td>
                 <td>{contact_name}</td>
             </tr>
             <tr>
-                <td><strong>Email:</strong></td>
-                <td>{contact_email}</td>
+                <td><strong>Email</strong></td>
+                <td><a href="mailto:{contact_email}">{contact_email}</a></td>
             </tr>
             <tr>
-                <td><strong>Teléfono:</strong></td>
+                <td><strong>Teléfono</strong></td>
                 <td>{contact_phone}</td>
             </tr>
             <tr>
-                <td><strong>Empresa:</strong></td>
+                <td><strong>Empresa</strong></td>
                 <td>{business_name}</td>
             </tr>
             <tr>
-                <td><strong>Ciudad:</strong></td>
+                <td><strong>Ciudad</strong></td>
                 <td>{city}</td>
             </tr>
             <tr>
-                <td><strong>NIT:</strong></td>
+                <td><strong>NIT</strong></td>
                 <td>{nit}</td>
             </tr>
             <tr>
-                <td><strong>Fecha de registro:</strong></td>
+                <td><strong>Fecha de registro</strong></td>
                 <td>{contact_date}</td>
             </tr>
+            </tbody>
         </table>
-        <p>Este es un mensaje automático del sistema de Tuti.</p>';
+        <p style="color:#6b7280;font-size:13px;">Este es un mensaje automático del sistema de Tuti.</p>';
     }
 }

@@ -100,14 +100,47 @@ class EmailTemplate extends Model
 
         foreach ($data as $key => $value) {
             $placeholder = '{' . $key . '}';
-            $content = str_replace($placeholder, (string) $value, $content);
-            $subject = str_replace($placeholder, (string) $value, $subject);
+            if ($key === 'order_products' && is_array($value)) {
+                $replaced = self::formatOrderProductsHtmlRows($value);
+                $content = str_replace($placeholder, $replaced, $content);
+                // Never inject HTML rows into subject lines
+                $subject = str_replace($placeholder, '', $subject);
+                continue;
+            }
+            $replaced = (string) $value;
+            $content = str_replace($placeholder, $replaced, $content);
+            $subject = str_replace($placeholder, $replaced, $subject);
         }
 
         return [
-            'subject' => $subject,
+            'subject' => trim($subject),
             'body' => $content,
         ];
+    }
+
+    /**
+     * Build HTML table rows for order line items (order confirmation emails).
+     *
+     * @param  array<int, array{name?: string, quantity?: int|float|string, price?: string|float|int}>  $products
+     */
+    public static function formatOrderProductsHtmlRows(array $products): string
+    {
+        $rows = '';
+        $border = 'border-bottom: 1px solid #e7e6e4;';
+        foreach ($products as $line) {
+            $name = htmlspecialchars((string) ($line['name'] ?? ''), ENT_QUOTES, 'UTF-8');
+            $qty = htmlspecialchars((string) ($line['quantity'] ?? ''), ENT_QUOTES, 'UTF-8');
+            $priceRaw = trim((string) ($line['price'] ?? ''));
+            $priceRaw = preg_replace('/^\s*\$\s*/u', '', $priceRaw);
+            $price = htmlspecialchars($priceRaw, ENT_QUOTES, 'UTF-8');
+            $rows .= '<tr>'
+                . '<td style="padding: 12px; ' . $border . '">' . $name . '</td>'
+                . '<td style="padding: 12px; text-align: center; ' . $border . '">' . $qty . '</td>'
+                . '<td style="padding: 12px; text-align: right; ' . $border . '">$' . $price . '</td>'
+                . '</tr>';
+        }
+
+        return $rows;
     }
 
     /**
@@ -120,6 +153,14 @@ class EmailTemplate extends Model
         }
         
         return asset('storage/' . $this->header_image);
+    }
+
+    /**
+     * Header image for HTML emails: custom template image or default Tuti logo (single banner, no duplicate in-body logo).
+     */
+    public function getHeaderImageUrlForLayout(): string
+    {
+        return $this->getHeaderImageUrl() ?? asset('img/tuti.png');
     }
 
     /**
@@ -144,7 +185,7 @@ class EmailTemplate extends Model
         return [
             'subject' => $processed['subject'],
             'body' => $processed['body'],
-            'headerImage' => $this->getHeaderImageUrl(),
+            'headerImage' => $this->getHeaderImageUrlForLayout(),
             'footerImage' => $this->getFooterImageUrl(),
         ];
     }

@@ -10,6 +10,7 @@ use App\Models\Setting;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Str;
 use Exception;
 
 class MailingService
@@ -133,8 +134,14 @@ class MailingService
                 return true; // Return true to allow workflow to continue
             }
 
-            // Send the email
-            Mail::raw($emailData['body'], function ($message) use ($emailData, $to) {
+            $html = view('emails.database-template', [
+                'body' => $processedContent['body'],
+                'headerImage' => $template->getHeaderImageUrlForLayout(),
+                'footerImage' => $template->getFooterImageUrl(),
+                'preheader' => Str::limit(trim(preg_replace('/\s+/', ' ', strip_tags($processedContent['body']))), 140),
+            ])->render();
+
+            Mail::html($html, function ($message) use ($emailData, $to) {
                 $message->to($to)
                     ->subject($emailData['subject'])
                     ->from(config('mail.from.address'), config('mail.from.name'));
@@ -336,7 +343,14 @@ class MailingService
                 return true;
             }
 
-            Mail::raw($processedContent['body'], function ($message) use ($processedContent, $recipient, $attachmentPaths) {
+            $html = view('emails.database-template', [
+                'body' => $processedContent['body'],
+                'headerImage' => $template->getHeaderImageUrlForLayout(),
+                'footerImage' => $template->getFooterImageUrl(),
+                'preheader' => Str::limit(trim(preg_replace('/\s+/', ' ', strip_tags($processedContent['body']))), 140),
+            ])->render();
+
+            Mail::html($html, function ($message) use ($processedContent, $recipient, $attachmentPaths) {
                 $message->to($recipient)
                     ->subject($processedContent['subject'])
                     ->from(config('mail.from.address'), config('mail.from.name'));

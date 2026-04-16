@@ -254,6 +254,27 @@ it('getActiveTags includes DESCUENTO when not excluded and vendor has discount',
     expect($tagTypes)->toContain('auto_descuento');
 });
 
+it('auto_descuento tag content shows the effective percent discount', function () {
+    Setting::updateOrCreate(
+        ['key' => 'auto_tag_descuento_enabled'],
+        ['name' => 'Auto tag descuento', 'value' => '1', 'show' => false]
+    );
+    Cache::forget('setting_auto_tag_descuento_enabled');
+
+    $product = buildProduct([
+        'vendor_discount' => 20,
+        'brand_discount'  => 0,
+        'product_discount' => 0,
+    ]);
+
+    $loaded = freshLoadProduct($product->id);
+    $tags = $loaded->getActiveTags();
+    $descTag = collect($tags)->firstWhere('type', 'auto_descuento');
+
+    expect($descTag)->not->toBeNull();
+    expect($descTag['content'])->toBe('-20%');
+});
+
 it('getActiveTags omits DESCUENTO when only brand excluded and no other discount source', function () {
     Setting::updateOrCreate(
         ['key' => 'auto_tag_descuento_enabled'],

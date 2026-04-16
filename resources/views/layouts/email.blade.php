@@ -1,5 +1,5 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns="http://www.w3.org/1999/xhtml">
+<html xmlns="http://www.w3.org/1999/xhtml">
 
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
@@ -7,7 +7,7 @@
     <meta content="telephone=no" name="format-detection" />
     <title></title>
     <style type="text/css" data-premailer="ignore">
-        @import url(https://fonts.googleapis.com/css?family=Open+Sans:300,400,500,600,700);
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap');
     </style>
     <style data-premailer="ignore">
         @media screen and (max-width: 600px) {
@@ -45,16 +45,89 @@
         body {
             margin: 0;
             padding: 0;
-            background-color: #f5f7fb;
+            background-color: #f3f2f1;
             font-size: 15px;
             line-height: 160%;
             mso-line-height-rule: exactly;
-            color: #444444;
+            color: #180F09;
             width: 100%;
         }
 
         body {
-            font-family: Open Sans, -apple-system, BlinkMacSystemFont, Roboto, Helvetica Neue, Helvetica, Arial, sans-serif;
+            font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica Neue, Helvetica, Arial, sans-serif;
+        }
+
+        .email-template-content h1 {
+            font-size: 26px;
+            font-weight: 600;
+            margin: 0 0 16px;
+            line-height: 1.25;
+            color: #180F09;
+        }
+
+        .email-template-content h2 {
+            font-size: 22px;
+            font-weight: 600;
+            margin: 0 0 14px;
+            line-height: 1.3;
+            color: #180F09;
+        }
+
+        .email-template-content h3 {
+            font-size: 18px;
+            font-weight: 600;
+            margin: 0 0 12px;
+            color: #180F09;
+        }
+
+        .email-template-content p {
+            margin: 0 0 16px;
+            color: #180F09;
+        }
+
+        .email-template-content ul,
+        .email-template-content ol {
+            margin: 0 0 16px;
+            padding-left: 22px;
+            color: #180F09;
+        }
+
+        .email-template-content li {
+            margin-bottom: 6px;
+        }
+
+        .email-template-content a {
+            color: #EE4E34;
+            text-decoration: underline;
+        }
+
+        .email-template-content table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 0 0 20px;
+            font-size: 14px;
+        }
+
+        .email-template-content th {
+            text-align: left;
+            padding: 10px 12px;
+            background-color: #f3f2f1;
+            color: #180F09;
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+            border-bottom: 1px solid #e7e6e4;
+        }
+
+        .email-template-content td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #e7e6e4;
+            color: #180F09;
+        }
+
+        .email-template-content strong {
+            font-weight: 600;
         }
 
         img {
@@ -64,6 +137,10 @@
             text-decoration: none;
             vertical-align: baseline;
             font-size: 0;
+        }
+
+        a {
+            color: #EE4E34;
         }
 
         a:hover {
@@ -261,11 +338,11 @@
     </style>
 </head>
 
-<body class="bg-body" style="font-size: 15px; margin: 0; padding: 0; line-height: 160%; mso-line-height-rule: exactly; color: #444444; width: 100%; font-family: Open Sans, -apple-system, BlinkMacSystemFont, Roboto, Helvetica Neue, Helvetica, Arial, sans-serif;" bgcolor="#f5f7fb">
+<body class="bg-body" style="font-size: 15px; margin: 0; padding: 0; line-height: 160%; mso-line-height-rule: exactly; color: #180F09; width: 100%; font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica Neue, Helvetica, Arial, sans-serif;" bgcolor="#f3f2f1">
     <center>
-        <table class="main bg-body" width="100%" cellspacing="0" cellpadding="0" style="font-family: Open Sans, -apple-system, BlinkMacSystemFont, Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; border-collapse: collapse; width: 100%; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%;" bgcolor="#f5f7fb">
+        <table class="main bg-body" width="100%" cellspacing="0" cellpadding="0" style="font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; border-collapse: collapse; width: 100%; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%;" bgcolor="#f3f2f1">
             <tr>
-                <td align="center" valign="top" style="font-family: Open Sans, -apple-system, BlinkMacSystemFont, Roboto, Helvetica Neue, Helvetica, Arial, sans-serif;">
+                <td align="center" valign="top" style="font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica Neue, Helvetica, Arial, sans-serif;">
                     <!--[if (gte mso 9)|(IE)]>
               <table border="0" cellspacing="0" cellpadding="0">
                 <tr>
@@ -274,58 +351,58 @@
                     <span class="preheader" style="font-size: 0; padding: 0; display: none; max-height: 0; mso-hide: all; line-height: 0; color: transparent; height: 0; max-width: 0; opacity: 0; overflow: hidden; visibility: hidden; width: 0;">
                         @yield('preheader')
                     </span>
-                    <table class="wrap" cellspacing="0" cellpadding="0" style="font-family: Open Sans, -apple-system, BlinkMacSystemFont, Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; border-collapse: collapse; width: 100%; max-width: 640px; text-align: left;">
+                    <table class="wrap" cellspacing="0" cellpadding="0" style="font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; border-collapse: collapse; width: 100%; max-width: 640px; text-align: left;">
                         <!-- Header Image -->
                         @if(isset($headerImage) && $headerImage)
                         <tr>
-                            <td align="center" style="font-family: Open Sans, -apple-system, BlinkMacSystemFont, Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; padding: 0;">
+                            <td align="center" style="font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; padding: 0;">
                                 <img src="{{ $headerImage }}" alt="Header" style="width: 100%; max-width: 640px; height: auto; display: block; border: 0 none; line-height: 100%; outline: none; text-decoration: none;" />
                             </td>
                         </tr>
                         @endif
                         
                         <tr>
-                            <td class="p-sm" style="font-family: Open Sans, -apple-system, BlinkMacSystemFont, Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; padding: 8px;">
+                            <td class="p-sm" style="font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; padding: 8px;">
                                 
                                @yield('content')
                                 
                                 <!-- Footer Image -->
                                 @if(isset($footerImage) && $footerImage)
-                                <table cellspacing="0" cellpadding="0" style="font-family: Open Sans, -apple-system, BlinkMacSystemFont, Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; border-collapse: collapse; width: 100%;">
+                                <table cellspacing="0" cellpadding="0" style="font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; border-collapse: collapse; width: 100%;">
                                     <tr>
-                                        <td align="center" class="pt-md" style="font-family: Open Sans, -apple-system, BlinkMacSystemFont, Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; padding-top: 16px;">
+                                        <td align="center" class="pt-md" style="font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; padding-top: 16px;">
                                             <img src="{{ $footerImage }}" alt="Footer" style="width: 100%; max-width: 640px; height: auto; display: block; border: 0 none; line-height: 100%; outline: none; text-decoration: none;" />
                                         </td>
                                     </tr>
                                 </table>
                                 @endif
                                 
-                                <table cellspacing="0" cellpadding="0" style="font-family: Open Sans, -apple-system, BlinkMacSystemFont, Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; border-collapse: collapse; width: 100%;">
+                                <table cellspacing="0" cellpadding="0" style="font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; border-collapse: collapse; width: 100%;">
                                     <tr>
-                                        <td class="py-xl" style="font-family: Open Sans, -apple-system, BlinkMacSystemFont, Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; padding-top: 48px; padding-bottom: 48px;">
-                                            <table class="font-sm text-center text-muted" cellspacing="0" cellpadding="0" style="font-family: Open Sans, -apple-system, BlinkMacSystemFont, Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; border-collapse: collapse; width: 100%; color: #9eb0b7; text-align: center; font-size: 13px;">
+                                        <td class="py-xl" style="font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; padding-top: 48px; padding-bottom: 48px;">
+                                            <table class="font-sm text-center text-muted" cellspacing="0" cellpadding="0" style="font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; border-collapse: collapse; width: 100%; color: #6b7280; text-align: center; font-size: 13px;">
                                                 <tr>
-                                                    <td align="center" class="pb-md" style="font-family: Open Sans, -apple-system, BlinkMacSystemFont, Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; padding-bottom: 16px;">
-                                                        {{-- <table class="w-auto" cellspacing="0" cellpadding="0" style="font-family: Open Sans, -apple-system, BlinkMacSystemFont, Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; border-collapse: collapse; width: auto;">
+                                                    <td align="center" class="pb-md" style="font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; padding-bottom: 16px;">
+                                                        {{-- <table class="w-auto" cellspacing="0" cellpadding="0" style="font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; border-collapse: collapse; width: auto;">
                                                             <tr>
-                                                                <td class="px-sm" style="font-family: Open Sans, -apple-system, BlinkMacSystemFont, Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; padding-right: 8px; padding-left: 8px;">
+                                                                <td class="px-sm" style="font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; padding-right: 8px; padding-left: 8px;">
                                                                     <a href="#" style="color: #467fcf; text-decoration: none;">
                                                                         <img src="{{asset('img/email/icons-gray-social-facebook-square.png')}}" class=" va-middle" width="24" height="24" alt="social-facebook-square" style="line-height: 100%; outline: none; text-decoration: none; vertical-align: middle; font-size: 0; border: 0 none;" />
                                                                     </a>
                                                                 </td>
-                                                                <td class="px-sm" style="font-family: Open Sans, -apple-system, BlinkMacSystemFont, Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; padding-right: 8px; padding-left: 8px;">
+                                                                <td class="px-sm" style="font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; padding-right: 8px; padding-left: 8px;">
                                                                     <a href="#" style="color: #467fcf; text-decoration: none;">
                                                                         <img src="{{asset('img/email/icons-gray-social-twitter.png')}}" class=" va-middle" width="24" height="24" alt="social-twitter" style="line-height: 100%; outline: none; text-decoration: none; vertical-align: middle; font-size: 0; border: 0 none;" />
                                                                     </a>
                                                                 </td>
                                                                
-                                                                <td class="px-sm" style="font-family: Open Sans, -apple-system, BlinkMacSystemFont, Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; padding-right: 8px; padding-left: 8px;">
+                                                                <td class="px-sm" style="font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; padding-right: 8px; padding-left: 8px;">
                                                                     <a href="#" style="color: #467fcf; text-decoration: none;">
                                                                         <img src="{{asset('img/email/icons-gray-social-youtube.png')}}" class=" va-middle" width="24" height="24" alt="social-youtube" style="line-height: 100%; outline: none; text-decoration: none; vertical-align: middle; font-size: 0; border: 0 none;" />
                                                                     </a>
                                                                 </td>
                                                              
-                                                                <td class="px-sm" style="font-family: Open Sans, -apple-system, BlinkMacSystemFont, Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; padding-right: 8px; padding-left: 8px;">
+                                                                <td class="px-sm" style="font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; padding-right: 8px; padding-left: 8px;">
                                                                     <a href="#" style="color: #467fcf; text-decoration: none;">
                                                                         <img src="{{asset('img/email/icons-gray-social-instagram.png')}}" class=" va-middle" width="24" height="24" alt="social-instagram" style="line-height: 100%; outline: none; text-decoration: none; vertical-align: middle; font-size: 0; border: 0 none;" />
                                                                     </a>
@@ -335,12 +412,12 @@
                                                     </td>
                                                 </tr>
                                                 {{-- <tr>
-                                                    <td class="px-lg" style="font-family: Open Sans, -apple-system, BlinkMacSystemFont, Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; padding-right: 24px; padding-left: 24px;">
+                                                    <td class="px-lg" style="font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; padding-right: 24px; padding-left: 24px;">
                                                        Si tienes alguna pregunta, no dudes en enviarnos un mensaje a <a href="#" class="text-muted" style="color: #9eb0b7; text-decoration: none;">info@payttontires.com</a>.
                                                     </td>
                                                 </tr> --}}
                                                 <tr>
-                                                    <td class="pt-md" style="font-family: Open Sans, -apple-system, BlinkMacSystemFont, Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; padding-top: 16px;">
+                                                    <td class="pt-md" style="font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; padding-top: 16px;">
                                                        Estás recibiendo este correo electrónico porque has comprado uno de los productos de {{config('app.name')}}.
                                                     </td>
                                                 </tr>

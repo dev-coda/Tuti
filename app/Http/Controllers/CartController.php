@@ -1463,11 +1463,14 @@ class CartController extends Controller
                         $bonification_quantity = $bonification->max;
                     }
 
-                    // Only create bonification record once per bonification (not per variation)
-                    // Check if we've already created this bonification for this product in this order
+                    // Only create one bonification row per (order, bonification, trigger product):
+                    // variations of the same parent product share one aggregated quantity, so skip on later cart lines.
+                    // Do NOT dedupe by gift product_id — different purchased lines can earn the same gift separately.
                     $existingBonification = OrderProductBonification::where('order_id', $order->id)
                         ->where('bonification_id', $bonification->id)
-                        ->where('product_id', $bonification->product_id)
+                        ->whereHas('orderProduct', function ($q) use ($id) {
+                            $q->where('product_id', $id);
+                        })
                         ->first();
                     
                     if (!$existingBonification) {

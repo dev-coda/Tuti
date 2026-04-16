@@ -242,7 +242,7 @@ class Product extends Model
 
     /**
      * Get all active tags for this product (manual + auto tags)
-     * Returns up to 2 tags: manual tag (if exists) + auto tags (NUEVO, DESCUENTO)
+     * Returns up to 2 tags: manual tag (if exists) + auto tags (NUEVO, discount % / amount)
      */
     public function getActiveTags(): array
     {
@@ -274,7 +274,7 @@ class Product extends Model
         // Auto tag: DESCUENTO (if product has any product, brand, or vendor discount)
         if ($autoTagDescuentoEnabled && $this->hasAnyDiscount()) {
             $tags[] = [
-                'content' => 'DESCUENTO',
+                'content' => $this->getAutoDescuentoTagContent(),
                 'type' => 'auto_descuento',
                 'priority' => 998,
             ];
@@ -317,6 +317,49 @@ class Product extends Model
         }
 
         return false;
+    }
+
+    /**
+     * Label for the auto "DESCUENTO" tag: show the effective discount (e.g. "-15%") instead of the word DESCUENTO.
+     */
+    protected function getAutoDescuentoTagContent(): string
+    {
+        $final = $this->getFinalPriceForUser(false);
+
+        if (!empty($final['has_discount']) && ($final['discount'] ?? 0) > 0) {
+            return $this->formatPercentageLabelForTag((float) $final['discount']);
+        }
+
+        $static = $this->getStaticDiscountInfo();
+        if ($static) {
+            $type = $static['discount_type'] ?? 'percentage';
+            if ($type === 'percentage') {
+                return $this->formatPercentageLabelForTag((float) $static['discount']);
+            }
+            // Fixed amount (brand/vendor): show pesos
+            $amount = (float) $static['discount'];
+            $formatted = number_format($amount, 0, ',', '.');
+
+            return '-$' . $formatted;
+        }
+
+        return 'DESCUENTO';
+    }
+
+    /**
+     * @return string e.g. "-15%" or "-12.5%"
+     */
+    protected function formatPercentageLabelForTag(float $pct): string
+    {
+        if ($pct <= 0) {
+            return 'DESCUENTO';
+        }
+
+        if (abs($pct - round($pct)) < 0.001) {
+            return '-' . (string) (int) round($pct) . '%';
+        }
+
+        return '-' . rtrim(rtrim(number_format($pct, 1, '.', ''), '0'), '.') . '%';
     }
 
     /**

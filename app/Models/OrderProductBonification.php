@@ -22,6 +22,12 @@ class OrderProductBonification extends Model
         return $this->belongsTo(Product::class);
     }
 
+    /** Purchased order line that triggered this bonification (not the gift product). */
+    public function orderProduct()
+    {
+        return $this->belongsTo(OrderProduct::class, 'order_product_id');
+    }
+
     public function bonification(){
         return $this->belongsTo(Bonification::class);
     }

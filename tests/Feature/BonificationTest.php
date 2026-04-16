@@ -1,14 +1,53 @@
 <?php
 
 use App\Models\Bonification;
+use App\Models\Brand;
+use App\Models\Product;
+use App\Models\Tax;
 use App\Models\User;
+use App\Models\Vendor;
 use function Pest\Laravel\{actingAs, get, post};
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
 
+/**
+ * Gift product required for bonification validation (product_id, max, etc.).
+ */
+function giftProductForBonificationCrud(): Product
+{
+    $tax = Tax::create(['name' => 'IVA-BONIF-' . uniqid(), 'tax' => 0]);
+    $vendor = Vendor::create([
+        'name' => 'V-Bonif-' . uniqid(),
+        'slug' => 'v-bonif-' . uniqid(),
+        'minimum_purchase' => 0,
+        'active' => 1,
+    ]);
+    $brand = Brand::create([
+        'name' => 'B-Bonif-' . uniqid(),
+        'slug' => 'b-bonif-' . uniqid(),
+        'vendor_id' => $vendor->id,
+    ]);
 
+    return Product::create([
+        'name' => 'Gift bonif CRUD',
+        'description' => 'd',
+        'short_description' => 'd',
+        'sku' => 'SKU-BONIF-' . uniqid(),
+        'slug' => 'gift-bonif-' . uniqid(),
+        'active' => 1,
+        'price' => 100,
+        'delivery_days' => 1,
+        'discount' => 0,
+        'quantity_min' => 1,
+        'quantity_max' => 100,
+        'step' => 1,
+        'tax_id' => $tax->id,
+        'brand_id' => $brand->id,
+        'package_quantity' => 1,
+    ]);
+}
 
 beforeEach(function () {
     $user = User::factory()->create();
@@ -21,8 +60,8 @@ beforeEach(function () {
 
 
 it('user not logged cannot access to bonification page', function () {
-    get('/admin/bonifications')
-        ->assertRedirect('/formulario');
+    get('/bonifications')
+        ->assertRedirect('/login');
 });
 
 
@@ -45,14 +84,19 @@ it('user logged can access to create bonification page', function () {
 
 
 it('user logged can create bonification', function () {
+    $gift = giftProductForBonificationCrud();
 
-    actingAs(User::first())
+    $response = actingAs(User::first())
         ->post('/bonifications', [
             'name' => 'Pague 10 lleve 2',
             'buy' => 10,
             'get' => 2,
-        ])
-        ->assertRedirect('/bonifications/1/edit')
+            'max' => 10,
+            'product_id' => $gift->id,
+        ]);
+
+    $bonification = Bonification::latest('id')->first();
+    $response->assertRedirect(route('bonifications.edit', $bonification))
         ->assertSessionHas('success', 'Bonificación creada, agregue los productos');
 });
 
@@ -61,10 +105,13 @@ it('user logged can access to edit bonification page', function () {
 
     $user = User::first();
 
+    $gift = giftProductForBonificationCrud();
     $bonification = Bonification::create([
         'name' => 'Pague 10 lleve 2',
         'buy' => 10,
         'get' => 2,
+        'max' => 10,
+        'product_id' => $gift->id,
     ]);
 
     actingAs($user)
@@ -77,10 +124,13 @@ it('user logged can access to edit bonification', function () {
 
     $user = User::first();
 
+    $gift = giftProductForBonificationCrud();
     $bonification = Bonification::create([
         'name' => 'Pague 10 lleve 2',
         'buy' => 10,
         'get' => 2,
+        'max' => 10,
+        'product_id' => $gift->id,
     ]);
 
 
@@ -89,6 +139,8 @@ it('user logged can access to edit bonification', function () {
             'name' => 'Pague 20 lleve 4',
             'buy' => 20,
             'get' => 4,
+            'max' => 20,
+            'product_id' => $gift->id,
         ])
         ->assertRedirect('/bonifications')
         ->assertSessionHas('success', 'Bonificación actualizada');
@@ -101,10 +153,13 @@ it('user logged can delete bonification', function () {
 
     $user = User::first();
 
+    $gift = giftProductForBonificationCrud();
     $bonification = Bonification::create([
         'name' => 'Pague 10 lleve 2',
         'buy' => 10,
         'get' => 2,
+        'max' => 10,
+        'product_id' => $gift->id,
     ]);
 
     actingAs($user)
@@ -216,20 +271,20 @@ it('multiple bonifications can be applied to a single order', function () {
     // Associate the product with BOTH bonifications
     $product->bonifications()->attach([$bonification1->id, $bonification2->id]);
 
-    // Create a zone for the user
+    // Create a zone owned by the user (User::zones() is hasMany)
     $zone = \App\Models\Zone::create([
         'route' => '1',
         'zone' => 'Test Zone',
         'day' => 'Monday',
         'address' => 'Test Address',
         'code' => 'TEST01',
+        'user_id' => $user->id,
     ]);
-    $user->zones()->attach($zone->id);
 
     // Disable inventory management for this test
     \App\Models\Setting::updateOrCreate(
         ['key' => 'inventory_enabled'],
-        ['value' => '0']
+        ['name' => 'Inventory enabled', 'value' => '0', 'show' => false]
     );
 
     // Add product to cart (buying 10 units should trigger both bonifications)
@@ -241,9 +296,9 @@ it('multiple bonifications can be applied to a single order', function () {
         ]
     ]);
 
-    // Process the order
+    // Process the order (POST /carrito — see routes/web.php)
     actingAs($user)
-        ->post('/cart/process', [
+        ->post(route('cart.process'), [
             'zone_id' => $zone->id,
             'observations' => 'Test order with multiple bonifications',
         ]);
@@ -267,4 +322,134 @@ it('multiple bonifications can be applied to a single order', function () {
     expect($bonif2)->not->toBeNull();
     expect($bonif2->quantity)->toBe(2);
     expect($bonif2->product_id)->toBe($giftProduct2->id);
+});
+
+it('creates separate bonification rows when different trigger products share the same gift product', function () {
+    $user = User::first();
+
+    $tax = \App\Models\Tax::create([
+        'name' => 'IVA',
+        'tax' => 0,
+    ]);
+
+    $vendor = \App\Models\Vendor::create([
+        'name' => 'Vendor Shared Gift',
+        'slug' => 'vendor-shared-gift',
+        'minimum_purchase' => 0,
+        'active' => 1,
+    ]);
+
+    $brand = \App\Models\Brand::create([
+        'name' => 'Brand Shared Gift',
+        'slug' => 'brand-shared-gift',
+        'vendor_id' => $vendor->id,
+    ]);
+
+    $sharedGift = \App\Models\Product::create([
+        'name' => 'Shared Gift',
+        'description' => 'Gift',
+        'short_description' => 'Gift',
+        'sku' => 'GIFT-SHARED',
+        'slug' => 'shared-gift',
+        'active' => 1,
+        'price' => 0,
+        'delivery_days' => 1,
+        'discount' => 0,
+        'quantity_min' => 1,
+        'quantity_max' => 100,
+        'step' => 1,
+        'tax_id' => $tax->id,
+        'brand_id' => $brand->id,
+        'package_quantity' => 1,
+    ]);
+
+    $triggerA = \App\Models\Product::create([
+        'name' => 'Trigger A',
+        'description' => 'A',
+        'short_description' => 'A',
+        'sku' => 'TRIG-A',
+        'slug' => 'trigger-a',
+        'active' => 1,
+        'price' => 100,
+        'delivery_days' => 1,
+        'discount' => 0,
+        'quantity_min' => 1,
+        'quantity_max' => 100,
+        'step' => 1,
+        'tax_id' => $tax->id,
+        'brand_id' => $brand->id,
+        'package_quantity' => 1,
+    ]);
+
+    $triggerB = \App\Models\Product::create([
+        'name' => 'Trigger B',
+        'description' => 'B',
+        'short_description' => 'B',
+        'sku' => 'TRIG-B',
+        'slug' => 'trigger-b',
+        'active' => 1,
+        'price' => 100,
+        'delivery_days' => 1,
+        'discount' => 0,
+        'quantity_min' => 1,
+        'quantity_max' => 100,
+        'step' => 1,
+        'tax_id' => $tax->id,
+        'brand_id' => $brand->id,
+        'package_quantity' => 1,
+    ]);
+
+    $bonificationA = Bonification::create([
+        'name' => 'Rule A',
+        'buy' => 10,
+        'get' => 1,
+        'product_id' => $sharedGift->id,
+        'max' => 10,
+    ]);
+
+    $bonificationB = Bonification::create([
+        'name' => 'Rule B',
+        'buy' => 10,
+        'get' => 1,
+        'product_id' => $sharedGift->id,
+        'max' => 10,
+    ]);
+
+    $triggerA->bonifications()->attach($bonificationA->id);
+    $triggerB->bonifications()->attach($bonificationB->id);
+
+    $zone = \App\Models\Zone::create([
+        'route' => '1',
+        'zone' => 'Z',
+        'day' => 'Monday',
+        'address' => 'Addr',
+        'code' => 'Z01',
+        'user_id' => $user->id,
+    ]);
+
+    \App\Models\Setting::updateOrCreate(
+        ['key' => 'inventory_enabled'],
+        ['name' => 'Inventory enabled', 'value' => '0', 'show' => false]
+    );
+
+    session()->put('cart', [
+        ['product_id' => $triggerA->id, 'quantity' => 10, 'variation_id' => null],
+        ['product_id' => $triggerB->id, 'quantity' => 10, 'variation_id' => null],
+    ]);
+
+    actingAs($user)
+        ->post(route('cart.process'), [
+            'zone_id' => $zone->id,
+            'observations' => 'Shared gift bonifications',
+        ]);
+
+    $order = \App\Models\Order::latest()->first();
+    expect($order)->not->toBeNull();
+
+    $rows = $order->bonifications;
+    expect($rows->count())->toBe(2);
+    expect($rows->where('bonification_id', $bonificationA->id)->first()->quantity)->toBe(1);
+    expect($rows->where('bonification_id', $bonificationB->id)->first()->quantity)->toBe(1);
+    expect($rows->pluck('product_id')->unique()->count())->toBe(1);
+    expect($rows->first()->product_id)->toBe($sharedGift->id);
 });
