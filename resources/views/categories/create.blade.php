@@ -78,6 +78,8 @@
 </div>
 {{ Aire::close() }}
 
+@endsection
+
 @section('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function() {

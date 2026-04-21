@@ -23,7 +23,7 @@ use function Pest\Laravel\getJson;
 | Verifies that exclude_from_brand_discount and exclude_from_vendor_discount
 | flags correctly suppress discounts in:
 |   1. The finalPrice accessor (used by all Blade views & components)
-|   2. The getActiveTags() DESCUENTO tag
+|   2. The getActiveTags() auto descuento tag (product/brand only; not vendor-only)
 |   3. API JSON responses (ProductsApi, PreciosApi, ProductosApi)
 |   4. OrderProduct line creation (percentage field)
 |   5. SOAP XML payload (dyn:discount element)
@@ -232,7 +232,7 @@ it('getActiveTags includes DESCUENTO when brand+vendor excluded but product has 
     expect($tagTypes)->toContain('auto_descuento');
 });
 
-it('getActiveTags includes DESCUENTO when not excluded and vendor has discount', function () {
+it('getActiveTags omits DESCUENTO when only vendor has discount', function () {
     Setting::updateOrCreate(
         ['key' => 'auto_tag_descuento_enabled'],
         ['name' => 'Auto tag descuento', 'value' => '1', 'show' => false]
@@ -251,10 +251,10 @@ it('getActiveTags includes DESCUENTO when not excluded and vendor has discount',
     $tags = $loaded->getActiveTags();
     $tagTypes = array_column($tags, 'type');
 
-    expect($tagTypes)->toContain('auto_descuento');
+    expect($tagTypes)->not->toContain('auto_descuento');
 });
 
-it('auto_descuento tag content shows the effective percent discount', function () {
+it('auto_descuento tag content shows the effective percent discount from product/brand', function () {
     Setting::updateOrCreate(
         ['key' => 'auto_tag_descuento_enabled'],
         ['name' => 'Auto tag descuento', 'value' => '1', 'show' => false]
@@ -262,8 +262,8 @@ it('auto_descuento tag content shows the effective percent discount', function (
     Cache::forget('setting_auto_tag_descuento_enabled');
 
     $product = buildProduct([
-        'vendor_discount' => 20,
-        'brand_discount'  => 0,
+        'vendor_discount' => 0,
+        'brand_discount'  => 18,
         'product_discount' => 0,
     ]);
 
@@ -272,7 +272,7 @@ it('auto_descuento tag content shows the effective percent discount', function (
     $descTag = collect($tags)->firstWhere('type', 'auto_descuento');
 
     expect($descTag)->not->toBeNull();
-    expect($descTag['content'])->toBe('-20%');
+    expect($descTag['content'])->toBe('-18%');
 });
 
 it('getActiveTags omits DESCUENTO when only brand excluded and no other discount source', function () {
@@ -341,7 +341,7 @@ it('getActiveTags shows DESCUENTO when vendor excluded but brand still applies',
     expect($tagTypes)->toContain('auto_descuento');
 });
 
-it('getActiveTags shows DESCUENTO when brand excluded but vendor still applies', function () {
+it('getActiveTags omits DESCUENTO when brand excluded and only vendor discount applies', function () {
     Setting::updateOrCreate(
         ['key' => 'auto_tag_descuento_enabled'],
         ['name' => 'Auto tag descuento', 'value' => '1', 'show' => false]
@@ -360,10 +360,33 @@ it('getActiveTags shows DESCUENTO when brand excluded but vendor still applies',
     $tags = $loaded->getActiveTags();
     $tagTypes = array_column($tags, 'type');
 
-    expect($tagTypes)->toContain('auto_descuento');
+    expect($tagTypes)->not->toContain('auto_descuento');
 });
 
-it('DESCUENTO tag matches finalPrice has_discount in every exclusion combo', function () {
+it('auto_descuento tag can diverge from finalPrice when only vendor discount applies', function () {
+    Setting::updateOrCreate(
+        ['key' => 'auto_tag_descuento_enabled'],
+        ['name' => 'Auto tag descuento', 'value' => '1', 'show' => false]
+    );
+    Cache::forget('setting_auto_tag_descuento_enabled');
+
+    $product = buildProduct([
+        'vendor_discount' => 15,
+        'brand_discount'  => 0,
+        'product_discount' => 0,
+        'exclude_brand' => false,
+        'exclude_vendor' => false,
+    ]);
+
+    $loaded = freshLoadProduct($product->id);
+    $tags = $loaded->getActiveTags();
+    $tagTypes = array_column($tags, 'type');
+
+    expect($loaded->finalPrice['has_discount'])->toBeTrue();
+    expect($tagTypes)->not->toContain('auto_descuento');
+});
+
+it('auto_descuento tag aligns with finalPrice when product or brand discount exists', function () {
     Setting::updateOrCreate(
         ['key' => 'auto_tag_descuento_enabled'],
         ['name' => 'Auto tag descuento', 'value' => '1', 'show' => false]
@@ -381,7 +404,7 @@ it('DESCUENTO tag matches finalPrice has_discount in every exclusion combo', fun
         $product = buildProduct(array_merge([
             'vendor_discount' => 15,
             'brand_discount'  => 10,
-            'product_discount' => 0,
+            'product_discount' => 5,
         ], $combo));
 
         $loaded = freshLoadProduct($product->id);
@@ -483,6 +506,32 @@ it('PreciosApi returns discount for non-excluded product', function () {
     expect((float) $match['final_price']['price'])->toBe(8000.0);
 });
 
+it('PreciosApi price_with_tax is not double-taxed vs final_price when IVA applies', function () {
+    $user = User::factory()->create();
+    Sanctum::actingAs($user);
+
+    $product = buildProduct([
+        'vendor_discount' => 0,
+        'brand_discount' => 0,
+        'product_discount' => 0,
+        'product_price' => 10000,
+        'tax_rate' => 19,
+        'exclude_brand' => true,
+        'exclude_vendor' => true,
+    ]);
+
+    $response = getJson('/api/precios?product_ids=' . $product->id);
+    $response->assertOk();
+
+    $data = $response->json('data');
+    $match = collect($data)->firstWhere('product_id', $product->id);
+
+    expect($match)->not->toBeNull();
+    $final = (float) $match['final_price']['price'];
+    expect((float) $match['price_with_tax'])->toBe($final);
+    expect($final)->toBe(11900.0);
+});
+
 // ══════════════════════════════════════════════════════════════════════════
 // 5. API responses – ProductosApiController
 // ══════════════════════════════════════════════════════════════════════════
@@ -511,6 +560,8 @@ it('ProductosApi returns correct final_price for excluded product', function () 
     expect($match['final_price']['has_discount'])->toBeFalse();
     expect($match['final_price']['discount'])->toBe(0);
     expect((float) $match['final_price']['price'])->toBe(10000.0);
+    expect((float) $match['price'])->toBe((float) $match['final_price']['price']);
+    expect((float) $match['base_price'])->toBe(10000.0);
 });
 
 // ══════════════════════════════════════════════════════════════════════════

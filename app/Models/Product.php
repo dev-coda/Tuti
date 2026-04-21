@@ -271,8 +271,8 @@ class Product extends Model
             ];
         }
 
-        // Auto tag: DESCUENTO (if product has any product, brand, or vendor discount)
-        if ($autoTagDescuentoEnabled && $this->hasAnyDiscount()) {
+        // Auto tag: DESCUENTO — product or brand discount only (vendor promos never trigger the card tag)
+        if ($autoTagDescuentoEnabled && $this->hasAnyDiscountForAutoTag()) {
             $tags[] = [
                 'content' => $this->getAutoDescuentoTagContent(),
                 'type' => 'auto_descuento',
@@ -294,6 +294,22 @@ class Product extends Model
      */
     public function hasAnyDiscount(): bool
     {
+        return $this->discountAppliesFromSources(includeVendor: true);
+    }
+
+    /**
+     * Whether the auto DESCUENTO tag should appear on cards (product or brand discount only).
+     */
+    public function hasAnyDiscountForAutoTag(): bool
+    {
+        return $this->discountAppliesFromSources(includeVendor: false);
+    }
+
+    /**
+     * @param  bool  $includeVendor  When false, vendor-level discount is ignored (e.g. auto tag on product cards).
+     */
+    protected function discountAppliesFromSources(bool $includeVendor): bool
+    {
         if ($this->bonifications->count() > 0) {
             $allBlockDiscounts = $this->bonifications->every(fn ($b) => !$b->allow_discounts);
             if ($allBlockDiscounts) {
@@ -301,18 +317,19 @@ class Product extends Model
             }
         }
 
-        // Product-level discount
         if ($this->discount > 0) {
             return true;
         }
 
-        // Brand-level discount (unless product excluded)
         if (!$this->exclude_from_brand_discount && $this->brand && $this->brand->discount > 0) {
             return true;
         }
 
-        // Vendor-level discount (unless product excluded)
-        if (!$this->exclude_from_vendor_discount && $this->brand && $this->brand->vendor && $this->brand->vendor->discount > 0) {
+        if ($includeVendor
+            && !$this->exclude_from_vendor_discount
+            && $this->brand
+            && $this->brand->vendor
+            && $this->brand->vendor->discount > 0) {
             return true;
         }
 
@@ -452,7 +469,32 @@ class Product extends Model
         return $this->images->first()?->path;
     }
 
-    public function getFinalPriceForUser($has_orders = false, $vendorCartTotal = null)
+    /**
+     * Catalog unit price before discounts and IVA (product row or variation pivot).
+     *
+     * @param  int|null  $variationItemId  When set, uses that variation's pivot price when present; otherwise first variation or product.price.
+     */
+    protected function resolveUnitBasePrice(?int $variationItemId): float
+    {
+        if (!$this->items || $this->items->isEmpty()) {
+            return (float) $this->price;
+        }
+
+        $variation = null;
+        if ($variationItemId !== null) {
+            $variation = $this->items->firstWhere('id', $variationItemId);
+        }
+        if ($variation === null) {
+            $variation = $this->items->first();
+        }
+
+        return (float) ($variation?->pivot?->price ?? $this->price);
+    }
+
+    /**
+     * @param  int|null  $variationItemId  Optional variation item id for storefront display (cart, PDP). When null, behaviour matches the original implementation (first variation or product price).
+     */
+    public function getFinalPriceForUser($has_orders = false, $vendorCartTotal = null, ?int $variationItemId = null)
     {
         $discount = 0;
         $discount_on = false;
@@ -496,11 +538,7 @@ class Product extends Model
                 } else {
                     // In catalog/home context: check if this individual product's price meets the minimum
                     // Calculate the product's total price (with tax and package quantity)
-                    $price = $this->price;
-                    $variation = $this->items?->first();
-                    if ($variation) {
-                        $price = $variation->pivot->price;
-                    }
+                    $price = $this->resolveUnitBasePrice($variationItemId);
                     $packageQuantity = $this->package_quantity ?? 1;
                     $priceWithTax = $this->taxValue() > 0 ? ($price + ($price * $this->taxValue() / 100)) : $price;
                     $totalProductPrice = $priceWithTax * $packageQuantity;
@@ -531,12 +569,7 @@ class Product extends Model
             // If at least one bonification allows discounts, keep the calculated discount
         }
 
-        $price = $this->price;
-
-        $variation = $this->items?->first();
-        if ($this->items?->first()) {
-            $price = $variation->pivot->price;
-        }
+        $price = $this->resolveUnitBasePrice($variationItemId);
 
         $has_discount = false;
         if ($discount > 0) {
@@ -569,7 +602,10 @@ class Product extends Model
      */
     public function getFinalPriceWithCoupon($has_orders = false, $couponData = null): array
     {
-        $basePriceInfo = $this->getFinalPriceForUser($has_orders);
+        $variationId = (is_array($couponData) && isset($couponData['variation_id']))
+            ? (int) $couponData['variation_id']
+            : null;
+        $basePriceInfo = $this->getFinalPriceForUser($has_orders, null, $variationId);
 
         // If no coupon data provided, return base pricing
         if (!$couponData) {

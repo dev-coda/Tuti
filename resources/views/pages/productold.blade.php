@@ -42,8 +42,14 @@
     @if ($product->variation && $product->items->count())
         {{ $product->variation->name }}
         <select name="variation_id" id="selectPrice">
-            @foreach ($product->items->where('pivot.enabled', 1) as $item) 
-                <option data-price="{{ $item->pivot->price }}" value="{{ $item->pivot->variation_item_id }}">{{ $item->name }}</option>
+            @foreach ($product->items->where('pivot.enabled', 1) as $item)
+                @php $fpVar = $product->getFinalPriceForUser(false, null, $item->id); @endphp
+                <option
+                    value="{{ $item->pivot->variation_item_id }}"
+                    data-final-gross="{{ $fpVar['price'] }}"
+                    data-old-gross="{{ $fpVar['old'] }}"
+                    data-has-discount="{{ $fpVar['has_discount'] ? '1' : '0' }}"
+                >{{ $item->name }}</option>
             @endforeach
         </select>
     @endif
@@ -118,19 +124,20 @@
      
     <script>
         $(function(){
-            
-            const discount = Number('{{$product->finalPrice['discount']}}')
-           
+            function currency(n) {
+                return new Intl.NumberFormat('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(Number(n)));
+            }
             $('#selectPrice').on('change', function(){
-             
-                let price = $(this).find(':selected').data('price')
-                
-                if(discount > 0){
-                    $('#oldprice').html(currency(parseInt(price)))
-                    price = price - (price * (discount/100))
+                var $o = $(this).find(':selected');
+                var gross = parseFloat($o.data('final-gross'), 10);
+                var oldGross = parseFloat($o.data('old-gross'), 10);
+                var hasDisc = String($o.data('has-discount')) === '1';
+                $('#price').html('$' + currency(gross));
+                if (hasDisc) {
+                    $('#oldprice').removeClass('hidden').html('$' + currency(oldGross));
+                } else {
+                    $('#oldprice').addClass('hidden').html('');
                 }
-                console.log(currency(price));
-                $('#price').html(currency(price))
             })
         })
 

@@ -81,7 +81,8 @@ class PreciosApiController extends Controller
                 'discount' => $product->discount,
                 'final_price' => $product->finalPrice,
                 'tax_rate' => $product->tax ? $product->tax->tax : 0,
-                'price_with_tax' => $product->finalPrice['price'] * (1 + ($product->tax ? $product->tax->tax / 100 : 0)),
+                // Same gross amount as final_price.price — tax is already included there when applicable.
+                'price_with_tax' => $product->finalPrice['price'],
                 'package_quantity' => $product->package_quantity,
                 'calculate_package_price' => $product->calculate_package_price,
                 'updated_at' => $product->updated_at,
@@ -106,7 +107,7 @@ class PreciosApiController extends Controller
             'discount' => $product->discount,
             'final_price' => $product->finalPrice,
             'tax_rate' => $product->tax ? $product->tax->tax : 0,
-            'price_with_tax' => $product->finalPrice['price'] * (1 + ($product->tax ? $product->tax->tax / 100 : 0)),
+            'price_with_tax' => $product->finalPrice['price'],
             'package_quantity' => $product->package_quantity,
             'calculate_package_price' => $product->calculate_package_price,
             'updated_at' => $product->updated_at,

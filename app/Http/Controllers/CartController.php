@@ -234,7 +234,8 @@ class CartController extends Controller
             } else {
                 // Use regular pricing without vendor discount (pass 0 to prevent vendor discount)
                 // This will be recalculated later with proper vendor totals
-                $finalPrice = $product->getFinalPriceForUser($has_orders, 0);
+                $variationItemId = isset($item['variation_id']) ? (int) $item['variation_id'] : null;
+                $finalPrice = $product->getFinalPriceForUser($has_orders, 0, $variationItemId);
             }
 
             $product->calculatedFinalPrice = $finalPrice;
@@ -289,7 +290,8 @@ class CartController extends Controller
                 return $product;
             }
 
-            $finalPrice = $product->getFinalPriceForUser($has_orders, $vendorTotal);
+            $variationItemId = $product->item?->id;
+            $finalPrice = $product->getFinalPriceForUser($has_orders, $vendorTotal, $variationItemId);
             $product->calculatedFinalPrice = $finalPrice;
             return $product;
         });

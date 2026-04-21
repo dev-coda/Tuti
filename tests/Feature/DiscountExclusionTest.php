@@ -276,6 +276,32 @@ it('hasAnyDiscount returns true with product discount regardless of exclusion fl
 });
 
 // ──────────────────────────────────────────────────────────────────────────
+// hasAnyDiscountForAutoTag (product cards — vendor-only never triggers)
+// ──────────────────────────────────────────────────────────────────────────
+
+it('hasAnyDiscountForAutoTag is false when only vendor has a discount', function () {
+    $product = createProductWithDiscountHierarchy([
+        'vendor_discount' => 15,
+        'brand_discount' => 0,
+        'product_discount' => 0,
+        'exclude_from_vendor_discount' => false,
+    ]);
+
+    expect($product->hasAnyDiscount())->toBeTrue();
+    expect($product->hasAnyDiscountForAutoTag())->toBeFalse();
+});
+
+it('hasAnyDiscountForAutoTag is true when brand has discount', function () {
+    $product = createProductWithDiscountHierarchy([
+        'vendor_discount' => 0,
+        'brand_discount' => 12,
+        'product_discount' => 0,
+    ]);
+
+    expect($product->hasAnyDiscountForAutoTag())->toBeTrue();
+});
+
+// ──────────────────────────────────────────────────────────────────────────
 // getStaticDiscountInfo
 // ──────────────────────────────────────────────────────────────────────────
 

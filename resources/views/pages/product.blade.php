@@ -275,17 +275,22 @@
             </div>
             @endif
 
-            <!-- Price Section -->
+            <!-- Price Section (gross = discounts + IVA when applicable; matches selected variation when options exist) -->
+            @php
+                $firstEnabledItem = $product->items->where('pivot.enabled', 1)->first();
+                $displayFinal = $product->final_price;
+                if ($firstEnabledItem) {
+                    $displayFinal = $product->getFinalPriceForUser(false, null, $firstEnabledItem->id);
+                }
+            @endphp
             <div class="mt-4">
                 <div class="flex items-baseline gap-2">
-                    <span class="text-orange-500 font-bold text-4xl">${{ currency($product->final_price['price']) }}</span>
-                    @if($product->final_price['has_discount'])
-                    <span class="line-through text-slate-400 text-xl font-semibold">${{ currency($product->final_price['old']) }}</span>
-                    @endif
+                    <span id="pdp-price-current" class="text-orange-500 font-bold text-4xl">${{ currency($displayFinal['price']) }}</span>
+                    <span id="pdp-price-old" class="line-through text-slate-400 text-xl font-semibold @if(!$displayFinal['has_discount']) hidden @endif">${{ $displayFinal['has_discount'] ? currency($displayFinal['old']) : '' }}</span>
                 </div>
 
-                @if($product->final_price['perItemPrice'])
-                <p class="text-gray-500 text-sm mt-1">(Und. x) ${{ currency($product->final_price['perItemPrice']) }}</p>
+                @if($displayFinal['perItemPrice'])
+                <p id="pdp-per-item-wrap" class="text-gray-500 text-sm mt-1">(Und. x) $<span id="pdp-per-item-val">{{ currency($displayFinal['perItemPrice']) }}</span></p>
                 @endif
             </div>
 
@@ -306,7 +311,14 @@
             <span class="text-lg font-medium">{{ $product->variation->name }}:</span>
             <select name="variation_id" id="selectPrice" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500">
                 @foreach ($product->items->where('pivot.enabled', 1) as $item)
-                <option data-price="{{ $item->pivot->price }}" value="{{ $item->pivot->variation_item_id }}">{{ $item->name }}</option>
+                @php $fpVar = $product->getFinalPriceForUser(false, null, $item->id); @endphp
+                <option
+                    value="{{ $item->pivot->variation_item_id }}"
+                    data-price-gross="{{ $fpVar['price'] }}"
+                    data-price-old="{{ $fpVar['old'] }}"
+                    data-has-discount="{{ $fpVar['has_discount'] ? '1' : '0' }}"
+                    data-per-item="{{ $fpVar['perItemPrice'] ?? '' }}"
+                >{{ $item->name }}</option>
                 @endforeach
             </select>
         </div>
@@ -634,6 +646,29 @@
                 $(this).val(quantity)
             }
         })
+
+        var $sel = $('#selectPrice');
+        if ($sel.length) {
+            function formatPdpMoney(n) {
+                return new Intl.NumberFormat('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(Number(n)));
+            }
+            $sel.on('change', function () {
+                var $opt = $(this).find(':selected');
+                $('#pdp-price-current').text('$' + formatPdpMoney($opt.data('price-gross')));
+                var hasDisc = String($opt.data('has-discount')) === '1';
+                var $old = $('#pdp-price-old');
+                if (hasDisc) {
+                    $old.removeClass('hidden').text('$' + formatPdpMoney($opt.data('price-old')));
+                } else {
+                    $old.addClass('hidden').text('');
+                }
+                var per = $opt.data('per-item');
+                var $wrap = $('#pdp-per-item-wrap');
+                if ($wrap.length && per !== undefined && per !== '') {
+                    $('#pdp-per-item-val').text(formatPdpMoney(per));
+                }
+            });
+        }
 
     })
 </script>
