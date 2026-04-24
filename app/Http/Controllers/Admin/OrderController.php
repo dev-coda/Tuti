@@ -121,6 +121,9 @@ class OrderController extends Controller
         $to_date = $request->input('to_date');
         $brand_id = $request->input('brand_id');
         $vendor_id = $request->input('vendor_id');
+        $q = $request->input('q');
+        $seller_id = $request->input('seller_id');
+        $zone = $request->input('zone');
 
         if (!$to_date) {
             $to_date = Carbon::now();
@@ -129,7 +132,18 @@ class OrderController extends Controller
         if ($from_date && $to_date) {
             $from_date = Carbon::parse($from_date)->startOfDay();
             $to_date = Carbon::parse($to_date)->endOfDay();
-            return Excel::download(new OrdersExport($from_date->toDateString(), $to_date->toDateString(), $brand_id, $vendor_id), 'orders.xlsx');
+            return Excel::download(
+                new OrdersExport(
+                    $from_date->toDateTimeString(),
+                    $to_date->toDateTimeString(),
+                    $brand_id,
+                    $vendor_id,
+                    $q,
+                    $seller_id,
+                    $zone
+                ),
+                'orders.xlsx'
+            );
         } else {
             return redirect()->back()->withErrors(['error' => 'Por favor ingresa un rango de fechas.']);
         }

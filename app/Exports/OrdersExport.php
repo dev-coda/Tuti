@@ -3,12 +3,12 @@
 namespace App\Exports;
 
 use App\Models\Order;
+use Carbon\Carbon;
 use Maatwebsite\Excel\Concerns\FromQuery;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\WithChunkReading;
 use Maatwebsite\Excel\Concerns\WithBatchInserts;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Maatwebsite\Excel\Concerns\Exportable;
 
 class OrdersExport implements FromQuery, WithMapping, WithHeadings, withChunkReading, withBatchInserts
@@ -19,26 +19,64 @@ class OrdersExport implements FromQuery, WithMapping, WithHeadings, withChunkRea
     private $to_date;
     private $brand_id;
     private $vendor_id;
+    private $q;
+    private $seller_id;
+    private $zone;
 
-    public function __construct(string $from_date = null, string $to_date = null, $brand_id = null, $vendor_id = null)
+    public function __construct(
+        ?string $from_date = null,
+        ?string $to_date = null,
+        $brand_id = null,
+        $vendor_id = null,
+        ?string $q = null,
+        $seller_id = null,
+        ?string $zone = null
+    )
     {
         $this->from_date = $from_date;
         $this->to_date = $to_date;
         $this->brand_id = $brand_id;
         $this->vendor_id = $vendor_id;
+        $this->q = $q;
+        $this->seller_id = $seller_id;
+        $this->zone = $zone;
     }
 
     public function query()
     {
         $query = Order::query();
         if ($this->from_date == null || $this->to_date == null) {
-            $query->whereBetween('created_at', [now()->subDays(2), now()]);
+            $query->whereBetween('created_at', [now()->subDays(2)->startOfDay(), now()->endOfDay()]);
         } else {
-            $query->whereBetween('created_at', [$this->from_date, $this->to_date]);
+            $query->whereBetween('created_at', [
+                Carbon::parse($this->from_date)->startOfDay(),
+                Carbon::parse($this->to_date)->endOfDay(),
+            ]);
         }
 
         // Filter by status to match KPI section (only include processed, shipped, and delivered orders)
         $query->whereIn('status_id', [Order::STATUS_PROCESSED, Order::STATUS_SHIPPED, Order::STATUS_DELIVERED]);
+
+        if (!empty($this->seller_id)) {
+            $query->where('seller_id', $this->seller_id);
+        }
+
+        if (!empty($this->q)) {
+            $searchTerm = strtolower(trim($this->q));
+            $query->where(function ($qry) use ($searchTerm) {
+                $qry->whereRaw('CAST(id AS TEXT) ILIKE ?', ['%' . $searchTerm . '%'])
+                    ->orWhereHas('user', function ($subQuery) use ($searchTerm) {
+                        $subQuery->whereRaw('LOWER(name) LIKE ?', ['%' . $searchTerm . '%'])
+                            ->orWhereRaw('LOWER(document) LIKE ?', ['%' . $searchTerm . '%']);
+                    });
+            });
+        }
+
+        if (!empty($this->zone)) {
+            $query->whereHas('user', function ($subQuery) {
+                $subQuery->where('zone', $this->zone);
+            });
+        }
 
         if (!empty($this->brand_id)) {
             $brandId = (int) $this->brand_id;

@@ -457,9 +457,21 @@
                             Dirección de entrega
                         </label>
                         <input type="hidden" name="sucursal_code" id="checkout-sucursal-code" value="">
+                        <input type="hidden" name="sucursal_route" id="checkout-sucursal-route" value="">
+                        <input type="hidden" name="sucursal_zone" id="checkout-sucursal-zone" value="">
+                        <input type="hidden" name="sucursal_day" id="checkout-sucursal-day" value="">
+                        <input type="hidden" name="sucursal_address" id="checkout-sucursal-address" value="">
                         <select name="zone_id" id="states" class="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all">
                             @foreach($zoneOptions as $z)
-                                <option value="{{ $z->id }}" data-sucursal-code="{{ $z->code ?? '' }}" {{ (int) session('zone_id') === (int) $z->id ? 'selected' : '' }}>{{ $z->address }}</option>
+                                <option
+                                    value="{{ $z->id }}"
+                                    data-sucursal-code="{{ $z->code ?? '' }}"
+                                    data-sucursal-route="{{ $z->route ?? '' }}"
+                                    data-sucursal-zone="{{ $z->zone ?? '' }}"
+                                    data-sucursal-day="{{ $z->day ?? '' }}"
+                                    data-sucursal-address="{{ $z->address ?? '' }}"
+                                    {{ (int) session('zone_id') === (int) $z->id ? 'selected' : '' }}
+                                >{{ $z->address }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -908,6 +920,10 @@
         const deliveryMethodInput = document.getElementById('delivery_method');
         const zoneSelect = document.getElementById('states');
         const sucursalCodeInput = document.getElementById('checkout-sucursal-code');
+        const sucursalRouteInput = document.getElementById('checkout-sucursal-route');
+        const sucursalZoneInput = document.getElementById('checkout-sucursal-zone');
+        const sucursalDayInput = document.getElementById('checkout-sucursal-day');
+        const sucursalAddressInput = document.getElementById('checkout-sucursal-address');
 
         function syncCheckoutSucursalCode() {
             if (!zoneSelect || !sucursalCodeInput) {
@@ -915,6 +931,18 @@
             }
             const opt = zoneSelect.options[zoneSelect.selectedIndex];
             sucursalCodeInput.value = opt ? (opt.getAttribute('data-sucursal-code') || '') : '';
+            if (sucursalRouteInput) {
+                sucursalRouteInput.value = opt ? (opt.getAttribute('data-sucursal-route') || '') : '';
+            }
+            if (sucursalZoneInput) {
+                sucursalZoneInput.value = opt ? (opt.getAttribute('data-sucursal-zone') || '') : '';
+            }
+            if (sucursalDayInput) {
+                sucursalDayInput.value = opt ? (opt.getAttribute('data-sucursal-day') || '') : '';
+            }
+            if (sucursalAddressInput) {
+                sucursalAddressInput.value = opt ? (opt.getAttribute('data-sucursal-address') || '') : '';
+            }
         }
 
         function updateDeliveryOption(method) {

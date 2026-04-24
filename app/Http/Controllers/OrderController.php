@@ -170,8 +170,8 @@ class OrderController extends Controller
 
         // 1–4: category roots (name match) + all descendant categories so products
         // attached only to child categories still count (pivot uses leaf/junction ids).
-        $alcalinaIds = $this->categoryIdsWithDescendants($catIdsByName(['Alcalinas Tronex']));
-        $manganesoIds = $this->categoryIdsWithDescendants($catIdsByName(['Manganeso Tronex']));
+        $alcalinaIds = $this->categoryIdsWithDescendants($catIdsByName(['Alcalinas Tronex', 'Alcalinas GP']));
+        $manganesoIds = $this->categoryIdsWithDescendants($catIdsByName(['Manganeso Tronex', 'Manganeso GP']));
         $encendedoresIds = $this->categoryIdsWithDescendants($catIdsByName(['Encendedores']));
         $bombillosIds = $this->categoryIdsWithDescendants($catIdsByName(['Bombillos']));
 

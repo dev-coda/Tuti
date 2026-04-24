@@ -21,7 +21,15 @@
                 <h1 class="text-xl font-semibold text-gray-900 sm:text-2xl ">Pedidos</h1>
                 <div class="flex items-center gap-3">
                     <!-- Current export (date range) -->
-                    <a href="{{ '/orderexport?from_date=' . (request()->from_date ? request()->from_date : '') . '&to_date=' . (request()->to_date ? request()->to_date : '') . '&brand_id=' . (request()->brand_id ?? '') . '&vendor_id=' . (request()->vendor_id ?? '') }}"
+                    <a href="{{ route('admin.export.orders', [
+                        'q' => request()->query('q', ''),
+                        'zone' => request()->query('zone', ''),
+                        'seller_id' => request()->query('seller_id', ''),
+                        'brand_id' => request()->query('brand_id', ''),
+                        'vendor_id' => request()->query('vendor_id', ''),
+                        'from_date' => request()->query('from_date', ''),
+                        'to_date' => request()->query('to_date', ''),
+                    ]) }}"
                        class="inline-flex items-center px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
                        title="Exportar filtro actual">
                         @svg('heroicon-o-arrow-down-on-square', 'w-5 h-5 mr-1')

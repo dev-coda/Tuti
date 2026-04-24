@@ -11,18 +11,19 @@ class VariationItem extends Model
 
     protected $appends = ['price_label'];
 
-    protected $fillable = [ 'name'];
+    protected $fillable = ['name', 'variation_id'];
 
-    public function variation(){
+    public function variation()
+    {
         return $this->belongsTo(Variation::class);
     }
 
+    public function getPriceLabelAttribute()
+    {
+        if (! $this->pivot) {
+            return $this->name;
+        }
 
-    public function getPriceLabelAttribute(){
-        return;
         return $this->variation->name.': '.$this->name.' -  $'.number_format($this->pivot->price);
     }
-
-    
-    
 }

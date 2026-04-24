@@ -3,12 +3,18 @@
 use App\Models\Bonification;
 use App\Models\Brand;
 use App\Models\Product;
+use App\Models\ProductInventory;
+use App\Models\Setting;
 use App\Models\Tax;
 use App\Models\User;
 use App\Models\Vendor;
-use function Pest\Laravel\{actingAs, get, post};
+use App\Models\ZoneWarehouse;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
+
+use function Pest\Laravel\actingAs;
+use function Pest\Laravel\get;
+use function Pest\Laravel\post;
 
 uses(RefreshDatabase::class);
 
@@ -17,16 +23,16 @@ uses(RefreshDatabase::class);
  */
 function giftProductForBonificationCrud(): Product
 {
-    $tax = Tax::create(['name' => 'IVA-BONIF-' . uniqid(), 'tax' => 0]);
+    $tax = Tax::create(['name' => 'IVA-BONIF-'.uniqid(), 'tax' => 0]);
     $vendor = Vendor::create([
-        'name' => 'V-Bonif-' . uniqid(),
-        'slug' => 'v-bonif-' . uniqid(),
+        'name' => 'V-Bonif-'.uniqid(),
+        'slug' => 'v-bonif-'.uniqid(),
         'minimum_purchase' => 0,
         'active' => 1,
     ]);
     $brand = Brand::create([
-        'name' => 'B-Bonif-' . uniqid(),
-        'slug' => 'b-bonif-' . uniqid(),
+        'name' => 'B-Bonif-'.uniqid(),
+        'slug' => 'b-bonif-'.uniqid(),
         'vendor_id' => $vendor->id,
     ]);
 
@@ -34,8 +40,8 @@ function giftProductForBonificationCrud(): Product
         'name' => 'Gift bonif CRUD',
         'description' => 'd',
         'short_description' => 'd',
-        'sku' => 'SKU-BONIF-' . uniqid(),
-        'slug' => 'gift-bonif-' . uniqid(),
+        'sku' => 'SKU-BONIF-'.uniqid(),
+        'slug' => 'gift-bonif-'.uniqid(),
         'active' => 1,
         'price' => 100,
         'delivery_days' => 1,
@@ -53,19 +59,15 @@ beforeEach(function () {
     $user = User::factory()->create();
     Role::create([
         'name' => 'admin',
-        'guard_name' => 'web'
+        'guard_name' => 'web',
     ]);
     $user->assignRole('admin');
 });
-
 
 it('user not logged cannot access to bonification page', function () {
     get('/bonifications')
         ->assertRedirect('/login');
 });
-
-
-
 
 it('user logged can access to bonification page', function () {
 
@@ -74,14 +76,12 @@ it('user logged can access to bonification page', function () {
         ->assertStatus(200);
 });
 
-
 it('user logged can access to create bonification page', function () {
 
     actingAs(User::first())
         ->get('/bonifications/create')
         ->assertStatus(200);
 });
-
 
 it('user logged can create bonification', function () {
     $gift = giftProductForBonificationCrud();
@@ -99,7 +99,6 @@ it('user logged can create bonification', function () {
     $response->assertRedirect(route('bonifications.edit', $bonification))
         ->assertSessionHas('success', 'Bonificación creada, agregue los productos');
 });
-
 
 it('user logged can access to edit bonification page', function () {
 
@@ -119,7 +118,6 @@ it('user logged can access to edit bonification page', function () {
         ->assertStatus(200);
 });
 
-
 it('user logged can access to edit bonification', function () {
 
     $user = User::first();
@@ -133,7 +131,6 @@ it('user logged can access to edit bonification', function () {
         'product_id' => $gift->id,
     ]);
 
-
     actingAs($user)
         ->put("/bonifications/{$bonification->id}", [
             'name' => 'Pague 20 lleve 4',
@@ -145,9 +142,6 @@ it('user logged can access to edit bonification', function () {
         ->assertRedirect('/bonifications')
         ->assertSessionHas('success', 'Bonificación actualizada');
 });
-
-
-
 
 it('user logged can delete bonification', function () {
 
@@ -168,7 +162,6 @@ it('user logged can delete bonification', function () {
         ->assertSessionHas('success', 'La bonificacion se ha eliminado correctamente');
 });
 
-
 it('multiple bonifications can be applied to a single order', function () {
     // This test ensures that when a product qualifies for multiple bonifications,
     // all applicable bonifications are applied, not just the first one
@@ -178,7 +171,7 @@ it('multiple bonifications can be applied to a single order', function () {
     // Create a tax for products
     $tax = \App\Models\Tax::create([
         'name' => 'IVA',
-        'tax' => 0
+        'tax' => 0,
     ]);
 
     // Create a brand for the products
@@ -293,7 +286,7 @@ it('multiple bonifications can be applied to a single order', function () {
             'product_id' => $product->id,
             'quantity' => 10,
             'variation_id' => null,
-        ]
+        ],
     ]);
 
     // Process the order (POST /carrito — see routes/web.php)
@@ -452,4 +445,142 @@ it('creates separate bonification rows when different trigger products share the
     expect($rows->where('bonification_id', $bonificationB->id)->first()->quantity)->toBe(1);
     expect($rows->pluck('product_id')->unique()->count())->toBe(1);
     expect($rows->first()->product_id)->toBe($sharedGift->id);
+});
+
+it('skips bonifications when stock cannot cover all gifted items involved', function () {
+    $user = User::first();
+
+    $tax = Tax::create([
+        'name' => 'IVA stock',
+        'tax' => 0,
+    ]);
+
+    $vendor = Vendor::create([
+        'name' => 'Vendor stock',
+        'slug' => 'vendor-stock',
+        'minimum_purchase' => 0,
+        'active' => 1,
+    ]);
+
+    $brand = Brand::create([
+        'name' => 'Brand stock',
+        'slug' => 'brand-stock',
+        'vendor_id' => $vendor->id,
+    ]);
+
+    $gift = Product::create([
+        'name' => 'Gift constrained',
+        'description' => 'Gift constrained',
+        'short_description' => 'Gift constrained',
+        'sku' => 'GIFT-CONSTRAINED',
+        'slug' => 'gift-constrained',
+        'active' => 1,
+        'price' => 0,
+        'delivery_days' => 1,
+        'discount' => 0,
+        'quantity_min' => 1,
+        'quantity_max' => 100,
+        'step' => 1,
+        'tax_id' => $tax->id,
+        'brand_id' => $brand->id,
+        'package_quantity' => 1,
+        'safety_stock' => 0,
+        'inventory_opt_out' => 0,
+    ]);
+
+    $trigger = Product::create([
+        'name' => 'Trigger constrained',
+        'description' => 'Trigger constrained',
+        'short_description' => 'Trigger constrained',
+        'sku' => 'TRIGGER-CONSTRAINED',
+        'slug' => 'trigger-constrained',
+        'active' => 1,
+        'price' => 100,
+        'delivery_days' => 1,
+        'discount' => 0,
+        'quantity_min' => 1,
+        'quantity_max' => 100,
+        'step' => 1,
+        'tax_id' => $tax->id,
+        'brand_id' => $brand->id,
+        'package_quantity' => 1,
+        'safety_stock' => 0,
+        'inventory_opt_out' => 0,
+    ]);
+
+    $bonificationA = Bonification::create([
+        'name' => 'Rule constrained A',
+        'buy' => 1,
+        'get' => 3,
+        'product_id' => $gift->id,
+        'max' => 100,
+    ]);
+    $bonificationB = Bonification::create([
+        'name' => 'Rule constrained B',
+        'buy' => 1,
+        'get' => 4,
+        'product_id' => $gift->id,
+        'max' => 100,
+    ]);
+    $trigger->bonifications()->attach([$bonificationA->id, $bonificationB->id]);
+
+    $zone = \App\Models\Zone::create([
+        'route' => '1',
+        'zone' => '933',
+        'day' => 'Monday',
+        'address' => 'Addr',
+        'code' => 'Z-STOCK',
+        'user_id' => $user->id,
+    ]);
+
+    Setting::updateOrCreate(
+        ['key' => 'inventory_enabled'],
+        ['name' => 'Inventory enabled', 'value' => '1', 'show' => false]
+    );
+    Setting::updateOrCreate(
+        ['key' => 'global_minimum_inventory'],
+        ['name' => 'Global minimum inventory', 'value' => '5', 'show' => false]
+    );
+    ZoneWarehouse::updateOrCreate(
+        ['zone_code' => '933'],
+        ['bodega_code' => 'BOD-1']
+    );
+
+    // Trigger product has enough stock to purchase 1 unit.
+    ProductInventory::create([
+        'product_id' => $trigger->id,
+        'bodega_code' => 'BOD-1',
+        'available' => 20,
+        'physical' => 20,
+        'reserved' => 0,
+    ]);
+
+    // Gift product available=11 with global minimum=5 => max givable=6.
+    // Combined demand from both bonifications is 7, so BOTH should be skipped.
+    ProductInventory::create([
+        'product_id' => $gift->id,
+        'bodega_code' => 'BOD-1',
+        'available' => 11,
+        'physical' => 11,
+        'reserved' => 0,
+    ]);
+
+    session()->put('cart', [
+        ['product_id' => $trigger->id, 'quantity' => 1, 'variation_id' => null],
+    ]);
+
+    actingAs($user)->post(route('cart.process'), [
+        'zone_id' => $zone->id,
+        'observations' => 'Constrained gift stock',
+    ]);
+
+    $order = \App\Models\Order::latest()->first();
+    expect($order)->not->toBeNull();
+    expect($order->products()->count())->toBe(1);
+    expect($order->bonifications()->count())->toBe(0);
+
+    $giftInventoryAfter = ProductInventory::where('product_id', $gift->id)
+        ->where('bodega_code', 'BOD-1')
+        ->first();
+    expect((int) $giftInventoryAfter->available)->toBe(11);
 });

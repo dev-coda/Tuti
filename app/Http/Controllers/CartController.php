@@ -3,27 +3,23 @@
 namespace App\Http\Controllers;
 
 use App\Jobs\ProcessOrder;
-use App\Mail\NewOrderEmail;
-use App\Mail\OrderEmail;
+use App\Models\Coupon;
 use App\Models\Order;
 use App\Models\OrderProduct;
 use App\Models\OrderProductBonification;
 use App\Models\Product;
 use App\Models\ProductInventory;
-use App\Models\Zone;
-use App\Models\ZoneWarehouse;
+use App\Models\Setting;
 use App\Models\User;
 use App\Models\Vendor;
-use App\Models\Setting;
-use App\Models\Coupon;
-use App\Models\CouponUsage;
-use App\Services\CouponService;
-use App\Services\Shipping\CoordinadoraQuoteService;
+use App\Models\Zone;
+use App\Models\ZoneWarehouse;
 use App\Repositories\OrderRepository;
 use App\Repositories\UserRepository;
-use App\Settings\GeneralSettings;
+use App\Services\BonificationCheckoutService;
+use App\Services\CouponService;
+use App\Services\Shipping\CoordinadoraQuoteService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -35,11 +31,12 @@ class CartController extends Controller
      */
     private function validateCart($cart)
     {
-        if (!is_array($cart)) {
+        if (! is_array($cart)) {
             Log::error('Cart is not an array', [
                 'cart_type' => gettype($cart),
                 'user_id' => auth()->id(),
             ]);
+
             return [];
         }
 
@@ -49,7 +46,7 @@ class CartController extends Controller
 
         foreach ($cart as $key => $item) {
             // Check if item has required keys
-            if (!is_array($item) || !isset($item['product_id']) || !isset($item['quantity'])) {
+            if (! is_array($item) || ! isset($item['product_id']) || ! isset($item['quantity'])) {
                 Log::warning('Invalid cart item detected: missing required fields', [
                     'key' => $key,
                     'item' => $item,
@@ -59,11 +56,12 @@ class CartController extends Controller
                 ]);
                 $invalidCount++;
                 $invalidReasons[] = 'Producto con datos incompletos';
+
                 continue;
             }
 
             // Validate product_id is numeric
-            if (!is_numeric($item['product_id']) || $item['product_id'] <= 0) {
+            if (! is_numeric($item['product_id']) || $item['product_id'] <= 0) {
                 Log::warning('Invalid product_id in cart item', [
                     'key' => $key,
                     'product_id' => $item['product_id'],
@@ -71,11 +69,12 @@ class CartController extends Controller
                 ]);
                 $invalidCount++;
                 $invalidReasons[] = 'Producto con ID inválido';
+
                 continue;
             }
 
             // Validate quantity is numeric and positive
-            if (!is_numeric($item['quantity']) || $item['quantity'] <= 0) {
+            if (! is_numeric($item['quantity']) || $item['quantity'] <= 0) {
                 Log::warning('Invalid quantity in cart item', [
                     'key' => $key,
                     'quantity' => $item['quantity'],
@@ -84,6 +83,7 @@ class CartController extends Controller
                 ]);
                 $invalidCount++;
                 $invalidReasons[] = 'Producto con cantidad inválida';
+
                 continue;
             }
 
@@ -92,7 +92,7 @@ class CartController extends Controller
 
         // Update session if we removed invalid items
         if ($invalidCount > 0) {
-            if (!empty($validCart)) {
+            if (! empty($validCart)) {
                 session()->put('cart', $validCart);
                 Log::info('Cart cleaned of invalid items', [
                     'original_count' => count($cart),
@@ -122,10 +122,9 @@ class CartController extends Controller
         // session()->forget('cart');
         // back();
 
-
         $cart = session()->get('cart');
 
-        if (!$cart) {
+        if (! $cart) {
             return redirect()->route('home');
         }
 
@@ -134,6 +133,7 @@ class CartController extends Controller
 
         if (empty($cart)) {
             session()->forget('cart');
+
             return redirect()->route('home')->with('error', 'Tu carrito estaba vacío o contenía productos inválidos.');
         }
 
@@ -170,7 +170,7 @@ class CartController extends Controller
         // Load coupons from multi-coupon session (primary) or single-coupon session (backward compat)
         $validCoupons = $this->loadValidCouponsFromSession();
 
-        if (!empty($validCoupons)) {
+        if (! empty($validCoupons)) {
             $couponDiscountService = app(\App\Services\CouponDiscountService::class);
             $couponResult = $couponDiscountService->applyMultipleCouponsToProducts(
                 $validCoupons,
@@ -195,7 +195,7 @@ class CartController extends Controller
         $modifiedProductsLookup = [];
         if ($couponResult && $couponResult['success']) {
             foreach ($couponResult['modified_products'] as $modProduct) {
-                $key = $modProduct['product_id'] . '_' . ($modProduct['variation_id'] ?? 'null');
+                $key = $modProduct['product_id'].'_'.($modProduct['variation_id'] ?? 'null');
                 $modifiedProductsLookup[$key] = $modProduct;
             }
         }
@@ -204,21 +204,23 @@ class CartController extends Controller
             $product = Product::with('brand.vendor', 'variation', 'tax', 'bonifications')->find($item['product_id']);
 
             // Skip if product not found (might have been deleted)
-            if (!$product) {
+            if (! $product) {
                 Log::warning('Product not found in cart', [
                     'product_id' => $item['product_id'],
                     'user_id' => auth()->id(),
                 ]);
+
                 continue;
             }
 
             // Skip if product has no brand or vendor
-            if (!$product->brand || !$product->brand->vendor) {
+            if (! $product->brand || ! $product->brand->vendor) {
                 Log::warning('Product missing brand or vendor in cart', [
                     'product_id' => $product->id,
-                    'has_brand' => !is_null($product->brand),
+                    'has_brand' => ! is_null($product->brand),
                     'user_id' => auth()->id(),
                 ]);
+
                 continue;
             }
 
@@ -227,7 +229,7 @@ class CartController extends Controller
             $product->vendor_id = $product->brand->vendor->id;
 
             // Check if this product was modified by coupon
-            $lookupKey = $item['product_id'] . '_' . ($item['variation_id'] ?? 'null');
+            $lookupKey = $item['product_id'].'_'.($item['variation_id'] ?? 'null');
             if (isset($modifiedProductsLookup[$lookupKey])) {
                 // Use coupon-modified pricing
                 $finalPrice = $product->getFinalPriceWithCoupon($has_orders, $modifiedProductsLookup[$lookupKey]);
@@ -247,8 +249,6 @@ class CartController extends Controller
         $total_cart = $products->sum(function ($product) {
             return $product->quantity * $product->calculatedFinalPrice['price'];
         });
-
-
 
         //compra minima por vendor y calcular totales para descuentos
         $byVendors = collect($products)->groupBy('vendor_id');
@@ -276,7 +276,7 @@ class CartController extends Controller
                     'vendor' => $v,
                     'current_total' => $total,
                     'needed_amount' => $v->minimum_discount_amount - $total,
-                    'discount_percentage' => $v->discount
+                    'discount_percentage' => $v->discount,
                 ];
             }
         }
@@ -285,7 +285,7 @@ class CartController extends Controller
         $products = collect($products)->map(function ($product) use ($vendorTotals, $has_orders, $modifiedProductsLookup) {
             $vendorTotal = $vendorTotals[$product->vendor_id] ?? 0;
 
-            $lookupKey = $product->id . '_' . ($product->item?->id ?? 'null');
+            $lookupKey = $product->id.'_'.($product->item?->id ?? 'null');
             if (isset($modifiedProductsLookup[$lookupKey])) {
                 return $product;
             }
@@ -293,6 +293,7 @@ class CartController extends Controller
             $variationItemId = $product->item?->id;
             $finalPrice = $product->getFinalPriceForUser($has_orders, $vendorTotal, $variationItemId);
             $product->calculatedFinalPrice = $finalPrice;
+
             return $product;
         });
 
@@ -316,15 +317,15 @@ class CartController extends Controller
         // Only check for existing orders if the feature is enabled
         $has_orders = $firstOrderDiscountEnabled
             ? Order::with('user')
-            ->withCount('products')
-            ->whereBelongsTo($targetUser)
-            ->exists()
+                ->withCount('products')
+                ->whereBelongsTo($targetUser)
+                ->exists()
             : false; // If disabled, treat as if user has no orders (always apply discount)
 
         // Build view-friendly coupon data from the multi-coupon session
         $appliedCoupon = null;
         $appliedCouponsForView = session()->get('applied_coupons', []);
-        if (!empty($appliedCouponsForView) && $couponDiscount > 0) {
+        if (! empty($appliedCouponsForView) && $couponDiscount > 0) {
             // Build legacy-compatible $appliedCoupon for Blade
             $codes = collect($appliedCouponsForView)->pluck('coupon_code')->implode(', ');
             $appliedCoupon = [
@@ -336,7 +337,7 @@ class CartController extends Controller
 
         // Get enabled shipping methods (hide Envío 48h / Coordinadora unless explicitly enabled)
         $shippingMethods = \App\Models\ShippingMethod::getEnabled();
-        if (!Setting::isExpress48hEnabled()) {
+        if (! Setting::isExpress48hEnabled()) {
             $shippingMethods = $shippingMethods->filter(
                 fn ($m) => $m->code !== Order::DELIVERY_METHOD_EXPRESS
             )->values();
@@ -353,27 +354,22 @@ class CartController extends Controller
         return view('pages.cart', $context);
     }
 
-
-
-
-
-
-    #TODO crear plugin de agregar al carrito
+    //TODO crear plugin de agregar al carrito
     public function add(Request $request, Product $product)
     {
         // Check vacation mode (active based on date range)
         $vacationInfo = Setting::getVacationModeInfo();
-        
+
         if ($vacationInfo['active']) {
-            $message = $vacationInfo['message'] ?? "Tuti está de vacaciones. Te esperamos pronto. ¡Gracias!";
-            
+            $message = $vacationInfo['message'] ?? 'Tuti está de vacaciones. Te esperamos pronto. ¡Gracias!';
+
             if ($request->expectsJson() || $request->ajax()) {
                 return response()->json([
                     'success' => false,
-                    'message' => $message
+                    'message' => $message,
                 ], 403);
             }
-            
+
             return redirect()->back()->with('error', $message);
         }
 
@@ -406,20 +402,20 @@ class CartController extends Controller
                 \Log::info('Product blocked due to safety stock', [
                     'product_id' => $product->id,
                     'product_name' => $product->name,
-                    'has_variation' => !is_null($product->variation_id),
+                    'has_variation' => ! is_null($product->variation_id),
                     'variation_id_selected' => $request->variation_id,
                     'available' => $available,
                     'safety' => $safety,
-                    'bodega' => $bodega
+                    'bodega' => $bodega,
                 ]);
-                
+
                 if ($request->expectsJson() || $request->ajax()) {
                     return response()->json([
                         'success' => false,
-                        'message' => 'Este producto no está disponible por debajo del stock de seguridad.'
+                        'message' => 'Este producto no está disponible por debajo del stock de seguridad.',
                     ], 400);
                 }
-                
+
                 return back()->with('error', 'Este producto no está disponible por debajo del stock de seguridad.');
             }
         }
@@ -429,22 +425,21 @@ class CartController extends Controller
 
         $cart = session()->get('cart');
 
-
-        if (!$cart) {
+        if (! $cart) {
             $cart[] = [
-                "product_id" => $product->id,
-                "quantity" => $request->quantity,
-                "variation_id" => $request->variation_id,
+                'product_id' => $product->id,
+                'quantity' => $request->quantity,
+                'variation_id' => $request->variation_id,
             ];
             session()->put('cart', $cart);
-            
+
             if ($request->expectsJson() || $request->ajax()) {
                 return response()->json([
                     'success' => true,
-                    'message' => 'Producto agregado al carrito exitosamente!'
+                    'message' => 'Producto agregado al carrito exitosamente!',
                 ]);
             }
-            
+
             return redirect()->back()
                 ->with('success', 'Producto agregado al carrito exitosamente!')
                 ->with('cart_updated', true);
@@ -453,7 +448,7 @@ class CartController extends Controller
         $found_index = null;
 
         foreach ($cart as $index => $row) {
-            if ($row["product_id"] == $product_id && $row["variation_id"] == $variation_id) {
+            if ($row['product_id'] == $product_id && $row['variation_id'] == $variation_id) {
                 $found_index = $index;
                 break;
             }
@@ -461,49 +456,44 @@ class CartController extends Controller
 
         if ($found_index === null) {
             $cart[] = [
-                "product_id" => $product_id,
-                "quantity" => $request->quantity,
-                "variation_id" => $request->variation_id,
+                'product_id' => $product_id,
+                'quantity' => $request->quantity,
+                'variation_id' => $request->variation_id,
             ];
             session()->put('cart', $cart);
-            
+
             if ($request->expectsJson() || $request->ajax()) {
                 return response()->json([
                     'success' => true,
-                    'message' => 'Producto agregado al carrito exitosamente!'
+                    'message' => 'Producto agregado al carrito exitosamente!',
                 ]);
             }
-            
+
             return redirect()->back()
                 ->with('success', 'Producto agregado al carrito exitosamente!')
                 ->with('cart_updated', true);
         }
 
-
         $cart[$found_index]['quantity'] = $request->quantity;
 
-
         session()->put('cart', $cart);
-        
+
         if ($request->expectsJson() || $request->ajax()) {
             return response()->json([
                 'success' => true,
-                'message' => 'Producto agregado al carrito exitosamente!'
+                'message' => 'Producto agregado al carrito exitosamente!',
             ]);
         }
-        
+
         return redirect()->back()
             ->with('success', 'Producto agregado al carrito exitosamente!')
             ->with('cart_updated', true);
     }
 
-
     public function remove(Request $request, $key)
     {
 
-
         $cart = session()->get('cart');
-
 
         if (isset($cart[$key])) {
             unset($cart[$key]);
@@ -512,56 +502,54 @@ class CartController extends Controller
             session()->put('cart', $cart);
         }
 
-
         return redirect()->back()
             ->with('success', 'Producto eliminado del carrito exitosamente!')
             ->with('cart_updated', true);
     }
-
 
     public function update(Request $request)
     {
         $cart = session()->get('cart', []);
         $couponRemoved = false;
         $couponRemovedMessage = null;
-        
+
         // Handle single item AJAX update
         if ($request->expectsJson() || $request->ajax()) {
             $cartKey = (int) $request->input('cart_key');
             $quantity = (int) $request->input('quantity');
-            
-            if (!isset($cart[$cartKey])) {
+
+            if (! isset($cart[$cartKey])) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Item not found in cart',
                     'debug' => [
                         'cart_key' => $cartKey,
                         'cart_keys' => array_keys($cart),
-                    ]
+                    ],
                 ], 404);
             }
-            
+
             if ($quantity < 1) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'La cantidad debe ser al menos 1'
+                    'message' => 'La cantidad debe ser al menos 1',
                 ], 400);
             }
-            
+
             // Get the product to check step
             $product = Product::find($cart[$cartKey]['product_id']);
             if ($product && $product->step > 1) {
                 // Round to nearest step
                 $quantity = max($product->step, round($quantity / $product->step) * $product->step);
             }
-            
+
             $cart[$cartKey]['quantity'] = $quantity;
             session()->put('cart', $cart);
 
             // Revalidate applied coupon after quantity changes
             // Revalidate applied coupons after quantity change
             $validCoupons = $this->loadValidCouponsFromSession();
-            if (!empty($validCoupons)) {
+            if (! empty($validCoupons)) {
                 $user = auth()->user();
                 $targetUser = $user;
                 if ($user && $user->hasRole('seller')) {
@@ -584,39 +572,39 @@ class CartController extends Controller
                     );
 
                     $totalCouponDiscount = (float) ($couponResult['total_coupon_discount'] ?? 0);
-                    if (!$couponResult['success'] || $totalCouponDiscount <= 0) {
+                    if (! $couponResult['success'] || $totalCouponDiscount <= 0) {
                         $this->clearAllCouponSessions();
                         $couponRemoved = true;
-                        $couponRemovedMessage = "Los cupones ya no aplican a tu carrito y fueron removidos.";
+                        $couponRemovedMessage = 'Los cupones ya no aplican a tu carrito y fueron removidos.';
                     }
                 }
             }
-            
+
             // Calculate new totals
             $subtotal = 0;
             $discount = 0;
-            
+
             foreach ($cart as $item) {
                 $prod = Product::find($item['product_id']);
                 if ($prod) {
                     $itemSubtotal = $prod->price * $item['quantity'];
                     $subtotal += $itemSubtotal;
-                    
+
                     // Calculate discount if applicable
                     if ($prod->discount_percentage > 0) {
                         $discount += $itemSubtotal * ($prod->discount_percentage / 100);
                     }
                 }
             }
-            
+
             // Check for coupon discount from session
             $couponDiscount = 0;
-            if (!$couponRemoved) {
+            if (! $couponRemoved) {
                 $couponDiscount = (float) session()->get('total_coupon_discount', 0);
             }
-            
+
             $total = $subtotal - $discount - $couponDiscount;
-            
+
             return response()->json([
                 'success' => true,
                 'message' => 'Cantidad actualizada',
@@ -641,26 +629,27 @@ class CartController extends Controller
         if ($couponRemoved) {
             session()->flash('coupon_removed_message', $couponRemovedMessage ?? 'El cupón fue removido del carrito.');
         }
+
         return redirect()->back()
             ->with('success', 'Carrito actualizado exitosamente!')
             ->with('cart_updated', true);
     }
 
-
     public function processOrder(Request $request)
     {
         // Check vacation mode (active based on date range)
         $vacationInfo = Setting::getVacationModeInfo();
-        
+
         if ($vacationInfo['active']) {
-            $message = $vacationInfo['message'] ?? "Tuti está de vacaciones. Te esperamos pronto. ¡Gracias!";
+            $message = $vacationInfo['message'] ?? 'Tuti está de vacaciones. Te esperamos pronto. ¡Gracias!';
+
             return redirect()->route('cart')->with('error', $message);
         }
 
         //   dd($request->all());
         $cart = session()->get('cart');
 
-        if (!$cart || empty($cart)) {
+        if (! $cart || empty($cart)) {
             return redirect()->route('home')->with('error', 'El carrito está vacío');
         }
 
@@ -669,6 +658,7 @@ class CartController extends Controller
 
         if (empty($cart)) {
             session()->forget('cart');
+
             return redirect()->route('home')->with('error', 'Tu carrito contenía productos inválidos y ha sido limpiado.');
         }
 
@@ -718,6 +708,13 @@ class CartController extends Controller
         $rawSucursalCode = $request->input('sucursal_code');
         $trimmedSucursalCode = is_string($rawSucursalCode) ? trim($rawSucursalCode) : '';
         $trimmedSucursalCode = $trimmedSucursalCode !== '' ? $trimmedSucursalCode : null;
+        $zoneFingerprint = [
+            'code' => $trimmedSucursalCode,
+            'route' => $this->normalizeCheckoutZoneText($request->input('sucursal_route')),
+            'zone' => $this->normalizeCheckoutZoneText($request->input('sucursal_zone')),
+            'day' => $this->normalizeCheckoutZoneText($request->input('sucursal_day')),
+            'address' => $this->normalizeCheckoutZoneText($request->input('sucursal_address')),
+        ];
 
         $actingUser->load('zones');
 
@@ -725,26 +722,47 @@ class CartController extends Controller
         $zoneId = null;
 
         if ($requestedZoneId !== null) {
-            $zone = Zone::where('id', $requestedZoneId)
+            $candidate = Zone::where('id', $requestedZoneId)
                 ->where('user_id', $actingUser->id)
                 ->first();
+            if ($candidate && $this->zoneMatchesCheckoutFingerprint($candidate, $zoneFingerprint)) {
+                $zone = $candidate;
+            }
         }
 
-        if (!$zone && $trimmedSucursalCode !== null) {
+        if (! $zone && $trimmedSucursalCode !== null) {
             $candidates = Zone::where('user_id', $actingUser->id)
                 ->where('code', $trimmedSucursalCode)
                 ->orderBy('id')
                 ->get();
 
-            if ($candidates->count() > 1) {
-                \Log::warning('Multiple zones share the same sucursal code for user; using lowest id', [
+            if ($candidates->count() === 1) {
+                $zone = $candidates->first();
+            } elseif ($candidates->count() > 1) {
+                $fingerprintMatches = $candidates->filter(function ($candidate) use ($zoneFingerprint) {
+                    return $this->zoneMatchesCheckoutFingerprint($candidate, $zoneFingerprint);
+                });
+
+                if ($fingerprintMatches->count() === 1) {
+                    $zone = $fingerprintMatches->first();
+                }
+
+                \Log::warning('Multiple zones share the same sucursal code for user; fingerprint required to disambiguate', [
                     'acting_user_id' => $actingUser->id,
                     'code' => $trimmedSucursalCode,
                     'zone_ids' => $candidates->pluck('id')->all(),
+                    'fingerprint_matches' => $fingerprintMatches->pluck('id')->all(),
                 ]);
             }
+        }
 
-            $zone = $candidates->first();
+        if (! $zone && $this->hasCheckoutZoneFingerprint($zoneFingerprint)) {
+            $fingerprintMatches = $actingUser->zones->filter(function ($candidate) use ($zoneFingerprint) {
+                return $this->zoneMatchesCheckoutFingerprint($candidate, $zoneFingerprint);
+            });
+            if ($fingerprintMatches->count() === 1) {
+                $zone = $fingerprintMatches->first();
+            }
         }
 
         if ($zone) {
@@ -765,13 +783,14 @@ class CartController extends Controller
                 'available_zone_ids' => $actingUser->zones->pluck('id')->all(),
                 'available_zone_codes' => $actingUser->zones->pluck('code')->all(),
             ]);
+
             return back()->with(
                 'error',
                 'La dirección seleccionada ya no coincide con tus datos actualizados. Recarga la página del carrito y vuelve a elegir la sucursal. Si tienes varias sucursales y esto se repite, contacta a soporte (puede faltar el código de sucursal en tus datos).'
             );
         }
 
-        if (!$zone || $zoneId === null) {
+        if (! $zone || $zoneId === null) {
             return back()->with(
                 'error',
                 'No hay dirección de entrega disponible. Actualiza tus datos de rutero e intenta de nuevo.'
@@ -781,11 +800,11 @@ class CartController extends Controller
         // Inventory validation based on zone/bodega
         $inventoryEnabled = Setting::getByKey('inventory_enabled');
         $isInventoryEnabled = ($inventoryEnabled === '1' || $inventoryEnabled === 1 || $inventoryEnabled === true);
-        
+
         // Bodega mapping uses logistics zone number (zones.zone, e.g. "933"), not CustRuteroID (zones.code).
         // zones.code is the stable key for checkout sucursal selection after rutero sync.
         $zoneCode = $zone?->zone ?? null;
-        
+
         \Log::info('Zone determination after rutero sync', [
             'user_id' => $actingUser->id,
             'zone_id' => $zoneId,
@@ -796,14 +815,14 @@ class CartController extends Controller
                 'zone' => $zone->zone,
                 'route' => $zone->route,
             ] : null,
-            'all_zones' => $actingUser->zones->map(function($z) {
+            'all_zones' => $actingUser->zones->map(function ($z) {
                 return ['id' => $z->id, 'code' => $z->code, 'zone' => $z->zone];
             })->toArray(),
         ]);
-        
+
         $bodega = $isInventoryEnabled ? ZoneWarehouse::getBodegaForZone($zoneCode) : null;
-        
-        if ($isInventoryEnabled && !$bodega) {
+
+        if ($isInventoryEnabled && ! $bodega) {
             \Log::warning('Bodega determination failed for selected zone', [
                 'user_id' => $user->id,
                 'acting_user_id' => $actingUser->id,
@@ -848,7 +867,7 @@ class CartController extends Controller
 
         // Get delivery method from request, default to 'tronex'
         $delivery_method = $request->input('delivery_method', 'tronex');
-        if ($delivery_method === Order::DELIVERY_METHOD_EXPRESS && !Setting::isExpress48hEnabled()) {
+        if ($delivery_method === Order::DELIVERY_METHOD_EXPRESS && ! Setting::isExpress48hEnabled()) {
             Log::info('Express 48h / Coordinadora requested while disabled; using Tronex', [
                 'user_id' => $user_id,
                 'zone_id' => $zone?->id,
@@ -877,30 +896,30 @@ class CartController extends Controller
 
         // Calculate delivery date based on selected method and zone
         $delivery_date = OrderRepository::getDeliveryDateByMethod($delivery_method, $zone);
-        
+
         // For Tronex orders, check if order should be delayed
         $scheduledTransmissionDate = null;
         $orderStatus = Order::STATUS_PENDING;
         $sellerVisitDate = null;
-        
+
         // Check if force delivery date is enabled (emergency override - bypasses waiting)
         $forceDeliveryDate = \App\Models\Setting::getByKey('force_delivery_date_enabled') == '1';
-        
+
         // Get seller visit date for Tronex orders (for logging and delay calculation)
         if ($delivery_method === Order::DELIVERY_METHOD_TRONEX && $zone) {
             $sellerVisitDate = OrderRepository::getTronexSellerVisitDate($zone);
         }
-        
+
         // Only set waiting status if force delivery is NOT active
-        if ($delivery_method === Order::DELIVERY_METHOD_TRONEX && $zone && !$forceDeliveryDate && $sellerVisitDate) {
+        if ($delivery_method === Order::DELIVERY_METHOD_TRONEX && $zone && ! $forceDeliveryDate && $sellerVisitDate) {
             $today = now();
             $isTodaySellerVisitDay = $today->format('Y-m-d') === $sellerVisitDate->format('Y-m-d');
-            
-            if (!$isTodaySellerVisitDay) {
+
+            if (! $isTodaySellerVisitDay) {
                 // Order should be delayed until seller visit day
                 $orderStatus = Order::STATUS_WAITING;
                 $scheduledTransmissionDate = $sellerVisitDate->format('Y-m-d');
-                
+
                 Log::info('Order will be delayed until seller visit day', [
                     'seller_visit_date' => $scheduledTransmissionDate,
                     'today' => $today->format('Y-m-d'),
@@ -909,7 +928,7 @@ class CartController extends Controller
                 ]);
             }
         }
-        
+
         // Log if force delivery date bypassed the waiting status
         if ($forceDeliveryDate && $delivery_method === Order::DELIVERY_METHOD_TRONEX) {
             Log::warning('Force Delivery Date ACTIVE - Order will be processed immediately instead of waiting', [
@@ -926,11 +945,11 @@ class CartController extends Controller
         if ($isInventoryEnabled) {
             foreach ($cart as $cartItem) {
                 $product = Product::find($cartItem['product_id']);
-                if (!$product) {
+                if (! $product) {
                     return back()->with('error', 'Producto no encontrado en el carrito.');
                 }
                 // Skip checks if product opted out
-                if (!$product->isInventoryManaged()) {
+                if (! $product->isInventoryManaged()) {
                     continue;
                 }
                 // Always check inventory at the parent product level (not at variation level)
@@ -939,10 +958,10 @@ class CartController extends Controller
                 $available = (int) ($inventory?->available ?? 0);
                 $reserved = (int) ($inventory?->reserved ?? 0);
                 $safety = (int) $product->getEffectiveSafetyStock();
-                
+
                 // Get global minimum inventory setting (default 5 if not configured)
                 $globalMinInventory = (int) (\App\Models\Setting::getByKey('global_minimum_inventory') ?? 5);
-                
+
                 // Use product safety stock if configured (> 0), otherwise use global minimum
                 // This gives precedence to product-level settings while maintaining a global safety net
                 $effectiveMinimum = ($safety > 0) ? $safety : $globalMinInventory;
@@ -952,20 +971,20 @@ class CartController extends Controller
                     \Log::warning('Order blocked: below minimum threshold', [
                         'product_id' => $product->id,
                         'product_name' => $product->name,
-                        'has_variation' => !is_null($product->variation_id),
+                        'has_variation' => ! is_null($product->variation_id),
                         'variation_item_selected' => $cartItem['variation_id'] ?? null,
                         'available' => $available,
                         'product_safety_stock' => $safety,
                         'global_minimum' => $globalMinInventory,
                         'effective_minimum' => $effectiveMinimum,
                         'reason' => $reason,
-                        'bodega' => $bodega
+                        'bodega' => $bodega,
                     ]);
-                    
-                    $errorMsg = ($safety > 0) 
+
+                    $errorMsg = ($safety > 0)
                         ? "{$product->name} está por debajo del stock de seguridad."
                         : "El producto {$product->name} tiene inventario insuficiente en su zona (mínimo: {$globalMinInventory} unidades).";
-                    
+
                     return back()->with('error', $errorMsg);
                 }
                 // Check against available (disponible) only - it already accounts for reservations!
@@ -978,8 +997,9 @@ class CartController extends Controller
                         'requested' => $cartItem['quantity'],
                         'disponible' => $available,
                         'reservado' => $reserved,
-                        'bodega' => $bodega
+                        'bodega' => $bodega,
                     ]);
+
                     return back()->with('error', "La cantidad solicitada de {$product->name} excede el inventario disponible en su zona.");
                 }
             }
@@ -1014,7 +1034,7 @@ class CartController extends Controller
                 $variationId = $cartItem['variation_id'] ?? null;
 
                 if (
-                    !isset($orderProducts[$productId]) ||
+                    ! isset($orderProducts[$productId]) ||
                     $orderProducts[$productId]->quantity != $quantity ||
                     $orderProducts[$productId]->variation_item_id != $variationId
                 ) {
@@ -1049,7 +1069,7 @@ class CartController extends Controller
         $validCoupons = $this->loadValidCouponsFromSession();
         $winningCoupons = []; // coupon_id => coupon_code for coupons that actually applied
 
-        if (!empty($validCoupons)) {
+        if (! empty($validCoupons)) {
             // Re-validate usage limits for ALL coupons before processing
             $orderUser = User::find($user_id);
             $couponsToApply = [];
@@ -1057,12 +1077,13 @@ class CartController extends Controller
             foreach ($validCoupons as $coupon) {
                 $coupon->refresh(); // Force reload from database
 
-                if (!$coupon->isValid()) {
+                if (! $coupon->isValid()) {
                     \Log::warning('Coupon no longer valid during order processing', [
                         'coupon_id' => $coupon->id,
                         'coupon_code' => $coupon->code,
                         'user_id' => $user_id,
                     ]);
+
                     continue;
                 }
 
@@ -1073,13 +1094,14 @@ class CartController extends Controller
                         'user_id' => $user_id,
                     ]);
                     $this->clearAllCouponSessions();
+
                     return back()->with('error', "El cupón '{$coupon->code}' ha alcanzado el límite de uso permitido para tu cuenta. Por favor remuévelo del carrito e intenta nuevamente.");
                 }
 
                 $couponsToApply[] = $coupon;
             }
 
-            if (!empty($couponsToApply)) {
+            if (! empty($couponsToApply)) {
                 $couponDiscountService = app(\App\Services\CouponDiscountService::class);
                 $couponResult = $couponDiscountService->applyMultipleCouponsToProducts(
                     $couponsToApply,
@@ -1114,36 +1136,36 @@ class CartController extends Controller
         // Rule: If ANY product qualifies for a bonification with allow_discounts=false, block ALL discounts
         $bonificationsBlockDiscounts = false;
         $productQuantitiesForBonificationCheck = [];
-        
+
         // First, aggregate quantities by product_id (same as bonification logic)
         foreach ($cart as $row) {
             $productId = $row['product_id'];
             $tempProduct = Product::find($productId);
             if ($tempProduct) {
-                if (!isset($productQuantitiesForBonificationCheck[$productId])) {
+                if (! isset($productQuantitiesForBonificationCheck[$productId])) {
                     $productQuantitiesForBonificationCheck[$productId] = 0;
                 }
                 $packageQuantity = $tempProduct->package_quantity ?? 1;
                 $productQuantitiesForBonificationCheck[$productId] += $row['quantity'] * $packageQuantity;
             }
         }
-        
+
         // Check each product for bonifications that block discounts
         foreach ($cart as $row) {
             $productId = $row['product_id'];
             $product = Product::with('bonifications')->find($productId);
-            
+
             if ($product && $product->bonifications->count() > 0) {
                 $aggregatedIndividualItems = $productQuantitiesForBonificationCheck[$productId] ?? 0;
-                
+
                 foreach ($product->bonifications as $bonification) {
                     // Check if customer qualifies for this bonification
                     $bonification_quantity = floor($aggregatedIndividualItems / $bonification->buy * $bonification->get);
-                    
+
                     if ($bonification_quantity > 0) {
                         // Customer qualifies for this bonification
                         // If this bonification blocks discounts, set flag
-                        if (!$bonification->allow_discounts) {
+                        if (! $bonification->allow_discounts) {
                             $bonificationsBlockDiscounts = true;
                             break 2; // Break out of both loops
                         }
@@ -1151,7 +1173,7 @@ class CartController extends Controller
                 }
             }
         }
-        
+
         // If bonifications block discounts, clear all discount-related data
         if ($bonificationsBlockDiscounts) {
             // Clear coupon discount
@@ -1162,7 +1184,7 @@ class CartController extends Controller
             $this->clearAllCouponSessions();
             Log::info('Bonifications block discounts - clearing all discounts', [
                 'user_id' => $user_id,
-                'cart_items' => count($cart)
+                'cart_items' => count($cart),
             ]);
         }
 
@@ -1174,7 +1196,7 @@ class CartController extends Controller
             // Determine coupon data for order storage
             $orderCouponId = null;
             $orderCouponCode = null;
-            if (!empty($winningCoupons)) {
+            if (! empty($winningCoupons)) {
                 $winningIds = array_keys($winningCoupons);
                 $orderCouponId = $winningIds[0]; // FK points to primary winning coupon
                 $orderCouponCode = implode(',', array_values($winningCoupons)); // All winning codes
@@ -1202,7 +1224,7 @@ class CartController extends Controller
             $modifiedProductsLookup = [];
             if ($couponResult && $couponResult['success']) {
                 foreach ($couponResult['modified_products'] as $modProduct) {
-                    $key = $modProduct['product_id'] . '_' . ($modProduct['variation_id'] ?? 'null');
+                    $key = $modProduct['product_id'].'_'.($modProduct['variation_id'] ?? 'null');
                     $modifiedProductsLookup[$key] = $modProduct;
                 }
             }
@@ -1217,7 +1239,7 @@ class CartController extends Controller
                     $vendorId = $tempProduct->brand->vendor->id;
 
                     // Calculate price for this product
-                    $lookupKey = $row['product_id'] . '_' . ($row['variation_id'] ?? 'null');
+                    $lookupKey = $row['product_id'].'_'.($row['variation_id'] ?? 'null');
                     if (isset($modifiedProductsLookup[$lookupKey])) {
                         $productPrice = $modifiedProductsLookup[$lookupKey]['new_unit_price'];
                     } else {
@@ -1229,7 +1251,7 @@ class CartController extends Controller
 
                     $productTotal = $productPrice * $row['quantity'];
 
-                    if (!isset($vendorTotals[$vendorId])) {
+                    if (! isset($vendorTotals[$vendorId])) {
                         $vendorTotals[$vendorId] = 0;
                     }
                     $vendorTotals[$vendorId] += $productTotal;
@@ -1244,10 +1266,10 @@ class CartController extends Controller
                 $productId = $row['product_id'];
                 $tempProduct = Product::find($productId);
                 if ($tempProduct) {
-                    if (!isset($productQuantities[$productId])) {
+                    if (! isset($productQuantities[$productId])) {
                         $productQuantities[$productId] = 0;
                     }
-                    
+
                     // Aggregate quantities across all variations of the same product
                     // If same product appears multiple times with different variation_id, they all count together
                     $packageQuantity = $tempProduct->package_quantity ?? 1;
@@ -1256,36 +1278,39 @@ class CartController extends Controller
                 // Note: If product not found, it will be caught in the main loop below
             }
 
+            $lastCartKeyByProductId = BonificationCheckoutService::lastCartKeyByProductId($cart);
+
             $retentionBaseArticulos = 0.0;
             $retentionIvaArticulos = 0.0;
 
             foreach ($cart as $key => $row) {
                 $id = $row['product_id'];
                 $p = Product::with('brand.vendor', 'bonifications', 'tax')->find($id);
-                
+
                 // Skip if product not found (might have been deleted)
-                if (!$p) {
+                if (! $p) {
                     Log::warning('Product not found during order processing', [
                         'product_id' => $id,
                         'order_id' => $order->id ?? null,
                         'user_id' => $user_id ?? null,
                     ]);
                     DB::rollBack();
+
                     return back()->with('error', 'Uno de los productos en tu carrito ya no está disponible.');
                 }
-                
-                $lookupKey = $id . '_' . ($row['variation_id'] ?? 'null');
+
+                $lookupKey = $id.'_'.($row['variation_id'] ?? 'null');
 
                 // If bonifications block discounts, skip all discount logic
                 $orderDiscountType = 'percentage'; // Default
                 $flatDiscountAmount = 0;
-                
+
                 if ($bonificationsBlockDiscounts) {
                     // No discounts allowed - use base price only
                     // Price storage depends on calculate_package_price flag
                     $variation = $p->items->where('id', $row['variation_id'])->first();
                     $basePrice = $variation ? $variation->pivot->price : $p->price;
-                    
+
                     if ($p->calculate_package_price) {
                         // Store package price
                         $unitPrice = $basePrice * ($p->package_quantity ?? 1);
@@ -1338,7 +1363,7 @@ class CartController extends Controller
                     $lineDiscountPercent = (int) ($lineFinal['discount'] ?? 0);
                     // Clamp discount percentage to valid range
                     $lineDiscountPercent = max(0, min(100, $lineDiscountPercent));
-                    
+
                     // Price storage logic depends on calculate_package_price flag:
                     // - If TRUE: Store originalPrice (base * package_qty), SOAP will divide later
                     // - If FALSE: Store base price only, SOAP will NOT divide
@@ -1349,7 +1374,7 @@ class CartController extends Controller
                         // Store per-unit price: will be used as-is in SOAP
                         $unitPrice = $p->price ?? 0;
                     }
-                    
+
                     // Get variation price if applicable
                     if (isset($row['variation_id']) && $row['variation_id']) {
                         $variation = $p->items->where('id', $row['variation_id'])->first();
@@ -1387,22 +1412,22 @@ class CartController extends Controller
                     $current = (int) ($inventory?->available ?? 0);
                     $reserved = (int) ($inventory?->reserved ?? 0);
                     $safety = (int) $p->getEffectiveSafetyStock();
-                    
+
                     // Get global minimum inventory setting (default 5 if not configured)
                     $globalMinInventory = (int) (\App\Models\Setting::getByKey('global_minimum_inventory') ?? 5);
-                    
+
                     // Use product safety stock if configured (> 0), otherwise use global minimum
                     $effectiveMinimum = ($safety > 0) ? $safety : $globalMinInventory;
 
                     // Check against current (disponible) only - it already accounts for reservations!
                     // disponible = físico - reservado (calculated in DB)
                     // Ensure after decrement, available won't go below the effective minimum
-                    if ($current <= $effectiveMinimum || ($current - (int)$row['quantity']) < $effectiveMinimum || $row['quantity'] > $current) {
+                    if ($current <= $effectiveMinimum || ($current - (int) $row['quantity']) < $effectiveMinimum || $row['quantity'] > $current) {
                         $reason = ($safety > 0) ? 'product safety stock' : 'global minimum inventory';
                         \Log::error('Order rollback: inventory insufficient during final check', [
                             'product_id' => $p->id,
                             'product_name' => $p->name,
-                            'has_variation' => !is_null($p->variation_id),
+                            'has_variation' => ! is_null($p->variation_id),
                             'variation_item_selected' => $row['variation_id'] ?? null,
                             'requested' => $row['quantity'],
                             'disponible' => $current,
@@ -1411,9 +1436,10 @@ class CartController extends Controller
                             'global_minimum' => $globalMinInventory,
                             'effective_minimum' => $effectiveMinimum,
                             'reason' => $reason,
-                            'bodega' => $bodega
+                            'bodega' => $bodega,
                         ]);
                         DB::rollBack();
+
                         return back()->with('error', "Inventario insuficiente para {$p->name} en su zona.");
                     }
                     if ($inventory) {
@@ -1423,7 +1449,7 @@ class CartController extends Controller
                         \Log::warning('Creating new inventory record during order', [
                             'product_id' => $p->id,
                             'bodega' => $bodega,
-                            'quantity_ordered' => $row['quantity']
+                            'quantity_ordered' => $row['quantity'],
                         ]);
                         ProductInventory::create([
                             'product_id' => $p->id,
@@ -1435,96 +1461,130 @@ class CartController extends Controller
                     }
                 }
 
-                // Process ALL bonifications that apply to this product
-                // IMPORTANT: For products with variations, bonifications are checked at the product level
-                // and quantities are aggregated across all variations (same product_id, different variation_id)
-                // This ensures that buying 5 Small + 5 Large counts as 10 total for bonification purposes
-                
-                // Get bonifications for this product (product_id in cart is always the parent when variations are involved)
+                // Process ALL bonifications that apply to this product (only on the last cart
+                // line for this product_id so all paid lines and inventory for that product are
+                // committed before the gift is calculated and the aggregate matches stock).
+                // IMPORTANT: For products with variations, bonifications are checked at the
+                // product level and quantities are aggregated across all variation lines.
                 $bonificationsToCheck = $p->bonifications;
-                
-                // Process bonifications using aggregated quantities from all variations of this product
-                foreach ($bonificationsToCheck as $bonification) {
-                    // Use aggregated quantity from all cart items with this product_id
-                    // This ensures variations count together for bonifications
-                    $aggregatedIndividualItems = $productQuantities[$id] ?? ($row['quantity'] * ($p->package_quantity ?? 1));
-                    
-                    // Calculate bonification based on aggregated individual items
-                    // Example: If customer buys 5 Small + 5 Large (variations) of a product with package_quantity=6
-                    // Total = (5+5) * 6 = 60 individual items
-                    // If bonification is "buy 10 get 1 free", they get floor(60/10) * 1 = 6 free items
-                    $bonification_quantity = floor($aggregatedIndividualItems / $bonification->buy * $bonification->get);
+                if ($bonificationsToCheck->isNotEmpty() && ($lastCartKeyByProductId[$id] ?? $key) === $key) {
+                    $plannedBonifications = [];
+                    $giftProductStockPlan = []; // gift_product_id => ['product', 'inventory', 'requested_total']
 
-                    // Skip this bonification if the customer doesn't qualify (quantity = 0)
-                    if ($bonification_quantity <= 0) {
-                        continue;
-                    }
-
-                    // Apply maximum limit
-                    if ($bonification_quantity > $bonification->max) {
-                        $bonification_quantity = $bonification->max;
-                    }
-
-                    // Only create one bonification row per (order, bonification, trigger product):
-                    // variations of the same parent product share one aggregated quantity, so skip on later cart lines.
-                    // Do NOT dedupe by gift product_id — different purchased lines can earn the same gift separately.
-                    $existingBonification = OrderProductBonification::where('order_id', $order->id)
-                        ->where('bonification_id', $bonification->id)
-                        ->whereHas('orderProduct', function ($q) use ($id) {
-                            $q->where('product_id', $id);
-                        })
-                        ->first();
-                    
-                    if (!$existingBonification) {
-                        // Create bonification record linked to the first order product of this product
-                        // Find the first order product for this product_id
-                        $firstOrderProductForProduct = OrderProduct::where('order_id', $order->id)
-                            ->where('product_id', $id)
-                            ->first();
-                        
-                        // Use the first order product found, or current one if none found yet
-                        $bonificationOrderProductId = $firstOrderProductForProduct ? $firstOrderProductForProduct->id : $orderProduct->id;
-                        
-                        // Determine variation_item_id for the bonification product
-                        // If the bonification product exists in the parent order, use the same variation
-                        // Otherwise, use the first variation for the variable product
-                        $variationItemId = null;
-                        $bonificationProduct = \App\Models\Product::find($bonification->product_id);
-                        
-                        if ($bonificationProduct && $bonificationProduct->variation_id) {
-                            // Check if this product exists in the parent order
-                            $existingOrderProduct = OrderProduct::where('order_id', $order->id)
-                                ->where('product_id', $bonification->product_id)
-                                ->whereNotNull('variation_item_id')
-                                ->first();
-                            
-                            if ($existingOrderProduct) {
-                                // Use the same variation from the parent order
-                                $variationItemId = $existingOrderProduct->variation_item_id;
-                            } else {
-                                // Get the first variation item for this product
-                                $firstVariationItem = $bonificationProduct->items()
-                                    ->wherePivot('enabled', true)
-                                    ->orderBy('id')
-                                    ->first();
-                                
-                                if ($firstVariationItem) {
-                                    $variationItemId = $firstVariationItem->id;
-                                }
-                            }
+                    foreach ($bonificationsToCheck as $bonification) {
+                        $aggregatedIndividualItems = $productQuantities[$id] ?? ($row['quantity'] * ($p->package_quantity ?? 1));
+                        $bonification_quantity = (int) floor($aggregatedIndividualItems / $bonification->buy * $bonification->get);
+                        if ($bonification_quantity <= 0) {
+                            continue;
                         }
-                        
-                        OrderProductBonification::create([
-                            'bonification_id' => $bonification->id,
-                            'order_product_id' => $bonificationOrderProductId,
-                            'product_id' => $bonification->product_id,
-                            'variation_item_id' => $variationItemId,
+                        if ($bonification_quantity > $bonification->max) {
+                            $bonification_quantity = (int) $bonification->max;
+                        }
+
+                        $bonificationProduct = Product::with(['items', 'categories'])->find($bonification->product_id);
+                        if (! $bonificationProduct) {
+                            Log::warning('Bonification gift product missing at checkout', [
+                                'bonification_id' => $bonification->id,
+                                'product_id' => $bonification->product_id,
+                                'order_id' => $order->id,
+                            ]);
+
+                            continue;
+                        }
+
+                        $giftProductId = (int) $bonificationProduct->id;
+                        $plannedBonifications[] = [
+                            'bonification' => $bonification,
+                            'gift_product' => $bonificationProduct,
                             'quantity' => $bonification_quantity,
+                        ];
+
+                        if (! isset($giftProductStockPlan[$giftProductId])) {
+                            $inventoryRow = null;
+                            if ($isInventoryEnabled && $bodega && $bonificationProduct->isInventoryManaged()) {
+                                $inventoryRow = ProductInventory::lockForUpdate()
+                                    ->where('product_id', $giftProductId)
+                                    ->where('bodega_code', $bodega)
+                                    ->first();
+                            }
+                            $giftProductStockPlan[$giftProductId] = [
+                                'product' => $bonificationProduct,
+                                'inventory' => $inventoryRow,
+                                'requested_total' => 0,
+                            ];
+                        }
+                        $giftProductStockPlan[$giftProductId]['requested_total'] += $bonification_quantity;
+                    }
+
+                    $blockedGiftProductIds = [];
+                    foreach ($giftProductStockPlan as $giftProductId => $stockPlan) {
+                        $giftProduct = $stockPlan['product'];
+                        $requestedTotal = (int) $stockPlan['requested_total'];
+                        if (! $isInventoryEnabled || ! $bodega || ! $giftProduct->isInventoryManaged()) {
+                            continue;
+                        }
+
+                        $disponible = (int) ($stockPlan['inventory']?->available ?? 0);
+                        $hasEnoughForAll = BonificationCheckoutService::hasEnoughStockForRequestedUnits(
+                            $disponible,
+                            $giftProduct,
+                            $requestedTotal
+                        );
+                        if (! $hasEnoughForAll) {
+                            $blockedGiftProductIds[$giftProductId] = true;
+                            Log::warning('Skipping bonifications: insufficient stock for all gift items involved', [
+                                'order_id' => $order->id,
+                                'trigger_product_id' => $id,
+                                'gift_product_id' => $giftProductId,
+                                'requested_total' => $requestedTotal,
+                                'available' => $disponible,
+                                'bodega' => $bodega,
+                            ]);
+                        }
+                    }
+
+                    $firstOrderProductForProduct = OrderProduct::query()
+                        ->where('order_id', $order->id)
+                        ->where('product_id', $id)
+                        ->first();
+                    $bonificationOrderProductId = $firstOrderProductForProduct?->id ?? $orderProduct->id;
+
+                    $consumedByGiftProduct = [];
+                    foreach ($plannedBonifications as $planned) {
+                        $giftProduct = $planned['gift_product'];
+                        $giftProductId = (int) $giftProduct->id;
+                        if (isset($blockedGiftProductIds[$giftProductId])) {
+                            continue;
+                        }
+
+                        $variationItemId = BonificationCheckoutService::resolveGiftVariationItemId(
+                            $giftProduct,
+                            (int) $order->id
+                        );
+
+                        OrderProductBonification::create([
+                            'bonification_id' => $planned['bonification']->id,
+                            'order_product_id' => $bonificationOrderProductId,
+                            'product_id' => $giftProductId,
+                            'variation_item_id' => $variationItemId,
+                            'quantity' => (int) $planned['quantity'],
                             'order_id' => $order->id,
                         ]);
+
+                        if (! isset($consumedByGiftProduct[$giftProductId])) {
+                            $consumedByGiftProduct[$giftProductId] = 0;
+                        }
+                        $consumedByGiftProduct[$giftProductId] += (int) $planned['quantity'];
+                    }
+
+                    foreach ($consumedByGiftProduct as $giftProductId => $qtyToConsume) {
+                        $stockPlan = $giftProductStockPlan[$giftProductId] ?? null;
+                        $inventoryRow = $stockPlan['inventory'] ?? null;
+                        if ($inventoryRow && $qtyToConsume > 0) {
+                            $inventoryRow->update(['available' => (int) $inventoryRow->available - $qtyToConsume]);
+                        }
                     }
                 }
-
 
                 // Calculate line totals based on whether coupon modified the product
                 if (isset($modifiedProductsLookup[$lookupKey])) {
@@ -1575,7 +1635,7 @@ class CartController extends Controller
 
                 foreach ($cart as $key => $row) {
                     $p = Product::with('tax', 'items', 'brand.vendor', 'bonifications')->find($row['product_id']);
-                    $lookupKey = $row['product_id'] . '_' . ($row['variation_id'] ?? 'null');
+                    $lookupKey = $row['product_id'].'_'.($row['variation_id'] ?? 'null');
 
                     if (isset($modifiedProductsLookup[$lookupKey])) {
                         $modProduct = $modifiedProductsLookup[$lookupKey];
@@ -1652,11 +1712,11 @@ class CartController extends Controller
             ]);
 
             // Record coupon usage for ALL winning coupons
-            if (!empty($winningCoupons) && $couponDiscount > 0) {
+            if (! empty($winningCoupons) && $couponDiscount > 0) {
                 $couponService = app(CouponService::class);
                 $orderUser = User::find($user_id);
 
-                if (!$orderUser) {
+                if (! $orderUser) {
                     throw new \Exception("Usuario no encontrado para registrar uso de cupón. ID: {$user_id}");
                 }
 
@@ -1666,7 +1726,7 @@ class CartController extends Controller
                     foreach ($couponResult['modified_products'] as $modProduct) {
                         $cId = $modProduct['winning_coupon_id'] ?? null;
                         if ($cId && isset($winningCoupons[$cId])) {
-                            if (!isset($perCouponDiscount[$cId])) {
+                            if (! isset($perCouponDiscount[$cId])) {
                                 $perCouponDiscount[$cId] = 0;
                             }
                             $perCouponDiscount[$cId] += (float) ($modProduct['coupon_contribution']
@@ -1711,12 +1771,12 @@ class CartController extends Controller
             if ($queueConnection === 'redis') {
                 try {
                     // Test if Redis is actually available
-                    if (!extension_loaded('redis') || !class_exists('Redis')) {
-                        Log::warning("Redis extension not available, falling back to database queue");
+                    if (! extension_loaded('redis') || ! class_exists('Redis')) {
+                        Log::warning('Redis extension not available, falling back to database queue');
                         $queueConnection = 'database';
                     }
                 } catch (\Exception $e) {
-                    Log::warning("Redis check failed, falling back to database queue: " . $e->getMessage());
+                    Log::warning('Redis check failed, falling back to database queue: '.$e->getMessage());
                     $queueConnection = 'database';
                 }
             }
@@ -1734,21 +1794,21 @@ class CartController extends Controller
             return redirect()->route('orders.thank-you', $order->id);
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Error creating order: ' . $e->getMessage(), [
+            Log::error('Error creating order: '.$e->getMessage(), [
                 'exception' => $e,
                 'user_id' => $user_id ?? null,
                 'has_coupon' => isset($coupon) && $coupon ? true : false,
                 'coupon_id' => isset($coupon) && $coupon ? $coupon->id : null,
                 'coupon_discount' => $couponDiscount ?? 0,
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
-            
+
             // Provide more specific error message when possible
             $errorMessage = 'Error al procesar la orden. ';
-            
+
             // Check if it's a coupon-related error
             if (isset($coupon) && $coupon) {
-                if (str_contains($e->getMessage(), 'coupon') || str_contains($e->getMessage(), 'cupón') || 
+                if (str_contains($e->getMessage(), 'coupon') || str_contains($e->getMessage(), 'cupón') ||
                     str_contains($e->getMessage(), 'limit') || str_contains($e->getMessage(), 'limite')) {
                     $errorMessage .= 'Hubo un problema con el cupón aplicado. Por favor remuévelo e intenta nuevamente.';
                     $this->clearAllCouponSessions();
@@ -1758,20 +1818,19 @@ class CartController extends Controller
             } else {
                 $errorMessage .= 'Por favor intente nuevamente o contacte al administrador.';
             }
-            
+
             // In development/staging, show the actual error for debugging
             if (config('app.debug')) {
-                $errorMessage .= ' (Debug: ' . $e->getMessage() . ')';
+                $errorMessage .= ' (Debug: '.$e->getMessage().')';
             }
-            
+
             return to_route('cart')->with('error', $errorMessage);
         }
 
         // return to_route('home')->with('success', 'Es necesario tener un codigo de cliente para procesar la compra, contacta al administrador!');
 
         // dispatch(new ProcessOrder($order));
-        // 
-
+        //
 
     }
 
@@ -1782,13 +1841,15 @@ class CartController extends Controller
     private function getCouponTargetUser(): ?User
     {
         $user = auth()->user();
-        if (!$user) {
+        if (! $user) {
             return null;
         }
         if ($user->hasRole('seller')) {
             $clientId = session()->get('user_id');
+
             return $clientId ? User::find($clientId) : $user;
         }
+
         return $user;
     }
 
@@ -1802,18 +1863,18 @@ class CartController extends Controller
         ]);
 
         $user = auth()->user();
-        if (!$user) {
+        if (! $user) {
             return redirect()->route('login');
         }
 
         // Use client when seller is acting for a client (APPLIES_TO_CUSTOMER checks the order's customer)
         $targetUser = $this->getCouponTargetUser();
-        if (!$targetUser) {
+        if (! $targetUser) {
             return redirect()->route('login');
         }
 
         $cart = session()->get('cart');
-        if (!$cart || empty($cart)) {
+        if (! $cart || empty($cart)) {
             return redirect()->route('cart')->with('error', 'El carrito está vacío.');
         }
 
@@ -1821,6 +1882,7 @@ class CartController extends Controller
         $cart = $this->validateCart($cart);
         if (empty($cart)) {
             session()->forget('cart');
+
             return redirect()->route('cart')->with('error', 'Tu carrito contenía productos inválidos.');
         }
 
@@ -1854,7 +1916,7 @@ class CartController extends Controller
         // Validate coupon (use targetUser = client when seller acting)
         $validation = $couponService->validateCoupon($couponCode, $targetUser, $cartProducts, $cartTotal);
 
-        if (!$validation['valid']) {
+        if (! $validation['valid']) {
             return redirect()->route('cart')->with('error', $validation['message']);
         }
 
@@ -1864,7 +1926,7 @@ class CartController extends Controller
         $allCouponCodes = array_merge($appliedCouponCodes, [$couponCode]);
         $discountCalculation = $couponService->calculateMultipleCouponDiscounts($allCouponCodes, $targetUser, $cartProducts);
 
-        if (!$discountCalculation['success']) {
+        if (! $discountCalculation['success']) {
             return redirect()->route('cart')->with('error', 'Error al aplicar el cupón.');
         }
 
@@ -1882,12 +1944,13 @@ class CartController extends Controller
     public function removeCoupon(Request $request)
     {
         $couponCode = $request->input('coupon_code');
-        
-        if (!$couponCode) {
+
+        if (! $couponCode) {
             // Remove all coupons if no specific code provided (backward compatibility)
             session()->forget('applied_coupons');
             session()->forget('coupon_discounts');
             session()->forget('total_coupon_discount');
+
             return redirect()->route('cart')->with('success', 'Cupones removidos exitosamente.');
         }
 
@@ -1902,11 +1965,11 @@ class CartController extends Controller
             $cart = session()->get('cart', []);
             $cartProducts = collect($cart);
             $remainingCodes = array_column($appliedCoupons, 'coupon_code');
-            
-            if (!empty($remainingCodes)) {
+
+            if (! empty($remainingCodes)) {
                 $couponService = app(\App\Services\CouponService::class);
                 $discountCalculation = $couponService->calculateMultipleCouponDiscounts($remainingCodes, $targetUser, $cartProducts);
-                
+
                 if ($discountCalculation['success']) {
                     session()->put('applied_coupons', $discountCalculation['applied_coupons']);
                     session()->put('coupon_discounts', $discountCalculation['product_discounts']);
@@ -1937,7 +2000,7 @@ class CartController extends Controller
     {
         // Verify the order belongs to the current user or their client (for sellers)
         $user = auth()->user();
-        
+
         if ($user->hasRole('seller')) {
             // Sellers can view orders they created for clients
             if ($order->seller_id !== $user->id) {
@@ -1955,7 +2018,7 @@ class CartController extends Controller
 
     /**
      * Load valid Coupon model instances from session (supports both multi-coupon and legacy single-coupon)
-     * 
+     *
      * @return Coupon[]
      */
     private function loadValidCouponsFromSession(): array
@@ -1964,7 +2027,7 @@ class CartController extends Controller
 
         // Primary: multi-coupon session key
         $appliedCoupons = session()->get('applied_coupons', []);
-        if (!empty($appliedCoupons)) {
+        if (! empty($appliedCoupons)) {
             foreach ($appliedCoupons as $entry) {
                 $coupon = Coupon::find($entry['coupon_id'] ?? null);
                 if ($coupon && $coupon->isValid()) {
@@ -1983,7 +2046,7 @@ class CartController extends Controller
         }
 
         // If any coupons are invalid, update session to keep only valid ones
-        if (!empty($appliedCoupons) && count($coupons) < count($appliedCoupons)) {
+        if (! empty($appliedCoupons) && count($coupons) < count($appliedCoupons)) {
             $validEntries = [];
             foreach ($coupons as $c) {
                 $validEntries[] = ['coupon_id' => $c->id, 'coupon_code' => $c->code];
@@ -2022,7 +2085,7 @@ class CartController extends Controller
         }
         if (is_string($value)) {
             $value = trim($value);
-            if ($value === '' || !ctype_digit($value)) {
+            if ($value === '' || ! ctype_digit($value)) {
                 return null;
             }
             $id = (int) $value;
@@ -2031,5 +2094,56 @@ class CartController extends Controller
         }
 
         return null;
+    }
+
+    /**
+     * Normalize text fields used to preserve selected sucursal identity across sync.
+     */
+    private function normalizeCheckoutZoneText(mixed $value): ?string
+    {
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+
+        return mb_strtolower(preg_replace('/\s+/', ' ', $value) ?? $value, 'UTF-8');
+    }
+
+    /**
+     * True when request includes at least one fingerprint field beyond code.
+     */
+    private function hasCheckoutZoneFingerprint(array $fingerprint): bool
+    {
+        foreach (['route', 'zone', 'day', 'address'] as $field) {
+            if (! empty($fingerprint[$field])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Compare normalized fingerprint fields against a zone.
+     */
+    private function zoneMatchesCheckoutFingerprint(Zone $zone, array $fingerprint): bool
+    {
+        foreach (['code', 'route', 'zone', 'day', 'address'] as $field) {
+            $expected = $fingerprint[$field] ?? null;
+            if ($expected === null || $expected === '') {
+                continue;
+            }
+
+            $actual = $this->normalizeCheckoutZoneText($zone->{$field} ?? null);
+            if ($actual !== $expected) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }
