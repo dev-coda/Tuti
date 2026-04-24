@@ -52,7 +52,22 @@
 </div>
 
 <div class="p-4 bg-white border-b border-gray-200">
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+        <div class="rounded-lg border border-gray-200 p-4">
+            <p class="font-semibold text-gray-800 mb-2">Vendedor</p>
+            @if($order->seller)
+                <p>
+                    <a class="text-blue-600 hover:underline" href="{{ route('users.edit', $order->seller) }}">
+                        {{ $order->seller->name }}
+                    </a>
+                </p>
+                @if($order->seller->email)
+                    <p><span class="text-gray-500">Email:</span> {{ $order->seller->email }}</p>
+                @endif
+            @else
+                <p class="text-gray-500">—</p>
+            @endif
+        </div>
         <div class="rounded-lg border border-gray-200 p-4">
             <p class="font-semibold text-gray-800 mb-2">Envío / Proveedor</p>
             <p><span class="text-gray-500">Proveedor:</span> {{ $order->shipping_provider ?? 'tronex' }}</p>

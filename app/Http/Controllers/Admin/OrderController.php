@@ -103,6 +103,7 @@ class OrderController extends Controller
 
         $order->load([
             'user',
+            'seller',
             'bonifications' => ['product', 'bonification'],
             'products' => [
                 'product' => [
