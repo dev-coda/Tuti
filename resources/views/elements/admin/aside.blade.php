@@ -14,6 +14,13 @@
                     </li>
 
                     <li>
+                        <a href="{{ route('admin.documentation.index') }}">
+                            @svg('heroicon-o-book-open', 'w-6 h-6 text-gray-500')
+                            <span class="ml-3" sidebar-toggle-item>Documentación</span>
+                        </a>
+                    </li>
+
+                    <li>
                         <a href="{{ route('orders.index') }}">
                             @svg('heroicon-o-shopping-cart', 'w-6 h-6 text-gray-500')
                             <span class="ml-3" sidebar-toggle-item>Pedidos</span>

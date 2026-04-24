@@ -36,6 +36,7 @@ use App\Http\Controllers\Admin\UpsellZoneController;
 use App\Http\Controllers\Admin\UpsellRuleController;
 use App\Http\Controllers\Admin\CampaignController;
 use App\Http\Controllers\Admin\RetentionRuleController;
+use App\Http\Controllers\Admin\DocumentationController;
 use Illuminate\Support\Facades\Route;
 
 
@@ -51,6 +52,9 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
         return to_route('products.index');
         return view('dashboard');
     })->name('dashboard');
+
+    Route::get('/documentacion', [DocumentationController::class, 'index'])->name('admin.documentation.index');
+    Route::get('/documentacion/ver', [DocumentationController::class, 'show'])->name('admin.documentation.show');
 
     // KPI Dashboard routes
     Route::prefix('kpi')->name('admin.kpi.')->group(function () {

@@ -1,6 +1,12 @@
-# Documentación Completa del Sistema Tuti
+# Documentación completa del sistema Tuti (visión de conjunto)
 
-## 📚 Resumen de la Documentación Creada
+> **Índice y organización (2026):**  
+> - Portal: [README.md](./README.md)  
+> - **Manuales por carpeta (español):** [guias/README.md](./guias/README.md) (tienda, admin, roles)  
+> - *Antigua* estructura `manuales-usuario/` [redirige a guías](./manuales-usuario/README.md)  
+> - Técnica: [tecnica/README.md](./tecnica/README.md)  
+
+## 📚 Resumen de la documentación creada o referenciada
 
 Se ha generado una documentación completa del sistema Tuti que incluye los siguientes componentes:
 
@@ -183,4 +189,6 @@ El sistema Tuti maneja un modelo de negocio B2B sofisticado que incluye:
 
 ---
 
-Esta documentación proporciona una visión completa del sistema Tuti, desde su arquitectura técnica hasta los detalles de implementación de cada módulo de negocio, facilitando el mantenimiento, desarrollo y comprensión del sistema por parte de nuevos desarrolladores.
+Esta visión *macro* se complementa con el **índice** en [./README.md](./README.md) y con los manuales y guías técnicas enlazados allí. Mantiene el enfoque en *entidades* y módulo de negocio; el detalle operativo vive en `manuales-usuario/`, y el *runbook* de despliegue/colas, en `tecnica/`.
+
+*Última alineación de índice: abril 2026.*
