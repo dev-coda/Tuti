@@ -84,7 +84,7 @@ class DocumentationController extends Controller
     public function show(Request $request)
     {
         $relative = (string) $request->query('f', '');
-        if ($relative === '' || ! preg_match('/^[a-z0-9_\-/]+\.md$/i', $relative) || str_contains($relative, '..')) {
+        if ($relative === '' || ! preg_match('#^[a-z0-9_/-]+\.md$#i', $relative) || str_contains($relative, '..')) {
             abort(404);
         }
 
@@ -161,7 +161,7 @@ class DocumentationController extends Controller
         if ($candidate === false || ! is_file($candidate)) {
             return null;
         }
-        if (! str_starts_with($candidate, $base)) {
+        if ($candidate !== $base && ! str_starts_with($candidate, $base.DIRECTORY_SEPARATOR)) {
             return null;
         }
 

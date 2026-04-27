@@ -1,15 +1,21 @@
 <?php
 
+use App\Jobs\SyncProductInventory;
 use App\Models\Bonification;
 use App\Models\Brand;
+use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductInventory;
 use App\Models\Setting;
 use App\Models\Tax;
 use App\Models\User;
+use App\Models\Variation;
+use App\Models\VariationItem;
 use App\Models\Vendor;
 use App\Models\ZoneWarehouse;
+use App\Repositories\OrderRepository;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Spatie\Permission\Models\Role;
 
 use function Pest\Laravel\actingAs;
@@ -583,4 +589,517 @@ it('skips bonifications when stock cannot cover all gifted items involved', func
         ->where('bodega_code', 'BOD-1')
         ->first();
     expect((int) $giftInventoryAfter->available)->toBe(11);
+});
+
+function checkoutInventoryProduct(Brand $brand, Tax $tax, string $name, string $sku, int $price = 100, ?int $variationId = null): Product
+{
+    return Product::create([
+        'name' => $name,
+        'description' => $name,
+        'short_description' => $name,
+        'sku' => $sku,
+        'slug' => str($name.'-'.uniqid())->slug()->toString(),
+        'active' => 1,
+        'price' => $price,
+        'delivery_days' => 1,
+        'discount' => 0,
+        'quantity_min' => 1,
+        'quantity_max' => 100,
+        'step' => 1,
+        'tax_id' => $tax->id,
+        'brand_id' => $brand->id,
+        'package_quantity' => 1,
+        'variation_id' => $variationId,
+        'safety_stock' => 0,
+        'inventory_opt_out' => 0,
+    ]);
+}
+
+function configureBonificationInventoryCheckout(User $user): \App\Models\Zone
+{
+    Setting::updateOrCreate(
+        ['key' => 'inventory_enabled'],
+        ['name' => 'Inventory enabled', 'value' => '1', 'show' => false]
+    );
+    Setting::updateOrCreate(
+        ['key' => 'global_minimum_inventory'],
+        ['name' => 'Global minimum inventory', 'value' => '5', 'show' => false]
+    );
+    Setting::updateOrCreate(
+        ['key' => 'min_amount'],
+        ['name' => 'Min amount', 'value' => '0', 'show' => false]
+    );
+    ZoneWarehouse::updateOrCreate(
+        ['zone_code' => '933'],
+        ['bodega_code' => 'BOD-1']
+    );
+
+    return \App\Models\Zone::create([
+        'route' => '1',
+        'zone' => '933',
+        'day' => 'Monday',
+        'address' => 'Addr',
+        'code' => 'Z-VAR-'.uniqid(),
+        'user_id' => $user->id,
+    ]);
+}
+
+function bonificationInventorySyncSoapResponse(array $items): string
+{
+    $rows = collect($items)->map(function (array $item): string {
+        return '<a:ListItemExists>'
+            .'<a:ItemId>'.htmlspecialchars($item['sku']).'</a:ItemId>'
+            .'<a:AvailPhysical>'.(int) $item['available'].'</a:AvailPhysical>'
+            .'<a:PhysicalInvent>'.(int) ($item['physical'] ?? $item['available']).'</a:PhysicalInvent>'
+            .'<a:ReservPhysical>'.(int) ($item['reserved'] ?? 0).'</a:ReservPhysical>'
+            .'<a:WMSLocation>DISPONIBLE</a:WMSLocation>'
+            .'</a:ListItemExists>';
+    })->implode('');
+
+    return '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" xmlns:a="http://schemas.datacontract.org/2004/07/Dynamics.AX.Application">'
+        .'<s:Body>'
+        .'<obtenerExistenciaDeInventarioEspecificaResponse>'
+        .'<result>'
+        .'<a:obtenerExistenciaDeInventarioEspecificaResult>'
+        .$rows
+        .'</a:obtenerExistenciaDeInventarioEspecificaResult>'
+        .'</result>'
+        .'</obtenerExistenciaDeInventarioEspecificaResponse>'
+        .'</s:Body>'
+        .'</s:Envelope>';
+}
+
+function successfulPresalesSoapResponse(): string
+{
+    return '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" xmlns:a="http://schemas.datacontract.org/2004/07/Dynamics.AX.Application">'
+        .'<s:Body>'
+        .'<PreSaslesProcessResponse>'
+        .'<result>'
+        .'<a:PreSaslesProcessResult>OK</a:PreSaslesProcessResult>'
+        .'</result>'
+        .'</PreSaslesProcessResponse>'
+        .'</s:Body>'
+        .'</s:Envelope>';
+}
+
+it('transmits separate order and bonification XMLs with rule-correct variation SKUs and quantities', function () {
+    $user = User::first();
+    $zone = configureBonificationInventoryCheckout($user);
+    config(['microsoft.resource' => 'https://dynamics.test']);
+    Setting::updateOrCreate(
+        ['key' => 'microsoft_token'],
+        ['name' => 'Microsoft token', 'value' => 'token', 'show' => false]
+    );
+
+    $tax = Tax::create(['name' => 'IVA xml bonif', 'tax' => 0]);
+    $vendor = Vendor::create([
+        'name' => 'Vendor xml bonif',
+        'slug' => 'vendor-xml-bonif',
+        'minimum_purchase' => 0,
+        'active' => 1,
+    ]);
+    $brand = Brand::create([
+        'name' => 'Brand xml bonif',
+        'slug' => 'brand-xml-bonif',
+        'vendor_id' => $vendor->id,
+    ]);
+
+    $variation = Variation::create(['name' => 'Presentacion xml']);
+    $first = VariationItem::create(['name' => 'Unidad', 'variation_id' => $variation->id]);
+    $giftVariation = VariationItem::create(['name' => 'Caja', 'variation_id' => $variation->id]);
+    $giftParent = checkoutInventoryProduct($brand, $tax, 'Gift XML parent dummy', '', 0, $variation->id);
+    $giftVariantStockProduct = checkoutInventoryProduct($brand, $tax, 'Gift XML child stock', 'GIFT-XML-CHILD-SKU', 0);
+    $giftParent->items()->sync([
+        $first->id => ['price' => 0, 'enabled' => 1, 'sku' => ''],
+        $giftVariation->id => ['price' => 0, 'enabled' => 1, 'sku' => $giftVariantStockProduct->sku],
+    ]);
+
+    $trigger = checkoutInventoryProduct($brand, $tax, 'Trigger XML bonif', 'TRIGGER-XML-SKU', 100);
+    $bonification = Bonification::create([
+        'name' => 'XML rule capped variation gift',
+        'buy' => 2,
+        'get' => 3,
+        'product_id' => $giftParent->id,
+        'max' => 5,
+    ]);
+    $trigger->bonifications()->attach($bonification->id);
+
+    ProductInventory::create([
+        'product_id' => $trigger->id,
+        'bodega_code' => 'BOD-1',
+        'available' => 20,
+        'physical' => 20,
+        'reserved' => 0,
+    ]);
+    ProductInventory::create([
+        'product_id' => $giftParent->id,
+        'bodega_code' => 'BOD-1',
+        'available' => 0,
+        'physical' => 0,
+        'reserved' => 0,
+    ]);
+    ProductInventory::create([
+        'product_id' => $giftVariantStockProduct->id,
+        'bodega_code' => 'BOD-1',
+        'available' => 20,
+        'physical' => 20,
+        'reserved' => 0,
+    ]);
+
+    session()->put('cart', [
+        ['product_id' => $trigger->id, 'quantity' => 4, 'variation_id' => null],
+    ]);
+
+    actingAs($user)->post(route('cart.process'), [
+        'zone_id' => $zone->id,
+        'observations' => 'Two XML bonification check',
+    ])->assertRedirect();
+
+    $order = Order::latest('id')->with(['zone', 'user', 'products', 'bonifications'])->first();
+    expect($order)->not->toBeNull()
+        ->and($order->products()->count())->toBe(1)
+        ->and($order->bonifications()->count())->toBe(1);
+
+    $bonificationRow = $order->bonifications()->first();
+    expect($bonificationRow->product_id)->toBe($giftParent->id)
+        ->and($bonificationRow->variation_item_id)->toBe($giftVariation->id)
+        ->and($bonificationRow->quantity)->toBe(5); // floor(4 / 2 * 3) = 6, capped by max=5
+
+    Http::fake([
+        '*' => Http::response(successfulPresalesSoapResponse(), 200),
+    ]);
+
+    OrderRepository::presalesOrder($order);
+
+    Http::assertSentCount(2);
+    $bodies = collect(Http::recorded())
+        ->map(fn (array $record) => $record[0]->body())
+        ->values();
+
+    $orderXml = $bodies[0];
+    $giftXml = $bodies[1];
+
+    expect($orderXml)->toContain('<dyn:TRO_E_obsequio>0</dyn:TRO_E_obsequio>')
+        ->and($orderXml)->toContain('<dyn:itemId>TRIGGER-XML-SKU</dyn:itemId>')
+        ->and($orderXml)->toContain('<dyn:qty>4</dyn:qty>')
+        ->and($orderXml)->not->toContain('GIFT-XML-CHILD-SKU')
+        ->and($giftXml)->toContain('<dyn:TRO_E_obsequio>1</dyn:TRO_E_obsequio>')
+        ->and($giftXml)->toContain('<dyn:itemId>GIFT-XML-CHILD-SKU</dyn:itemId>')
+        ->and($giftXml)->toContain('<dyn:qty>5</dyn:qty>')
+        ->and($giftXml)->toContain('<dyn:qtyCust>5</dyn:qtyCust>')
+        ->and($giftXml)->toContain('<dyn:unitPrice>0</dyn:unitPrice>')
+        ->and($giftXml)->not->toContain('<dyn:itemId>TRIGGER-XML-SKU</dyn:itemId>');
+});
+
+it('syncs variation child stock automatically before applying a bonification gift', function () {
+    $user = User::first();
+    $zone = configureBonificationInventoryCheckout($user);
+    config(['microsoft.resource' => 'https://dynamics.test']);
+    Setting::updateOrCreate(
+        ['key' => 'microsoft_token'],
+        ['name' => 'Microsoft token', 'value' => 'token', 'show' => false]
+    );
+
+    $tax = Tax::create(['name' => 'IVA synced var gift', 'tax' => 0]);
+    $vendor = Vendor::create([
+        'name' => 'Vendor synced var gift',
+        'slug' => 'vendor-synced-var-gift',
+        'minimum_purchase' => 0,
+        'active' => 1,
+    ]);
+    $brand = Brand::create([
+        'name' => 'Brand synced var gift',
+        'slug' => 'brand-synced-var-gift',
+        'vendor_id' => $vendor->id,
+    ]);
+
+    $variation = Variation::create(['name' => 'Presentacion synced']);
+    $selected = VariationItem::create(['name' => 'Caja', 'variation_id' => $variation->id]);
+    $giftParent = checkoutInventoryProduct($brand, $tax, 'Gift parent synced dummy', 'DUMMY-SYNCED-PARENT', 0, $variation->id);
+    $giftVariantStockProduct = checkoutInventoryProduct($brand, $tax, 'Gift synced child stock', 'GIFT-SYNCED-CHILD', 0);
+    $giftParent->items()->sync([
+        $selected->id => ['price' => 0, 'enabled' => 1, 'sku' => $giftVariantStockProduct->sku],
+    ]);
+
+    $trigger = checkoutInventoryProduct($brand, $tax, 'Trigger synced gift', 'TRIGGER-SYNCED-GIFT', 100);
+    $bonification = Bonification::create([
+        'name' => 'Synced variation gift',
+        'buy' => 1,
+        'get' => 1,
+        'product_id' => $giftParent->id,
+        'max' => 100,
+    ]);
+    $trigger->bonifications()->attach($bonification->id);
+
+    Http::fake([
+        '*' => Http::response(bonificationInventorySyncSoapResponse([
+            ['sku' => $trigger->sku, 'available' => 20],
+            ['sku' => $giftVariantStockProduct->sku, 'available' => 8],
+        ]), 200),
+    ]);
+
+    (new SyncProductInventory())->handle();
+
+    expect((int) ProductInventory::where('product_id', $giftParent->id)->where('bodega_code', 'BOD-1')->value('available'))->toBe(0)
+        ->and((int) ProductInventory::where('product_id', $giftVariantStockProduct->id)->where('bodega_code', 'BOD-1')->value('available'))->toBe(8);
+
+    session()->put('cart', [
+        ['product_id' => $giftParent->id, 'quantity' => 1, 'variation_id' => $selected->id],
+        ['product_id' => $trigger->id, 'quantity' => 1, 'variation_id' => null],
+    ]);
+
+    actingAs($user)->post(route('cart.process'), [
+        'zone_id' => $zone->id,
+        'observations' => 'Synced selected variation gift stock',
+    ])->assertRedirect();
+
+    $order = Order::latest('id')->first();
+    expect($order)->not->toBeNull()
+        ->and($order->bonifications()->count())->toBe(1);
+
+    $bonificationRow = $order->bonifications()->first();
+    expect($bonificationRow->product_id)->toBe($giftParent->id)
+        ->and($bonificationRow->variation_item_id)->toBe($selected->id);
+
+    expect((int) ProductInventory::where('product_id', $giftParent->id)->where('bodega_code', 'BOD-1')->value('available'))->toBe(0)
+        ->and((int) ProductInventory::where('product_id', $giftVariantStockProduct->id)->where('bodega_code', 'BOD-1')->value('available'))->toBe(6);
+});
+
+it('uses selected bonification variation stock when parent inventory is zero', function () {
+    $user = User::first();
+    $zone = configureBonificationInventoryCheckout($user);
+
+    $tax = Tax::create(['name' => 'IVA var stock', 'tax' => 0]);
+    $vendor = Vendor::create([
+        'name' => 'Vendor var stock',
+        'slug' => 'vendor-var-stock',
+        'minimum_purchase' => 0,
+        'active' => 1,
+    ]);
+    $brand = Brand::create([
+        'name' => 'Brand var stock',
+        'slug' => 'brand-var-stock',
+        'vendor_id' => $vendor->id,
+    ]);
+
+    $variation = Variation::create(['name' => 'Presentacion']);
+    $selected = VariationItem::create(['name' => 'Caja', 'variation_id' => $variation->id]);
+    $giftParent = checkoutInventoryProduct($brand, $tax, 'Gift parent dummy', 'DUMMY-PARENT', 0, $variation->id);
+    $giftVariantStockProduct = checkoutInventoryProduct($brand, $tax, 'Gift child stock', 'GIFT-CHILD-SKU', 0);
+    $giftParent->items()->sync([
+        $selected->id => ['price' => 0, 'enabled' => 1, 'sku' => $giftVariantStockProduct->sku],
+    ]);
+
+    $trigger = checkoutInventoryProduct($brand, $tax, 'Trigger selected gift', 'TRIGGER-VAR-GIFT', 100);
+    $bonification = Bonification::create([
+        'name' => 'Selected variation gift',
+        'buy' => 1,
+        'get' => 1,
+        'product_id' => $giftParent->id,
+        'max' => 100,
+    ]);
+    $trigger->bonifications()->attach($bonification->id);
+
+    ProductInventory::create([
+        'product_id' => $giftParent->id,
+        'bodega_code' => 'BOD-1',
+        'available' => 0,
+        'physical' => 0,
+        'reserved' => 0,
+    ]);
+    ProductInventory::create([
+        'product_id' => $giftVariantStockProduct->id,
+        'bodega_code' => 'BOD-1',
+        'available' => 8,
+        'physical' => 8,
+        'reserved' => 0,
+    ]);
+    ProductInventory::create([
+        'product_id' => $trigger->id,
+        'bodega_code' => 'BOD-1',
+        'available' => 20,
+        'physical' => 20,
+        'reserved' => 0,
+    ]);
+
+    session()->put('cart', [
+        ['product_id' => $giftParent->id, 'quantity' => 1, 'variation_id' => $selected->id],
+        ['product_id' => $trigger->id, 'quantity' => 1, 'variation_id' => null],
+    ]);
+
+    actingAs($user)->post(route('cart.process'), [
+        'zone_id' => $zone->id,
+        'observations' => 'Selected variation gift stock',
+    ])->assertRedirect();
+
+    $order = Order::latest('id')->first();
+    expect($order)->not->toBeNull()
+        ->and($order->products()->count())->toBe(2)
+        ->and($order->bonifications()->count())->toBe(1);
+
+    $bonificationRow = $order->bonifications()->first();
+    expect($bonificationRow->product_id)->toBe($giftParent->id)
+        ->and($bonificationRow->variation_item_id)->toBe($selected->id)
+        ->and($bonificationRow->quantity)->toBe(1);
+
+    expect((int) ProductInventory::where('product_id', $giftParent->id)->where('bodega_code', 'BOD-1')->value('available'))->toBe(0)
+        ->and((int) ProductInventory::where('product_id', $giftVariantStockProduct->id)->where('bodega_code', 'BOD-1')->value('available'))->toBe(6);
+});
+
+it('uses default variable gift stock when bonification product is not already in the cart', function () {
+    $user = User::first();
+    $zone = configureBonificationInventoryCheckout($user);
+
+    $tax = Tax::create(['name' => 'IVA default var gift', 'tax' => 0]);
+    $vendor = Vendor::create([
+        'name' => 'Vendor default var gift',
+        'slug' => 'vendor-default-var-gift',
+        'minimum_purchase' => 0,
+        'active' => 1,
+    ]);
+    $brand = Brand::create([
+        'name' => 'Brand default var gift',
+        'slug' => 'brand-default-var-gift',
+        'vendor_id' => $vendor->id,
+    ]);
+
+    $variation = Variation::create(['name' => 'Presentacion default']);
+    $first = VariationItem::create(['name' => 'Unidad', 'variation_id' => $variation->id]);
+    $withSku = VariationItem::create(['name' => 'Caja', 'variation_id' => $variation->id]);
+    $giftParent = checkoutInventoryProduct($brand, $tax, 'Gift parent default', '', 0, $variation->id);
+    $giftVariantStockProduct = checkoutInventoryProduct($brand, $tax, 'Gift default child stock', 'GIFT-DEFAULT-CHILD', 0);
+    $giftParent->items()->sync([
+        $first->id => ['price' => 0, 'enabled' => 1, 'sku' => ''],
+        $withSku->id => ['price' => 0, 'enabled' => 1, 'sku' => $giftVariantStockProduct->sku],
+    ]);
+
+    $trigger = checkoutInventoryProduct($brand, $tax, 'Trigger default gift', 'TRIGGER-DEFAULT-GIFT', 100);
+    $bonification = Bonification::create([
+        'name' => 'Default variation gift',
+        'buy' => 1,
+        'get' => 1,
+        'product_id' => $giftParent->id,
+        'max' => 100,
+    ]);
+    $trigger->bonifications()->attach($bonification->id);
+
+    ProductInventory::create([
+        'product_id' => $giftParent->id,
+        'bodega_code' => 'BOD-1',
+        'available' => 0,
+        'physical' => 0,
+        'reserved' => 0,
+    ]);
+    ProductInventory::create([
+        'product_id' => $giftVariantStockProduct->id,
+        'bodega_code' => 'BOD-1',
+        'available' => 6,
+        'physical' => 6,
+        'reserved' => 0,
+    ]);
+    ProductInventory::create([
+        'product_id' => $trigger->id,
+        'bodega_code' => 'BOD-1',
+        'available' => 20,
+        'physical' => 20,
+        'reserved' => 0,
+    ]);
+
+    session()->put('cart', [
+        ['product_id' => $trigger->id, 'quantity' => 1, 'variation_id' => null],
+    ]);
+
+    actingAs($user)->post(route('cart.process'), [
+        'zone_id' => $zone->id,
+        'observations' => 'Default variable gift stock',
+    ])->assertRedirect();
+
+    $order = Order::latest('id')->first();
+    expect($order)->not->toBeNull()
+        ->and($order->products()->count())->toBe(1)
+        ->and($order->bonifications()->count())->toBe(1);
+
+    $bonificationRow = $order->bonifications()->first();
+    expect($bonificationRow->product_id)->toBe($giftParent->id)
+        ->and($bonificationRow->variation_item_id)->toBe($withSku->id)
+        ->and($bonificationRow->quantity)->toBe(1);
+
+    expect((int) ProductInventory::where('product_id', $giftParent->id)->where('bodega_code', 'BOD-1')->value('available'))->toBe(0)
+        ->and((int) ProductInventory::where('product_id', $giftVariantStockProduct->id)->where('bodega_code', 'BOD-1')->value('available'))->toBe(5);
+});
+
+it('skips selected variation bonification when that variation stock cannot cover the gift', function () {
+    $user = User::first();
+    $zone = configureBonificationInventoryCheckout($user);
+
+    $tax = Tax::create(['name' => 'IVA var constrained', 'tax' => 0]);
+    $vendor = Vendor::create([
+        'name' => 'Vendor var constrained',
+        'slug' => 'vendor-var-constrained',
+        'minimum_purchase' => 0,
+        'active' => 1,
+    ]);
+    $brand = Brand::create([
+        'name' => 'Brand var constrained',
+        'slug' => 'brand-var-constrained',
+        'vendor_id' => $vendor->id,
+    ]);
+
+    $variation = Variation::create(['name' => 'Color']);
+    $selected = VariationItem::create(['name' => 'Azul', 'variation_id' => $variation->id]);
+    $giftParent = checkoutInventoryProduct($brand, $tax, 'Gift parent abundant', 'DUMMY-PARENT-ABUNDANT', 0, $variation->id);
+    $giftVariantStockProduct = checkoutInventoryProduct($brand, $tax, 'Gift child constrained', 'GIFT-CHILD-LOW', 0);
+    $giftParent->items()->sync([
+        $selected->id => ['price' => 0, 'enabled' => 1, 'sku' => $giftVariantStockProduct->sku],
+    ]);
+
+    $trigger = checkoutInventoryProduct($brand, $tax, 'Trigger constrained gift', 'TRIGGER-VAR-LOW', 100);
+    $bonification = Bonification::create([
+        'name' => 'Selected variation constrained',
+        'buy' => 1,
+        'get' => 1,
+        'product_id' => $giftParent->id,
+        'max' => 100,
+    ]);
+    $trigger->bonifications()->attach($bonification->id);
+
+    ProductInventory::create([
+        'product_id' => $giftParent->id,
+        'bodega_code' => 'BOD-1',
+        'available' => 100,
+        'physical' => 100,
+        'reserved' => 0,
+    ]);
+    ProductInventory::create([
+        'product_id' => $giftVariantStockProduct->id,
+        'bodega_code' => 'BOD-1',
+        'available' => 6,
+        'physical' => 6,
+        'reserved' => 0,
+    ]);
+    ProductInventory::create([
+        'product_id' => $trigger->id,
+        'bodega_code' => 'BOD-1',
+        'available' => 20,
+        'physical' => 20,
+        'reserved' => 0,
+    ]);
+
+    session()->put('cart', [
+        ['product_id' => $giftParent->id, 'quantity' => 1, 'variation_id' => $selected->id],
+        ['product_id' => $trigger->id, 'quantity' => 1, 'variation_id' => null],
+    ]);
+
+    actingAs($user)->post(route('cart.process'), [
+        'zone_id' => $zone->id,
+        'observations' => 'Constrained selected variation gift stock',
+    ])->assertRedirect();
+
+    $order = Order::latest('id')->first();
+    expect($order)->not->toBeNull()
+        ->and($order->products()->count())->toBe(2)
+        ->and($order->bonifications()->count())->toBe(0);
+
+    expect((int) ProductInventory::where('product_id', $giftParent->id)->where('bodega_code', 'BOD-1')->value('available'))->toBe(100)
+        ->and((int) ProductInventory::where('product_id', $giftVariantStockProduct->id)->where('bodega_code', 'BOD-1')->value('available'))->toBe(5);
 });

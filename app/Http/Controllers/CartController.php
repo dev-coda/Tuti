@@ -386,7 +386,6 @@ class CartController extends Controller
         $inventoryEnabled = Setting::getByKey('inventory_enabled');
         $isInventoryEnabled = ($inventoryEnabled === '1' || $inventoryEnabled === 1 || $inventoryEnabled === true);
         if ($isInventoryEnabled && $product->isInventoryManaged() && $user) {
-            $safety = $product->getEffectiveSafetyStock();
             // Determine user bodega from zone mapping
             $zone = $user->zones()->orderBy('id')->first();
             // Use zone field only (actual zone number like "933")
@@ -394,13 +393,17 @@ class CartController extends Controller
             $zoneCode = $zone?->zone ?? $user->zone;
             $bodega = ZoneWarehouse::getBodegaForZone($zoneCode);
 
-            // For products with variations, inventory is always stored at the parent product level
-            // All variation items share the same inventory pool
-            $available = $bodega ? ($product->inventories()->where('bodega_code', $bodega)->value('available') ?? 0) : 0;
+            $stockProduct = BonificationCheckoutService::stockProductForSelectedVariation(
+                $product,
+                $request->variation_id ? (int) $request->variation_id : null
+            );
+            $safety = $stockProduct->getEffectiveSafetyStock();
+            $available = $bodega ? ($stockProduct->inventories()->where('bodega_code', $bodega)->value('available') ?? 0) : 0;
 
             if ($available <= $safety) {
                 \Log::info('Product blocked due to safety stock', [
                     'product_id' => $product->id,
+                    'stock_product_id' => $stockProduct->id,
                     'product_name' => $product->name,
                     'has_variation' => ! is_null($product->variation_id),
                     'variation_id_selected' => $request->variation_id,
@@ -702,100 +705,14 @@ class CartController extends Controller
 
         // After syncing rutero data, resolve the selected zone. Sync may replace zone rows (new IDs)
         // while the form still posts the old id — match by stable Dynamics CustRuteroID (zones.code).
-        $requestedZoneId = $this->normalizedCheckoutZoneId($request->input('zone_id'))
-            ?? $this->normalizedCheckoutZoneId(session()->get('zone_id'));
+        $zoneResolution = $this->resolveCheckoutZone($actingUser, $request);
 
-        $rawSucursalCode = $request->input('sucursal_code');
-        $trimmedSucursalCode = is_string($rawSucursalCode) ? trim($rawSucursalCode) : '';
-        $trimmedSucursalCode = $trimmedSucursalCode !== '' ? $trimmedSucursalCode : null;
-        $zoneFingerprint = [
-            'code' => $trimmedSucursalCode,
-            'route' => $this->normalizeCheckoutZoneText($request->input('sucursal_route')),
-            'zone' => $this->normalizeCheckoutZoneText($request->input('sucursal_zone')),
-            'day' => $this->normalizeCheckoutZoneText($request->input('sucursal_day')),
-            'address' => $this->normalizeCheckoutZoneText($request->input('sucursal_address')),
-        ];
-
-        $actingUser->load('zones');
-
-        $zone = null;
-        $zoneId = null;
-
-        if ($requestedZoneId !== null) {
-            $candidate = Zone::where('id', $requestedZoneId)
-                ->where('user_id', $actingUser->id)
-                ->first();
-            if ($candidate && $this->zoneMatchesCheckoutFingerprint($candidate, $zoneFingerprint)) {
-                $zone = $candidate;
-            }
+        if (! $zoneResolution['ok']) {
+            return back()->with('error', $zoneResolution['message'] ?? 'No hay dirección de entrega disponible. Actualiza tus datos de rutero e intenta de nuevo.');
         }
 
-        if (! $zone && $trimmedSucursalCode !== null) {
-            $candidates = Zone::where('user_id', $actingUser->id)
-                ->where('code', $trimmedSucursalCode)
-                ->orderBy('id')
-                ->get();
-
-            if ($candidates->count() === 1) {
-                $zone = $candidates->first();
-            } elseif ($candidates->count() > 1) {
-                $fingerprintMatches = $candidates->filter(function ($candidate) use ($zoneFingerprint) {
-                    return $this->zoneMatchesCheckoutFingerprint($candidate, $zoneFingerprint);
-                });
-
-                if ($fingerprintMatches->count() === 1) {
-                    $zone = $fingerprintMatches->first();
-                }
-
-                \Log::warning('Multiple zones share the same sucursal code for user; fingerprint required to disambiguate', [
-                    'acting_user_id' => $actingUser->id,
-                    'code' => $trimmedSucursalCode,
-                    'zone_ids' => $candidates->pluck('id')->all(),
-                    'fingerprint_matches' => $fingerprintMatches->pluck('id')->all(),
-                ]);
-            }
-        }
-
-        if (! $zone && $this->hasCheckoutZoneFingerprint($zoneFingerprint)) {
-            $fingerprintMatches = $actingUser->zones->filter(function ($candidate) use ($zoneFingerprint) {
-                return $this->zoneMatchesCheckoutFingerprint($candidate, $zoneFingerprint);
-            });
-            if ($fingerprintMatches->count() === 1) {
-                $zone = $fingerprintMatches->first();
-            }
-        }
-
-        if ($zone) {
-            $zoneId = $zone->id;
-            session()->put('zone_id', $zoneId);
-        } elseif ($actingUser->zones->count() === 0) {
-            $zone = null;
-            $zoneId = null;
-        } elseif ($actingUser->zones->count() === 1) {
-            $zone = $actingUser->zones->first();
-            $zoneId = $zone->id;
-            session()->put('zone_id', $zoneId);
-        } else {
-            \Log::warning('Zone resolution failed for multi-zone user', [
-                'acting_user_id' => $actingUser->id,
-                'requested_zone_id' => $requestedZoneId,
-                'sucursal_code' => $trimmedSucursalCode,
-                'available_zone_ids' => $actingUser->zones->pluck('id')->all(),
-                'available_zone_codes' => $actingUser->zones->pluck('code')->all(),
-            ]);
-
-            return back()->with(
-                'error',
-                'La dirección seleccionada ya no coincide con tus datos actualizados. Recarga la página del carrito y vuelve a elegir la sucursal. Si tienes varias sucursales y esto se repite, contacta a soporte (puede faltar el código de sucursal en tus datos).'
-            );
-        }
-
-        if (! $zone || $zoneId === null) {
-            return back()->with(
-                'error',
-                'No hay dirección de entrega disponible. Actualiza tus datos de rutero e intenta de nuevo.'
-            );
-        }
+        $zone = $zoneResolution['zone'];
+        $zoneId = $zone->id;
 
         // Inventory validation based on zone/bodega
         $inventoryEnabled = Setting::getByKey('inventory_enabled');
@@ -952,12 +869,12 @@ class CartController extends Controller
                 if (! $product->isInventoryManaged()) {
                     continue;
                 }
-                // Always check inventory at the parent product level (not at variation level)
-                // The cartItem['product_id'] is the parent product, even when cartItem['variation_id'] is set
-                $inventory = ProductInventory::where('product_id', $product->id)->where('bodega_code', $bodega)->first();
+                $variationItemId = isset($cartItem['variation_id']) ? (int) $cartItem['variation_id'] : null;
+                $stockProduct = BonificationCheckoutService::stockProductForSelectedVariation($product, $variationItemId);
+                $inventory = ProductInventory::where('product_id', $stockProduct->id)->where('bodega_code', $bodega)->first();
                 $available = (int) ($inventory?->available ?? 0);
                 $reserved = (int) ($inventory?->reserved ?? 0);
-                $safety = (int) $product->getEffectiveSafetyStock();
+                $safety = (int) $stockProduct->getEffectiveSafetyStock();
 
                 // Get global minimum inventory setting (default 5 if not configured)
                 $globalMinInventory = (int) (\App\Models\Setting::getByKey('global_minimum_inventory') ?? 5);
@@ -970,6 +887,7 @@ class CartController extends Controller
                     $reason = ($safety > 0) ? 'product safety stock' : 'global minimum inventory';
                     \Log::warning('Order blocked: below minimum threshold', [
                         'product_id' => $product->id,
+                        'stock_product_id' => $stockProduct->id,
                         'product_name' => $product->name,
                         'has_variation' => ! is_null($product->variation_id),
                         'variation_item_selected' => $cartItem['variation_id'] ?? null,
@@ -993,6 +911,7 @@ class CartController extends Controller
                 if ($cartItem['quantity'] > $available) {
                     \Log::warning('Order blocked: quantity exceeds available (disponible)', [
                         'product_id' => $product->id,
+                        'stock_product_id' => $stockProduct->id,
                         'product_name' => $product->name,
                         'requested' => $cartItem['quantity'],
                         'disponible' => $available,
@@ -1402,16 +1321,15 @@ class CartController extends Controller
                     'flat_discount_amount' => $flatDiscountAmount,
                 ]);
 
-                // Decrement inventory (only when enabled)
-                // For products with variations, inventory is decremented from the parent product
-                // All variation items share the same inventory pool
+                // Decrement inventory (only when enabled). Selected variation SKUs can map to
+                // their own synced product inventory; otherwise inventory stays on the catalog product.
                 if ($isInventoryEnabled && $p->isInventoryManaged()) {
-                    // Always lock and update inventory at parent product level
-                    // $p->id is the parent product ID, even when $row['variation_id'] is set
-                    $inventory = ProductInventory::lockForUpdate()->where('product_id', $p->id)->where('bodega_code', $bodega)->first();
+                    $variationItemId = isset($row['variation_id']) ? (int) $row['variation_id'] : null;
+                    $stockProduct = BonificationCheckoutService::stockProductForSelectedVariation($p, $variationItemId);
+                    $inventory = ProductInventory::lockForUpdate()->where('product_id', $stockProduct->id)->where('bodega_code', $bodega)->first();
                     $current = (int) ($inventory?->available ?? 0);
                     $reserved = (int) ($inventory?->reserved ?? 0);
-                    $safety = (int) $p->getEffectiveSafetyStock();
+                    $safety = (int) $stockProduct->getEffectiveSafetyStock();
 
                     // Get global minimum inventory setting (default 5 if not configured)
                     $globalMinInventory = (int) (\App\Models\Setting::getByKey('global_minimum_inventory') ?? 5);
@@ -1426,6 +1344,7 @@ class CartController extends Controller
                         $reason = ($safety > 0) ? 'product safety stock' : 'global minimum inventory';
                         \Log::error('Order rollback: inventory insufficient during final check', [
                             'product_id' => $p->id,
+                            'stock_product_id' => $stockProduct->id,
                             'product_name' => $p->name,
                             'has_variation' => ! is_null($p->variation_id),
                             'variation_item_selected' => $row['variation_id'] ?? null,
@@ -1448,11 +1367,12 @@ class CartController extends Controller
                         // shouldn't happen, but guard
                         \Log::warning('Creating new inventory record during order', [
                             'product_id' => $p->id,
+                            'stock_product_id' => $stockProduct->id,
                             'bodega' => $bodega,
                             'quantity_ordered' => $row['quantity'],
                         ]);
                         ProductInventory::create([
-                            'product_id' => $p->id,
+                            'product_id' => $stockProduct->id,
                             'bodega_code' => $bodega,
                             'available' => max(0, $current - (int) $row['quantity']),
                             'physical' => 0,
@@ -1469,7 +1389,7 @@ class CartController extends Controller
                 $bonificationsToCheck = $p->bonifications;
                 if ($bonificationsToCheck->isNotEmpty() && ($lastCartKeyByProductId[$id] ?? $key) === $key) {
                     $plannedBonifications = [];
-                    $giftProductStockPlan = []; // gift_product_id => ['product', 'inventory', 'requested_total']
+                    $giftProductStockPlan = []; // stock_product_id => ['product', 'catalog_product', 'inventory', 'requested_total']
 
                     foreach ($bonificationsToCheck as $bonification) {
                         $aggregatedIndividualItems = $productQuantities[$id] ?? ($row['quantity'] * ($p->package_quantity ?? 1));
@@ -1492,35 +1412,48 @@ class CartController extends Controller
                             continue;
                         }
 
+                        $variationItemId = BonificationCheckoutService::resolveGiftVariationItemId(
+                            $bonificationProduct,
+                            (int) $order->id
+                        );
+                        $stockProduct = BonificationCheckoutService::stockProductForSelectedVariation(
+                            $bonificationProduct,
+                            $variationItemId
+                        );
                         $giftProductId = (int) $bonificationProduct->id;
+                        $stockProductId = (int) $stockProduct->id;
                         $plannedBonifications[] = [
                             'bonification' => $bonification,
                             'gift_product' => $bonificationProduct,
+                            'stock_product_id' => $stockProductId,
+                            'variation_item_id' => $variationItemId,
                             'quantity' => $bonification_quantity,
                         ];
 
-                        if (! isset($giftProductStockPlan[$giftProductId])) {
+                        if (! isset($giftProductStockPlan[$stockProductId])) {
                             $inventoryRow = null;
                             if ($isInventoryEnabled && $bodega && $bonificationProduct->isInventoryManaged()) {
                                 $inventoryRow = ProductInventory::lockForUpdate()
-                                    ->where('product_id', $giftProductId)
+                                    ->where('product_id', $stockProductId)
                                     ->where('bodega_code', $bodega)
                                     ->first();
                             }
-                            $giftProductStockPlan[$giftProductId] = [
-                                'product' => $bonificationProduct,
+                            $giftProductStockPlan[$stockProductId] = [
+                                'product' => $stockProduct,
+                                'catalog_product' => $bonificationProduct,
                                 'inventory' => $inventoryRow,
                                 'requested_total' => 0,
                             ];
                         }
-                        $giftProductStockPlan[$giftProductId]['requested_total'] += $bonification_quantity;
+                        $giftProductStockPlan[$stockProductId]['requested_total'] += $bonification_quantity;
                     }
 
-                    $blockedGiftProductIds = [];
-                    foreach ($giftProductStockPlan as $giftProductId => $stockPlan) {
+                    $blockedStockProductIds = [];
+                    foreach ($giftProductStockPlan as $stockProductId => $stockPlan) {
                         $giftProduct = $stockPlan['product'];
+                        $catalogProduct = $stockPlan['catalog_product'];
                         $requestedTotal = (int) $stockPlan['requested_total'];
-                        if (! $isInventoryEnabled || ! $bodega || ! $giftProduct->isInventoryManaged()) {
+                        if (! $isInventoryEnabled || ! $bodega || ! $catalogProduct->isInventoryManaged()) {
                             continue;
                         }
 
@@ -1531,11 +1464,12 @@ class CartController extends Controller
                             $requestedTotal
                         );
                         if (! $hasEnoughForAll) {
-                            $blockedGiftProductIds[$giftProductId] = true;
+                            $blockedStockProductIds[$stockProductId] = true;
                             Log::warning('Skipping bonifications: insufficient stock for all gift items involved', [
                                 'order_id' => $order->id,
                                 'trigger_product_id' => $id,
-                                'gift_product_id' => $giftProductId,
+                                'gift_product_id' => $catalogProduct->id,
+                                'stock_product_id' => $stockProductId,
                                 'requested_total' => $requestedTotal,
                                 'available' => $disponible,
                                 'bodega' => $bodega,
@@ -1553,32 +1487,28 @@ class CartController extends Controller
                     foreach ($plannedBonifications as $planned) {
                         $giftProduct = $planned['gift_product'];
                         $giftProductId = (int) $giftProduct->id;
-                        if (isset($blockedGiftProductIds[$giftProductId])) {
+                        $stockProductId = (int) $planned['stock_product_id'];
+                        if (isset($blockedStockProductIds[$stockProductId])) {
                             continue;
                         }
-
-                        $variationItemId = BonificationCheckoutService::resolveGiftVariationItemId(
-                            $giftProduct,
-                            (int) $order->id
-                        );
 
                         OrderProductBonification::create([
                             'bonification_id' => $planned['bonification']->id,
                             'order_product_id' => $bonificationOrderProductId,
                             'product_id' => $giftProductId,
-                            'variation_item_id' => $variationItemId,
+                            'variation_item_id' => $planned['variation_item_id'],
                             'quantity' => (int) $planned['quantity'],
                             'order_id' => $order->id,
                         ]);
 
-                        if (! isset($consumedByGiftProduct[$giftProductId])) {
-                            $consumedByGiftProduct[$giftProductId] = 0;
+                        if (! isset($consumedByGiftProduct[$stockProductId])) {
+                            $consumedByGiftProduct[$stockProductId] = 0;
                         }
-                        $consumedByGiftProduct[$giftProductId] += (int) $planned['quantity'];
+                        $consumedByGiftProduct[$stockProductId] += (int) $planned['quantity'];
                     }
 
-                    foreach ($consumedByGiftProduct as $giftProductId => $qtyToConsume) {
-                        $stockPlan = $giftProductStockPlan[$giftProductId] ?? null;
+                    foreach ($consumedByGiftProduct as $stockProductId => $qtyToConsume) {
+                        $stockPlan = $giftProductStockPlan[$stockProductId] ?? null;
                         $inventoryRow = $stockPlan['inventory'] ?? null;
                         if ($inventoryRow && $qtyToConsume > 0) {
                             $inventoryRow->update(['available' => (int) $inventoryRow->available - $qtyToConsume]);
@@ -2070,6 +2000,136 @@ class CartController extends Controller
         session()->forget('applied_coupons');   // Multi-coupon list
         session()->forget('coupon_discounts');   // Per-product discount cache
         session()->forget('total_coupon_discount'); // Total discount cache
+    }
+
+    /**
+     * Resolve checkout delivery zone for the client ($actingUser).
+     *
+     * - Posted `zone_id` is authoritative when it belongs to the user (vendedor UI or stale hidden sucursal must not
+     *   override the selected <select> value).
+     * - Session `zone_id` is only a fallback for single-address users (multi-sucursal: never trust global session, e.g.
+     *   after seller switches clients).
+     * - When posted id is obsolete after rutero sync, `sucursal_code` + fingerprint still resolve the branch.
+     *
+     * @return array{ok: true, zone: \App\Models\Zone}|array{ok: false, message: string}
+     */
+    private function resolveCheckoutZone(\App\Models\User $actingUser, \Illuminate\Http\Request $request): array
+    {
+        $actingUser->load('zones');
+        $zoneCount = $actingUser->zones->count();
+
+        $rawRequestZoneId = $this->normalizedCheckoutZoneId($request->input('zone_id'));
+        $sessionZoneId = $this->normalizedCheckoutZoneId(session()->get('zone_id'));
+        $requestedZoneId = $rawRequestZoneId ?? ($zoneCount <= 1 ? $sessionZoneId : null);
+
+        $rawSucursalCode = $request->input('sucursal_code');
+        $trimmedSucursalCode = is_string($rawSucursalCode) ? trim($rawSucursalCode) : '';
+        $trimmedSucursalCode = $trimmedSucursalCode !== '' ? $trimmedSucursalCode : null;
+        $zoneFingerprint = [
+            'code' => $trimmedSucursalCode,
+            'route' => $this->normalizeCheckoutZoneText($request->input('sucursal_route')),
+            'zone' => $this->normalizeCheckoutZoneText($request->input('sucursal_zone')),
+            'day' => $this->normalizeCheckoutZoneText($request->input('sucursal_day')),
+            'address' => $this->normalizeCheckoutZoneText($request->input('sucursal_address')),
+        ];
+
+        $zone = null;
+
+        if ($requestedZoneId !== null) {
+            $candidate = Zone::where('id', $requestedZoneId)
+                ->where('user_id', $actingUser->id)
+                ->first();
+            if ($candidate) {
+                if ($this->sucursalRequestHasData($zoneFingerprint) && ! $this->zoneMatchesCheckoutFingerprint($candidate, $zoneFingerprint)) {
+                    \Log::warning('Checkout zone_id does not match posted sucursal fields; using posted zone_id (authoritative)', [
+                        'acting_user_id' => $actingUser->id,
+                        'zone_id' => $candidate->id,
+                    ]);
+                }
+                $zone = $candidate;
+            }
+        }
+
+        if (! $zone && $trimmedSucursalCode !== null) {
+            $candidates = Zone::where('user_id', $actingUser->id)
+                ->where('code', $trimmedSucursalCode)
+                ->orderBy('id')
+                ->get();
+
+            if ($candidates->count() === 1) {
+                $zone = $candidates->first();
+            } elseif ($candidates->count() > 1) {
+                $fingerprintMatches = $candidates->filter(function ($candidate) use ($zoneFingerprint) {
+                    return $this->zoneMatchesCheckoutFingerprint($candidate, $zoneFingerprint);
+                });
+
+                if ($fingerprintMatches->count() === 1) {
+                    $zone = $fingerprintMatches->first();
+                }
+
+                \Log::warning('Multiple zones share the same sucursal code for user; fingerprint required to disambiguate', [
+                    'acting_user_id' => $actingUser->id,
+                    'code' => $trimmedSucursalCode,
+                    'zone_ids' => $candidates->pluck('id')->all(),
+                    'fingerprint_matches' => $fingerprintMatches->pluck('id')->all(),
+                ]);
+            }
+        }
+
+        if (! $zone && $this->hasCheckoutZoneFingerprint($zoneFingerprint)) {
+            $fingerprintMatches = $actingUser->zones->filter(function ($candidate) use ($zoneFingerprint) {
+                return $this->zoneMatchesCheckoutFingerprint($candidate, $zoneFingerprint);
+            });
+            if ($fingerprintMatches->count() === 1) {
+                $zone = $fingerprintMatches->first();
+            }
+        }
+
+        if ($zone) {
+            session()->put('zone_id', $zone->id);
+
+            return ['ok' => true, 'zone' => $zone];
+        }
+
+        if ($zoneCount === 0) {
+            return [
+                'ok' => false,
+                'message' => 'No hay dirección de entrega disponible. Actualiza tus datos de rutero e intenta de nuevo.',
+            ];
+        }
+        if ($zoneCount === 1) {
+            $only = $actingUser->zones->first();
+            session()->put('zone_id', $only->id);
+
+            return ['ok' => true, 'zone' => $only];
+        }
+        \Log::warning('Zone resolution failed for multi-zone user', [
+            'acting_user_id' => $actingUser->id,
+            'requested_zone_id' => $requestedZoneId,
+            'sucursal_code' => $trimmedSucursalCode,
+            'available_zone_ids' => $actingUser->zones->pluck('id')->all(),
+            'available_zone_codes' => $actingUser->zones->pluck('code')->all(),
+        ]);
+
+        return [
+            'ok' => false,
+            'message' => 'La dirección seleccionada ya no coincide con tus datos actualizados. Recarga la página del carrito y vuelve a elegir la sucursal. Si tienes varias sucursales y esto se repite, contacta a soporte (puede faltar el código de sucursal en tus datos).',
+        ];
+    }
+
+    /**
+     * True when the request sent at least one sucursal / fingerprint field (any of code, route, zone, day, address).
+     */
+    private function sucursalRequestHasData(array $fingerprint): bool
+    {
+        foreach (['code', 'route', 'zone', 'day', 'address'] as $field) {
+            $v = $fingerprint[$field] ?? null;
+            if ($v !== null && $v !== '') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

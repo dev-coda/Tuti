@@ -135,6 +135,8 @@ class SellerController extends Controller
                 }
 
                 session()->put('user_id', $user->id);
+                session()->forget('zone_id');
+
                 return to_route('cart');
             } else {
                 return back()->with('error', 'No se encontró el rutero');
@@ -154,6 +156,8 @@ class SellerController extends Controller
             }
 
             session()->put('user_id', $user->id);
+            session()->forget('zone_id');
+
             return to_route('cart');
         }
 
@@ -164,6 +168,8 @@ class SellerController extends Controller
     public function removeclient()
     {
         session()->forget('user_id');
+        session()->forget('zone_id');
+
         return to_route('cart')->with('success', 'Cliente desvinculado');
     }
 

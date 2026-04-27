@@ -337,7 +337,12 @@ class OrderController extends Controller
             return redirect()->route('clients.orders.index');
         }
 
-        $order->load(['user', 'bonifications' => ['product', 'bonification'], 'products' => ['product' => ['variation', 'bonifications.product', 'tax']]]);
+        $order->load([
+            'user.city',
+            'zone',
+            'bonifications' => ['product', 'bonification'],
+            'products' => ['product' => ['variation', 'bonifications.product', 'tax']],
+        ]);
         $context = compact('order');
 
         return view('clients.orders.show', $context);

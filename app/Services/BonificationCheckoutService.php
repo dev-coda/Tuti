@@ -75,6 +75,38 @@ class BonificationCheckoutService
         return $product->items()->wherePivot('enabled', true)->exists();
     }
 
+    public static function stockProductForSelectedVariation(Product $product, ?int $variationItemId): Product
+    {
+        if (! $variationItemId) {
+            return $product;
+        }
+
+        $variationSku = self::selectedVariationSku($product, $variationItemId);
+        if ($variationSku === null) {
+            return $product;
+        }
+
+        return Product::query()
+            ->where('sku', $variationSku)
+            ->first() ?? $product;
+    }
+
+    public static function selectedVariationSku(Product $product, ?int $variationItemId): ?string
+    {
+        if (! $variationItemId) {
+            return null;
+        }
+
+        $variation = $product->items()
+            ->where('variation_items.id', $variationItemId)
+            ->wherePivot('enabled', true)
+            ->first();
+
+        $sku = trim((string) ($variation?->pivot?->sku ?? ''));
+
+        return $sku !== '' ? $sku : null;
+    }
+
     /**
      * Variation to send on the gift (obsequio) line so SAP/XML gets a resolvable itemId.
      * When the parent has no base SKU, we must use an enabled line with a per-variation SKU.

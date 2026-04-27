@@ -279,7 +279,7 @@
                     <p class="font-semibold text-gray-900">{{ $order->user->name }}</p>
                     
                     @php
-                        $zone = $order->user->zones->first();
+                        $zone = $order->zone;
                     @endphp
                     
                     @if($zone && $zone->address)
