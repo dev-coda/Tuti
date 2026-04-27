@@ -230,7 +230,12 @@
 
         {{-- Inventory overview --}}
         <div class="p-4 mb-4 bg-white border border-gray-200 rounded-lg shadow-sm">
-            <h3 class="mb-3 text-lg font-semibold">Inventario por bodega</h3>
+            <h3 class="mb-3 text-lg font-semibold">Inventario del producto padre por bodega</h3>
+            @if($product->variation_id)
+                <p class="mb-3 text-xs text-gray-500">
+                    Este producto tiene variaciones. Si el SKU del padre es dummy, el inventario real puede estar en los SKU de las variaciones.
+                </p>
+            @endif
             @php $inventories = $product->inventories ?? collect(); @endphp
             @if($inventories->count() === 0)
                 <p class="text-sm text-gray-500">Sin registros de inventario.</p>
@@ -256,6 +261,66 @@
                             </div>
                         </div>
                     @endforeach
+                </div>
+            @endif
+
+            @if($product->variation_id && $product->items->count())
+                <div class="mt-6 border-t border-gray-200 pt-4">
+                    <h4 class="mb-3 text-base font-semibold">Inventario por variación</h4>
+                    <div class="space-y-4">
+                        @foreach($product->items->where('pivot.enabled', 1)->sortBy('id') as $item)
+                            @php
+                                $variationSku = $product->selectedVariationSku((int) $item->id);
+                                $stockProduct = $product->stockProductForSelectedVariation((int) $item->id);
+                                $variationInventories = $stockProduct->inventories()->orderBy('bodega_code')->get();
+                            @endphp
+                            <div class="border rounded-lg p-3 bg-gray-50">
+                                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-1 mb-3">
+                                    <div>
+                                        <div class="text-sm font-semibold text-gray-900">{{ $item->name }}</div>
+                                        <div class="text-xs text-gray-500">
+                                            SKU variación: {{ $variationSku ?: 'Sin SKU' }}
+                                            @if($stockProduct->id !== $product->id)
+                                                - Producto inventario #{{ $stockProduct->id }}
+                                            @endif
+                                        </div>
+                                    </div>
+                                    @if(! $variationSku)
+                                        <span class="text-xs text-orange-700 bg-orange-100 rounded-full px-2 py-1 w-fit">Sin SKU para sincronizar</span>
+                                    @elseif($stockProduct->id === $product->id)
+                                        <span class="text-xs text-orange-700 bg-orange-100 rounded-full px-2 py-1 w-fit">Sin producto hijo con ese SKU</span>
+                                    @endif
+                                </div>
+
+                                @if($variationInventories->count() === 0)
+                                    <p class="text-sm text-gray-500">Sin registros de inventario para esta variación.</p>
+                                @else
+                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                        @foreach($variationInventories as $inv)
+                                            <div class="border rounded-lg p-3 bg-white">
+                                                <div class="text-sm text-gray-500">Bodega</div>
+                                                <div class="font-semibold">{{ $inv->bodega_code }}</div>
+                                                <div class="mt-2 grid grid-cols-3 gap-2 text-center">
+                                                    <div>
+                                                        <div class="text-xs text-gray-500">Disponible</div>
+                                                        <div class="font-semibold text-green-700">{{ (int) $inv->available }}</div>
+                                                    </div>
+                                                    <div>
+                                                        <div class="text-xs text-gray-500">Reservado</div>
+                                                        <div class="font-semibold text-orange-700">{{ (int) $inv->reserved }}</div>
+                                                    </div>
+                                                    <div>
+                                                        <div class="text-xs text-gray-500">Físico</div>
+                                                        <div class="font-semibold text-blue-700">{{ (int) $inv->physical }}</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                @endif
+                            </div>
+                        @endforeach
+                    </div>
                 </div>
             @endif
         </div>

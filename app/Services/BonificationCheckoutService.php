@@ -77,34 +77,12 @@ class BonificationCheckoutService
 
     public static function stockProductForSelectedVariation(Product $product, ?int $variationItemId): Product
     {
-        if (! $variationItemId) {
-            return $product;
-        }
-
-        $variationSku = self::selectedVariationSku($product, $variationItemId);
-        if ($variationSku === null) {
-            return $product;
-        }
-
-        return Product::query()
-            ->where('sku', $variationSku)
-            ->first() ?? $product;
+        return $product->stockProductForSelectedVariation($variationItemId);
     }
 
     public static function selectedVariationSku(Product $product, ?int $variationItemId): ?string
     {
-        if (! $variationItemId) {
-            return null;
-        }
-
-        $variation = $product->items()
-            ->where('variation_items.id', $variationItemId)
-            ->wherePivot('enabled', true)
-            ->first();
-
-        $sku = trim((string) ($variation?->pivot?->sku ?? ''));
-
-        return $sku !== '' ? $sku : null;
+        return $product->selectedVariationSku($variationItemId);
     }
 
     /**

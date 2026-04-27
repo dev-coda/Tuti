@@ -15,6 +15,7 @@
                             <th scope="col" class="px-4 py-3">Nombre</th>
                             <th scope="col" class="px-4 py-3 ">Precio</th>
                             <th scope="col" class="px-4 py-3">SKU</th>
+                            <th scope="col" class="px-4 py-3">Inventario</th>
                             <th scope="col" class="px-4 py-3">Imagen</th>
                             
                 
@@ -55,6 +56,32 @@
                                 }}
                                 
                                 </div>
+                            </td>
+
+                            <td class="px-4 py-3 min-w-[16rem]">
+                                @php
+                                    $variationSku = $product->selectedVariationSku((int) $item->id);
+                                    $stockProduct = $product->stockProductForSelectedVariation((int) $item->id);
+                                    $variationInventories = $stockProduct->inventories()->orderBy('bodega_code')->get();
+                                @endphp
+
+                                @if(! $variationSku)
+                                    <span class="inline-flex text-xs text-orange-700 bg-orange-100 rounded-full px-2 py-1">Sin SKU para sincronizar</span>
+                                @elseif($stockProduct->id === $product->id && $variationSku !== $product->sku)
+                                    <span class="inline-flex text-xs text-orange-700 bg-orange-100 rounded-full px-2 py-1">Sin producto hijo con ese SKU</span>
+                                @elseif($variationInventories->count() === 0)
+                                    <span class="inline-flex text-xs text-gray-600 bg-gray-100 rounded-full px-2 py-1">Sin inventario sincronizado</span>
+                                @else
+                                    <div class="flex flex-wrap gap-2">
+                                        @foreach($variationInventories as $inv)
+                                            <div class="rounded border border-gray-200 bg-white px-2 py-1 text-xs">
+                                                <div class="font-semibold text-gray-900">{{ $inv->bodega_code }}</div>
+                                                <div class="text-green-700">Disp: {{ (int) $inv->available }}</div>
+                                                <div class="text-blue-700">Fis: {{ (int) $inv->physical }}</div>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                @endif
                             </td>
                             
 

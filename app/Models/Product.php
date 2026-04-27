@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use App\Models\Setting;
 
 class Product extends Model
 {
@@ -73,7 +72,6 @@ class Product extends Model
         return $this->belongsToMany(Product::class, 'product_related', 'product_id', 'product_related_id')->orderBy('name');
     }
 
-
     public function tax()
     {
         return $this->belongsTo(Tax::class);
@@ -89,21 +87,18 @@ class Product extends Model
         return $this->belongsTo(Variation::class);
     }
 
-
     public function combinations()
     {
         return $this->belongsToMany(Product::class, 'product_combination', 'parent_id', 'product_id')
             ->orderBy('name')
-            ->withPivot(["price", "variation_item_id"]);
+            ->withPivot(['price', 'variation_item_id']);
     }
-
 
     public function items()
     {
         return $this->belongsToMany(VariationItem::class, 'product_item_variation', 'product_id', 'variation_item_id')
-            ->withPivot(["price", "enabled", 'sku']);
+            ->withPivot(['price', 'enabled', 'sku']);
     }
-
 
     public function images()
     {
@@ -121,35 +116,113 @@ class Product extends Model
         return $this->hasMany(ProductInventory::class);
     }
 
-    /**
-     * Get available inventory for a specific warehouse (bodega)
-     * For products with variations, this returns the shared inventory pool
-     * that all variation items draw from.
-     */
-    public function getInventoryForBodega(?string $bodegaCode): int
+    public function selectedVariationSku(?int $variationItemId): ?string
     {
-        if (!$bodegaCode) return 0;
-        $inv = $this->inventories->firstWhere('bodega_code', $bodegaCode);
+        if (! $variationItemId) {
+            return null;
+        }
+
+        $variation = $this->relationLoaded('items')
+            ? $this->items->firstWhere('id', $variationItemId)
+            : $this->items()
+                ->where('variation_items.id', $variationItemId)
+                ->wherePivot('enabled', true)
+                ->first();
+
+        if ($variation && isset($variation->pivot) && ! (bool) ($variation->pivot->enabled ?? true)) {
+            return null;
+        }
+
+        $sku = trim((string) ($variation?->pivot?->sku ?? ''));
+
+        return $sku !== '' ? $sku : null;
+    }
+
+    public function stockProductForSelectedVariation(?int $variationItemId): Product
+    {
+        $variationSku = $this->selectedVariationSku($variationItemId);
+        if ($variationSku === null) {
+            return $this;
+        }
+
+        return self::query()
+            ->where('sku', $variationSku)
+            ->first() ?? $this;
+    }
+
+    public function preferredVariationItemIdForBodega(?string $bodegaCode): ?int
+    {
+        if (! $bodegaCode || ! $this->variation_id) {
+            return null;
+        }
+
+        $items = $this->relationLoaded('items')
+            ? $this->items
+            : $this->items()->get();
+
+        $enabledItems = $items
+            ->filter(fn ($item) => (bool) ($item->pivot->enabled ?? true))
+            ->sortBy('id')
+            ->values();
+
+        foreach ($enabledItems as $item) {
+            if ($this->getOrderableStockForBodega($bodegaCode, (int) $item->id) > 0) {
+                return (int) $item->id;
+            }
+        }
+
+        $first = $enabledItems->first();
+
+        return $first ? (int) $first->id : null;
+    }
+
+    /**
+     * Get available inventory for a specific warehouse (bodega).
+     */
+    public function getInventoryForBodega(?string $bodegaCode, ?int $variationItemId = null): int
+    {
+        if (! $bodegaCode) {
+            return 0;
+        }
+        $stockProduct = $variationItemId ? $this->stockProductForSelectedVariation($variationItemId) : $this;
+        if ($stockProduct->is($this) && $this->relationLoaded('inventories')) {
+            $inv = $this->inventories->firstWhere('bodega_code', $bodegaCode);
+
+            return $inv?->available ?? 0;
+        }
+        $inv = $stockProduct->inventories()->where('bodega_code', $bodegaCode)->first();
+
         return $inv?->available ?? 0;
     }
 
     public function getInventoryForMdtat(): int
     {
-        $inv = $this->inventories->firstWhere('bodega_code', 'MDTAT');
-        return $inv?->available ?? 0;
+        return $this->getInventoryForBodega('MDTAT');
     }
 
     /**
      * Get orderable stock for bodega (available - safety stock)
      * This is what should be shown to clients in frontend views
      */
-    public function getOrderableStockForBodega(?string $bodegaCode): int
+    public function getOrderableStockForBodega(?string $bodegaCode, ?int $variationItemId = null): int
     {
-        $available = $this->getInventoryForBodega($bodegaCode);
-        $safety = (int) $this->getEffectiveSafetyStock();
+        if (! $variationItemId && $this->variation_id) {
+            $items = $this->relationLoaded('items') ? $this->items : $this->items()->get();
+            $stocks = $items
+                ->filter(fn ($item) => (bool) ($item->pivot->enabled ?? true))
+                ->map(fn ($item) => $this->getOrderableStockForBodega($bodegaCode, (int) $item->id));
+
+            if ($stocks->isNotEmpty()) {
+                return (int) $stocks->max();
+            }
+        }
+
+        $stockProduct = $variationItemId ? $this->stockProductForSelectedVariation($variationItemId) : $this;
+        $available = $stockProduct->getInventoryForBodega($bodegaCode);
+        $safety = (int) $stockProduct->getEffectiveSafetyStock();
         $globalMin = (int) (Setting::getByKey('global_minimum_inventory') ?? 5);
         $effectiveMinimum = ($safety > 0) ? $safety : $globalMin;
-        
+
         return max(0, $available - $effectiveMinimum);
     }
 
@@ -159,12 +232,7 @@ class Product extends Model
      */
     public function getOrderableStockForMdtat(): int
     {
-        $available = $this->getInventoryForMdtat();
-        $safety = (int) $this->getEffectiveSafetyStock();
-        $globalMin = (int) (Setting::getByKey('global_minimum_inventory') ?? 5);
-        $effectiveMinimum = ($safety > 0) ? $safety : $globalMin;
-        
-        return max(0, $available - $effectiveMinimum);
+        return $this->getOrderableStockForBodega('MDTAT');
     }
 
     /**
@@ -185,7 +253,7 @@ class Product extends Model
      */
     public function getSharedInventoryForBodega(?string $bodegaCode): int
     {
-        if (!$bodegaCode || empty($this->sku)) {
+        if (! $bodegaCode || empty($this->sku)) {
             return $this->getInventoryForBodega($bodegaCode);
         }
 
@@ -211,10 +279,11 @@ class Product extends Model
     public function getEffectiveSafetyStock(): int
     {
         // Product-specific overrides category; otherwise use category safety or 0
-        if (!is_null($this->safety_stock)) {
+        if (! is_null($this->safety_stock)) {
             return (int) $this->safety_stock;
         }
         $category = $this->categories->first();
+
         return (int) ($category?->safety_stock ?? 0);
     }
 
@@ -233,6 +302,7 @@ class Product extends Model
 
     /**
      * Get the active tag for this product (lowest priority)
+     *
      * @deprecated Use getActiveTags() instead
      */
     public function getActiveTag(): ?Tag
@@ -311,7 +381,7 @@ class Product extends Model
     protected function discountAppliesFromSources(bool $includeVendor): bool
     {
         if ($this->bonifications->count() > 0) {
-            $allBlockDiscounts = $this->bonifications->every(fn ($b) => !$b->allow_discounts);
+            $allBlockDiscounts = $this->bonifications->every(fn ($b) => ! $b->allow_discounts);
             if ($allBlockDiscounts) {
                 return false;
             }
@@ -321,12 +391,12 @@ class Product extends Model
             return true;
         }
 
-        if (!$this->exclude_from_brand_discount && $this->brand && $this->brand->discount > 0) {
+        if (! $this->exclude_from_brand_discount && $this->brand && $this->brand->discount > 0) {
             return true;
         }
 
         if ($includeVendor
-            && !$this->exclude_from_vendor_discount
+            && ! $this->exclude_from_vendor_discount
             && $this->brand
             && $this->brand->vendor
             && $this->brand->vendor->discount > 0) {
@@ -343,7 +413,7 @@ class Product extends Model
     {
         $final = $this->getFinalPriceForUser(false);
 
-        if (!empty($final['has_discount']) && ($final['discount'] ?? 0) > 0) {
+        if (! empty($final['has_discount']) && ($final['discount'] ?? 0) > 0) {
             return $this->formatPercentageLabelForTag((float) $final['discount']);
         }
 
@@ -357,7 +427,7 @@ class Product extends Model
             $amount = (float) $static['discount'];
             $formatted = number_format($amount, 0, ',', '.');
 
-            return '-$' . $formatted;
+            return '-$'.$formatted;
         }
 
         return 'DESCUENTO';
@@ -373,10 +443,10 @@ class Product extends Model
         }
 
         if (abs($pct - round($pct)) < 0.001) {
-            return '-' . (string) (int) round($pct) . '%';
+            return '-'.(string) (int) round($pct).'%';
         }
 
-        return '-' . rtrim(rtrim(number_format($pct, 1, '.', ''), '0'), '.') . '%';
+        return '-'.rtrim(rtrim(number_format($pct, 1, '.', ''), '0'), '.').'%';
     }
 
     /**
@@ -409,10 +479,10 @@ class Product extends Model
         }
 
         // Brand discount (skip if product explicitly excluded)
-        if (!$this->exclude_from_brand_discount && $this->brand && $this->brand->discount > 0) {
+        if (! $this->exclude_from_brand_discount && $this->brand && $this->brand->discount > 0) {
             $brandDiscount = $this->brand->discount;
             $brandDiscountType = $this->brand->discount_type ?? 'percentage';
-            
+
             $brandDiscountPercentage = 0;
             if ($brandDiscountType === 'percentage') {
                 $brandDiscountPercentage = $brandDiscount;
@@ -420,7 +490,7 @@ class Product extends Model
                 // Convert fixed amount to percentage equivalent
                 $brandDiscountPercentage = ($brandDiscount / $price) * 100;
             }
-            
+
             // Brand discount wins if it's better (higher percentage)
             if ($brandDiscountPercentage > $bestDiscountPercentage) {
                 $bestDiscount = $brandDiscount;
@@ -431,10 +501,10 @@ class Product extends Model
         }
 
         // Vendor discount (skip if product explicitly excluded; highest priority - always wins if better or equal)
-        if (!$this->exclude_from_vendor_discount && $this->brand && $this->brand->vendor && $this->brand->vendor->discount > 0) {
+        if (! $this->exclude_from_vendor_discount && $this->brand && $this->brand->vendor && $this->brand->vendor->discount > 0) {
             $vendorDiscount = $this->brand->vendor->discount;
             $vendorDiscountType = $this->brand->vendor->discount_type ?? 'percentage';
-            
+
             $vendorDiscountPercentage = 0;
             if ($vendorDiscountType === 'percentage') {
                 $vendorDiscountPercentage = $vendorDiscount;
@@ -442,7 +512,7 @@ class Product extends Model
                 // Convert fixed amount to percentage equivalent
                 $vendorDiscountPercentage = ($vendorDiscount / $price) * 100;
             }
-            
+
             // Vendor discount always wins if it's better or equal
             if ($vendorDiscountPercentage >= $bestDiscountPercentage) {
                 $bestDiscount = $vendorDiscount;
@@ -476,7 +546,7 @@ class Product extends Model
      */
     protected function resolveUnitBasePrice(?int $variationItemId): float
     {
-        if (!$this->items || $this->items->isEmpty()) {
+        if (! $this->items || $this->items->isEmpty()) {
             return (float) $this->price;
         }
 
@@ -506,28 +576,28 @@ class Product extends Model
         if ($this->discount > 0) {
             // Apply product discount if:
             // 1. Enforce is disabled, OR
-            // 2. User has no orders, OR  
+            // 2. User has no orders, OR
             // 3. User has orders but first_purchase_only is false
-            if (!$enforce_first_purchase || !$has_orders || !$this->first_purchase_only) {
+            if (! $enforce_first_purchase || ! $has_orders || ! $this->first_purchase_only) {
                 $discount = $this->discount;
                 $discount_on = 'Producto';
             }
         }
 
         // Brand discount (higher priority than product; skip if product excluded)
-        if (!$this->exclude_from_brand_discount && $this->brand && $this->brand->discount > $discount) {
-            if (!$enforce_first_purchase || !$has_orders || !$this->brand->first_purchase_only) {
+        if (! $this->exclude_from_brand_discount && $this->brand && $this->brand->discount > $discount) {
+            if (! $enforce_first_purchase || ! $has_orders || ! $this->brand->first_purchase_only) {
                 $discount = $this->brand->discount;
                 $discount_on = 'Marca';
             }
         }
 
         // Vendor discount (highest priority; skip if product excluded) - with minimum amount check
-        if (!$this->exclude_from_vendor_discount && $this->brand && $this->brand->vendor && $this->brand->vendor->discount >= $discount) {
+        if (! $this->exclude_from_vendor_discount && $this->brand && $this->brand->vendor && $this->brand->vendor->discount >= $discount) {
             $vendor = $this->brand->vendor;
 
             // Check if vendor discount should apply based on first purchase rules
-            $vendorDiscountApplies = !$enforce_first_purchase || !$has_orders || !$vendor->first_purchase_only;
+            $vendorDiscountApplies = ! $enforce_first_purchase || ! $has_orders || ! $vendor->first_purchase_only;
 
             // Check if vendor minimum discount amount is met
             $vendorMinimumMet = true;
@@ -558,9 +628,9 @@ class Product extends Model
         // If at least one bonification allows discounts, then discounts can apply
         if ($this->bonifications->count() > 0) {
             $allBlockDiscounts = $this->bonifications->every(function ($bonification) {
-                return !$bonification->allow_discounts;
+                return ! $bonification->allow_discounts;
             });
-            
+
             if ($allBlockDiscounts) {
                 // All bonifications block discounts, so remove discounts
                 $discount_on = false;
@@ -608,13 +678,13 @@ class Product extends Model
         $basePriceInfo = $this->getFinalPriceForUser($has_orders, null, $variationId);
 
         // If no coupon data provided, return base pricing
-        if (!$couponData) {
+        if (! $couponData) {
             return $basePriceInfo;
         }
 
         // Apply coupon-modified pricing
         $discountType = $couponData['applied_discount_type'] ?? 'percentage';
-        
+
         if ($discountType === 'fixed_amount') {
             // For fixed amount coupons, use the modified unit price
             $newUnitPrice = $couponData['new_unit_price'];
@@ -641,7 +711,7 @@ class Product extends Model
                 'originalPrice' => $originalPrice,
                 'perItemPrice' => $newUnitPrice,
                 'coupon_applied' => true,
-                'coupon_type' => 'fixed_amount'
+                'coupon_type' => 'fixed_amount',
             ];
         } else {
             // For percentage coupons or when existing discount is better
@@ -672,7 +742,7 @@ class Product extends Model
                 'originalPrice' => $price * $packageQuantity,
                 'perItemPrice' => $finalPrice,
                 'coupon_applied' => $discountSource === 'coupon',
-                'coupon_type' => 'percentage'
+                'coupon_type' => 'percentage',
             ];
         }
     }
@@ -694,7 +764,6 @@ class Product extends Model
         return $this->belongsToMany(Order::class, 'order_products');
     }
 
-
     public function getCategoryAttribute()
     {
         return $this->categories->first();
@@ -705,19 +774,19 @@ class Product extends Model
         // Global toggle
         $inventoryEnabled = Setting::getByKey('inventory_enabled');
         $globalOn = ($inventoryEnabled === '1' || $inventoryEnabled === 1 || $inventoryEnabled === true);
-        if (!$globalOn) {
+        if (! $globalOn) {
             return false;
         }
 
         // Product-level opt-out (optional column)
-        if (!empty($this->inventory_opt_out) && (int)$this->inventory_opt_out === 1) {
+        if (! empty($this->inventory_opt_out) && (int) $this->inventory_opt_out === 1) {
             return false;
         }
 
         // Category-level opt-out (optional column) or default by name 'OFERTAS'
         $category = $this->categories->first();
         if ($category) {
-            if (!empty($category->inventory_opt_out) && (int)$category->inventory_opt_out === 1) {
+            if (! empty($category->inventory_opt_out) && (int) $category->inventory_opt_out === 1) {
                 return false;
             }
             if (mb_strtoupper(trim((string) $category->name)) === 'OFERTAS') {

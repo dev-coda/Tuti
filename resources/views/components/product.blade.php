@@ -29,8 +29,9 @@
         @auth
             @php
                 $isManaged = $product->isInventoryManaged();
+                $preferredVariationItemId = $product->preferredVariationItemIdForBodega($bodegaCode);
                 // Use orderable stock (available - safety) for client-facing display
-                $orderableStock = $product->getOrderableStockForBodega($bodegaCode);
+                $orderableStock = $product->getOrderableStockForBodega($bodegaCode, $preferredVariationItemId);
             @endphp
             @if($showInventory && $isManaged)
                 @if($orderableStock <= 0)
@@ -42,8 +43,9 @@
         @else
             @php 
                 $isManaged = $product->isInventoryManaged();
+                $preferredVariationItemId = $product->preferredVariationItemIdForBodega('MDTAT');
                 // Use orderable stock (available - safety) for client-facing display
-                $orderableStock = $product->getOrderableStockForMdtat();
+                $orderableStock = $product->getOrderableStockForBodega('MDTAT', $preferredVariationItemId);
             @endphp
             @if($showInventory && $isManaged)
                 @if($orderableStock <= 0)
@@ -69,7 +71,9 @@
         <input type="hidden" name="quantity" value="{{ $product->step ?? 1 }}">
         @if($product->variation_id)
             @php
-                $firstVariation = $product->items->first();
+                $firstVariation = isset($preferredVariationItemId) && $preferredVariationItemId
+                    ? $product->items->firstWhere('id', $preferredVariationItemId)
+                    : $product->items->where('pivot.enabled', 1)->first();
             @endphp
             @if($firstVariation)
                 <input type="hidden" name="variation_id" value="{{ $firstVariation->id }}">

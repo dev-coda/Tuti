@@ -233,38 +233,28 @@
                 $inventoryEnabled = \App\Models\Setting::getByKey('inventory_enabled');
                 $showInventory = ($inventoryEnabled === '1' || $inventoryEnabled === 1 || $inventoryEnabled === true);
                 $isManaged = $product->isInventoryManaged();
+                $displayBodegaCode = auth()->check() ? ($bodegaCode ?? null) : 'MDTAT';
+                $preferredVariationItemId = $product->preferredVariationItemIdForBodega($displayBodegaCode);
                 // Use orderable stock (available - safety) for client-facing display
-                $orderableStock = auth()->check() 
-                    ? $product->getOrderableStockForBodega($bodegaCode ?? null) 
-                    : $product->getOrderableStockForMdtat();
+                $orderableStock = auth()->check()
+                    ? $product->getOrderableStockForBodega($bodegaCode ?? null, $preferredVariationItemId)
+                    : $product->getOrderableStockForBodega('MDTAT', $preferredVariationItemId);
             @endphp
             
             @if($showInventory && $isManaged)
                 <div class="mt-2">
-                    @auth
-                        @if($orderableStock > 0)
-                            <p class="text-sm text-gray-600">
-                                <span class="font-medium text-gray-900">Disponibilidad:</span> 
-                                <span class="font-semibold {{ $orderableStock < 10 ? 'text-orange-600' : 'text-green-600' }}">
-                                    {{ number_format($orderableStock) }} unidades
-                                </span>
-                            </p>
-                            @if($orderableStock < 10)
-                                <span class="inline-flex items-center text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-700 mt-1 w-fit">últimas unidades disponibles</span>
-                            @endif
-                        @else
-                            <p class="text-sm text-orange-500">Producto no disponible para tu ubicación</p>
-                        @endif
-                    @else
-                        @if($orderableStock > 0)
-                            <p class="text-sm text-gray-600">
-                                <span class="font-medium text-gray-900">Disponibilidad:</span> 
-                                <span class="font-semibold text-green-600">Disponible</span>
-                            </p>
-                        @else
-                            <p class="text-sm text-orange-500">Producto no disponible para tu ubicación</p>
-                        @endif
-                    @endauth
+                    <p id="pdp-stock-available" class="text-sm text-gray-600 {{ $orderableStock > 0 ? '' : 'hidden' }}">
+                        <span class="font-medium text-gray-900">Disponibilidad:</span>
+                        <span id="pdp-stock-count" class="font-semibold {{ $orderableStock < 10 ? 'text-orange-600' : 'text-green-600' }}">
+                            @auth
+                                {{ number_format($orderableStock) }} unidades
+                            @else
+                                Disponible
+                            @endauth
+                        </span>
+                    </p>
+                    <span id="pdp-stock-low" class="inline-flex items-center text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-700 mt-1 w-fit {{ ($orderableStock > 0 && $orderableStock < 10) ? '' : 'hidden' }}">últimas unidades disponibles</span>
+                    <p id="pdp-stock-unavailable" class="text-sm text-orange-500 {{ $orderableStock > 0 ? 'hidden' : '' }}">Producto no disponible para tu ubicación</p>
                 </div>
             @endif
 
@@ -277,7 +267,9 @@
 
             <!-- Price Section (gross = discounts + IVA when applicable; matches selected variation when options exist) -->
             @php
-                $firstEnabledItem = $product->items->where('pivot.enabled', 1)->first();
+                $firstEnabledItem = $preferredVariationItemId
+                    ? $product->items->firstWhere('id', $preferredVariationItemId)
+                    : $product->items->where('pivot.enabled', 1)->first();
                 $displayFinal = $product->final_price;
                 if ($firstEnabledItem) {
                     $displayFinal = $product->getFinalPriceForUser(false, null, $firstEnabledItem->id);
@@ -311,13 +303,20 @@
             <span class="text-lg font-medium">{{ $product->variation->name }}:</span>
             <select name="variation_id" id="selectPrice" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500">
                 @foreach ($product->items->where('pivot.enabled', 1) as $item)
-                @php $fpVar = $product->getFinalPriceForUser(false, null, $item->id); @endphp
+                @php
+                    $fpVar = $product->getFinalPriceForUser(false, null, $item->id);
+                    $itemOrderableStock = auth()->check()
+                        ? $product->getOrderableStockForBodega($bodegaCode ?? null, (int) $item->id)
+                        : $product->getOrderableStockForBodega('MDTAT', (int) $item->id);
+                @endphp
                 <option
                     value="{{ $item->pivot->variation_item_id }}"
                     data-price-gross="{{ $fpVar['price'] }}"
                     data-price-old="{{ $fpVar['old'] }}"
                     data-has-discount="{{ $fpVar['has_discount'] ? '1' : '0' }}"
                     data-per-item="{{ $fpVar['perItemPrice'] ?? '' }}"
+                    data-orderable-stock="{{ $itemOrderableStock }}"
+                    @selected((int) $item->id === (int) $preferredVariationItemId)
                 >{{ $item->name }}</option>
                 @endforeach
             </select>
@@ -666,6 +665,25 @@
                 var $wrap = $('#pdp-per-item-wrap');
                 if ($wrap.length && per !== undefined && per !== '') {
                     $('#pdp-per-item-val').text(formatPdpMoney(per));
+                }
+                var stock = Number($opt.data('orderable-stock') || 0);
+                var $available = $('#pdp-stock-available');
+                var $unavailable = $('#pdp-stock-unavailable');
+                var $low = $('#pdp-stock-low');
+                var $count = $('#pdp-stock-count');
+                if ($available.length && $unavailable.length) {
+                    if (stock > 0) {
+                        $available.removeClass('hidden');
+                        $unavailable.addClass('hidden');
+                        $count.text(formatPdpMoney(stock) + ' unidades')
+                            .toggleClass('text-orange-600', stock < 10)
+                            .toggleClass('text-green-600', stock >= 10);
+                        $low.toggleClass('hidden', stock >= 10);
+                    } else {
+                        $available.addClass('hidden');
+                        $unavailable.removeClass('hidden');
+                        $low.addClass('hidden');
+                    }
                 }
             });
         }
