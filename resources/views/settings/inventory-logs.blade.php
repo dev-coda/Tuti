@@ -52,6 +52,43 @@
     </div>
     @endif
 
+    {{-- Sync Progress --}}
+    <div class="col-span-full mb-4">
+        <div class="bg-white border border-gray-200 rounded-lg shadow-sm p-4" id="inventory-sync-progress" data-status-url="{{ route('settings.inventory-sync-status') }}">
+            <div class="flex items-center justify-between gap-4">
+                <div>
+                    <h4 class="text-sm font-semibold text-gray-900">Estado de sincronización</h4>
+                    <p class="text-sm text-gray-600 mt-1" data-sync-message>
+                        {{ $syncStatus['message'] ?? 'No hay sincronización activa.' }}
+                    </p>
+                    <p class="text-xs text-gray-500 mt-1" data-sync-details>
+                        @if(!empty($syncStatus['current_bodega']))
+                            Bodega actual: {{ $syncStatus['current_bodega'] }}
+                        @elseif(!empty($syncStatus['last_synced_at']))
+                            Última finalización: {{ \Carbon\Carbon::parse($syncStatus['last_synced_at'])->format('d/m/Y H:i:s') }}
+                        @else
+                            Esperando una sincronización.
+                        @endif
+                    </p>
+                </div>
+                <span class="px-3 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-700" data-sync-badge>
+                    {{ strtoupper($syncStatus['status'] ?? 'idle') }}
+                </span>
+            </div>
+            <div class="mt-4">
+                <div class="flex justify-between text-xs text-gray-500 mb-1">
+                    <span data-sync-count>
+                        {{ (int) ($syncStatus['processed_bodegas'] ?? 0) }} / {{ (int) ($syncStatus['total_bodegas'] ?? 0) }} bodegas
+                    </span>
+                    <span data-sync-percent>{{ (int) ($syncStatus['percentage'] ?? 0) }}%</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                    <div class="h-2 rounded-full bg-blue-600 transition-all duration-500" data-sync-bar style="width: {{ (int) ($syncStatus['percentage'] ?? 0) }}%"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     {{-- Logs Display --}}
     <div class="col-span-full">
         @if($logs->isEmpty())
@@ -233,4 +270,83 @@
         </div>
     </div>
 </div>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const root = document.getElementById('inventory-sync-progress');
+    if (!root) {
+        return;
+    }
+
+    const statusUrl = root.dataset.statusUrl;
+    const message = root.querySelector('[data-sync-message]');
+    const details = root.querySelector('[data-sync-details]');
+    const badge = root.querySelector('[data-sync-badge]');
+    const count = root.querySelector('[data-sync-count]');
+    const percent = root.querySelector('[data-sync-percent]');
+    const bar = root.querySelector('[data-sync-bar]');
+    let pollTimer = null;
+    let wasActive = false;
+
+    function badgeClasses(status) {
+        if (status === 'running' || status === 'queued') {
+            return 'px-3 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800';
+        }
+        if (status === 'completed') {
+            return 'px-3 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800';
+        }
+        if (status === 'error') {
+            return 'px-3 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800';
+        }
+        if (status === 'skipped') {
+            return 'px-3 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800';
+        }
+
+        return 'px-3 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-700';
+    }
+
+    function render(data) {
+        const status = data.status || 'idle';
+        const processed = Number(data.processed_bodegas || 0);
+        const total = Number(data.total_bodegas || 0);
+        const percentage = Number(data.percentage || 0);
+
+        message.textContent = data.message || 'No hay sincronización activa.';
+        details.textContent = data.current_bodega
+            ? `Bodega actual: ${data.current_bodega}`
+            : (data.finished_at || data.last_synced_at ? `Última finalización: ${data.finished_at || data.last_synced_at}` : 'Esperando una sincronización.');
+        badge.textContent = status.toUpperCase();
+        badge.className = badgeClasses(status);
+        count.textContent = `${processed} / ${total} bodegas`;
+        percent.textContent = `${percentage}%`;
+        bar.style.width = `${percentage}%`;
+        bar.className = `h-2 rounded-full transition-all duration-500 ${status === 'error' ? 'bg-red-600' : (status === 'completed' ? 'bg-green-600' : 'bg-blue-600')}`;
+
+        if (status === 'running' || status === 'queued') {
+            wasActive = true;
+        }
+
+        if (status !== 'running' && status !== 'queued' && pollTimer) {
+            clearInterval(pollTimer);
+            pollTimer = null;
+            if (status === 'completed' && wasActive) {
+                setTimeout(() => window.location.reload(), 1500);
+            }
+        }
+    }
+
+    async function fetchStatus() {
+        try {
+            const response = await fetch(statusUrl, { headers: { 'Accept': 'application/json' } });
+            if (response.ok) {
+                render(await response.json());
+            }
+        } catch (error) {
+            console.warn('No se pudo consultar el progreso de inventario.', error);
+        }
+    }
+
+    fetchStatus();
+    pollTimer = setInterval(fetchStatus, 3000);
+});
+</script>
 @endsection

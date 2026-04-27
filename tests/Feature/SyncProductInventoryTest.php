@@ -11,6 +11,7 @@ use App\Models\ZoneWarehouse;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 uses(RefreshDatabase::class);
 
@@ -72,6 +73,7 @@ function inventorySyncSoapResponse(array $items): string
 
 it('syncs direct products and parent variation inventory while dummy parents stay zero', function () {
     configureInventorySyncJob();
+    Log::spy();
 
     $simple = inventorySyncProduct('SIMPLE-SKU');
     $duplicateA = inventorySyncProduct('DUP-SKU');
@@ -104,6 +106,10 @@ it('syncs direct products and parent variation inventory while dummy parents sta
         $pivotOnlyVariationItem->id => ['price' => 1, 'enabled' => 1, 'sku' => 'PIVOT-ONLY-VARIATION-SKU'],
         $legacyVariationItem->id => ['price' => 1, 'enabled' => 1, 'sku' => ''],
     ]);
+    Setting::updateOrCreate(
+        ['key' => 'inventory_sync_debug_skus'],
+        ['name' => 'Inventory sync debug SKUs', 'value' => 'DUMMY-PARENT-SYNC, VARIATION-SKU, PIVOT-ONLY-VARIATION-SKU, LEGACY-VARIATION-SKU, MISSING-VARIATION-SKU', 'show' => false]
+    );
     DB::table('product_variations')->insert([
         'product_id' => $parent->id,
         'variation_items_id' => $legacyVariationItem->id,
@@ -125,6 +131,7 @@ it('syncs direct products and parent variation inventory while dummy parents sta
             ['sku' => 'SIMPLE-SKU', 'available' => 7, 'physical' => 9, 'reserved' => 2],
             ['sku' => 'DUP-SKU', 'available' => 3, 'physical' => 3, 'reserved' => 0],
             ['sku' => 'DUP-SKU', 'available' => 4, 'physical' => 5, 'reserved' => 1],
+            ['sku' => 'DUMMY-PARENT-SYNC', 'available' => 999, 'physical' => 999, 'reserved' => 0],
             ['sku' => 'VARIATION-SKU', 'available' => 11, 'physical' => 12, 'reserved' => 1],
             ['sku' => 'PIVOT-ONLY-VARIATION-SKU', 'available' => 18, 'physical' => 20, 'reserved' => 2],
             ['sku' => 'LEGACY-VARIATION-SKU', 'available' => 21, 'physical' => 25, 'reserved' => 4],
@@ -142,7 +149,7 @@ it('syncs direct products and parent variation inventory while dummy parents sta
         ->and((int) ProductInventory::where('product_id', $parent->id)->where('variation_item_id', $variationItem->id)->where('bodega_code', 'BOD-SYNC')->value('available'))->toBe(11)
         ->and((int) ProductInventory::where('product_id', $parent->id)->where('variation_item_id', $pivotOnlyVariationItem->id)->where('bodega_code', 'BOD-SYNC')->value('available'))->toBe(18)
         ->and((int) ProductInventory::where('product_id', $parent->id)->where('variation_item_id', $legacyVariationItem->id)->where('bodega_code', 'BOD-SYNC')->value('available'))->toBe(21)
-        ->and((int) ProductInventory::where('product_id', $parent->id)->whereNull('variation_item_id')->where('bodega_code', 'BOD-SYNC')->value('available'))->toBe(0)
+        ->and(ProductInventory::where('product_id', $parent->id)->whereNull('variation_item_id')->where('bodega_code', 'BOD-SYNC')->exists())->toBeFalse()
         ->and((int) ProductInventory::where('product_id', $absentManaged->id)->where('bodega_code', 'BOD-SYNC')->value('available'))->toBe(0)
         ->and((int) ProductInventory::where('product_id', $optedOut->id)->where('bodega_code', 'BOD-SYNC')->value('available'))->toBe(40)
         ->and(ProductInventory::where('bodega_code', 'BOD-SYNC')->whereHas('product', fn ($query) => $query->where('sku', 'IGNORED-WMS-SKU'))->exists())->toBeFalse();
@@ -150,8 +157,28 @@ it('syncs direct products and parent variation inventory while dummy parents sta
     $log = InventorySyncLog::latest('id')->first();
     expect($log)->not->toBeNull()
         ->and($log->status)->toBe('success')
-        ->and($log->skus_received)->toBe(5)
+        ->and($log->skus_received)->toBe(6)
         ->and($log->products_updated)->toBe(6);
+
+    $progress = json_decode((string) Setting::getByKey('inventory_sync_progress'), true);
+    expect($progress)->toBeArray()
+        ->and($progress['status'])->toBe('completed')
+        ->and($progress['percentage'])->toBe(100)
+        ->and($progress['processed_bodegas'])->toBe(1)
+        ->and($progress['total_bodegas'])->toBe(1);
+
+    Log::shouldHaveReceived('info')
+        ->withArgs(function (string $message, array $context = []) {
+            return $message === 'Inventory variation sync diagnostics for bodega BOD-SYNC'
+                && ($context['debug_skus']['DUMMY-PARENT-SYNC']['matched_product_sku'] ?? true) === false
+                && ($context['debug_skus']['DUMMY-PARENT-SYNC']['skipped_variable_parent_product_ids'] ?? []) !== []
+                && ($context['debug_skus']['VARIATION-SKU']['in_soap_response'] ?? false) === true
+                && ($context['debug_skus']['VARIATION-SKU']['matched_variation_sku'] ?? false) === true
+                && ($context['debug_skus']['PIVOT-ONLY-VARIATION-SKU']['matched_variation_sku'] ?? false) === true
+                && ($context['debug_skus']['LEGACY-VARIATION-SKU']['matched_variation_sku'] ?? false) === true
+                && ($context['debug_skus']['MISSING-VARIATION-SKU']['in_soap_response'] ?? true) === false;
+        })
+        ->once();
 });
 
 it('keeps automatic sync disabled when inventory is off', function () {

@@ -27,6 +27,24 @@
                 </form>
             </div>
         </div>
+        <div class="mt-3 bg-white border border-gray-200 rounded-lg shadow-sm p-3" id="inventory-sync-progress" data-status-url="{{ route('settings.inventory-sync-status') }}">
+            <div class="flex items-center justify-between gap-3">
+                <div>
+                    <p class="text-sm font-medium text-gray-900">Sincronización de inventario</p>
+                    <p class="text-xs text-gray-500" data-sync-message>{{ $syncStatus['message'] ?? 'No hay sincronización activa.' }}</p>
+                </div>
+                <span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-700" data-sync-badge>{{ strtoupper($syncStatus['status'] ?? 'idle') }}</span>
+            </div>
+            <div class="mt-2">
+                <div class="flex justify-between text-xs text-gray-500 mb-1">
+                    <span data-sync-count>{{ (int) ($syncStatus['processed_bodegas'] ?? 0) }} / {{ (int) ($syncStatus['total_bodegas'] ?? 0) }} bodegas</span>
+                    <span data-sync-percent>{{ (int) ($syncStatus['percentage'] ?? 0) }}%</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                    <div class="h-2 rounded-full bg-orange-600 transition-all duration-500" data-sync-bar style="width: {{ (int) ($syncStatus['percentage'] ?? 0) }}%"></div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Vacation Mode Settings -->
@@ -442,20 +460,82 @@ function handleSyncSubmit() {
     const icon = document.getElementById('syncIcon');
     const text = document.getElementById('syncText');
     
-    // Show loading state temporarily
     button.disabled = true;
     icon.classList.add('animate-spin');
     text.textContent = 'Iniciando sincronización...';
-    
-    // Re-enable after a short delay (since it's async)
-    setTimeout(() => {
-        button.disabled = false;
-        icon.classList.remove('animate-spin');
-        text.textContent = 'Sincronizar Inventario';
-    }, 2000);
-    
+
     return true;
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+    const root = document.getElementById('inventory-sync-progress');
+    if (!root) {
+        return;
+    }
+
+    const button = document.getElementById('syncButton');
+    const icon = document.getElementById('syncIcon');
+    const text = document.getElementById('syncText');
+    const statusUrl = root.dataset.statusUrl;
+    const message = root.querySelector('[data-sync-message]');
+    const badge = root.querySelector('[data-sync-badge]');
+    const count = root.querySelector('[data-sync-count]');
+    const percent = root.querySelector('[data-sync-percent]');
+    const bar = root.querySelector('[data-sync-bar]');
+
+    function badgeClasses(status) {
+        if (status === 'running' || status === 'queued') {
+            return 'px-2.5 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800';
+        }
+        if (status === 'completed') {
+            return 'px-2.5 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800';
+        }
+        if (status === 'error') {
+            return 'px-2.5 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800';
+        }
+        if (status === 'skipped') {
+            return 'px-2.5 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800';
+        }
+
+        return 'px-2.5 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-700';
+    }
+
+    function render(data) {
+        const status = data.status || 'idle';
+        const active = status === 'running' || status === 'queued';
+        const processed = Number(data.processed_bodegas || 0);
+        const total = Number(data.total_bodegas || 0);
+        const percentage = Number(data.percentage || 0);
+
+        message.textContent = data.message || 'No hay sincronización activa.';
+        badge.textContent = status.toUpperCase();
+        badge.className = badgeClasses(status);
+        count.textContent = `${processed} / ${total} bodegas`;
+        percent.textContent = `${percentage}%`;
+        bar.style.width = `${percentage}%`;
+        bar.className = `h-2 rounded-full transition-all duration-500 ${status === 'error' ? 'bg-red-600' : (status === 'completed' ? 'bg-green-600' : 'bg-orange-600')}`;
+
+        if (button && icon && text) {
+            button.disabled = active;
+            icon.classList.toggle('animate-spin', active);
+            text.textContent = active ? 'Sincronizando...' : 'Sincronizar Inventario';
+        }
+    }
+
+    async function fetchStatus() {
+        try {
+            const response = await fetch(statusUrl, { headers: { 'Accept': 'application/json' } });
+            if (response.ok) {
+                render(await response.json());
+            }
+        } catch (error) {
+            console.warn('No se pudo consultar el progreso de inventario.', error);
+        }
+    }
+
+    fetchStatus();
+    setInterval(fetchStatus, 3000);
+});
 
 function confirmProcessOrders() {
     const confirmed = confirm('⚠️ ATENCIÓN: Esta acción procesará TODOS los pedidos en espera creados en las últimas 24 horas, independientemente de su fecha de transmisión programada.\n\n¿Está seguro de que desea continuar?');

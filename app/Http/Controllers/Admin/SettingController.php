@@ -32,7 +32,8 @@ class SettingController extends Controller
             ->orderBy('id')
             ->paginate();
 
-        $context = compact('settings');
+        $syncStatus = $this->inventorySyncProgressPayload();
+        $context = compact('settings', 'syncStatus');
         return view('settings.index', $context);
     }
 
@@ -69,6 +70,8 @@ class SettingController extends Controller
         $runSync = $request->has('sync') || $request->query('sync') === '1';
         
         try {
+            $this->setInventorySyncProgress($runSync ? 'running' : 'queued', $runSync ? 'Sincronización manual iniciada.' : 'Sincronización enviada a la cola.');
+
             if ($runSync) {
                 // Run synchronously - useful for testing when Horizon isn't running
                 \Illuminate\Support\Facades\Log::info('Inventory sync job running SYNCHRONOUSLY');
@@ -105,6 +108,11 @@ class SettingController extends Controller
             ]);
             return back()->with('error', 'Error al sincronizar inventario: ' . $e->getMessage());
         }
+    }
+
+    public function inventorySyncStatus()
+    {
+        return response()->json($this->inventorySyncProgressPayload());
     }
 
     /**
@@ -330,7 +338,54 @@ class SettingController extends Controller
             'fileLogs' => $fileLogs,
             'tableExists' => $tableExists,
             'lastSync' => \App\Models\Setting::getByKey('inventory_last_synced_at'),
+            'syncStatus' => $this->inventorySyncProgressPayload(),
         ]);
+    }
+
+    private function setInventorySyncProgress(string $status, string $message): void
+    {
+        $payload = [
+            'status' => $status,
+            'message' => $message,
+            'current_bodega' => null,
+            'processed_bodegas' => 0,
+            'total_bodegas' => 0,
+            'percentage' => 0,
+            'error_message' => null,
+            'started_at' => now()->toDateTimeString(),
+            'updated_at' => now()->toDateTimeString(),
+            'finished_at' => null,
+        ];
+
+        Setting::updateOrCreate(
+            ['key' => 'inventory_sync_progress'],
+            ['name' => 'Inventario - progreso de sincronización', 'value' => json_encode($payload), 'show' => false]
+        );
+    }
+
+    private function inventorySyncProgressPayload(): array
+    {
+        $raw = Setting::getByKey('inventory_sync_progress');
+        $payload = $raw ? json_decode((string) $raw, true) : [];
+        if (! is_array($payload)) {
+            $payload = [];
+        }
+
+        $status = $payload['status'] ?? 'idle';
+
+        return array_merge([
+            'status' => $status,
+            'message' => $status === 'idle' ? 'No hay sincronización activa.' : null,
+            'current_bodega' => null,
+            'processed_bodegas' => 0,
+            'total_bodegas' => 0,
+            'percentage' => 0,
+            'error_message' => null,
+            'started_at' => null,
+            'updated_at' => null,
+            'finished_at' => null,
+            'last_synced_at' => \App\Models\Setting::getByKey('inventory_last_synced_at'),
+        ], $payload);
     }
     
     /**

@@ -153,6 +153,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
 
     Route::resource('settings', SettingController::class)->except(['show']);
     Route::post('settings/sync-inventory', [SettingController::class, 'syncInventory'])->name('settings.sync-inventory');
+    Route::get('settings/inventory-sync-status', [SettingController::class, 'inventorySyncStatus'])->name('settings.inventory-sync-status');
     Route::get('settings/inventory-logs', [SettingController::class, 'inventoryLogs'])->name('settings.inventory-logs');
     Route::post('settings/update-vacation-mode', [SettingController::class, 'updateVacationMode'])->name('settings.update-vacation-mode');
     Route::post('settings/update-global-inventory', [SettingController::class, 'updateGlobalInventory'])->name('settings.update-global-inventory');
