@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class SyncProductInventory implements ShouldQueue
 {
@@ -262,6 +263,24 @@ class SyncProductInventory implements ShouldQueue
                         ->select('product_item_variation.product_id', 'product_item_variation.variation_item_id')
                         ->get();
 
+                    if (Schema::hasTable('product_variations')) {
+                        $legacyVariationRows = DB::table('product_variations')
+                            ->join('products', 'product_variations.product_id', '=', 'products.id')
+                            ->whereRaw('UPPER(TRIM(product_variations.sku)) = ?', [mb_strtoupper(trim($sku))])
+                            ->where(function ($query) {
+                                $query->where('products.inventory_opt_out', false)
+                                    ->orWhereNull('products.inventory_opt_out');
+                            })
+                            ->select('product_variations.product_id', 'product_variations.variation_items_id as variation_item_id')
+                            ->get();
+
+                        $variationRows = $variationRows
+                            ->merge($legacyVariationRows)
+                            ->filter(fn ($row) => ! empty($row->variation_item_id))
+                            ->unique(fn ($row) => ((int) $row->product_id).':'.((int) $row->variation_item_id))
+                            ->values();
+                    }
+
                     foreach ($variationRows as $variationRow) {
                         ProductInventory::updateOrCreate([
                             'product_id' => (int) $variationRow->product_id,
@@ -312,6 +331,25 @@ class SyncProductInventory implements ShouldQueue
                     })
                     ->select('product_item_variation.product_id', 'product_item_variation.variation_item_id', 'product_item_variation.sku')
                     ->get();
+
+                if (Schema::hasTable('product_variations')) {
+                    $legacyVariationRowsToZero = DB::table('product_variations')
+                        ->join('products', 'product_variations.product_id', '=', 'products.id')
+                        ->whereNotNull('product_variations.sku')
+                        ->where('product_variations.sku', '!=', '')
+                        ->where(function ($query) {
+                            $query->where('products.inventory_opt_out', false)
+                                ->orWhereNull('products.inventory_opt_out');
+                        })
+                        ->select('product_variations.product_id', 'product_variations.variation_items_id as variation_item_id', 'product_variations.sku')
+                        ->get();
+
+                    $variationRowsToZero = $variationRowsToZero
+                        ->merge($legacyVariationRowsToZero)
+                        ->filter(fn ($row) => ! empty($row->variation_item_id))
+                        ->unique(fn ($row) => ((int) $row->product_id).':'.((int) $row->variation_item_id))
+                        ->values();
+                }
 
                 foreach ($variationRowsToZero as $variationRow) {
                     $variationKey = ((int) $variationRow->product_id).':'.((int) $variationRow->variation_item_id);
