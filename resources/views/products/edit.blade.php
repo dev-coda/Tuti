@@ -236,7 +236,7 @@
                     Este producto tiene variaciones. Si el SKU del padre es dummy, el inventario real puede estar en los SKU de las variaciones.
                 </p>
             @endif
-            @php $inventories = $product->inventories ?? collect(); @endphp
+            @php $inventories = ($product->inventories ?? collect())->whereNull('variation_item_id'); @endphp
             @if($inventories->count() === 0)
                 <p class="text-sm text-gray-500">Sin registros de inventario.</p>
             @else
@@ -271,8 +271,7 @@
                         @foreach($product->items->where('pivot.enabled', 1)->sortBy('id') as $item)
                             @php
                                 $variationSku = $product->selectedVariationSku((int) $item->id);
-                                $stockProduct = $product->stockProductForSelectedVariation((int) $item->id);
-                                $variationInventories = $stockProduct->inventories()->orderBy('bodega_code')->get();
+                                $variationInventories = $product->inventoriesForSelectedVariation((int) $item->id)->orderBy('bodega_code')->get();
                             @endphp
                             <div class="border rounded-lg p-3 bg-gray-50">
                                 <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-1 mb-3">
@@ -280,15 +279,10 @@
                                         <div class="text-sm font-semibold text-gray-900">{{ $item->name }}</div>
                                         <div class="text-xs text-gray-500">
                                             SKU variación: {{ $variationSku ?: 'Sin SKU' }}
-                                            @if($stockProduct->id !== $product->id)
-                                                - Producto inventario #{{ $stockProduct->id }}
-                                            @endif
                                         </div>
                                     </div>
                                     @if(! $variationSku)
                                         <span class="text-xs text-orange-700 bg-orange-100 rounded-full px-2 py-1 w-fit">Sin SKU para sincronizar</span>
-                                    @elseif($stockProduct->id === $product->id)
-                                        <span class="text-xs text-orange-700 bg-orange-100 rounded-full px-2 py-1 w-fit">Sin producto hijo con ese SKU</span>
                                     @endif
                                 </div>
 

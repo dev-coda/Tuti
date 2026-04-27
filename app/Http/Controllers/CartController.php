@@ -393,17 +393,15 @@ class CartController extends Controller
             $zoneCode = $zone?->zone ?? $user->zone;
             $bodega = ZoneWarehouse::getBodegaForZone($zoneCode);
 
-            $stockProduct = BonificationCheckoutService::stockProductForSelectedVariation(
-                $product,
-                $request->variation_id ? (int) $request->variation_id : null
-            );
-            $safety = $stockProduct->getEffectiveSafetyStock();
-            $available = $bodega ? ($stockProduct->inventories()->where('bodega_code', $bodega)->value('available') ?? 0) : 0;
+            $variationItemId = $request->variation_id ? (int) $request->variation_id : null;
+            $safety = $product->getEffectiveSafetyStock();
+            $inventory = $product->inventoryForBodega($bodega, $variationItemId);
+            $available = (int) ($inventory?->available ?? 0);
 
             if ($available <= $safety) {
                 \Log::info('Product blocked due to safety stock', [
                     'product_id' => $product->id,
-                    'stock_product_id' => $stockProduct->id,
+                    'variation_inventory_row_id' => $inventory?->id,
                     'product_name' => $product->name,
                     'has_variation' => ! is_null($product->variation_id),
                     'variation_id_selected' => $request->variation_id,
@@ -870,11 +868,10 @@ class CartController extends Controller
                     continue;
                 }
                 $variationItemId = isset($cartItem['variation_id']) ? (int) $cartItem['variation_id'] : null;
-                $stockProduct = BonificationCheckoutService::stockProductForSelectedVariation($product, $variationItemId);
-                $inventory = ProductInventory::where('product_id', $stockProduct->id)->where('bodega_code', $bodega)->first();
+                $inventory = $product->inventoryForBodega($bodega, $variationItemId);
                 $available = (int) ($inventory?->available ?? 0);
                 $reserved = (int) ($inventory?->reserved ?? 0);
-                $safety = (int) $stockProduct->getEffectiveSafetyStock();
+                $safety = (int) $product->getEffectiveSafetyStock();
 
                 // Get global minimum inventory setting (default 5 if not configured)
                 $globalMinInventory = (int) (\App\Models\Setting::getByKey('global_minimum_inventory') ?? 5);
@@ -887,7 +884,7 @@ class CartController extends Controller
                     $reason = ($safety > 0) ? 'product safety stock' : 'global minimum inventory';
                     \Log::warning('Order blocked: below minimum threshold', [
                         'product_id' => $product->id,
-                        'stock_product_id' => $stockProduct->id,
+                        'variation_inventory_row_id' => $inventory?->id,
                         'product_name' => $product->name,
                         'has_variation' => ! is_null($product->variation_id),
                         'variation_item_selected' => $cartItem['variation_id'] ?? null,
@@ -911,7 +908,6 @@ class CartController extends Controller
                 if ($cartItem['quantity'] > $available) {
                     \Log::warning('Order blocked: quantity exceeds available (disponible)', [
                         'product_id' => $product->id,
-                        'stock_product_id' => $stockProduct->id,
                         'product_name' => $product->name,
                         'requested' => $cartItem['quantity'],
                         'disponible' => $available,
@@ -1325,11 +1321,10 @@ class CartController extends Controller
                 // their own synced product inventory; otherwise inventory stays on the catalog product.
                 if ($isInventoryEnabled && $p->isInventoryManaged()) {
                     $variationItemId = isset($row['variation_id']) ? (int) $row['variation_id'] : null;
-                    $stockProduct = BonificationCheckoutService::stockProductForSelectedVariation($p, $variationItemId);
-                    $inventory = ProductInventory::lockForUpdate()->where('product_id', $stockProduct->id)->where('bodega_code', $bodega)->first();
+                    $inventory = $p->inventoryQueryForBodega($bodega, $variationItemId)?->lockForUpdate()->first();
                     $current = (int) ($inventory?->available ?? 0);
                     $reserved = (int) ($inventory?->reserved ?? 0);
-                    $safety = (int) $stockProduct->getEffectiveSafetyStock();
+                    $safety = (int) $p->getEffectiveSafetyStock();
 
                     // Get global minimum inventory setting (default 5 if not configured)
                     $globalMinInventory = (int) (\App\Models\Setting::getByKey('global_minimum_inventory') ?? 5);
@@ -1344,7 +1339,7 @@ class CartController extends Controller
                         $reason = ($safety > 0) ? 'product safety stock' : 'global minimum inventory';
                         \Log::error('Order rollback: inventory insufficient during final check', [
                             'product_id' => $p->id,
-                            'stock_product_id' => $stockProduct->id,
+                            'variation_inventory_row_id' => $inventory?->id,
                             'product_name' => $p->name,
                             'has_variation' => ! is_null($p->variation_id),
                             'variation_item_selected' => $row['variation_id'] ?? null,
@@ -1367,12 +1362,13 @@ class CartController extends Controller
                         // shouldn't happen, but guard
                         \Log::warning('Creating new inventory record during order', [
                             'product_id' => $p->id,
-                            'stock_product_id' => $stockProduct->id,
                             'bodega' => $bodega,
                             'quantity_ordered' => $row['quantity'],
                         ]);
                         ProductInventory::create([
-                            'product_id' => $stockProduct->id,
+                            'product_id' => $p->id,
+                            'variation_item_id' => $variationItemId,
+                            'source_sku' => BonificationCheckoutService::selectedVariationSku($p, $variationItemId),
                             'bodega_code' => $bodega,
                             'available' => max(0, $current - (int) $row['quantity']),
                             'physical' => 0,
@@ -1389,7 +1385,7 @@ class CartController extends Controller
                 $bonificationsToCheck = $p->bonifications;
                 if ($bonificationsToCheck->isNotEmpty() && ($lastCartKeyByProductId[$id] ?? $key) === $key) {
                     $plannedBonifications = [];
-                    $giftProductStockPlan = []; // stock_product_id => ['product', 'catalog_product', 'inventory', 'requested_total']
+                    $giftProductStockPlan = []; // stock key => ['catalog_product', 'inventory', 'requested_total']
 
                     foreach ($bonificationsToCheck as $bonification) {
                         $aggregatedIndividualItems = $productQuantities[$id] ?? ($row['quantity'] * ($p->package_quantity ?? 1));
@@ -1416,41 +1412,35 @@ class CartController extends Controller
                             $bonificationProduct,
                             (int) $order->id
                         );
-                        $stockProduct = BonificationCheckoutService::stockProductForSelectedVariation(
-                            $bonificationProduct,
-                            $variationItemId
-                        );
                         $giftProductId = (int) $bonificationProduct->id;
-                        $stockProductId = (int) $stockProduct->id;
+                        $stockKey = $giftProductId.':'.($variationItemId ?: 'base');
                         $plannedBonifications[] = [
                             'bonification' => $bonification,
                             'gift_product' => $bonificationProduct,
-                            'stock_product_id' => $stockProductId,
+                            'stock_key' => $stockKey,
                             'variation_item_id' => $variationItemId,
                             'quantity' => $bonification_quantity,
                         ];
 
-                        if (! isset($giftProductStockPlan[$stockProductId])) {
+                        if (! isset($giftProductStockPlan[$stockKey])) {
                             $inventoryRow = null;
                             if ($isInventoryEnabled && $bodega && $bonificationProduct->isInventoryManaged()) {
-                                $inventoryRow = ProductInventory::lockForUpdate()
-                                    ->where('product_id', $stockProductId)
-                                    ->where('bodega_code', $bodega)
+                                $inventoryRow = $bonificationProduct
+                                    ->inventoryQueryForBodega($bodega, $variationItemId)
+                                    ?->lockForUpdate()
                                     ->first();
                             }
-                            $giftProductStockPlan[$stockProductId] = [
-                                'product' => $stockProduct,
+                            $giftProductStockPlan[$stockKey] = [
                                 'catalog_product' => $bonificationProduct,
                                 'inventory' => $inventoryRow,
                                 'requested_total' => 0,
                             ];
                         }
-                        $giftProductStockPlan[$stockProductId]['requested_total'] += $bonification_quantity;
+                        $giftProductStockPlan[$stockKey]['requested_total'] += $bonification_quantity;
                     }
 
                     $blockedStockProductIds = [];
-                    foreach ($giftProductStockPlan as $stockProductId => $stockPlan) {
-                        $giftProduct = $stockPlan['product'];
+                    foreach ($giftProductStockPlan as $stockKey => $stockPlan) {
                         $catalogProduct = $stockPlan['catalog_product'];
                         $requestedTotal = (int) $stockPlan['requested_total'];
                         if (! $isInventoryEnabled || ! $bodega || ! $catalogProduct->isInventoryManaged()) {
@@ -1460,16 +1450,16 @@ class CartController extends Controller
                         $disponible = (int) ($stockPlan['inventory']?->available ?? 0);
                         $hasEnoughForAll = BonificationCheckoutService::hasEnoughStockForRequestedUnits(
                             $disponible,
-                            $giftProduct,
+                            $catalogProduct,
                             $requestedTotal
                         );
                         if (! $hasEnoughForAll) {
-                            $blockedStockProductIds[$stockProductId] = true;
+                            $blockedStockProductIds[$stockKey] = true;
                             Log::warning('Skipping bonifications: insufficient stock for all gift items involved', [
                                 'order_id' => $order->id,
                                 'trigger_product_id' => $id,
                                 'gift_product_id' => $catalogProduct->id,
-                                'stock_product_id' => $stockProductId,
+                                'stock_key' => $stockKey,
                                 'requested_total' => $requestedTotal,
                                 'available' => $disponible,
                                 'bodega' => $bodega,
@@ -1487,8 +1477,8 @@ class CartController extends Controller
                     foreach ($plannedBonifications as $planned) {
                         $giftProduct = $planned['gift_product'];
                         $giftProductId = (int) $giftProduct->id;
-                        $stockProductId = (int) $planned['stock_product_id'];
-                        if (isset($blockedStockProductIds[$stockProductId])) {
+                        $stockKey = (string) $planned['stock_key'];
+                        if (isset($blockedStockProductIds[$stockKey])) {
                             continue;
                         }
 
@@ -1501,14 +1491,14 @@ class CartController extends Controller
                             'order_id' => $order->id,
                         ]);
 
-                        if (! isset($consumedByGiftProduct[$stockProductId])) {
-                            $consumedByGiftProduct[$stockProductId] = 0;
+                        if (! isset($consumedByGiftProduct[$stockKey])) {
+                            $consumedByGiftProduct[$stockKey] = 0;
                         }
-                        $consumedByGiftProduct[$stockProductId] += (int) $planned['quantity'];
+                        $consumedByGiftProduct[$stockKey] += (int) $planned['quantity'];
                     }
 
-                    foreach ($consumedByGiftProduct as $stockProductId => $qtyToConsume) {
-                        $stockPlan = $giftProductStockPlan[$stockProductId] ?? null;
+                    foreach ($consumedByGiftProduct as $stockKey => $qtyToConsume) {
+                        $stockPlan = $giftProductStockPlan[$stockKey] ?? null;
                         $inventoryRow = $stockPlan['inventory'] ?? null;
                         if ($inventoryRow && $qtyToConsume > 0) {
                             $inventoryRow->update(['available' => (int) $inventoryRow->available - $qtyToConsume]);
@@ -2013,7 +2003,7 @@ class CartController extends Controller
      *
      * @return array{ok: true, zone: \App\Models\Zone}|array{ok: false, message: string}
      */
-    private function resolveCheckoutZone(\App\Models\User $actingUser, \Illuminate\Http\Request $request): array
+    private function resolveCheckoutZone(User $actingUser, Request $request): array
     {
         $actingUser->load('zones');
         $zoneCount = $actingUser->zones->count();

@@ -61,14 +61,11 @@
                             <td class="px-4 py-3 min-w-[16rem]">
                                 @php
                                     $variationSku = $product->selectedVariationSku((int) $item->id);
-                                    $stockProduct = $product->stockProductForSelectedVariation((int) $item->id);
-                                    $variationInventories = $stockProduct->inventories()->orderBy('bodega_code')->get();
+                                    $variationInventories = $product->inventoriesForSelectedVariation((int) $item->id)->orderBy('bodega_code')->get();
                                 @endphp
 
                                 @if(! $variationSku)
                                     <span class="inline-flex text-xs text-orange-700 bg-orange-100 rounded-full px-2 py-1">Sin SKU para sincronizar</span>
-                                @elseif($stockProduct->id === $product->id && $variationSku !== $product->sku)
-                                    <span class="inline-flex text-xs text-orange-700 bg-orange-100 rounded-full px-2 py-1">Sin producto hijo con ese SKU</span>
                                 @elseif($variationInventories->count() === 0)
                                     <span class="inline-flex text-xs text-gray-600 bg-gray-100 rounded-full px-2 py-1">Sin inventario sincronizado</span>
                                 @else

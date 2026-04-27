@@ -39,7 +39,7 @@ function configureVariationInventoryDisplay(User $user): void
     ]);
 }
 
-function variableProductWithSyncedChildStock(): array
+function variableProductWithVariationStock(): array
 {
     $variation = Variation::create(['name' => 'Presentacion']);
     $empty = VariationItem::create(['name' => 'Unidad', 'variation_id' => $variation->id]);
@@ -57,19 +57,9 @@ function variableProductWithSyncedChildStock(): array
         ])
         ->create();
 
-    $child = Product::factory()
-        ->for(BrandFactory::new())
-        ->state([
-            'name' => 'Variable Child Stock Product',
-            'sku' => 'REAL-VARIATION-STOCK-SKU',
-            'safety_stock' => 0,
-            'inventory_opt_out' => false,
-        ])
-        ->create();
-
     $parent->items()->sync([
         $empty->id => ['price' => 1000, 'enabled' => 1, 'sku' => ''],
-        $stocked->id => ['price' => 1000, 'enabled' => 1, 'sku' => $child->sku],
+        $stocked->id => ['price' => 1000, 'enabled' => 1, 'sku' => 'REAL-VARIATION-STOCK-SKU'],
     ]);
 
     ProductInventory::create([
@@ -80,20 +70,22 @@ function variableProductWithSyncedChildStock(): array
         'reserved' => 0,
     ]);
     ProductInventory::create([
-        'product_id' => $child->id,
+        'product_id' => $parent->id,
+        'variation_item_id' => $stocked->id,
+        'source_sku' => 'REAL-VARIATION-STOCK-SKU',
         'bodega_code' => 'BOD-VAR',
         'available' => 12,
         'physical' => 12,
         'reserved' => 0,
     ]);
 
-    return compact('parent', 'child', 'empty', 'stocked');
+    return compact('parent', 'empty', 'stocked');
 }
 
-it('shows product page availability from the synced variation child stock product', function () {
+it('shows product page availability from synced variation stock on the parent product', function () {
     $user = User::factory()->create();
     configureVariationInventoryDisplay($user);
-    $data = variableProductWithSyncedChildStock();
+    $data = variableProductWithVariationStock();
 
     actingAs($user)
         ->get(route('product', $data['parent']->slug))
@@ -108,10 +100,10 @@ it('shows product page availability from the synced variation child stock produc
         ->and($data['parent']->fresh(['items'])->getOrderableStockForBodega('BOD-VAR', $data['stocked']->id))->toBe(7);
 });
 
-it('renders product cards as available when any enabled variation has child stock', function () {
+it('renders product cards as available when any enabled variation has stock', function () {
     $user = User::factory()->create();
     configureVariationInventoryDisplay($user);
-    $data = variableProductWithSyncedChildStock();
+    $data = variableProductWithVariationStock();
 
     $this
         ->actingAs($user)
@@ -123,8 +115,8 @@ it('renders product cards as available when any enabled variation has child stoc
         ->assertSee('value="'.$data['stocked']->id.'"', false);
 });
 
-it('shows variation child stock inside the admin product variations table', function () {
-    $data = variableProductWithSyncedChildStock();
+it('shows variation stock inside the admin product variations table', function () {
+    $data = variableProductWithVariationStock();
 
     $this
         ->blade('@include("products.variations", ["product" => $product])', [

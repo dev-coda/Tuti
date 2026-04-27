@@ -126,19 +126,15 @@ describe('inventory and obsequio line resolution', function () {
         expect($id)->toBe($viB->id);
     });
 
-    it('resolves selected variation stock product from pivot sku', function () {
+    it('keeps selected variation stock on the parent product', function () {
         $variation = Variation::query()->create(['name' => 'Formato']);
         $variationItem = VariationItem::query()->create(['name' => 'Caja', 'variation_id' => $variation->id]);
         $parent = Product::factory()
             ->for(BrandFactory::new())
             ->state(['sku' => 'DUMMY-PARENT', 'variation_id' => $variation->id])
             ->create();
-        $stockProduct = Product::factory()
-            ->for(BrandFactory::new())
-            ->state(['sku' => 'REAL-VARIATION-SKU'])
-            ->create();
         $parent->items()->sync([
-            $variationItem->id => ['price' => 1, 'enabled' => 1, 'sku' => $stockProduct->sku],
+            $variationItem->id => ['price' => 1, 'enabled' => 1, 'sku' => 'REAL-VARIATION-SKU'],
         ]);
 
         $resolved = BonificationCheckoutService::stockProductForSelectedVariation(
@@ -146,7 +142,7 @@ describe('inventory and obsequio line resolution', function () {
             $variationItem->id
         );
 
-        expect($resolved->id)->toBe($stockProduct->id);
+        expect($resolved->id)->toBe($parent->id);
     });
 
     it('resolveGiftVariationId uses cart line when gift is already in the order', function () {

@@ -69,7 +69,7 @@ function inventorySyncSoapResponse(array $items): string
         .'</s:Envelope>';
 }
 
-it('syncs direct products and variation child products while dummy parents stay zero', function () {
+it('syncs direct products and parent variation inventory while dummy parents stay zero', function () {
     configureInventorySyncJob();
 
     $simple = inventorySyncProduct('SIMPLE-SKU');
@@ -95,10 +95,11 @@ it('syncs direct products and variation child products while dummy parents stay 
 
     $variation = Variation::create(['name' => 'Presentacion sync']);
     $variationItem = VariationItem::create(['name' => 'Caja', 'variation_id' => $variation->id]);
+    $pivotOnlyVariationItem = VariationItem::create(['name' => 'Bolsa', 'variation_id' => $variation->id]);
     $parent = inventorySyncProduct('DUMMY-PARENT-SYNC', ['variation_id' => $variation->id]);
-    $child = inventorySyncProduct('CHILD-VARIATION-SKU');
     $parent->items()->sync([
-        $variationItem->id => ['price' => 1, 'enabled' => 1, 'sku' => $child->sku],
+        $variationItem->id => ['price' => 1, 'enabled' => 1, 'sku' => 'VARIATION-SKU'],
+        $pivotOnlyVariationItem->id => ['price' => 1, 'enabled' => 1, 'sku' => 'PIVOT-ONLY-VARIATION-SKU'],
     ]);
     ProductInventory::create([
         'product_id' => $parent->id,
@@ -113,7 +114,8 @@ it('syncs direct products and variation child products while dummy parents stay 
             ['sku' => 'SIMPLE-SKU', 'available' => 7, 'physical' => 9, 'reserved' => 2],
             ['sku' => 'DUP-SKU', 'available' => 3, 'physical' => 3, 'reserved' => 0],
             ['sku' => 'DUP-SKU', 'available' => 4, 'physical' => 5, 'reserved' => 1],
-            ['sku' => 'CHILD-VARIATION-SKU', 'available' => 11, 'physical' => 12, 'reserved' => 1],
+            ['sku' => 'VARIATION-SKU', 'available' => 11, 'physical' => 12, 'reserved' => 1],
+            ['sku' => 'PIVOT-ONLY-VARIATION-SKU', 'available' => 18, 'physical' => 20, 'reserved' => 2],
             ['sku' => 'IGNORED-WMS-SKU', 'available' => 99, 'location' => 'EMPAQUE'],
         ]), 200),
     ]);
@@ -125,8 +127,9 @@ it('syncs direct products and variation child products while dummy parents stay 
         ->and((int) ProductInventory::where('product_id', $simple->id)->where('bodega_code', 'BOD-SYNC')->value('reserved'))->toBe(2)
         ->and((int) ProductInventory::where('product_id', $duplicateA->id)->where('bodega_code', 'BOD-SYNC')->value('available'))->toBe(7)
         ->and((int) ProductInventory::where('product_id', $duplicateB->id)->where('bodega_code', 'BOD-SYNC')->value('available'))->toBe(7)
-        ->and((int) ProductInventory::where('product_id', $child->id)->where('bodega_code', 'BOD-SYNC')->value('available'))->toBe(11)
-        ->and((int) ProductInventory::where('product_id', $parent->id)->where('bodega_code', 'BOD-SYNC')->value('available'))->toBe(0)
+        ->and((int) ProductInventory::where('product_id', $parent->id)->where('variation_item_id', $variationItem->id)->where('bodega_code', 'BOD-SYNC')->value('available'))->toBe(11)
+        ->and((int) ProductInventory::where('product_id', $parent->id)->where('variation_item_id', $pivotOnlyVariationItem->id)->where('bodega_code', 'BOD-SYNC')->value('available'))->toBe(18)
+        ->and((int) ProductInventory::where('product_id', $parent->id)->whereNull('variation_item_id')->where('bodega_code', 'BOD-SYNC')->value('available'))->toBe(0)
         ->and((int) ProductInventory::where('product_id', $absentManaged->id)->where('bodega_code', 'BOD-SYNC')->value('available'))->toBe(0)
         ->and((int) ProductInventory::where('product_id', $optedOut->id)->where('bodega_code', 'BOD-SYNC')->value('available'))->toBe(40)
         ->and(ProductInventory::where('bodega_code', 'BOD-SYNC')->whereHas('product', fn ($query) => $query->where('sku', 'IGNORED-WMS-SKU'))->exists())->toBeFalse();
@@ -134,8 +137,8 @@ it('syncs direct products and variation child products while dummy parents stay 
     $log = InventorySyncLog::latest('id')->first();
     expect($log)->not->toBeNull()
         ->and($log->status)->toBe('success')
-        ->and($log->skus_received)->toBe(3)
-        ->and($log->products_updated)->toBe(4);
+        ->and($log->skus_received)->toBe(4)
+        ->and($log->products_updated)->toBe(5);
 });
 
 it('keeps automatic sync disabled when inventory is off', function () {

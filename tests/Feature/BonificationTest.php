@@ -615,7 +615,7 @@ function checkoutInventoryProduct(Brand $brand, Tax $tax, string $name, string $
     ]);
 }
 
-function configureBonificationInventoryCheckout(User $user): \App\Models\Zone
+function configureBonificationInventoryCheckout(User $user): App\Models\Zone
 {
     Setting::updateOrCreate(
         ['key' => 'inventory_enabled'],
@@ -708,10 +708,9 @@ it('transmits separate order and bonification XMLs with rule-correct variation S
     $first = VariationItem::create(['name' => 'Unidad', 'variation_id' => $variation->id]);
     $giftVariation = VariationItem::create(['name' => 'Caja', 'variation_id' => $variation->id]);
     $giftParent = checkoutInventoryProduct($brand, $tax, 'Gift XML parent dummy', '', 0, $variation->id);
-    $giftVariantStockProduct = checkoutInventoryProduct($brand, $tax, 'Gift XML child stock', 'GIFT-XML-CHILD-SKU', 0);
     $giftParent->items()->sync([
         $first->id => ['price' => 0, 'enabled' => 1, 'sku' => ''],
-        $giftVariation->id => ['price' => 0, 'enabled' => 1, 'sku' => $giftVariantStockProduct->sku],
+        $giftVariation->id => ['price' => 0, 'enabled' => 1, 'sku' => 'GIFT-XML-VARIATION-SKU'],
     ]);
 
     $trigger = checkoutInventoryProduct($brand, $tax, 'Trigger XML bonif', 'TRIGGER-XML-SKU', 100);
@@ -739,7 +738,9 @@ it('transmits separate order and bonification XMLs with rule-correct variation S
         'reserved' => 0,
     ]);
     ProductInventory::create([
-        'product_id' => $giftVariantStockProduct->id,
+        'product_id' => $giftParent->id,
+        'variation_item_id' => $giftVariation->id,
+        'source_sku' => 'GIFT-XML-VARIATION-SKU',
         'bodega_code' => 'BOD-1',
         'available' => 20,
         'physical' => 20,
@@ -782,16 +783,16 @@ it('transmits separate order and bonification XMLs with rule-correct variation S
     expect($orderXml)->toContain('<dyn:TRO_E_obsequio>0</dyn:TRO_E_obsequio>')
         ->and($orderXml)->toContain('<dyn:itemId>TRIGGER-XML-SKU</dyn:itemId>')
         ->and($orderXml)->toContain('<dyn:qty>4</dyn:qty>')
-        ->and($orderXml)->not->toContain('GIFT-XML-CHILD-SKU')
+        ->and($orderXml)->not->toContain('GIFT-XML-VARIATION-SKU')
         ->and($giftXml)->toContain('<dyn:TRO_E_obsequio>1</dyn:TRO_E_obsequio>')
-        ->and($giftXml)->toContain('<dyn:itemId>GIFT-XML-CHILD-SKU</dyn:itemId>')
+        ->and($giftXml)->toContain('<dyn:itemId>GIFT-XML-VARIATION-SKU</dyn:itemId>')
         ->and($giftXml)->toContain('<dyn:qty>5</dyn:qty>')
         ->and($giftXml)->toContain('<dyn:qtyCust>5</dyn:qtyCust>')
         ->and($giftXml)->toContain('<dyn:unitPrice>0</dyn:unitPrice>')
         ->and($giftXml)->not->toContain('<dyn:itemId>TRIGGER-XML-SKU</dyn:itemId>');
 });
 
-it('syncs variation child stock automatically before applying a bonification gift', function () {
+it('syncs variation stock automatically before applying a bonification gift', function () {
     $user = User::first();
     $zone = configureBonificationInventoryCheckout($user);
     config(['microsoft.resource' => 'https://dynamics.test']);
@@ -816,9 +817,8 @@ it('syncs variation child stock automatically before applying a bonification gif
     $variation = Variation::create(['name' => 'Presentacion synced']);
     $selected = VariationItem::create(['name' => 'Caja', 'variation_id' => $variation->id]);
     $giftParent = checkoutInventoryProduct($brand, $tax, 'Gift parent synced dummy', 'DUMMY-SYNCED-PARENT', 0, $variation->id);
-    $giftVariantStockProduct = checkoutInventoryProduct($brand, $tax, 'Gift synced child stock', 'GIFT-SYNCED-CHILD', 0);
     $giftParent->items()->sync([
-        $selected->id => ['price' => 0, 'enabled' => 1, 'sku' => $giftVariantStockProduct->sku],
+        $selected->id => ['price' => 0, 'enabled' => 1, 'sku' => 'GIFT-SYNCED-VARIATION'],
     ]);
 
     $trigger = checkoutInventoryProduct($brand, $tax, 'Trigger synced gift', 'TRIGGER-SYNCED-GIFT', 100);
@@ -834,14 +834,14 @@ it('syncs variation child stock automatically before applying a bonification gif
     Http::fake([
         '*' => Http::response(bonificationInventorySyncSoapResponse([
             ['sku' => $trigger->sku, 'available' => 20],
-            ['sku' => $giftVariantStockProduct->sku, 'available' => 8],
+            ['sku' => 'GIFT-SYNCED-VARIATION', 'available' => 8],
         ]), 200),
     ]);
 
     (new SyncProductInventory())->handle();
 
-    expect((int) ProductInventory::where('product_id', $giftParent->id)->where('bodega_code', 'BOD-1')->value('available'))->toBe(0)
-        ->and((int) ProductInventory::where('product_id', $giftVariantStockProduct->id)->where('bodega_code', 'BOD-1')->value('available'))->toBe(8);
+    expect((int) ProductInventory::where('product_id', $giftParent->id)->whereNull('variation_item_id')->where('bodega_code', 'BOD-1')->value('available'))->toBe(0)
+        ->and((int) ProductInventory::where('product_id', $giftParent->id)->where('variation_item_id', $selected->id)->where('bodega_code', 'BOD-1')->value('available'))->toBe(8);
 
     session()->put('cart', [
         ['product_id' => $giftParent->id, 'quantity' => 1, 'variation_id' => $selected->id],
@@ -861,8 +861,8 @@ it('syncs variation child stock automatically before applying a bonification gif
     expect($bonificationRow->product_id)->toBe($giftParent->id)
         ->and($bonificationRow->variation_item_id)->toBe($selected->id);
 
-    expect((int) ProductInventory::where('product_id', $giftParent->id)->where('bodega_code', 'BOD-1')->value('available'))->toBe(0)
-        ->and((int) ProductInventory::where('product_id', $giftVariantStockProduct->id)->where('bodega_code', 'BOD-1')->value('available'))->toBe(6);
+    expect((int) ProductInventory::where('product_id', $giftParent->id)->whereNull('variation_item_id')->where('bodega_code', 'BOD-1')->value('available'))->toBe(0)
+        ->and((int) ProductInventory::where('product_id', $giftParent->id)->where('variation_item_id', $selected->id)->where('bodega_code', 'BOD-1')->value('available'))->toBe(6);
 });
 
 it('uses selected bonification variation stock when parent inventory is zero', function () {
@@ -885,9 +885,8 @@ it('uses selected bonification variation stock when parent inventory is zero', f
     $variation = Variation::create(['name' => 'Presentacion']);
     $selected = VariationItem::create(['name' => 'Caja', 'variation_id' => $variation->id]);
     $giftParent = checkoutInventoryProduct($brand, $tax, 'Gift parent dummy', 'DUMMY-PARENT', 0, $variation->id);
-    $giftVariantStockProduct = checkoutInventoryProduct($brand, $tax, 'Gift child stock', 'GIFT-CHILD-SKU', 0);
     $giftParent->items()->sync([
-        $selected->id => ['price' => 0, 'enabled' => 1, 'sku' => $giftVariantStockProduct->sku],
+        $selected->id => ['price' => 0, 'enabled' => 1, 'sku' => 'GIFT-VARIATION-SKU'],
     ]);
 
     $trigger = checkoutInventoryProduct($brand, $tax, 'Trigger selected gift', 'TRIGGER-VAR-GIFT', 100);
@@ -908,7 +907,9 @@ it('uses selected bonification variation stock when parent inventory is zero', f
         'reserved' => 0,
     ]);
     ProductInventory::create([
-        'product_id' => $giftVariantStockProduct->id,
+        'product_id' => $giftParent->id,
+        'variation_item_id' => $selected->id,
+        'source_sku' => 'GIFT-VARIATION-SKU',
         'bodega_code' => 'BOD-1',
         'available' => 8,
         'physical' => 8,
@@ -942,8 +943,8 @@ it('uses selected bonification variation stock when parent inventory is zero', f
         ->and($bonificationRow->variation_item_id)->toBe($selected->id)
         ->and($bonificationRow->quantity)->toBe(1);
 
-    expect((int) ProductInventory::where('product_id', $giftParent->id)->where('bodega_code', 'BOD-1')->value('available'))->toBe(0)
-        ->and((int) ProductInventory::where('product_id', $giftVariantStockProduct->id)->where('bodega_code', 'BOD-1')->value('available'))->toBe(6);
+    expect((int) ProductInventory::where('product_id', $giftParent->id)->whereNull('variation_item_id')->where('bodega_code', 'BOD-1')->value('available'))->toBe(0)
+        ->and((int) ProductInventory::where('product_id', $giftParent->id)->where('variation_item_id', $selected->id)->where('bodega_code', 'BOD-1')->value('available'))->toBe(6);
 });
 
 it('uses default variable gift stock when bonification product is not already in the cart', function () {
@@ -967,10 +968,9 @@ it('uses default variable gift stock when bonification product is not already in
     $first = VariationItem::create(['name' => 'Unidad', 'variation_id' => $variation->id]);
     $withSku = VariationItem::create(['name' => 'Caja', 'variation_id' => $variation->id]);
     $giftParent = checkoutInventoryProduct($brand, $tax, 'Gift parent default', '', 0, $variation->id);
-    $giftVariantStockProduct = checkoutInventoryProduct($brand, $tax, 'Gift default child stock', 'GIFT-DEFAULT-CHILD', 0);
     $giftParent->items()->sync([
         $first->id => ['price' => 0, 'enabled' => 1, 'sku' => ''],
-        $withSku->id => ['price' => 0, 'enabled' => 1, 'sku' => $giftVariantStockProduct->sku],
+        $withSku->id => ['price' => 0, 'enabled' => 1, 'sku' => 'GIFT-DEFAULT-VARIATION'],
     ]);
 
     $trigger = checkoutInventoryProduct($brand, $tax, 'Trigger default gift', 'TRIGGER-DEFAULT-GIFT', 100);
@@ -991,7 +991,9 @@ it('uses default variable gift stock when bonification product is not already in
         'reserved' => 0,
     ]);
     ProductInventory::create([
-        'product_id' => $giftVariantStockProduct->id,
+        'product_id' => $giftParent->id,
+        'variation_item_id' => $withSku->id,
+        'source_sku' => 'GIFT-DEFAULT-VARIATION',
         'bodega_code' => 'BOD-1',
         'available' => 6,
         'physical' => 6,
@@ -1024,8 +1026,8 @@ it('uses default variable gift stock when bonification product is not already in
         ->and($bonificationRow->variation_item_id)->toBe($withSku->id)
         ->and($bonificationRow->quantity)->toBe(1);
 
-    expect((int) ProductInventory::where('product_id', $giftParent->id)->where('bodega_code', 'BOD-1')->value('available'))->toBe(0)
-        ->and((int) ProductInventory::where('product_id', $giftVariantStockProduct->id)->where('bodega_code', 'BOD-1')->value('available'))->toBe(5);
+    expect((int) ProductInventory::where('product_id', $giftParent->id)->whereNull('variation_item_id')->where('bodega_code', 'BOD-1')->value('available'))->toBe(0)
+        ->and((int) ProductInventory::where('product_id', $giftParent->id)->where('variation_item_id', $withSku->id)->where('bodega_code', 'BOD-1')->value('available'))->toBe(5);
 });
 
 it('skips selected variation bonification when that variation stock cannot cover the gift', function () {
@@ -1048,9 +1050,8 @@ it('skips selected variation bonification when that variation stock cannot cover
     $variation = Variation::create(['name' => 'Color']);
     $selected = VariationItem::create(['name' => 'Azul', 'variation_id' => $variation->id]);
     $giftParent = checkoutInventoryProduct($brand, $tax, 'Gift parent abundant', 'DUMMY-PARENT-ABUNDANT', 0, $variation->id);
-    $giftVariantStockProduct = checkoutInventoryProduct($brand, $tax, 'Gift child constrained', 'GIFT-CHILD-LOW', 0);
     $giftParent->items()->sync([
-        $selected->id => ['price' => 0, 'enabled' => 1, 'sku' => $giftVariantStockProduct->sku],
+        $selected->id => ['price' => 0, 'enabled' => 1, 'sku' => 'GIFT-VARIATION-LOW'],
     ]);
 
     $trigger = checkoutInventoryProduct($brand, $tax, 'Trigger constrained gift', 'TRIGGER-VAR-LOW', 100);
@@ -1071,7 +1072,9 @@ it('skips selected variation bonification when that variation stock cannot cover
         'reserved' => 0,
     ]);
     ProductInventory::create([
-        'product_id' => $giftVariantStockProduct->id,
+        'product_id' => $giftParent->id,
+        'variation_item_id' => $selected->id,
+        'source_sku' => 'GIFT-VARIATION-LOW',
         'bodega_code' => 'BOD-1',
         'available' => 6,
         'physical' => 6,
@@ -1100,6 +1103,6 @@ it('skips selected variation bonification when that variation stock cannot cover
         ->and($order->products()->count())->toBe(2)
         ->and($order->bonifications()->count())->toBe(0);
 
-    expect((int) ProductInventory::where('product_id', $giftParent->id)->where('bodega_code', 'BOD-1')->value('available'))->toBe(100)
-        ->and((int) ProductInventory::where('product_id', $giftVariantStockProduct->id)->where('bodega_code', 'BOD-1')->value('available'))->toBe(5);
+    expect((int) ProductInventory::where('product_id', $giftParent->id)->whereNull('variation_item_id')->where('bodega_code', 'BOD-1')->value('available'))->toBe(100)
+        ->and((int) ProductInventory::where('product_id', $giftParent->id)->where('variation_item_id', $selected->id)->where('bodega_code', 'BOD-1')->value('available'))->toBe(5);
 });

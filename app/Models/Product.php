@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Product extends Model
 {
@@ -140,14 +141,14 @@ class Product extends Model
 
     public function stockProductForSelectedVariation(?int $variationItemId): Product
     {
-        $variationSku = $this->selectedVariationSku($variationItemId);
-        if ($variationSku === null) {
-            return $this;
-        }
+        return $this;
+    }
 
-        return self::query()
-            ->where('sku', $variationSku)
-            ->first() ?? $this;
+    public function scopeMatchingSku($query, string $sku)
+    {
+        $normalizedSku = mb_strtoupper(trim($sku));
+
+        return $query->whereRaw('UPPER(TRIM(sku)) = ?', [$normalizedSku]);
     }
 
     public function preferredVariationItemIdForBodega(?string $bodegaCode): ?int
@@ -181,18 +182,36 @@ class Product extends Model
      */
     public function getInventoryForBodega(?string $bodegaCode, ?int $variationItemId = null): int
     {
-        if (! $bodegaCode) {
-            return 0;
-        }
-        $stockProduct = $variationItemId ? $this->stockProductForSelectedVariation($variationItemId) : $this;
-        if ($stockProduct->is($this) && $this->relationLoaded('inventories')) {
-            $inv = $this->inventories->firstWhere('bodega_code', $bodegaCode);
-
-            return $inv?->available ?? 0;
-        }
-        $inv = $stockProduct->inventories()->where('bodega_code', $bodegaCode)->first();
+        $inv = $this->inventoryForBodega($bodegaCode, $variationItemId);
 
         return $inv?->available ?? 0;
+    }
+
+    public function inventoryForBodega(?string $bodegaCode, ?int $variationItemId = null): ?ProductInventory
+    {
+        return $this->inventoryQueryForBodega($bodegaCode, $variationItemId)?->first();
+    }
+
+    public function inventoryQueryForBodega(?string $bodegaCode, ?int $variationItemId = null): ?HasMany
+    {
+        if (! $bodegaCode) {
+            return null;
+        }
+
+        if ($variationItemId) {
+            return $this->inventories()
+                ->where('bodega_code', $bodegaCode)
+                ->where('variation_item_id', $variationItemId);
+        }
+
+        return $this->inventories()
+            ->where('bodega_code', $bodegaCode)
+            ->whereNull('variation_item_id');
+    }
+
+    public function inventoriesForSelectedVariation(int $variationItemId): HasMany
+    {
+        return $this->inventories()->where('variation_item_id', $variationItemId);
     }
 
     public function getInventoryForMdtat(): int
@@ -217,9 +236,8 @@ class Product extends Model
             }
         }
 
-        $stockProduct = $variationItemId ? $this->stockProductForSelectedVariation($variationItemId) : $this;
-        $available = $stockProduct->getInventoryForBodega($bodegaCode);
-        $safety = (int) $stockProduct->getEffectiveSafetyStock();
+        $available = $this->getInventoryForBodega($bodegaCode, $variationItemId);
+        $safety = (int) $this->getEffectiveSafetyStock();
         $globalMin = (int) (Setting::getByKey('global_minimum_inventory') ?? 5);
         $effectiveMinimum = ($safety > 0) ? $safety : $globalMin;
 

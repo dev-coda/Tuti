@@ -11,6 +11,8 @@ class ProductInventory extends Model
 
     protected $fillable = [
         'product_id',
+        'variation_item_id',
+        'source_sku',
         'bodega_code',
         'available',
         'physical',
@@ -20,5 +22,10 @@ class ProductInventory extends Model
     public function product()
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function variationItem()
+    {
+        return $this->belongsTo(VariationItem::class);
     }
 }
