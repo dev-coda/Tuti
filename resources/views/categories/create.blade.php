@@ -17,7 +17,29 @@
                 {{ Aire::input('name', "Nombre")->groupClass('col-span-6') }}
                 {{ Aire::textarea('description', "Descripción")->rows(5)->groupClass('col-span-6') }}
 
-                {{ Aire::select($categories, 'parent_id', 'Padre')->groupClass('col-span-6') }}
+                <div class="col-span-6">
+                    <h3 class="text-lg font-semibold">Tipo Categoría</h3>
+                    <div class="flex items-center space-x-4 mt-2">
+                        <label class="inline-flex items-center">
+                            <input type="radio" name="category_type" value="parent"
+                                class="form-radio text-blue-600"
+                                id="category_type_parent"
+                                checked>
+                            <span class="ml-2">Padre</span>
+                        </label>
+                        <label class="inline-flex items-center">
+                            <input type="radio" name="category_type" value="child"
+                                class="form-radio text-blue-600"
+                                id="category_type_child">
+                            <span class="ml-2">Hijo</span>
+                        </label>
+                    </div>
+                    <p class="mt-1 text-sm text-gray-500">Las categorías padre activas aparecen en el menú principal y en este listado.</p>
+                </div>
+
+                <div id="parent-category-field" class="col-span-6 hidden">
+                    {{ Aire::select($categories, 'parent_id', 'Padre')->groupClass('col-span-6') }}
+                </div>
 
                 
                 <div>
@@ -85,6 +107,21 @@
 document.addEventListener('DOMContentLoaded', function() {
     const enableHighlighting = document.querySelector('input[name="enable_highlighting"]');
     const highlightingOptions = document.getElementById('highlighting-options');
+    const categoryTypeInputs = document.querySelectorAll('input[name="category_type"]');
+    const parentCategoryField = document.getElementById('parent-category-field');
+    const parentCategorySelect = document.querySelector('select[name="parent_id"]');
+
+    function updateParentCategoryField() {
+        const selectedType = document.querySelector('input[name="category_type"]:checked')?.value;
+        const isChild = selectedType === 'child';
+
+        parentCategoryField.classList.toggle('hidden', ! isChild);
+        parentCategorySelect.disabled = ! isChild;
+
+        if (! isChild) {
+            parentCategorySelect.value = '';
+        }
+    }
     
     if (enableHighlighting) {
         enableHighlighting.addEventListener('change', function() {
@@ -95,6 +132,12 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    categoryTypeInputs.forEach(function(input) {
+        input.addEventListener('change', updateParentCategoryField);
+    });
+
+    updateParentCategoryField();
 });
 </script>
 @endsection

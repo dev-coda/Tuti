@@ -26,21 +26,24 @@
                         <label class="inline-flex items-center">
                             <input type="radio" name="category_type" value="parent"
                                 class="form-radio text-blue-600"
-                                @checked($category->category_type == 'parent')
+                                @checked(is_null($category->parent_id))
                                 id="category_type_parent">
                             <span class="ml-2">Padre</span>
                         </label>
                         <label class="inline-flex items-center">
                             <input type="radio" name="category_type" value="child"
                                 class="form-radio text-blue-600"
-                                @checked($category->category_type == 'child')
+                                @checked(! is_null($category->parent_id))
                                 id="category_type_child">
                             <span class="ml-2">Hijo</span>
                         </label>
                     </div>
+                    <p class="mt-1 text-sm text-gray-500">Las categorías padre activas aparecen en el menú principal y quedan disponibles como padre para otras categorías.</p>
                 </div>
 
-                {{ Aire::select($categories, 'parent_id', 'Padre')->groupClass('col-span-6 sm:col-span-3') }}
+                <div id="parent-category-field" class="col-span-6 sm:col-span-3">
+                    {{ Aire::select($categories, 'parent_id', 'Padre')->groupClass('col-span-6') }}
+                </div>
 
                 {{ Aire::input('safety_stock', 'Stock de seguridad por categoría')->type('number')->min(0)->helpText('Nivel mínimo de inventario permitido para productos de esta categoría')->groupClass('col-span-6 sm:col-span-3') }}
 
@@ -49,7 +52,7 @@
                 <div class="col-span-6">
                     {{ Aire::hidden('active')->value(0)}}
                     <label class="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" checked name='active' value="1" class="sr-only peer" {{ $category->active ? 'checked' : '' }}>
+                        <input type="checkbox" name='active' value="1" class="sr-only peer" {{ $category->active ? 'checked' : '' }}>
                         <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300  rounded-full peer  peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all0 peer-checked:bg-blue-600"></div>
                         <span class="ml-3 text-sm font-medium text-gray-900 ">Activo</span>
                     </label>
@@ -129,6 +132,21 @@ document.addEventListener('DOMContentLoaded', function() {
     const enableHighlighting = document.querySelector('input[name="enable_highlighting"]');
     const highlightingOptions = document.getElementById('highlighting-options');
     const highlightProductsLink = document.getElementById('highlight-products-link');
+    const categoryTypeInputs = document.querySelectorAll('input[name="category_type"]');
+    const parentCategoryField = document.getElementById('parent-category-field');
+    const parentCategorySelect = document.querySelector('select[name="parent_id"]');
+
+    function updateParentCategoryField() {
+        const selectedType = document.querySelector('input[name="category_type"]:checked')?.value;
+        const isChild = selectedType === 'child';
+
+        parentCategoryField.classList.toggle('hidden', ! isChild);
+        parentCategorySelect.disabled = ! isChild;
+
+        if (! isChild) {
+            parentCategorySelect.value = '';
+        }
+    }
     
     if (enableHighlighting) {
         enableHighlighting.addEventListener('change', function() {
@@ -141,6 +159,12 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    categoryTypeInputs.forEach(function(input) {
+        input.addEventListener('change', updateParentCategoryField);
+    });
+
+    updateParentCategoryField();
 });
 </script>
 @endsection

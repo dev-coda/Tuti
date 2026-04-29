@@ -69,7 +69,8 @@ class CategoryController extends Controller
                     }
                 },
             ],
-            'parent_id' => 'nullable',
+            'parent_id' => 'required_if:category_type,child|nullable|exists:categories,id',
+            'category_type' => 'nullable|in:parent,child',
             'description' => 'nullable',
             'image_file' => 'nullable|image|max:2000',
             'active' => 'nullable|boolean',
@@ -79,6 +80,14 @@ class CategoryController extends Controller
             'highlighted_brand_ids' => 'nullable|array',
             'highlighted_brand_ids.*' => 'exists:brands,id',
         ]);
+
+        $categoryType = $validate['category_type'] ?? ($request->filled('parent_id') ? 'child' : 'parent');
+
+        if ($categoryType === 'parent') {
+            $validate['parent_id'] = null;
+        }
+
+        unset($validate['category_type']);
 
         if ($request->hasFile('image_file')) {
             $validate['image'] = $request->image_file->store('categories', 'public');
@@ -134,7 +143,8 @@ class CategoryController extends Controller
 
             ],
             'description' => 'nullable',
-            'parent_id' => 'nullable',
+            'parent_id' => 'required_if:category_type,child|nullable|exists:categories,id',
+            'category_type' => 'nullable|in:parent,child',
             'image_file' => 'nullable|image|max:2000',
             'active' => 'nullable|boolean',
             'slug' => [
@@ -153,6 +163,12 @@ class CategoryController extends Controller
             'highlighted_brand_ids' => 'nullable|array',
             'highlighted_brand_ids.*' => 'exists:brands,id',
         ]);
+
+        if (($validate['category_type'] ?? null) === 'parent') {
+            $validate['parent_id'] = null;
+        }
+
+        unset($validate['category_type']);
 
         // $name = asset_name('categories'); 
         // $n = ProcessImage::dispatch($name, $request->image_file);
