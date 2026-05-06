@@ -1410,7 +1410,9 @@ class CartController extends Controller
 
                         $variationItemId = BonificationCheckoutService::resolveGiftVariationItemId(
                             $bonificationProduct,
-                            (int) $order->id
+                            (int) $order->id,
+                            $isInventoryEnabled ? $bodega : null,
+                            $bonification_quantity
                         );
                         $giftProductId = (int) $bonificationProduct->id;
                         $stockKey = $giftProductId.':'.($variationItemId ?: 'base');
@@ -1439,7 +1441,6 @@ class CartController extends Controller
                         $giftProductStockPlan[$stockKey]['requested_total'] += $bonification_quantity;
                     }
 
-                    $blockedStockProductIds = [];
                     foreach ($giftProductStockPlan as $stockKey => $stockPlan) {
                         $catalogProduct = $stockPlan['catalog_product'];
                         $requestedTotal = (int) $stockPlan['requested_total'];
@@ -1454,8 +1455,7 @@ class CartController extends Controller
                             $requestedTotal
                         );
                         if (! $hasEnoughForAll) {
-                            $blockedStockProductIds[$stockKey] = true;
-                            Log::warning('Skipping bonifications: insufficient stock for all gift items involved', [
+                            Log::warning('Order rollback: insufficient stock for bonification gift', [
                                 'order_id' => $order->id,
                                 'trigger_product_id' => $id,
                                 'gift_product_id' => $catalogProduct->id,
@@ -1464,6 +1464,12 @@ class CartController extends Controller
                                 'available' => $disponible,
                                 'bodega' => $bodega,
                             ]);
+                            DB::rollBack();
+
+                            return back()->with(
+                                'error',
+                                "Inventario insuficiente para entregar la bonificación de {$catalogProduct->name} en su zona."
+                            );
                         }
                     }
 
@@ -1478,9 +1484,6 @@ class CartController extends Controller
                         $giftProduct = $planned['gift_product'];
                         $giftProductId = (int) $giftProduct->id;
                         $stockKey = (string) $planned['stock_key'];
-                        if (isset($blockedStockProductIds[$stockKey])) {
-                            continue;
-                        }
 
                         OrderProductBonification::create([
                             'bonification_id' => $planned['bonification']->id,

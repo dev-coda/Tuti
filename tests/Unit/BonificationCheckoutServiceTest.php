@@ -209,6 +209,85 @@ describe('inventory and obsequio line resolution', function () {
         expect($resolved)->toBeNull();
     });
 
+    it('resolveGiftVariationId falls back to a stocked variation when parent SKU has no usable inventory', function () {
+        $variation = Variation::query()->create(['name' => 'Empaque']);
+        $vi1 = VariationItem::query()->create(['name' => 'Caja 6', 'variation_id' => $variation->id]);
+        $vi2 = VariationItem::query()->create(['name' => 'Caja 12', 'variation_id' => $variation->id]);
+        $gift = Product::factory()
+            ->for(BrandFactory::new())
+            ->state([
+                'sku' => 'GIFT-PARENT-LEGACY',
+                'variation_id' => $variation->id,
+                'safety_stock' => 0,
+                'inventory_opt_out' => false,
+            ])
+            ->create();
+        $gift->items()->sync([
+            $vi1->id => ['price' => 0, 'enabled' => 1, 'sku' => 'GIFT-V1-SKU'],
+            $vi2->id => ['price' => 0, 'enabled' => 1, 'sku' => 'GIFT-V2-SKU'],
+        ]);
+
+        \App\Models\ProductInventory::query()->create([
+            'product_id' => $gift->id,
+            'bodega_code' => 'BOD-1',
+            'available' => 0,
+            'physical' => 0,
+            'reserved' => 0,
+        ]);
+        \App\Models\ProductInventory::query()->create([
+            'product_id' => $gift->id,
+            'variation_item_id' => $vi2->id,
+            'source_sku' => 'GIFT-V2-SKU',
+            'bodega_code' => 'BOD-1',
+            'available' => 30,
+            'physical' => 30,
+            'reserved' => 0,
+        ]);
+
+        $resolved = BonificationCheckoutService::resolveGiftVariationItemId(
+            $gift->fresh(['items']),
+            9999,
+            'BOD-1',
+            3
+        );
+
+        expect($resolved)->toBe($vi2->id);
+    });
+
+    it('resolveGiftVariationId still uses the parent SKU when parent inventory is enough', function () {
+        $variation = Variation::query()->create(['name' => 'Empaque ok']);
+        $vi1 = VariationItem::query()->create(['name' => 'Caja', 'variation_id' => $variation->id]);
+        $gift = Product::factory()
+            ->for(BrandFactory::new())
+            ->state([
+                'sku' => 'GIFT-PARENT-OK',
+                'variation_id' => $variation->id,
+                'safety_stock' => 0,
+                'inventory_opt_out' => false,
+            ])
+            ->create();
+        $gift->items()->sync([
+            $vi1->id => ['price' => 0, 'enabled' => 1, 'sku' => 'GIFT-V1-OK'],
+        ]);
+
+        \App\Models\ProductInventory::query()->create([
+            'product_id' => $gift->id,
+            'bodega_code' => 'BOD-1',
+            'available' => 50,
+            'physical' => 50,
+            'reserved' => 0,
+        ]);
+
+        $resolved = BonificationCheckoutService::resolveGiftVariationItemId(
+            $gift->fresh(['items']),
+            9999,
+            'BOD-1',
+            3
+        );
+
+        expect($resolved)->toBeNull();
+    });
+
     it('buildOrderXmlForDiagnostic includes variation sku for bonification line when parent sku is empty', function () {
         $u = User::factory()->create();
         $z = Zone::query()->create([

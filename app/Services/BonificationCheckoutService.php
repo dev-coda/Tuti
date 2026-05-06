@@ -87,15 +87,25 @@ class BonificationCheckoutService
 
     /**
      * Variation to send on the gift (obsequio) line so SAP/XML gets a resolvable itemId.
-     * When the parent has no base SKU, we must use an enabled line with a per-variation SKU.
+     *
+     * Resolution order:
+     *   1. Variation already chosen by the customer for this gift product in the same order.
+     *   2. When inventory is enabled and a bodega is known: parent inventory if it satisfies
+     *      the requested gift, otherwise the first enabled variation that does. This handles
+     *      products whose parent has a (legacy/placeholder) SKU but is not actually stocked,
+     *      while real inventory lives on per-variation SKUs.
+     *   3. When the parent has no base SKU at all, fall back to any enabled variation with a
+     *      per-variation SKU so SAP receives a resolvable itemId.
      */
-    public static function resolveGiftVariationItemId(Product $giftProduct, int $orderId): ?int
-    {
+    public static function resolveGiftVariationItemId(
+        Product $giftProduct,
+        int $orderId,
+        ?string $bodega = null,
+        int $requestedUnits = 0
+    ): ?int {
         if (! self::giftProductHasEnabledItems($giftProduct)) {
             return null;
         }
-
-        $parentSku = trim((string) ($giftProduct->sku ?? ''));
 
         $existing = OrderProduct::query()
             ->where('order_id', $orderId)
@@ -107,11 +117,68 @@ class BonificationCheckoutService
             return $existing->variation_item_id;
         }
 
+        $parentSku = trim((string) ($giftProduct->sku ?? ''));
+
+        if ($bodega && $requestedUnits > 0 && $giftProduct->isInventoryManaged()) {
+            $parentAvailable = (int) $giftProduct->getInventoryForBodega($bodega, null);
+            $parentEnough = self::hasEnoughStockForRequestedUnits(
+                $parentAvailable,
+                $giftProduct,
+                $requestedUnits
+            );
+
+            if ($parentSku !== '' && $parentEnough) {
+                return null;
+            }
+
+            $variationWithStock = self::firstEnabledVariationWithEnoughStock(
+                $giftProduct,
+                $bodega,
+                $requestedUnits
+            );
+            if ($variationWithStock !== null) {
+                return $variationWithStock;
+            }
+
+            if ($parentSku !== '') {
+                return null;
+            }
+        }
+
         if ($parentSku !== '') {
             return null;
         }
 
         return self::defaultVariationItemIdPreferringPivotSku($giftProduct);
+    }
+
+    /**
+     * First enabled variation whose own inventory at the given bodega can satisfy
+     * the requested gift quantity (respecting safety/global-minimum floors).
+     */
+    public static function firstEnabledVariationWithEnoughStock(
+        Product $giftProduct,
+        string $bodega,
+        int $requestedUnits
+    ): ?int {
+        if ($requestedUnits <= 0 || ! self::giftProductHasEnabledItems($giftProduct)) {
+            return null;
+        }
+
+        $items = $giftProduct->items()
+            ->wherePivot('enabled', true)
+            ->get()
+            ->sortBy('id')
+            ->values();
+
+        foreach ($items as $item) {
+            $available = (int) $giftProduct->getInventoryForBodega($bodega, (int) $item->id);
+            if (self::hasEnoughStockForRequestedUnits($available, $giftProduct, $requestedUnits)) {
+                return (int) $item->id;
+            }
+        }
+
+        return null;
     }
 
     /**
