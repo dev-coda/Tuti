@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Models\Variation;
 use App\Models\VariationItem;
 use App\Models\Vendor;
+use App\Models\Zone;
 use App\Models\ZoneWarehouse;
 use App\Repositories\OrderRepository;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -1295,4 +1296,173 @@ it('creates bonification when both trigger and gift have variations across multi
     expect($bonificationRow->product_id)->toBe($giftParent->id)
         ->and($bonificationRow->variation_item_id)->toBe($giftV1->id)
         ->and($bonificationRow->quantity)->toBe(1);
+});
+
+it('shows bonification preview in cart when quantities are split across variations', function () {
+    $user = User::first();
+
+    Setting::updateOrCreate(
+        ['key' => 'min_amount'],
+        ['name' => 'Min amount', 'value' => '0', 'show' => false]
+    );
+
+    $tax = Tax::create(['name' => 'IVA preview var bonif', 'tax' => 0]);
+    $vendor = Vendor::create([
+        'name' => 'Vendor preview var',
+        'slug' => 'vendor-preview-var',
+        'minimum_purchase' => 0,
+        'active' => 1,
+    ]);
+    $brand = Brand::create([
+        'name' => 'Brand preview var',
+        'slug' => 'brand-preview-var',
+        'vendor_id' => $vendor->id,
+    ]);
+
+    $triggerVariation = Variation::create(['name' => 'Talla']);
+    $sizeA = VariationItem::create(['name' => 'A', 'variation_id' => $triggerVariation->id]);
+    $sizeB = VariationItem::create(['name' => 'B', 'variation_id' => $triggerVariation->id]);
+    $trigger = checkoutInventoryProduct($brand, $tax, 'Trigger preview var', 'TRIGGER-PREVIEW-VAR', 100, $triggerVariation->id);
+    $trigger->items()->sync([
+        $sizeA->id => ['price' => 100, 'enabled' => 1, 'sku' => 'TRIGGER-PREVIEW-A'],
+        $sizeB->id => ['price' => 100, 'enabled' => 1, 'sku' => 'TRIGGER-PREVIEW-B'],
+    ]);
+
+    $gift = checkoutInventoryProduct($brand, $tax, 'Gift preview var', 'GIFT-PREVIEW-VAR', 0);
+
+    $bonification = Bonification::create([
+        'name' => 'Buy 6 Get 1 preview',
+        'buy' => 6,
+        'get' => 1,
+        'product_id' => $gift->id,
+        'max' => 10,
+    ]);
+    $trigger->bonifications()->attach($bonification->id);
+
+    session()->put('cart', [
+        ['product_id' => $trigger->id, 'quantity' => 4, 'variation_id' => $sizeA->id],
+        ['product_id' => $trigger->id, 'quantity' => 2, 'variation_id' => $sizeB->id],
+    ]);
+
+    actingAs($user)
+        ->get(route('cart'))
+        ->assertOk()
+        ->assertSeeText('Bonificaciones aplicables')
+        ->assertSeeText('Buy 6 Get 1 preview')
+        ->assertSeeText('Gift preview var')
+        ->assertSeeText('Cantidad acumulada en carrito: 6');
+});
+
+it('does not show cart bonification preview when max cap resolves to zero', function () {
+    $user = User::first();
+
+    Setting::updateOrCreate(
+        ['key' => 'min_amount'],
+        ['name' => 'Min amount', 'value' => '0', 'show' => false]
+    );
+
+    $tax = Tax::create(['name' => 'IVA preview cap', 'tax' => 0]);
+    $vendor = Vendor::create([
+        'name' => 'Vendor preview cap',
+        'slug' => 'vendor-preview-cap',
+        'minimum_purchase' => 0,
+        'active' => 1,
+    ]);
+    $brand = Brand::create([
+        'name' => 'Brand preview cap',
+        'slug' => 'brand-preview-cap',
+        'vendor_id' => $vendor->id,
+    ]);
+
+    $trigger = checkoutInventoryProduct($brand, $tax, 'Trigger preview cap', 'TRIGGER-PREVIEW-CAP', 100);
+    $gift = checkoutInventoryProduct($brand, $tax, 'Gift preview cap', 'GIFT-PREVIEW-CAP', 0);
+
+    $bonification = Bonification::create([
+        'name' => 'Buy 6 Get 1 capped to zero',
+        'buy' => 6,
+        'get' => 1,
+        'product_id' => $gift->id,
+        'max' => 0,
+    ]);
+    $trigger->bonifications()->attach($bonification->id);
+
+    session()->put('cart', [
+        ['product_id' => $trigger->id, 'quantity' => 6, 'variation_id' => null],
+    ]);
+
+    actingAs($user)
+        ->get(route('cart'))
+        ->assertOk()
+        ->assertDontSeeText('Bonificaciones aplicables')
+        ->assertDontSeeText('Buy 6 Get 1 capped to zero');
+});
+
+it('shows bonifications section in order details page', function () {
+    $user = User::first();
+    $zone = Zone::create([
+        'user_id' => $user->id,
+        'route' => 'R-BONIF-DETAIL',
+        'zone' => '933',
+        'day' => 'Monday',
+        'address' => 'Bonification detail address',
+        'code' => 'BONIF-DETAIL',
+    ]);
+
+    $tax = Tax::create(['name' => 'IVA order bonif detail', 'tax' => 0]);
+    $vendor = Vendor::create([
+        'name' => 'Vendor order bonif detail',
+        'slug' => 'vendor-order-bonif-detail',
+        'minimum_purchase' => 0,
+        'active' => 1,
+    ]);
+    $brand = Brand::create([
+        'name' => 'Brand order bonif detail',
+        'slug' => 'brand-order-bonif-detail',
+        'vendor_id' => $vendor->id,
+    ]);
+
+    $trigger = checkoutInventoryProduct($brand, $tax, 'Trigger order bonif detail', 'TRIGGER-ORDER-BONIF-DETAIL', 100);
+    $gift = checkoutInventoryProduct($brand, $tax, 'Gift order bonif detail', 'GIFT-ORDER-BONIF-DETAIL', 0);
+
+    $bonification = Bonification::create([
+        'name' => 'Order detail bonification',
+        'buy' => 6,
+        'get' => 1,
+        'product_id' => $gift->id,
+        'max' => 10,
+    ]);
+
+    $order = Order::create([
+        'user_id' => $user->id,
+        'zone_id' => $zone->id,
+        'status_id' => Order::STATUS_PENDING,
+        'total' => 1000,
+        'discount' => 0,
+    ]);
+
+    $orderProduct = \App\Models\OrderProduct::create([
+        'order_id' => $order->id,
+        'product_id' => $trigger->id,
+        'quantity' => 6,
+        'price' => 100,
+        'discount' => 0,
+        'percentage' => 0,
+        'package_quantity' => 1,
+    ]);
+
+    \App\Models\OrderProductBonification::create([
+        'bonification_id' => $bonification->id,
+        'order_product_id' => $orderProduct->id,
+        'product_id' => $gift->id,
+        'variation_item_id' => null,
+        'quantity' => 1,
+        'order_id' => $order->id,
+    ]);
+
+    actingAs($user)
+        ->get(route('clients.orders.show', $order))
+        ->assertOk()
+        ->assertSeeText('Bonificaciones aplicadas')
+        ->assertSeeText('Order detail bonification')
+        ->assertSeeText('Gift order bonif detail');
 });

@@ -349,7 +349,9 @@ class CartController extends Controller
             0.0
         );
 
-        $context = compact('products', 'alertVendors', 'vendorDiscountAlerts', 'zoneOptions', 'set_user', 'client', 'alertTotal', 'min_amount', 'total_cart', 'has_orders', 'appliedCoupon', 'couponDiscount', 'couponMessage', 'shippingMethods', 'cartRetentions');
+        $bonificationPreview = $this->buildCartBonificationPreview($cart);
+
+        $context = compact('products', 'alertVendors', 'vendorDiscountAlerts', 'zoneOptions', 'set_user', 'client', 'alertTotal', 'min_amount', 'total_cart', 'has_orders', 'appliedCoupon', 'couponDiscount', 'couponMessage', 'shippingMethods', 'cartRetentions', 'bonificationPreview');
 
         return view('pages.cart', $context);
     }
@@ -1993,6 +1995,96 @@ class CartController extends Controller
         session()->forget('applied_coupons');   // Multi-coupon list
         session()->forget('coupon_discounts');   // Per-product discount cache
         session()->forget('total_coupon_discount'); // Total discount cache
+    }
+
+    /**
+     * Build cart bonification preview grouped by parent product_id.
+     *
+     * Product variations share product_id in cart rows, so quantities are aggregated
+     * across all selected variations before evaluating each bonification rule.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildCartBonificationPreview(array $cart): array
+    {
+        $productIds = collect($cart)
+            ->map(fn ($row) => (int) ($row['product_id'] ?? 0))
+            ->filter(fn ($id) => $id > 0)
+            ->unique()
+            ->values();
+
+        if ($productIds->isEmpty()) {
+            return [];
+        }
+
+        $quantityProducts = Product::query()
+            ->whereIn('id', $productIds->all())
+            ->get(['id', 'package_quantity'])
+            ->keyBy('id');
+
+        $productQuantities = [];
+        foreach ($cart as $row) {
+            $productId = (int) ($row['product_id'] ?? 0);
+            if ($productId <= 0) {
+                continue;
+            }
+            $product = $quantityProducts->get($productId);
+            if (! $product) {
+                continue;
+            }
+
+            $packageQuantity = (int) ($product->package_quantity ?? 1);
+            $lineQuantity = (int) ($row['quantity'] ?? 0);
+            $productQuantities[$productId] = ($productQuantities[$productId] ?? 0) + ($lineQuantity * $packageQuantity);
+        }
+
+        if (empty($productQuantities)) {
+            return [];
+        }
+
+        $products = Product::with(['bonifications.product'])
+            ->whereIn('id', array_keys($productQuantities))
+            ->get()
+            ->keyBy('id');
+
+        $preview = [];
+        foreach ($productQuantities as $productId => $aggregatedItems) {
+            $triggerProduct = $products->get($productId);
+            if (! $triggerProduct || $triggerProduct->bonifications->isEmpty()) {
+                continue;
+            }
+
+            foreach ($triggerProduct->bonifications as $bonification) {
+                $buy = (int) ($bonification->buy ?? 0);
+                $get = (int) ($bonification->get ?? 0);
+                if ($buy <= 0 || $get <= 0) {
+                    continue;
+                }
+
+                $giftQuantity = (int) floor(($aggregatedItems / $buy) * $get);
+                // Keep cart preview behavior aligned with checkout processing.
+                $max = (int) ($bonification->max ?? 0);
+                if ($giftQuantity > $max) {
+                    $giftQuantity = $max;
+                }
+
+                if ($giftQuantity <= 0) {
+                    continue;
+                }
+
+                $preview[] = [
+                    'bonification_name' => $bonification->name,
+                    'trigger_product_name' => $triggerProduct->name,
+                    'gift_product_name' => $bonification->product?->name,
+                    'buy' => $buy,
+                    'get' => $get,
+                    'aggregated_items' => $aggregatedItems,
+                    'gift_quantity' => $giftQuantity,
+                ];
+            }
+        }
+
+        return $preview;
     }
 
     /**

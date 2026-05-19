@@ -174,6 +174,29 @@
                 </div>
             </div>
 
+            @if($order->bonifications->count() > 0)
+            <div class="bg-white border border-gray-200 rounded-2xl p-5 sm:p-6">
+                <h2 class="flex items-center gap-2 text-lg font-semibold text-gray-900 mb-4">
+                    <svg class="w-5 h-5 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M3 8a2 2 0 012-2h2V5a3 3 0 016 0v1h2a2 2 0 012 2v1a2 2 0 01-2 2h-1v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4H5a2 2 0 01-2-2V8zm6-3a1 1 0 012 0v1H9V5z" />
+                    </svg>
+                    Bonificaciones aplicadas
+                </h2>
+
+                <div class="space-y-3">
+                    @foreach ($order->bonifications as $gift)
+                        <div class="p-3 bg-orange-50 border border-orange-100 rounded-lg">
+                            <p class="text-sm text-gray-800">
+                                <span class="font-semibold">{{ $gift->bonification->name ?? 'Bonificación' }}</span>:
+                                {{ $gift->quantity }} {{ $gift->quantity === 1 ? 'unidad' : 'unidades' }} de
+                                <span class="font-semibold">{{ $gift->product->name ?? 'Obsequio' }}</span>.
+                            </p>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+            @endif
+
             <!-- Shipping Method & Observations -->
             @if($order->delivery_method || $order->observations)
             <div class="bg-white border border-gray-200 rounded-2xl p-5 sm:p-6">

@@ -248,6 +248,39 @@
             </div>
         </div>
 
+        @if(!empty($bonificationPreview))
+        <div class="px-6 py-4 bg-orange-50 border-t border-orange-100">
+            <h3 class="text-sm font-semibold text-orange-800 mb-3 flex items-center gap-2">
+                <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 1.343-3 3v1H7a2 2 0 00-2 2v3h14v-3a2 2 0 00-2-2h-2v-1c0-1.657-1.343-3-3-3z"></path>
+                </svg>
+                Bonificaciones aplicables
+            </h3>
+            <div class="space-y-2">
+                @foreach($bonificationPreview as $preview)
+                <div class="p-3 bg-white border border-orange-200 rounded-lg">
+                    <p class="text-sm text-gray-800">
+                        <span class="font-semibold">{{ $preview['bonification_name'] }}</span>:
+                        @if(!empty($preview['gift_product_name']))
+                            obtienes <span class="font-semibold">{{ $preview['gift_quantity'] }}</span>
+                            {{ $preview['gift_quantity'] === 1 ? 'unidad' : 'unidades' }} de
+                            <span class="font-semibold">{{ $preview['gift_product_name'] }}</span>.
+                        @else
+                            obtienes <span class="font-semibold">{{ $preview['gift_quantity'] }}</span>
+                            {{ $preview['gift_quantity'] === 1 ? 'unidad' : 'unidades' }} de obsequio.
+                        @endif
+                    </p>
+                    <p class="text-xs text-gray-500 mt-1">
+                        Producto que activa: {{ $preview['trigger_product_name'] }}.
+                        Regla: compra {{ $preview['buy'] }}, recibe {{ $preview['get'] }}.
+                        Cantidad acumulada en carrito: {{ $preview['aggregated_items'] }}.
+                    </p>
+                </div>
+                @endforeach
+            </div>
+        </div>
+        @endif
+
         {{-- Coupon Section --}}
         <div class="px-6 py-4 bg-gray-50 border-t border-gray-100">
             <h3 class="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
