@@ -2,10 +2,9 @@
 
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
-use Mockery;
 
 afterEach(function () {
-    Mockery::close();
+    \Mockery::close();
 });
 
 function fakeRuteroResult(?string $mobile = '3001234567', ?string $phone = null, ?string $whatsapp = null): array
@@ -28,7 +27,7 @@ function fakeRuteroResult(?string $mobile = '3001234567', ?string $phone = null,
 }
 
 it('requires phone verification after document lookup', function () {
-    Mockery::mock('alias:App\Repositories\UserRepository')
+    \Mockery::mock('alias:App\Repositories\UserRepository')
         ->shouldReceive('getCustomRuteroId')
         ->once()
         ->andReturn(fakeRuteroResult());
@@ -43,7 +42,7 @@ it('requires phone verification after document lookup', function () {
 });
 
 it('creates pending user and redirects when phone matches', function () {
-    Mockery::mock('alias:App\Repositories\UserRepository')
+    \Mockery::mock('alias:App\Repositories\UserRepository')
         ->shouldReceive('getCustomRuteroId')
         ->once()
         ->andReturn(fakeRuteroResult('3001234567'));
@@ -69,7 +68,7 @@ it('creates pending user and redirects when phone matches', function () {
 });
 
 it('blocks migration when phone does not match', function () {
-    Mockery::mock('alias:App\Repositories\UserRepository')
+    \Mockery::mock('alias:App\Repositories\UserRepository')
         ->shouldReceive('getCustomRuteroId')
         ->once()
         ->andReturn(fakeRuteroResult('3001234567'));
@@ -93,7 +92,7 @@ it('blocks migration when phone does not match', function () {
 });
 
 it('blocks migration when document is not found in tronex', function () {
-    Mockery::mock('alias:App\Repositories\UserRepository')
+    \Mockery::mock('alias:App\Repositories\UserRepository')
         ->shouldReceive('getCustomRuteroId')
         ->once()
         ->andReturn(null);
@@ -107,7 +106,7 @@ it('blocks migration when document is not found in tronex', function () {
 });
 
 it('uses phone fallback precedence and allows country-prefix tolerant matching', function () {
-    Mockery::mock('alias:App\Repositories\UserRepository')
+    \Mockery::mock('alias:App\Repositories\UserRepository')
         ->shouldReceive('getCustomRuteroId')
         ->once()
         ->andReturn(fakeRuteroResult(null, '3001234567', '3209999999'));
@@ -125,7 +124,7 @@ it('uses phone fallback precedence and allows country-prefix tolerant matching',
 });
 
 it('returns 429 after repeated document lookup failures', function () {
-    Mockery::mock('alias:App\Repositories\UserRepository')
+    \Mockery::mock('alias:App\Repositories\UserRepository')
         ->shouldReceive('getCustomRuteroId')
         ->times(5)
         ->andReturn(null);
@@ -152,7 +151,7 @@ it('prefers rutero phone over mismatched user phone columns', function () {
         'tronex_migration_pending' => true,
     ]);
 
-    Mockery::mock('alias:App\Repositories\UserRepository')
+    \Mockery::mock('alias:App\Repositories\UserRepository')
         ->shouldReceive('getCustomRuteroId')
         ->once()
         ->andReturn(fakeRuteroResult('3001234567'));
@@ -180,7 +179,7 @@ it('reuses pending tronex user after successful verification', function () {
         'tronex_migration_pending' => true,
     ]);
 
-    Mockery::mock('alias:App\Repositories\UserRepository')
+    \Mockery::mock('alias:App\Repositories\UserRepository')
         ->shouldReceive('getCustomRuteroId')
         ->once()
         ->andReturn(fakeRuteroResult());

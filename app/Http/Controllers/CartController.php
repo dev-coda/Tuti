@@ -152,6 +152,28 @@ class CartController extends Controller
             }
         }
 
+        // When inventory is enabled, hide addresses whose logistics zone has no bodega mapping.
+        // This prevents users from selecting an address that will fail at checkout.
+        $inventoryEnabledRaw = Setting::getByKey('inventory_enabled');
+        $isInventoryEnabledForFilter = ($inventoryEnabledRaw === '1' || $inventoryEnabledRaw === 1 || $inventoryEnabledRaw === true);
+
+        if ($isInventoryEnabledForFilter && $zoneOptions->count() > 0) {
+            $zoneCodes = $zoneOptions->pluck('zone')->filter()->unique()->values();
+            $bodegaByZone = $zoneCodes->mapWithKeys(fn ($code) => [$code => ZoneWarehouse::getBodegaForZone($code)]);
+
+            $filtered = $zoneOptions->filter(fn ($z) => $z->zone && ($bodegaByZone[$z->zone] ?? null) !== null);
+
+            if ($filtered->isEmpty()) {
+                \Log::warning('All zones filtered out — no bodega mapping for any address', [
+                    'user_id' => ($client ?? $user)->id,
+                    'zone_count' => $zoneOptions->count(),
+                    'zones' => $zoneOptions->map(fn ($z) => ['id' => $z->id, 'zone' => $z->zone, 'code' => $z->code])->toArray(),
+                ]);
+            } else {
+                $zoneOptions = $filtered->values();
+            }
+        }
+
         $products = [];
         $total_cart = 0;
 

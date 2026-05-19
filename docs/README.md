@@ -4,14 +4,16 @@ Portal del repositorio. **Guía principal (por carpetas, español):** [guias/REA
 
 ## Estructura (abr 2026)
 
-| Ubicación | Contenido |
-|-----------|------------|
-| [guias/](./guias/README.md) | **Fuente** de manuales: B2B tienda, `admin/`, `roles/`. El contenido largo (carrito, calendario, etc.) vive bajo nombres numerados en esas subcarpetas. |
-| [manuales-usuario/](./manuales-usuario/README.md) | Redirige a `guias/`; conservar solo si enlazas desde wikis antiguos. |
-| [manuales-archivados/](./manuales-archivados/) | *Snapshot* al reorganizar (abril 2026); no actualizar salvo *diff* a propósito. |
-| [tecnica/](./tecnica/README.md) | Despliegue, colas, API, integración ERP, índice de *fixes* e inglés. |
-| [DOCUMENTACION_COMPLETA.md](./DOCUMENTACION_COMPLETA.md) | Visión *macro* de módulos y entidades. |
-| [../README.md](../README.md) | *README* del proyecto (stack, filosofía). |
+
+| Ubicación                                                | Contenido                                                                                                                                               |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [guias/](./guias/README.md)                              | **Fuente** de manuales: B2B tienda, `admin/`, `roles/`. El contenido largo (carrito, calendario, etc.) vive bajo nombres numerados en esas subcarpetas. |
+| [manuales-usuario/](./manuales-usuario/README.md)        | Redirige a `guias/`; conservar solo si enlazas desde wikis antiguos.                                                                                    |
+| [manuales-archivados/](./manuales-archivados/)           | *Snapshot* al reorganizar (abril 2026); no actualizar salvo *diff* a propósito.                                                                         |
+| [tecnica/](./tecnica/README.md)                          | Despliegue, colas, API, integración ERP, índice de *fixes* e inglés.                                                                                    |
+| [DOCUMENTACION_COMPLETA.md](./DOCUMENTACION_COMPLETA.md) | Visión *macro* de módulos y entidades.                                                                                                                  |
+| [../README.md](../README.md)                             | *README* del proyecto (stack, filosofía).                                                                                                               |
+
 
 ## Ruta rápida por perfil
 

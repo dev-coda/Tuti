@@ -311,7 +311,7 @@ class MailingService
 
         $sent = false;
         foreach ($adminEmails as $adminEmail) {
-            if ($this->sendTemplateEmailWithAttachments('contact_form', $data, $adminEmail, $attachmentPaths)) {
+            if ($this->sendTemplateEmailWithAttachments('contact_form', $data, $adminEmail, $attachmentPaths, true)) {
                 $sent = true;
             }
         }
@@ -322,8 +322,13 @@ class MailingService
     /**
      * Send a template email with optional file attachments.
      */
-    public function sendTemplateEmailWithAttachments(string $templateSlug, array $data, $recipient, array $attachmentPaths = [])
-    {
+    public function sendTemplateEmailWithAttachments(
+        string $templateSlug,
+        array $data,
+        $recipient,
+        array $attachmentPaths = [],
+        bool $allowInternalRecipient = false
+    ) {
         try {
             $this->updateMailConfiguration();
 
@@ -338,7 +343,7 @@ class MailingService
 
             $processedContent = $template->replaceVariables($data);
 
-            if ($this->isInternalTutiEmail($recipient)) {
+            if (!$allowInternalRecipient && $this->isInternalTutiEmail($recipient)) {
                 Log::info("Email blocked (internal Tuti domain): {$templateSlug} to {$recipient}");
                 return true;
             }
