@@ -105,6 +105,12 @@
                             </a>
                         </li>
                         <li>
+                            <a href="{{ route('new-client.create') }}">
+                                @svg('heroicon-o-user-plus', 'w-6 h-6 text-gray-500')
+                                <span class="ml-3" sidebar-toggle-item>Cliente Nuevo</span>
+                            </a>
+                        </li>
+                        <li>
                             <a href="{{ route('sellers.index') }}">
                                 @svg('heroicon-o-shopping-bag', 'w-6 h-6 text-gray-500')
                                 <span class="ml-3" sidebar-toggle-item>Vendedores</span>

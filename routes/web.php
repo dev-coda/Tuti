@@ -87,6 +87,10 @@ Route::middleware(['auth'])->group(function () {
     // Seller mini-dashboard API
     Route::get('/api/seller-dashboard', [OrderController::class, 'sellerDashboard'])->name('api.seller.dashboard');
 
+    // New client registration (sellers and admins)
+    Route::get('/cliente-nuevo', [\App\Http\Controllers\NewClientController::class, 'create'])->name('new-client.create');
+    Route::post('/cliente-nuevo', [\App\Http\Controllers\NewClientController::class, 'store'])->name('new-client.store');
+
     // Thank you page after order placement
     Route::get('/ordenes/{order}/gracias', [CartController::class, 'thankYou'])->name('orders.thank-you');
 });
