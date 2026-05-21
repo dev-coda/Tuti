@@ -17,18 +17,32 @@ class Contact extends Model
         parent::boot();
 
         static::created(function ($contact) {
-            // Dispatch email job asynchronously (non-blocking)
-            try {
-                $queueConnection = config('queue.default');
-                if ($queueConnection === 'sync') {
-                    $queueConnection = 'database';
+            // Dispatch asynchronously when a real queue worker exists; otherwise send synchronously
+            // so interesados notifications are not lost in environments without workers.
+            $queueConnection = config('queue.default');
+
+            if ($queueConnection === 'sync') {
+                try {
+                    app(MailingService::class)->sendContactFormNotification($contact->fresh(['city']));
+                } catch (\Throwable $e) {
+                    \Log::error("Failed to send contact form email synchronously for contact {$contact->id}: " . $e->getMessage());
                 }
 
+                return;
+            }
+
+            try {
                 \App\Jobs\SendContactFormEmail::dispatch($contact)
                     ->onConnection($queueConnection)
                     ->onQueue('emails');
             } catch (\Exception $e) {
                 \Log::error("Failed to dispatch contact form email for contact {$contact->id}: " . $e->getMessage());
+                // Last-resort fallback to avoid losing notifications.
+                try {
+                    app(MailingService::class)->sendContactFormNotification($contact->fresh(['city']));
+                } catch (\Throwable $inner) {
+                    \Log::error("Fallback contact form email failed for contact {$contact->id}: " . $inner->getMessage());
+                }
             }
         });
     }

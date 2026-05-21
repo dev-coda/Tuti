@@ -5,7 +5,6 @@ uses(Tests\TestCase::class);
 use App\Models\OrderProduct;
 use App\Models\Product;
 use App\Repositories\OrderRepository;
-use ReflectionMethod;
 
 /**
  * Unit tests for OrderRepository::resolveXmlPricing (private).
