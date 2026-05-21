@@ -154,14 +154,14 @@ class UpdateProductPrices implements ShouldQueue
                 $amount = str_replace(',', '.', $amount);
                 $cleanAmount = number_format((float) $amount, 2, '.', '');
 
-                $existingProduct = Product::query()
-                    ->where('sku', $itemId)
-                    ->first();
+                $matchingProducts = Product::query()
+                    ->matchingSku($itemId)
+                    ->get();
 
-                if ($existingProduct) {
+                foreach ($matchingProducts as $existingProduct) {
                     // If "calcular precio por empaque" is disabled, divide by package quantity
                     $effectivePrice = $cleanAmount;
-                    if (!$existingProduct->calculate_package_price) {
+                    if (! $existingProduct->calculate_package_price) {
                         $packageQty = (float) ($existingProduct->package_quantity ?? 1);
                         $packageQty = $packageQty > 0 ? $packageQty : 1;
                         $effectivePrice = number_format(((float) $cleanAmount) / $packageQty, 2, '.', '');
@@ -169,16 +169,16 @@ class UpdateProductPrices implements ShouldQueue
 
                     if ((float) $existingProduct->price !== (float) $effectivePrice) {
                         $existingProduct->update(['price' => $effectivePrice]);
-                        info("Precio actualizado para {$itemId}: {$effectivePrice} (group {$groupId})");
+                        info("Precio actualizado para {$itemId} (producto {$existingProduct->id}): {$effectivePrice} (group {$groupId})");
 
                         // If sync_variations_with_dynamics is enabled, update all variation prices to match parent
                         if ($existingProduct->sync_variations_with_dynamics && $existingProduct->variation_id) {
                             $variationCount = DB::table('product_item_variation')
                                 ->where('product_id', $existingProduct->id)
                                 ->update(['price' => $effectivePrice]);
-                            
+
                             if ($variationCount > 0) {
-                                info("  └─ Sincronizadas {$variationCount} variaciones con precio {$effectivePrice}");
+                                info("  └─ Producto {$existingProduct->id}: sincronizadas {$variationCount} variaciones con precio {$effectivePrice}");
                             }
                         }
                     }
