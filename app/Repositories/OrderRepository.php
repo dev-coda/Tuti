@@ -59,8 +59,8 @@ class OrderRepository
      */
     private static function buildSoapXmlBody($order, $products, int $bonification = 0): string
     {
-        $zone = $order->zone;
-        if (!$zone) {
+        $zonePayload = self::resolveOrderZonePayload($order);
+        if ($zonePayload === null) {
             return '';
         }
         $delivery_date = $order->delivery_date;
@@ -69,10 +69,10 @@ class OrderRepository
             $delivery_date = self::getBusinessDay(0);
         }
         $observations = $order->observations ?? '';
-        $day = $zone->day ?? '';
-        $route = $zone->route ?? '';
-        $code = $zone->code ?? '';
-        $zoneNum = $zone->zone ?? '';
+        $day = $zonePayload['day'] ?? '';
+        $route = $zonePayload['route'] ?? '';
+        $code = $zonePayload['code'] ?? '';
+        $zoneNum = $zonePayload['zone'] ?? '';
         $order_id = $order->id;
         $transactionDate = $order->created_at ? $order->created_at->format('Y-m-d') : now()->format('Y-m-d');
 
@@ -161,6 +161,70 @@ class OrderRepository
                 </tem:PreSaslesProcess>
             </soapenv:Body>
         </soapenv:Envelope>';
+    }
+
+    /**
+     * Resolve immutable sucursal data for XML generation.
+     * Uses order snapshot when available to prevent post-checkout rutero sync drift.
+     *
+     * @return array{code: string, route: string, zone: string, day: string, address: string}|null
+     */
+    private static function resolveOrderZonePayload($order): ?array
+    {
+        $snapshot = $order->zone_snapshot;
+        if (!is_array($snapshot)) {
+            $snapshot = [];
+        }
+
+        $snapshotCode = self::normalizedZoneTextValue($snapshot['code'] ?? null);
+        $snapshotRoute = self::normalizedZoneTextValue($snapshot['route'] ?? null);
+        $snapshotZone = self::normalizedZoneTextValue($snapshot['zone'] ?? null);
+        $snapshotDay = self::normalizedZoneTextValue($snapshot['day'] ?? null);
+        $snapshotAddress = self::normalizedZoneTextValue($snapshot['address'] ?? null);
+
+        if (
+            $snapshotCode !== null
+            || $snapshotRoute !== null
+            || $snapshotZone !== null
+            || $snapshotDay !== null
+            || $snapshotAddress !== null
+        ) {
+            return [
+                'code' => $snapshotCode ?? '',
+                'route' => $snapshotRoute ?? '',
+                'zone' => $snapshotZone ?? '',
+                'day' => $snapshotDay ?? '',
+                'address' => $snapshotAddress ?? '',
+            ];
+        }
+
+        $zone = $order->zone;
+        if (!$zone) {
+            return null;
+        }
+
+        return [
+            'code' => self::normalizedZoneTextValue($zone->code ?? null) ?? '',
+            'route' => self::normalizedZoneTextValue($zone->route ?? null) ?? '',
+            'zone' => self::normalizedZoneTextValue($zone->zone ?? null) ?? '',
+            'day' => self::normalizedZoneTextValue($zone->day ?? null) ?? '',
+            'address' => self::normalizedZoneTextValue($zone->address ?? null) ?? '',
+        ];
+    }
+
+    private static function normalizedZoneTextValue($value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if (!is_scalar($value)) {
+            return null;
+        }
+
+        $normalized = trim((string) $value);
+
+        return $normalized === '' ? null : $normalized;
     }
 
     /**
@@ -258,6 +322,7 @@ class OrderRepository
                 'total' => 0,
                 'discount' => 0,
                 'zone_id' => $order->zone_id,
+                'zone_snapshot' => $order->zone_snapshot,
                 'seller_id' => $order->seller_id,
                 'delivery_date' => $order->delivery_date,
                 'observations' => 'Bonificaciones',
@@ -278,9 +343,10 @@ class OrderRepository
         // Load only necessary relationships
         $user = $order->user;
         $zone = $order->zone;
+        $zonePayload = self::resolveOrderZonePayload($order);
 
         // Check if zone exists - required for order processing
-        if (!$zone) {
+        if (!$zone && $zonePayload === null) {
             Log::channel('soap')->error('Order processing failed - zone is null', [
                 'order_id' => $order->id,
                 'zone_id' => $order->zone_id,
@@ -300,7 +366,7 @@ class OrderRepository
         // $order->load('products.product.brand.vendor');
 
         $order->update([
-            'request' => $zone,
+            'request' => $zonePayload ?? $zone,
         ]);
 
         $delivery_date = $order->delivery_date;
@@ -323,10 +389,10 @@ class OrderRepository
 
         $observations = $order->observations;
 
-        $day = $zone->day;
-        $route = $zone->route;
-        $code = $zone->code;
-        $zone = $zone->zone;
+        $day = $zonePayload['day'] ?? ($zone->day ?? '');
+        $route = $zonePayload['route'] ?? ($zone->route ?? '');
+        $code = $zonePayload['code'] ?? ($zone->code ?? '');
+        $zoneNum = $zonePayload['zone'] ?? ($zone->zone ?? '');
 
         $productList = '';
 
@@ -513,11 +579,11 @@ class OrderRepository
                             </dyn:listDetails>
                             <dyn:orderSales>' . $order_id . '</dyn:orderSales>
                             <dyn:ruta>' . $route . '</dyn:ruta> 
-                            <dyn:salesCons>' . $zone . '-' . $order_id . '</dyn:salesCons> 
+                            <dyn:salesCons>' . $zoneNum . '-' . $order_id . '</dyn:salesCons> 
                             <dyn:transactionDate>' . $transactionDate . '</dyn:transactionDate>
                             <dyn:tutiObservation>' . $observations . '</dyn:tutiObservation>
                             <dyn:vendorType>' . $vendor_type . '</dyn:vendorType>
-                            <dyn:zona>' . $zone . '</dyn:zona>                    
+                            <dyn:zona>' . $zoneNum . '</dyn:zona>                    
                         </dyn:preSalesOrder>
                     </tem:ArrayOfPreSalesOrder>
                 </tem:PreSaslesProcess>
@@ -564,7 +630,7 @@ class OrderRepository
         Log::channel('soap')->info('Sending SOAP request', [
             'order_id' => $order_id,
             'url' => $resource_url . '/soap/services/DIITDWSSalesForceGroup?=null',
-            'zone' => $zone,
+            'zone' => $zoneNum,
             'code' => $code,
             'delivery_date' => $delivery_date,
             'has_token' => !empty($token),

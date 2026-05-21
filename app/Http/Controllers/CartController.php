@@ -1125,6 +1125,14 @@ class CartController extends Controller
                 'discount' => $discount,
                 'status_id' => $orderStatus,
                 'zone_id' => $zoneId, // Use synced zone_id, not request zone_id
+                'zone_snapshot' => [
+                    'id' => $zone->id,
+                    'code' => $zone->code,
+                    'route' => $zone->route,
+                    'zone' => $zone->zone,
+                    'day' => $zone->day,
+                    'address' => $zone->address,
+                ],
                 'seller_id' => $seller_id,
                 'delivery_date' => $delivery_date,
                 'delivery_method' => $delivery_method,

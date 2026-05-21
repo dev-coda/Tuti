@@ -167,6 +167,62 @@ it('seller checkout trusts posted zone_id when hidden sucursal fields are stale 
     expect($order->zone_id)->toBe($selected->id);
 });
 
+it('xml keeps checkout sucursal when zone row changes after order creation', function () {
+    $s = createSellerAndClientWithProductAndThreeZones();
+    $selected = $s['zones'][1];
+    $expectedCode = $selected->code;
+    $expectedRoute = $selected->route;
+    $expectedZone = $selected->zone;
+
+    session([
+        'user_id' => $s['client']->id,
+        'cart' => [
+            [
+                'product_id' => $s['product']->id,
+                'quantity' => 1,
+                'variation_id' => null,
+            ],
+        ],
+    ]);
+
+    $response = actingAs($s['seller'])->post(route('cart.process'), [
+        'zone_id' => (string) $selected->id,
+        'sucursal_code' => $selected->code,
+        'sucursal_route' => $selected->route,
+        'sucursal_zone' => $selected->zone,
+        'sucursal_day' => $selected->day,
+        'sucursal_address' => $selected->address,
+        'delivery_method' => 'tronex',
+    ]);
+
+    $response->assertRedirect();
+    $order = Order::latest('id')->first();
+    expect($order)->not->toBeNull();
+    expect($order->zone_id)->toBe($selected->id);
+    expect($order->zone_snapshot)->toBeArray();
+    expect($order->zone_snapshot['code'] ?? null)->toBe($expectedCode);
+    expect($order->zone_snapshot['route'] ?? null)->toBe($expectedRoute);
+    expect($order->zone_snapshot['zone'] ?? null)->toBe($expectedZone);
+
+    // Simulate later rutero sync remapping the same zone row to another sucursal.
+    $selected->update([
+        'code' => 'CHANGED-CODE',
+        'route' => 'CHANGED-ROUTE',
+        'zone' => '999',
+        'day' => 'CHANGED-DAY',
+        'address' => 'CHANGED-ADDRESS',
+    ]);
+
+    $order->refresh();
+    $order->load(['zone', 'products']);
+    $xml = OrderRepository::buildOrderXmlForDiagnostic($order, false);
+
+    expect($xml)->toContain("<dyn:codCustomer>{$expectedCode}</dyn:codCustomer>");
+    expect($xml)->toContain("<dyn:ruta>{$expectedRoute}</dyn:ruta>");
+    expect($xml)->toContain("<dyn:zona>{$expectedZone}</dyn:zona>");
+    expect($xml)->not->toContain('<dyn:codCustomer>CHANGED-CODE</dyn:codCustomer>');
+});
+
 it('multi-zone user does not fall back to session zone_id when request omits zone_id', function () {
     $s = createSellerAndClientWithProductAndThreeZones();
     $first = $s['zones'][0];
