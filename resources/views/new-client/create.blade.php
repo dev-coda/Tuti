@@ -188,7 +188,8 @@
             </div>
         </div>
 
-        {{-- Route Information --}}
+        @if($isSellerFlow)
+        {{-- Route Information (seller flow only) --}}
         <div class="bg-white border border-gray-200 rounded-xl p-6 mb-6">
             <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
                 <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
@@ -196,14 +197,23 @@
             </h2>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <label for="Zona" class="block text-sm font-medium text-gray-700 mb-1">Zona (máx. 3 caracteres) *</label>
-                    <input type="text" name="Zona" id="Zona" value="{{ old('Zona') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" maxlength="3" required placeholder="001">
+                    <label for="ZonaDisplay" class="block text-sm font-medium text-gray-700 mb-1">Zona *</label>
+                    <input type="text" id="ZonaDisplay" value="{{ old('Zona', $sellerZone) }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700" readonly>
+                    <input type="hidden" name="Zona" value="{{ old('Zona', $sellerZone) }}">
                     @error('Zona') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                 </div>
                 <div>
                     <label for="RutaZonaVentas" class="block text-sm font-medium text-gray-700 mb-1">Ruta zona de ventas *</label>
-                    <input type="text" name="RutaZonaVentas" id="RutaZonaVentas" value="{{ old('RutaZonaVentas') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" maxlength="100" required placeholder="RUTA-NORTE">
+                    <select name="RutaZonaVentas" id="RutaZonaVentas" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" required>
+                        <option value="">Seleccione ruta...</option>
+                        @foreach($zoneRoutes as $route)
+                            <option value="{{ $route }}" @selected(old('RutaZonaVentas') === $route)>{{ $route }}</option>
+                        @endforeach
+                    </select>
                     @error('RutaZonaVentas') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                    @if(empty($zoneRoutes))
+                        <p class="text-xs text-amber-700 mt-1">No hay rutas configuradas para esta zona. Un administrador debe crearlas en "Rutas por Zona".</p>
+                    @endif
                 </div>
                 <div>
                     <label for="DiaRecorrido" class="block text-sm font-medium text-gray-700 mb-1">Día de recorrido *</label>
@@ -222,8 +232,24 @@
                 </div>
             </div>
         </div>
+        @endif
 
-        {{-- Signature --}}
+        {{-- Documents --}}
+        <div class="bg-white border border-gray-200 rounded-xl p-6 mb-6">
+            <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                Documentos
+            </h2>
+            <p id="documents-help-text" class="text-sm text-gray-500 mb-3"></p>
+            <p id="documents-limit-text" class="text-xs text-gray-500 mb-3"></p>
+
+            <input type="file" name="documents[]" id="documents" multiple accept=".pdf,.jpg,.jpeg,.png" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100">
+            <div id="documents-preview" class="mt-3 space-y-2"></div>
+            @error('documents') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+            @error('documents.*') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+        </div>
+
+        {{-- Signature (final step) --}}
         <div class="bg-white border border-gray-200 rounded-xl p-6 mb-6">
             <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
                 <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
@@ -241,26 +267,20 @@
             </div>
             <input type="hidden" name="signature" id="signature-data">
             @error('signature') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
-        </div>
 
-        {{-- Photos --}}
-        <div class="bg-white border border-gray-200 rounded-xl p-6 mb-6">
-            <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                Fotos (opcional, máximo 3)
-            </h2>
-            <p class="text-sm text-gray-500 mb-3">Formatos permitidos: JPG, JPEG, PNG. Máximo 5 MB por archivo.</p>
-
-            <input type="file" name="imagenes[]" id="imagenes" multiple accept="image/jpeg,image/png" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100">
-            <div id="image-preview" class="mt-3 flex gap-3 flex-wrap"></div>
-            @error('imagenes') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
-            @error('imagenes.*') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+            <div class="mt-4 pt-4 border-t border-gray-200">
+                <label class="inline-flex items-start gap-2 text-sm text-gray-700">
+                    <input type="checkbox" name="terms_accepted" value="1" class="mt-0.5 rounded border-gray-300 text-orange-600 focus:ring-orange-500" {{ old('terms_accepted') ? 'checked' : '' }} required>
+                    <span>Aceptar términos y condiciones</span>
+                </label>
+                @error('terms_accepted') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+            </div>
         </div>
 
         {{-- Submit --}}
         <div class="flex justify-end">
             <button type="submit" id="submit-btn" class="px-8 py-3 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-lg shadow-sm transition-colors text-lg">
-                Registrar Cliente
+                {{ $isSellerFlow ? 'Registrar Cliente' : 'Enviar Solicitud' }}
             </button>
         </div>
     </form>
@@ -318,45 +338,72 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (depSelect.value) depSelect.dispatchEvent(new Event('change'));
 
-    // -- Image file validation --
-    const imageInput = document.getElementById('imagenes');
-    const imagePreview = document.getElementById('image-preview');
+    // -- Documents upload rules by client type --
+    const documentsInput = document.getElementById('documents');
+    const documentsPreview = document.getElementById('documents-preview');
+    const documentsHelpText = document.getElementById('documents-help-text');
+    const documentsLimitText = document.getElementById('documents-limit-text');
 
-    imageInput.addEventListener('change', function() {
-        imagePreview.innerHTML = '';
-        const files = Array.from(this.files);
+    function getDocConfigByTipoDocumento() {
+        const tipo = parseInt(tipoDoc.value || '0', 10);
+        const isJuridica = tipo === 3;
 
-        if (files.length > 3) {
-            alert('Máximo 3 imágenes permitidas.');
-            this.value = '';
-            return;
-        }
-
-        const allowed = ['image/jpeg', 'image/png'];
-        for (const file of files) {
-            if (!allowed.includes(file.type)) {
-                alert('Solo se permiten archivos JPG y PNG. Archivo rechazado: ' + file.name);
-                this.value = '';
-                imagePreview.innerHTML = '';
-                return;
-            }
-            if (file.size > 5 * 1024 * 1024) {
-                alert('El archivo ' + file.name + ' excede los 5 MB permitidos.');
-                this.value = '';
-                imagePreview.innerHTML = '';
-                return;
-            }
-
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const img = document.createElement('img');
-                img.src = e.target.result;
-                img.className = 'w-24 h-24 object-cover rounded-lg border border-gray-200';
-                imagePreview.appendChild(img);
+        if (isJuridica) {
+            return {
+                maxFiles: 6,
+                help: 'Persona jurídica: sube RUT, foto del documento del representante legal, certificado de existencia, cámara de comercio, certificado de accionistas y beneficiarios finales.',
             };
-            reader.readAsDataURL(file);
         }
-    });
+
+        return {
+            maxFiles: 2,
+            help: 'Persona natural: sube Cédula o RUT.',
+        };
+    }
+
+    function updateDocumentsHelp() {
+        const config = getDocConfigByTipoDocumento();
+        documentsHelpText.textContent = config.help;
+        documentsLimitText.textContent = `Formatos permitidos: PDF, JPG, JPEG, PNG. Máximo ${config.maxFiles} archivo(s), 5 MB por archivo.`;
+    }
+
+    if (documentsInput) {
+        documentsInput.addEventListener('change', function() {
+            documentsPreview.innerHTML = '';
+            const files = Array.from(this.files);
+            const config = getDocConfigByTipoDocumento();
+
+            if (files.length > config.maxFiles) {
+                alert(`Máximo ${config.maxFiles} archivo(s) permitidos para este tipo de cliente.`);
+                this.value = '';
+                return;
+            }
+
+            const allowed = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+            for (const file of files) {
+                if (!allowed.includes(file.type)) {
+                    alert('Solo se permiten archivos PDF, JPG y PNG. Archivo rechazado: ' + file.name);
+                    this.value = '';
+                    documentsPreview.innerHTML = '';
+                    return;
+                }
+                if (file.size > 5 * 1024 * 1024) {
+                    alert('El archivo ' + file.name + ' excede los 5 MB permitidos.');
+                    this.value = '';
+                    documentsPreview.innerHTML = '';
+                    return;
+                }
+
+                const row = document.createElement('div');
+                row.className = 'text-sm text-gray-700 border border-gray-200 rounded-lg px-3 py-2 bg-gray-50';
+                row.textContent = file.name;
+                documentsPreview.appendChild(row);
+            }
+        });
+    }
+
+    tipoDoc.addEventListener('change', updateDocumentsHelp);
+    updateDocumentsHelp();
 
     // -- Signature pad --
     const canvas = document.getElementById('signature-canvas');

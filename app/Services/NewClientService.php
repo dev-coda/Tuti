@@ -3,19 +3,35 @@
 namespace App\Services;
 
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use RuntimeException;
 
 class NewClientService
 {
     private string $baseUrl;
 
-    private string $token;
+    private string $staticToken;
+
+    /**
+     * @var array{url:?string,username:?string,password:?string,username_field:string,password_field:string,token_field:string,ttl_seconds:int}
+     */
+    private array $authConfig;
 
     public function __construct()
     {
         $this->baseUrl = rtrim((string) config('cliente_nuevo.base_url'), '/');
-        $this->token = (string) config('cliente_nuevo.token');
+        $this->staticToken = trim((string) config('cliente_nuevo.token'));
+        $this->authConfig = [
+            'url' => config('cliente_nuevo.auth.url'),
+            'username' => config('cliente_nuevo.auth.username'),
+            'password' => config('cliente_nuevo.auth.password'),
+            'username_field' => (string) config('cliente_nuevo.auth.username_field', 'username'),
+            'password_field' => (string) config('cliente_nuevo.auth.password_field', 'password'),
+            'token_field' => (string) config('cliente_nuevo.auth.token_field', 'token'),
+            'ttl_seconds' => (int) config('cliente_nuevo.auth.ttl_seconds', 3300),
+        ];
     }
 
     /**
@@ -33,12 +49,14 @@ class NewClientService
         ]);
 
         try {
-            $response = Http::withHeaders([
-                'Content-Type' => 'application/xml',
-                'Tokenconectat' => $this->token,
-            ])->withBody($xml, 'application/xml')
-                ->timeout(30)
-                ->post($this->baseUrl.'/AuthClienteNuevo/clienteNuevo');
+            $response = $this->sendWithTokenRetry(function (string $token) use ($xml) {
+                return Http::withHeaders([
+                    'Content-Type' => 'application/xml',
+                    'Tokenconectat' => $token,
+                ])->withBody($xml, 'application/xml')
+                    ->timeout(30)
+                    ->post($this->baseUrl.'/AuthClienteNuevo/clienteNuevo');
+            });
 
             $body = $response->json() ?? [];
 
@@ -89,22 +107,24 @@ class NewClientService
         ]);
 
         try {
-            $request = Http::withHeaders([
-                'Tokenconectat' => $this->token,
-            ])->timeout(60)
-                ->attach('pdf', $pdf->getContent(), $pdf->getClientOriginalName());
+            $response = $this->sendWithTokenRetry(function (string $token) use ($pdf, $images, $clientId) {
+                $request = Http::withHeaders([
+                    'Tokenconectat' => $token,
+                ])->timeout(60)
+                    ->attach('pdf', $pdf->getContent(), $pdf->getClientOriginalName());
 
-            foreach ($images as $i => $image) {
-                $request = $request->attach(
-                    'imagenes[]',
-                    $image->getContent(),
-                    $image->getClientOriginalName()
-                );
-            }
+                foreach ($images as $image) {
+                    $request = $request->attach(
+                        'imagenes[]',
+                        $image->getContent(),
+                        $image->getClientOriginalName()
+                    );
+                }
 
-            $response = $request->post($this->baseUrl.'/AuthMediaClienteNuevo/cargaArchivos', [
-                'id' => (string) $clientId,
-            ]);
+                return $request->post($this->baseUrl.'/AuthMediaClienteNuevo/cargaArchivos', [
+                    'id' => (string) $clientId,
+                ]);
+            });
 
             $body = $response->json() ?? [];
 
@@ -160,5 +180,88 @@ class NewClientService
         $xml .= '</ClienteNuevo>';
 
         return $xml;
+    }
+
+    /**
+     * Execute a request authenticated with Tokenconectat and retry once on 401 when using credential-based auth.
+     */
+    private function sendWithTokenRetry(callable $requestFactory): \Illuminate\Http\Client\Response
+    {
+        $response = $requestFactory($this->resolveProcessToken());
+        if ($response->status() === 401 && $this->usesCredentialAuth()) {
+            Log::warning('NewClientService: token rejected, forcing token refresh and retry');
+            $response = $requestFactory($this->resolveProcessToken(true));
+        }
+
+        return $response;
+    }
+
+    private function resolveProcessToken(bool $forceRefresh = false): string
+    {
+        if ($this->usesCredentialAuth()) {
+            return $this->fetchCredentialToken($forceRefresh);
+        }
+
+        if ($this->staticToken === '') {
+            throw new RuntimeException(
+                'ClienteNuevo token is not configured. Set CLIENTE_NUEVO_TOKEN or configure CLIENTE_NUEVO_AUTH_* credentials.'
+            );
+        }
+
+        return $this->staticToken;
+    }
+
+    private function usesCredentialAuth(): bool
+    {
+        return !empty($this->authConfig['url'])
+            && !empty($this->authConfig['username'])
+            && !empty($this->authConfig['password']);
+    }
+
+    private function fetchCredentialToken(bool $forceRefresh = false): string
+    {
+        $cacheKey = sprintf(
+            'cliente_nuevo:token:%s',
+            md5((string) $this->authConfig['url'].'|'.(string) $this->authConfig['username'])
+        );
+
+        if (!$forceRefresh) {
+            $cached = Cache::get($cacheKey);
+            if (is_string($cached) && $cached !== '') {
+                return $cached;
+            }
+        }
+
+        $authUrl = (string) $this->authConfig['url'];
+        $usernameField = (string) $this->authConfig['username_field'];
+        $passwordField = (string) $this->authConfig['password_field'];
+        $tokenField = (string) $this->authConfig['token_field'];
+
+        $response = Http::asForm()
+            ->timeout(20)
+            ->post($authUrl, [
+                $usernameField => (string) $this->authConfig['username'],
+                $passwordField => (string) $this->authConfig['password'],
+            ]);
+
+        if (!$response->successful()) {
+            throw new RuntimeException(
+                "ClienteNuevo auth failed ({$response->status()}): ".$response->body()
+            );
+        }
+
+        $body = $response->json();
+        $token = is_array($body) ? trim((string) data_get($body, $tokenField, '')) : '';
+
+        if ($token === '') {
+            throw new RuntimeException(
+                "ClienteNuevo auth succeeded but token field '{$tokenField}' was not found in response."
+            );
+        }
+
+        $ttl = max(60, (int) $this->authConfig['ttl_seconds']);
+        Cache::put($cacheKey, $token, now()->addSeconds($ttl));
+
+        return $token;
     }
 }

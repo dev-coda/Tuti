@@ -37,6 +37,7 @@ use App\Http\Controllers\Admin\UpsellRuleController;
 use App\Http\Controllers\Admin\CampaignController;
 use App\Http\Controllers\Admin\RetentionRuleController;
 use App\Http\Controllers\Admin\DocumentationController;
+use App\Http\Controllers\Admin\ZoneRouteController;
 use Illuminate\Support\Facades\Route;
 
 
@@ -193,6 +194,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('route-cycles-import', [RouteCycleController::class, 'showImport'])->name('route-cycles.import');
     Route::post('route-cycles-import', [RouteCycleController::class, 'import'])->name('route-cycles.import.store');
     Route::get('route-cycles-template', [RouteCycleController::class, 'exportTemplate'])->name('route-cycles.template');
+    Route::resource('zone-routes', ZoneRouteController::class)->only(['index', 'store', 'destroy']);
     Route::post('test-email', function (\Illuminate\Http\Request $request) {
         try {
             // Validate email input
@@ -320,6 +322,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('/exports', [OrderController::class, 'getExports'])->name('admin.exports.list');
     Route::get('/exports/{exportFile}/download', [OrderController::class, 'downloadExport'])->name('admin.exports.download');
     Route::get('/exports/{exportFile}/status', [OrderController::class, 'checkExportStatus'])->name('admin.exports.status');
+    Route::post('contacts/{contact}/submit-new-client', [ContactController::class, 'submitNewClient'])->name('contacts.submit-new-client');
     Route::resource('contacts', ContactController::class);
     Route::get('email-templates', [App\Http\Controllers\Admin\EmailTemplateController::class, 'index'])->name('admin.email-templates.index');
     Route::get('email-templates/create', [App\Http\Controllers\Admin\EmailTemplateController::class, 'create'])->name('admin.email-templates.create');

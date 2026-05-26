@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\User;
+use App\Models\ZoneRoute;
 use App\Services\NewClientService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -19,14 +20,18 @@ beforeEach(function () {
 
     $this->seller = User::factory()->create();
     $this->seller->assignRole('seller');
+    $this->seller->update(['zone' => '001']);
 
     $this->customer = User::factory()->create();
 
     \App\Models\State::create(['name' => 'ANTIOQUIA']);
+    ZoneRoute::create(['zone' => '001', 'route' => '1234']);
 });
 
-it('requires authentication to access new client form', function () {
-    $this->get(route('new-client.create'))->assertRedirect('/login');
+it('allows guests to access new client form', function () {
+    $this->get(route('new-client.create'))
+        ->assertOk()
+        ->assertSeeText('Registrar Cliente Nuevo');
 });
 
 it('allows admins to access the new client form', function () {
@@ -64,7 +69,7 @@ it('validates required fields on store', function () {
             'Documento', 'TipoDocumento', 'NombreNegocio',
             'IdClasificacionCliente', 'Departamento', 'Ciudad',
             'Direccion', 'Barrio', 'Zona', 'RutaZonaVentas',
-            'DiaRecorrido', 'Posicion', 'Pep', 'signature',
+            'DiaRecorrido', 'Posicion', 'Pep', 'signature', 'terms_accepted',
         ]);
 });
 
@@ -80,12 +85,13 @@ it('validates document format', function () {
             'Direccion' => 'Calle 1',
             'Barrio' => 'Centro',
             'Zona' => '001',
-            'RutaZonaVentas' => 'RUTA',
+            'RutaZonaVentas' => '1234',
             'DiaRecorrido' => 'LUNES',
             'Posicion' => 1,
             'Pep' => 'NO',
             'Movil' => '3101234567',
             'signature' => 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg',
+            'terms_accepted' => '1',
         ])
         ->assertSessionHasErrors('Documento');
 });
@@ -102,12 +108,13 @@ it('requires PrimerNombre and PrimerApellido for CC and CE documents', function 
             'Direccion' => 'Calle 1',
             'Barrio' => 'Centro',
             'Zona' => '001',
-            'RutaZonaVentas' => 'RUTA',
+            'RutaZonaVentas' => '1234',
             'DiaRecorrido' => 'LUNES',
             'Posicion' => 1,
             'Pep' => 'NO',
             'Movil' => '3101234567',
             'signature' => 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg',
+            'terms_accepted' => '1',
         ])
         ->assertSessionHasErrors(['PrimerNombre', 'PrimerApellido']);
 });
@@ -128,16 +135,17 @@ it('requires at least one contact number', function () {
             'Direccion' => 'Calle 1',
             'Barrio' => 'Centro',
             'Zona' => '001',
-            'RutaZonaVentas' => 'RUTA',
+            'RutaZonaVentas' => '1234',
             'DiaRecorrido' => 'LUNES',
             'Posicion' => 1,
             'Pep' => 'NO',
             'signature' => 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg',
+            'terms_accepted' => '1',
         ])
         ->assertSessionHasErrors('Telefono');
 });
 
-it('rejects more than 3 images', function () {
+it('rejects more than 6 documents for juridica', function () {
     actingAs($this->seller)
         ->post(route('new-client.store'), [
             'Documento' => '123456789',
@@ -149,23 +157,27 @@ it('rejects more than 3 images', function () {
             'Direccion' => 'Calle 1',
             'Barrio' => 'Centro',
             'Zona' => '001',
-            'RutaZonaVentas' => 'RUTA',
+            'RutaZonaVentas' => '1234',
             'DiaRecorrido' => 'LUNES',
             'Posicion' => 1,
             'Pep' => 'NO',
             'Movil' => '3101234567',
             'signature' => 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg',
-            'imagenes' => [
+            'terms_accepted' => '1',
+            'documents' => [
                 UploadedFile::fake()->image('a.jpg'),
                 UploadedFile::fake()->image('b.jpg'),
                 UploadedFile::fake()->image('c.jpg'),
                 UploadedFile::fake()->image('d.jpg'),
+                UploadedFile::fake()->image('e.jpg'),
+                UploadedFile::fake()->image('f.jpg'),
+                UploadedFile::fake()->image('g.jpg'),
             ],
         ])
-        ->assertSessionHasErrors('imagenes');
+        ->assertSessionHasErrors('documents');
 });
 
-it('rejects non-image files', function () {
+it('rejects unsupported document files', function () {
     actingAs($this->seller)
         ->post(route('new-client.store'), [
             'Documento' => '123456789',
@@ -177,17 +189,18 @@ it('rejects non-image files', function () {
             'Direccion' => 'Calle 1',
             'Barrio' => 'Centro',
             'Zona' => '001',
-            'RutaZonaVentas' => 'RUTA',
+            'RutaZonaVentas' => '1234',
             'DiaRecorrido' => 'LUNES',
             'Posicion' => 1,
             'Pep' => 'NO',
             'Movil' => '3101234567',
             'signature' => 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg',
-            'imagenes' => [
-                UploadedFile::fake()->create('doc.pdf', 100, 'application/pdf'),
+            'terms_accepted' => '1',
+            'documents' => [
+                UploadedFile::fake()->create('doc.txt', 100, 'text/plain'),
             ],
         ])
-        ->assertSessionHasErrors('imagenes.0');
+        ->assertSessionHasErrors('documents.0');
 });
 
 it('builds correct XML in service', function () {

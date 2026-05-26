@@ -138,5 +138,89 @@
             @endif
         </div>
     </div>
+
+    @if($contact->new_client_mode === 'self_service')
+    <div class="mt-6 bg-gray-50 rounded-lg p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-2">Completar y enviar a API de Cliente Nuevo</h2>
+        <p class="text-sm text-gray-600 mb-4">Este interesado fue creado por autogestion del cliente. Completa los datos faltantes de ruta y envia manualmente al webservice.</p>
+
+        @if($contact->external_client_code)
+            <div class="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
+                Ya fue enviado. Codigo externo: <strong>{{ $contact->external_client_code }}</strong>
+                @if($contact->external_submitted_at)
+                    ({{ $contact->external_submitted_at->format('d/m/Y H:i') }})
+                @endif
+            </div>
+        @endif
+
+        <form action="{{ route('contacts.submit-new-client', $contact) }}" method="POST" class="grid grid-cols-1 md:grid-cols-2 gap-4" id="manual-submit-form">
+            @csrf
+            <div>
+                <label for="Zona" class="block text-sm font-medium text-gray-700 mb-1">Zona *</label>
+                <select name="Zona" id="Zona" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" required>
+                    <option value="">Seleccione zona</option>
+                    @php $currentZone = old('Zona', data_get($contact->new_client_payload, 'Zona')); @endphp
+                    @foreach($zoneOptions as $zone)
+                        <option value="{{ $zone }}" @selected($currentZone === $zone)>{{ $zone }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div>
+                <label for="RutaZonaVentas" class="block text-sm font-medium text-gray-700 mb-1">Ruta zona de ventas *</label>
+                <select name="RutaZonaVentas" id="RutaZonaVentas" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" required>
+                    <option value="">Seleccione ruta</option>
+                </select>
+            </div>
+            <div>
+                <label for="DiaRecorrido" class="block text-sm font-medium text-gray-700 mb-1">Dia de recorrido *</label>
+                @php $currentDay = old('DiaRecorrido', data_get($contact->new_client_payload, 'DiaRecorrido')); @endphp
+                <select name="DiaRecorrido" id="DiaRecorrido" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" required>
+                    <option value="">Seleccione</option>
+                    @foreach(['LUNES','MARTES','MIERCOLES','JUEVES','VIERNES'] as $day)
+                        <option value="{{ $day }}" @selected($currentDay === $day)>{{ ucfirst(strtolower($day)) }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div>
+                <label for="Posicion" class="block text-sm font-medium text-gray-700 mb-1">Posicion *</label>
+                <input type="number" name="Posicion" id="Posicion" min="1" value="{{ old('Posicion', data_get($contact->new_client_payload, 'Posicion')) }}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" required>
+            </div>
+            <div class="md:col-span-2">
+                <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">
+                    Enviar manualmente al webservice
+                </button>
+            </div>
+        </form>
+    </div>
+    @endif
 </div>
+
+@if($contact->new_client_mode === 'self_service')
+@section('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const routesByZone = @json($routesByZone);
+    const zoneSelect = document.getElementById('Zona');
+    const routeSelect = document.getElementById('RutaZonaVentas');
+    const currentRoute = @json(old('RutaZonaVentas', data_get($contact->new_client_payload, 'RutaZonaVentas')));
+
+    function syncRoutes() {
+        const zone = zoneSelect.value;
+        const routes = routesByZone[zone] || [];
+        routeSelect.innerHTML = '<option value="">Seleccione ruta</option>';
+        routes.forEach((route) => {
+            const option = document.createElement('option');
+            option.value = route;
+            option.textContent = route;
+            if (route === currentRoute) option.selected = true;
+            routeSelect.appendChild(option);
+        });
+    }
+
+    zoneSelect.addEventListener('change', syncRoutes);
+    syncRoutes();
+});
+</script>
+@endsection
+@endif
 @endsection

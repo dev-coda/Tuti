@@ -50,12 +50,15 @@ class Contact extends Model
     protected $fillable = [
         'name', 'email', 'phone', 'business_name', 'read', 'city', 'city_id',
         'nit', 'terms_accepted', 'address', 'person_type', 'department', 'status', 'documents',
+        'new_client_mode', 'new_client_payload', 'external_client_id', 'external_client_code', 'external_submitted_at',
     ];
 
     protected $casts = [
         'terms_accepted' => 'boolean',
         'read' => 'boolean',
         'documents' => 'array',
+        'new_client_payload' => 'array',
+        'external_submitted_at' => 'datetime',
     ];
 
     protected $appends = ['state'];
