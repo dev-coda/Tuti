@@ -91,15 +91,8 @@
                     @auth
 
                     <div id='cart-widget' class="relative"></div>
-                    @if(auth()->user()->hasRole('seller') || auth()->user()->hasRole('admin'))
-                    <a class="text-white flex items-center space-x-2 hover:text-gray-200 transition-colors" href="{{ route('new-client.create') }}" title="Registrar Cliente Nuevo">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM4 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 0110.374 21c-2.331 0-4.512-.645-6.374-1.766z" />
-                        </svg>
-                    </a>
-                    @endif
-                    @if(auth()->user()->hasRole('admin'))
-                    <a class="text-white flex items-center space-x-2 hover:text-gray-200 transition-colors" href="{{route('dashboard')}}" title="Panel de Administración">
+                    @if(auth()->user()->hasAnyRole(['admin', 'supervisor']))
+                    <a class="text-white flex items-center space-x-2 hover:text-gray-200 transition-colors" href="{{ route('dashboard') }}" title="Panel de Administración">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
                         </svg>
@@ -113,7 +106,7 @@
 
 
                     </a>
-                    @if(auth()->user()->hasRole('seller') || auth()->user()->hasRole('admin'))
+                    @if(auth()->user()->hasAnyRole(['seller', 'supervisor', 'admin']))
                     <a class="text-white flex items-center space-x-2" href="{{ route('new-client.create') }}" title="Cliente Nuevo">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M19 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM4 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 0110.374 21c-2.331 0-4.512-.645-6.374-1.766z" />
@@ -158,8 +151,8 @@
 
 
                     </a>
-                    @if(auth()->user()->hasRole('admin'))
-                    <a class="text-white flex items-center space-x-2" href="{{route('dashboard')}}" title="Panel de Administración">
+                    @if(auth()->user()->hasAnyRole(['admin', 'supervisor']))
+                    <a class="text-white flex items-center space-x-2" href="{{ route('dashboard') }}" title="Panel de Administración">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
                         </svg>

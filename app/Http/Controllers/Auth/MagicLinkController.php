@@ -134,7 +134,7 @@ class MagicLinkController extends Controller
         // Determine redirect URL based on user role
         $redirectUrl = $user->hasRole('admin')
             ? route('dashboard')
-            : RouteServiceProvider::HOME;
+            : ($user->hasRole('supervisor') ? route('dashboard') : RouteServiceProvider::HOME);
 
         Log::info("Magic link login successful for: {$email}");
 

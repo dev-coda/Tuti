@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 
 use App\Models\Contact;
+use App\Models\User;
 use App\Models\ZoneRoute;
 use App\Services\NewClientService;
 use Illuminate\Http\Request;
@@ -12,6 +13,7 @@ use App\Exports\ContactsExport;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Str;
 use Maatwebsite\Excel\Facades\Excel;
 
 class ContactController extends Controller
@@ -22,7 +24,7 @@ class ContactController extends Controller
     public function index(Request $request)
     {
         $contacts = Contact::query()
-            ->with('city')
+            ->with(['city', 'clientUser.zones'])
             ->when($request->date_from, function ($query, $dateFrom) {
                 $query->whereDate('created_at', '>=', $dateFrom);
             })
@@ -59,7 +61,7 @@ class ContactController extends Controller
      */
     public function show(Contact $contact)
     {
-        $contact->load('city');
+        $contact->load(['city', 'clientUser.zones']);
 
         $zoneOptions = ZoneRoute::query()
             ->distinct()
@@ -91,13 +93,87 @@ class ContactController extends Controller
      */
     public function update(Request $request, Contact $contact)
     {
+        if ($request->boolean('quick_status_update')) {
+            $validated = $request->validate([
+                'status' => 'required|in:' . implode(',', array_keys(Contact::STATUSES)),
+            ]);
+
+            $contact->update($validated);
+
+            return back()->with('success', 'Estado actualizado a: ' . Contact::STATUSES[$validated['status']]);
+        }
+
         $validated = $request->validate([
-            'status' => 'required|in:' . implode(',', array_keys(Contact::STATUSES)),
+            'status' => ['required', 'in:' . implode(',', array_keys(Contact::STATUSES))],
+            'client_status' => ['required', Rule::in([
+                User::CLIENT_STATUS_PROSPECTO,
+                User::CLIENT_STATUS_PENDIENTE,
+                User::CLIENT_STATUS_CLIENTE,
+                User::CLIENT_STATUS_RECHAZADO,
+            ])],
+            'name' => ['required', 'string', 'max:255'],
+            'business_name' => ['required', 'string', 'max:255'],
+            'nit' => ['required', 'string', 'max:50'],
+            'email' => ['nullable', 'email', 'max:255'],
+            'phone' => ['required', 'string', 'max:50'],
+            'department' => ['nullable', 'string', 'max:100'],
+            'city' => ['nullable', 'string', 'max:100'],
+            'address' => ['required', 'string', 'max:255'],
+            'Zona' => ['nullable', 'string', 'max:3'],
+            'RutaZonaVentas' => ['nullable', 'regex:/^\d{4}$/'],
+            'DiaRecorrido' => ['nullable', Rule::in(['LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES'])],
+            'Posicion' => ['nullable', 'integer', 'min:1'],
+            'verification_documents' => ['nullable', 'array'],
+            'verification_documents.*' => ['file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
         ]);
 
-        $contact->update($validated);
+        $payload = array_merge((array) $contact->new_client_payload, [
+            'Zona' => $validated['Zona'] ? strtoupper((string) $validated['Zona']) : null,
+            'RutaZonaVentas' => $validated['RutaZonaVentas'] ?? null,
+            'DiaRecorrido' => $validated['DiaRecorrido'] ?? null,
+            'Posicion' => $validated['Posicion'] ?? null,
+            'NombreNegocio' => $validated['business_name'],
+            'Direccion' => $validated['address'],
+            'Departamento' => $validated['department'] ?? null,
+            'Ciudad' => $validated['city'] ?? null,
+            'Documento' => $validated['nit'],
+        ]);
 
-        return back()->with('success', 'Estado actualizado a: ' . Contact::STATUSES[$validated['status']]);
+        $storedDocs = is_array($contact->documents) ? $contact->documents : [];
+        foreach (($request->file('verification_documents') ?? []) as $document) {
+            $storedDocs[] = $document->store('contact-documents/new-client-documents', 'public');
+        }
+
+        $contact->update([
+            'status' => $validated['status'],
+            'name' => $validated['name'],
+            'business_name' => $validated['business_name'],
+            'nit' => $validated['nit'],
+            'email' => $validated['email'],
+            'phone' => $validated['phone'],
+            'department' => $validated['department'],
+            'city' => $validated['city'],
+            'address' => $validated['address'],
+            'documents' => $storedDocs,
+            'new_client_payload' => $payload,
+        ]);
+
+        $linkedClient = $this->resolveOrCreateLinkedClient($contact);
+        if ($linkedClient) {
+            $linkedClient->update([
+                'name' => $validated['name'],
+                'business_name' => $validated['business_name'],
+                'document' => $validated['nit'],
+                'email' => $validated['email'] ?: $linkedClient->email,
+                'phone' => $validated['phone'],
+                'client_status' => $validated['client_status'],
+                'status_id' => $validated['client_status'] === User::CLIENT_STATUS_CLIENTE ? User::ACTIVE : User::PENDING,
+            ]);
+
+            $this->syncClientZoneData($linkedClient, $payload);
+        }
+
+        return back()->with('success', 'Interesado actualizado correctamente.');
     }
 
     /**
@@ -124,6 +200,11 @@ class ContactController extends Controller
     {
         if ($contact->new_client_mode !== 'self_service') {
             return back()->with('error', 'Este contacto no pertenece al flujo de Cliente Nuevo autogestionado.');
+        }
+
+        $linkedClient = $contact->resolveLinkedClient();
+        if (! $linkedClient || $linkedClient->client_status !== User::CLIENT_STATUS_PENDIENTE) {
+            return back()->with('error', 'Solo clientes en estado Pendiente pueden ser transmitidos al webservice.');
         }
 
         $validated = $request->validate([
@@ -221,5 +302,68 @@ class ContactController extends Controller
         }
 
         return [$pdf, $images, null];
+    }
+
+    private function resolveOrCreateLinkedClient(Contact $contact): ?User
+    {
+        $linked = $contact->resolveLinkedClient();
+        if ($linked) {
+            return $linked;
+        }
+
+        if (empty($contact->nit)) {
+            return null;
+        }
+
+        $email = $contact->email;
+        if (! $email || User::where('email', $email)->exists()) {
+            $email = 'contacto_'.$contact->nit.'_'.Str::lower(Str::random(4)).'@tuti.com';
+        }
+
+        return User::create([
+            'name' => $contact->name ?: 'Prospecto '.$contact->nit,
+            'email' => $email,
+            'password' => bcrypt(Str::random(32)),
+            'document' => $contact->nit,
+            'phone' => $contact->phone,
+            'business_name' => $contact->business_name,
+            'client_status' => User::CLIENT_STATUS_PROSPECTO,
+            'status_id' => User::PENDING,
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function syncClientZoneData(User $user, array $payload): void
+    {
+        $zone = strtoupper((string) ($payload['Zona'] ?? ''));
+        $route = (string) ($payload['RutaZonaVentas'] ?? '');
+        $day = (string) ($payload['DiaRecorrido'] ?? '');
+
+        if ($zone === '') {
+            return;
+        }
+
+        $address = trim((string) ($payload['Direccion'] ?? 'Dirección por asignar'));
+        $zoneModel = $user->zones()->first();
+
+        if ($zoneModel) {
+            $zoneModel->update([
+                'zone' => $zone,
+                'route' => $route,
+                'day' => $day,
+                'address' => $address !== '' ? $address : $zoneModel->address,
+            ]);
+            return;
+        }
+
+        $user->zones()->create([
+            'zone' => $zone,
+            'route' => $route,
+            'day' => $day,
+            'address' => $address !== '' ? $address : 'Dirección por asignar',
+            'code' => null,
+        ]);
     }
 }

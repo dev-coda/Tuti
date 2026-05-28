@@ -6,6 +6,7 @@ use App\Models\Contact;
 use App\Models\State;
 use App\Models\ZoneRoute;
 use App\Services\NewClientService;
+use App\Services\PendingClientProvisioningService;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
@@ -85,6 +86,7 @@ class NewClientController extends Controller
             'SegundoNombre' => ['nullable', 'string', 'max:50'],
             'PrimerApellido' => ['nullable', 'string', 'max:50', 'required_if:TipoDocumento,1,2'],
             'SegundoApellido' => ['nullable', 'string', 'max:50'],
+            'RazonSocial' => ['required', 'string', 'max:100'],
             'NombreNegocio' => ['required', 'string', 'max:100'],
             'IdClasificacionCliente' => ['required', 'integer', Rule::in(array_keys(self::CLASIFICACION_OPTIONS))],
             'Departamento' => ['required', 'string', 'max:100'],
@@ -165,13 +167,23 @@ class NewClientController extends Controller
                 'error' => $mediaResult['message'],
             ]);
 
+            app(PendingClientProvisioningService::class)->provisionFromNewClient(
+                $validated,
+                $result['codigo_cliente'] ?? null
+            );
+
             return back()->with('warning',
                 "Cliente registrado (Código: {$result['codigo_cliente']}), pero hubo un error al subir los archivos: {$mediaResult['message']}"
             );
         }
 
+        $localClient = app(PendingClientProvisioningService::class)->provisionFromNewClient(
+            $validated,
+            $result['codigo_cliente'] ?? null
+        );
+
         return redirect()->route('new-client.create')
-            ->with('success', "Cliente registrado exitosamente. Código: {$result['codigo_cliente']}");
+            ->with('success', "Cliente registrado exitosamente. Código: {$result['codigo_cliente']}. Documento para pedidos: {$localClient->document}");
     }
 
     private function storeAsInteresado(array $validated, UploadedFile $signaturePdf, array $storedDocumentPaths)
@@ -210,6 +222,12 @@ class NewClientController extends Controller
             'new_client_mode' => 'self_service',
             'new_client_payload' => $payloadForReview,
         ]);
+
+        app(PendingClientProvisioningService::class)->provisionFromNewClient(
+            $validated,
+            null,
+            \App\Models\User::CLIENT_STATUS_PROSPECTO
+        );
 
         @unlink($signaturePdf->getPathname());
 
@@ -380,7 +398,7 @@ class NewClientController extends Controller
     {
         $user = auth()->user();
 
-        return $user && $user->hasRole('seller');
+        return $user && $user->hasAnyRole(['seller', 'supervisor']);
     }
 
     private function resolveSellerZone(): ?string

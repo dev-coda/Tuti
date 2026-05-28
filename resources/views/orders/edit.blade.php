@@ -69,6 +69,33 @@
             @endif
         </div>
         <div class="rounded-lg border border-gray-200 p-4">
+            <p class="font-semibold text-gray-800 mb-2">Cliente</p>
+            @if($order->user)
+                <p><span class="text-gray-500">Nombre:</span> {{ $order->user->name }}</p>
+                <p><span class="text-gray-500">Documento:</span> {{ $order->user->document ?? '—' }}</p>
+                <p><span class="text-gray-500">Estado cliente:</span>
+                    @if($order->user->isProspectClient())
+                        Prospecto (requiere pasar a Pendiente)
+                    @elseif($order->user->isPendingClient())
+                        Pendiente (sin rutero válido)
+                    @else
+                        Cliente
+                    @endif
+                </p>
+            @else
+                <p class="text-gray-500">—</p>
+            @endif
+            @if($order->status_id === \App\Models\Order::STATUS_DRAFT)
+                <p class="mt-2 text-amber-700 text-xs">Pedido en borrador interno (no transmitido a Dynamics).</p>
+                @if($order->draft_reconciliation_note)
+                    <p class="mt-1 text-amber-800 text-xs"><span class="font-medium">Reconciliación:</span> {{ $order->draft_reconciliation_note }}</p>
+                @endif
+                @if($order->draft_reconciliation_at)
+                    <p class="text-gray-500 text-xs">Último intento: {{ $order->draft_reconciliation_at->format('d/m/Y H:i') }}</p>
+                @endif
+            @endif
+        </div>
+        <div class="rounded-lg border border-gray-200 p-4">
             <p class="font-semibold text-gray-800 mb-2">Envío / Proveedor</p>
             <p><span class="text-gray-500">Proveedor:</span> {{ $order->shipping_provider ?? 'tronex' }}</p>
             <p><span class="text-gray-500">Costo cotizado:</span> ${{ number_format((float)($order->shipping_quote_amount ?? 0), 2) }}</p>

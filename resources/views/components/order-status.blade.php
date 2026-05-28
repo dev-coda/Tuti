@@ -48,3 +48,9 @@
         En espera
     </span>
 @endif
+
+@if($status == 8)
+    <span class='inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium leading-4 bg-amber-100 text-amber-800'>
+        Borrador
+    </span>
+@endif

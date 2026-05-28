@@ -61,10 +61,16 @@ class User extends Authenticatable
         'is_locked',
         'order_sequence',
         'rutero_synced_at',
+        'client_status',
     ];
 
     const PENDING = 1;
     const ACTIVE = 2;
+
+    const CLIENT_STATUS_PROSPECTO = 'prospecto';
+    const CLIENT_STATUS_PENDIENTE = 'pendiente';
+    const CLIENT_STATUS_CLIENTE = 'cliente';
+    const CLIENT_STATUS_RECHAZADO = 'rechazado';
 
     /**
      * The attributes that should be hidden for serialization.
@@ -113,5 +119,33 @@ class User extends Authenticatable
     {
         return $this->belongsToMany(Product::class, 'user_favorite_products')
             ->withTimestamps();
+    }
+
+    public function isPendingClient(): bool
+    {
+        return ($this->client_status ?? self::CLIENT_STATUS_CLIENTE) === self::CLIENT_STATUS_PENDIENTE;
+    }
+
+    public function isProspectClient(): bool
+    {
+        return ($this->client_status ?? self::CLIENT_STATUS_CLIENTE) === self::CLIENT_STATUS_PROSPECTO;
+    }
+
+    public function isCliente(): bool
+    {
+        return ($this->client_status ?? self::CLIENT_STATUS_CLIENTE) === self::CLIENT_STATUS_CLIENTE;
+    }
+
+    public function isRejectedClient(): bool
+    {
+        return ($this->client_status ?? self::CLIENT_STATUS_CLIENTE) === self::CLIENT_STATUS_RECHAZADO;
+    }
+
+    public function hasValidRuteroCode(): bool
+    {
+        return $this->zones()
+            ->whereNotNull('code')
+            ->where('code', '!=', '')
+            ->exists();
     }
 }

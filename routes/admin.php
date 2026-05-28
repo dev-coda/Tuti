@@ -38,21 +38,31 @@ use App\Http\Controllers\Admin\CampaignController;
 use App\Http\Controllers\Admin\RetentionRuleController;
 use App\Http\Controllers\Admin\DocumentationController;
 use App\Http\Controllers\Admin\ZoneRouteController;
+use App\Http\Controllers\Admin\SupervisorController;
 use Illuminate\Support\Facades\Route;
 
 
-Route::middleware(['auth', 'role:seller'])->group(function () {
+Route::middleware(['auth', 'role:seller|supervisor'])->group(function () {
     Route::post('/setclient', [SellerController::class, 'setclient'])->name('seller.setclient');
     Route::post('/removeclient', [SellerController::class, 'removeclient'])->name('seller.removeclient');
 });
 
+Route::middleware(['auth', 'role:admin|supervisor'])->group(function () {
+    Route::get('/dashboard', function () {
+        if (auth()->user()->hasRole('supervisor')) {
+            return to_route('contacts.index');
+        }
+
+        return to_route('products.index');
+    })->name('dashboard');
+
+    Route::get('/contactexport', [ContactController::class, 'export'])->name('admin.export.contacts');
+    Route::post('contacts/{contact}/submit-new-client', [ContactController::class, 'submitNewClient'])->name('contacts.submit-new-client');
+    Route::resource('contacts', ContactController::class);
+});
+
 Route::middleware(['auth', 'role:admin'])->group(function () {
 
-
-    Route::get('/dashboard', function () {
-        return to_route('products.index');
-        return view('dashboard');
-    })->name('dashboard');
 
     Route::get('/documentacion', [DocumentationController::class, 'index'])->name('admin.documentation.index');
     Route::get('/documentacion/ver', [DocumentationController::class, 'show'])->name('admin.documentation.show');
@@ -82,7 +92,6 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('/productexport', [ProductController::class, 'export'])->name('admin.export.products');
     Route::get('/orderexport', [OrderController::class, 'export'])->name('admin.export.orders');
     Route::get('/orderauditexport', [OrderController::class, 'exportAudit'])->name('admin.export.orders.audit');
-    Route::get('/contactexport', [ContactController::class, 'export'])->name('admin.export.contacts');
 
     Route::resource('users', UserController::class);
     Route::resource('brands', BrandController::class);
@@ -309,6 +318,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
         Route::get('/daily-sales/export', [App\Http\Controllers\Admin\ReportController::class, 'exportDailySales'])->name('daily-sales.export');
     });
     Route::resource('sellers', SellerController::class);
+    Route::resource('supervisors', SupervisorController::class);
 
 
     Route::resource('orders', OrderController::class);
@@ -322,8 +332,6 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('/exports', [OrderController::class, 'getExports'])->name('admin.exports.list');
     Route::get('/exports/{exportFile}/download', [OrderController::class, 'downloadExport'])->name('admin.exports.download');
     Route::get('/exports/{exportFile}/status', [OrderController::class, 'checkExportStatus'])->name('admin.exports.status');
-    Route::post('contacts/{contact}/submit-new-client', [ContactController::class, 'submitNewClient'])->name('contacts.submit-new-client');
-    Route::resource('contacts', ContactController::class);
     Route::get('email-templates', [App\Http\Controllers\Admin\EmailTemplateController::class, 'index'])->name('admin.email-templates.index');
     Route::get('email-templates/create', [App\Http\Controllers\Admin\EmailTemplateController::class, 'create'])->name('admin.email-templates.create');
     Route::post('email-templates', [App\Http\Controllers\Admin\EmailTemplateController::class, 'store'])->name('admin.email-templates.store');

@@ -31,6 +31,45 @@
     <form method="POST" action="{{ route('new-client.store') }}" enctype="multipart/form-data" id="new-client-form">
         @csrf
 
+        {{-- Commercial Establishment Data --}}
+        <div class="bg-white border border-gray-200 rounded-xl p-6 mb-6">
+            <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+                Datos establecimiento comercial
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label for="RazonSocial" class="block text-sm font-medium text-gray-700 mb-1">Razón social *</label>
+                    <input type="text" name="RazonSocial" id="RazonSocial" value="{{ old('RazonSocial') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" maxlength="100" required>
+                    @error('RazonSocial') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                </div>
+                <div>
+                    <label for="NombreNegocio" class="block text-sm font-medium text-gray-700 mb-1">Nombre del negocio *</label>
+                    <input type="text" name="NombreNegocio" id="NombreNegocio" value="{{ old('NombreNegocio') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" maxlength="100" required>
+                    @error('NombreNegocio') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                </div>
+                <div>
+                    <label for="IdClasificacionCliente" class="block text-sm font-medium text-gray-700 mb-1">Clasificación del cliente *</label>
+                    <select name="IdClasificacionCliente" id="IdClasificacionCliente" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" required>
+                        <option value="">Seleccione...</option>
+                        @foreach($clasificacionOptions as $id => $label)
+                        <option value="{{ $id }}" {{ old('IdClasificacionCliente') == $id ? 'selected' : '' }}>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                    @error('IdClasificacionCliente') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                </div>
+                <div>
+                    <label for="Pep" class="block text-sm font-medium text-gray-700 mb-1">Persona expuesta políticamente (PEP) *</label>
+                    <select name="Pep" id="Pep" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" required>
+                        <option value="">Seleccione...</option>
+                        <option value="SI" {{ old('Pep') === 'SI' ? 'selected' : '' }}>Sí</option>
+                        <option value="NO" {{ old('Pep') === 'NO' ? 'selected' : '' }}>No</option>
+                    </select>
+                    @error('Pep') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                </div>
+            </div>
+        </div>
+
         {{-- Document Information --}}
         <div class="bg-white border border-gray-200 rounded-xl p-6 mb-6">
             <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
@@ -56,11 +95,11 @@
             </div>
         </div>
 
-        {{-- Personal Information --}}
+        {{-- Commercial Contact --}}
         <div class="bg-white border border-gray-200 rounded-xl p-6 mb-6">
             <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
                 <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
-                Datos Personales
+                Contacto comercial (responsable del establecimiento)
             </h2>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -86,45 +125,11 @@
             </div>
         </div>
 
-        {{-- Business Information --}}
-        <div class="bg-white border border-gray-200 rounded-xl p-6 mb-6">
-            <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
-                Negocio
-            </h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label for="NombreNegocio" class="block text-sm font-medium text-gray-700 mb-1">Nombre del negocio *</label>
-                    <input type="text" name="NombreNegocio" id="NombreNegocio" value="{{ old('NombreNegocio') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" maxlength="100" required>
-                    @error('NombreNegocio') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
-                </div>
-                <div>
-                    <label for="IdClasificacionCliente" class="block text-sm font-medium text-gray-700 mb-1">Clasificación *</label>
-                    <select name="IdClasificacionCliente" id="IdClasificacionCliente" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" required>
-                        <option value="">Seleccione...</option>
-                        @foreach($clasificacionOptions as $id => $label)
-                        <option value="{{ $id }}" {{ old('IdClasificacionCliente') == $id ? 'selected' : '' }}>{{ $label }}</option>
-                        @endforeach
-                    </select>
-                    @error('IdClasificacionCliente') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
-                </div>
-                <div>
-                    <label for="Pep" class="block text-sm font-medium text-gray-700 mb-1">Persona Expuesta Políticamente (PEP) *</label>
-                    <select name="Pep" id="Pep" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" required>
-                        <option value="">Seleccione...</option>
-                        <option value="SI" {{ old('Pep') === 'SI' ? 'selected' : '' }}>Sí</option>
-                        <option value="NO" {{ old('Pep') === 'NO' ? 'selected' : '' }}>No</option>
-                    </select>
-                    @error('Pep') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
-                </div>
-            </div>
-        </div>
-
-        {{-- Location --}}
+        {{-- Main branch location --}}
         <div class="bg-white border border-gray-200 rounded-xl p-6 mb-6">
             <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
                 <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                Ubicación
+                Ubicación (sucursal principal)
             </h2>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -138,7 +143,7 @@
                     @error('Departamento') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                 </div>
                 <div>
-                    <label for="Ciudad" class="block text-sm font-medium text-gray-700 mb-1">Ciudad / Municipio *</label>
+                    <label for="Ciudad" class="block text-sm font-medium text-gray-700 mb-1">Ciudad / municipio *</label>
                     <select name="Ciudad" id="Ciudad" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" required>
                         <option value="">Primero seleccione departamento</option>
                     </select>
@@ -193,7 +198,7 @@
         <div class="bg-white border border-gray-200 rounded-xl p-6 mb-6">
             <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
                 <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
-                Ruta de Ventas
+                Ruta de ventas
             </h2>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -253,7 +258,7 @@
         <div class="bg-white border border-gray-200 rounded-xl p-6 mb-6">
             <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
                 <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
-                Firma del Cliente *
+                Firma del cliente *
             </h2>
             <p class="text-sm text-gray-500 mb-3">Use el mouse o el dedo (en dispositivos táctiles) para firmar en el recuadro.</p>
 
@@ -271,7 +276,10 @@
             <div class="mt-4 pt-4 border-t border-gray-200">
                 <label class="inline-flex items-start gap-2 text-sm text-gray-700">
                     <input type="checkbox" name="terms_accepted" value="1" class="mt-0.5 rounded border-gray-300 text-orange-600 focus:ring-orange-500" {{ old('terms_accepted') ? 'checked' : '' }} required>
-                    <span>Aceptar términos y condiciones</span>
+                    <span>
+                        Aceptar
+                        <a href="{{ route('content.terms') }}" target="_blank" rel="noopener noreferrer" class="text-orange-700 underline hover:text-orange-800">términos y condiciones</a>
+                    </span>
                 </label>
                 @error('terms_accepted') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
             </div>

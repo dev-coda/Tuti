@@ -71,7 +71,7 @@ class OrderController extends Controller
         ];
 
         $accountUser = $user->load(['zones', 'city']);
-        $isSeller = $user->hasRole('seller');
+        $isSeller = $user->hasAnyRole(['seller', 'supervisor']);
         $sellerDashToday = Carbon::now($this->sellerReportTimezone())->format('Y-m-d');
 
         return view('clients.orders.index', compact('orders', 'statuses', 'accountUser', 'isSeller', 'sellerDashToday'));
@@ -85,7 +85,7 @@ class OrderController extends Controller
     {
         $user = auth()->user();
 
-        if (!$user || !$user->hasRole('seller')) {
+        if (!$user || !$user->hasAnyRole(['seller', 'supervisor'])) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
@@ -391,7 +391,7 @@ class OrderController extends Controller
 
         // Preserve client and zone from the original order for confirmation step
         // If current user is a seller, set the acting client for the cart
-        if ($user->hasRole('seller')) {
+        if ($user->hasAnyRole(['seller', 'supervisor'])) {
             session()->put('user_id', $order->user_id);
 
             // Ensure client zones are available (run SOAP-backed sync if necessary)

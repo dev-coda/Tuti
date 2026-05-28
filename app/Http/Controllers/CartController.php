@@ -142,7 +142,7 @@ class CartController extends Controller
 
         $set_user = false;
         $client = null;
-        if ($user->hasRole('seller')) {
+        if ($user->hasAnyRole(['seller', 'supervisor'])) {
             $user_id = session()->get('user_id');
             $set_user = true;
             if ($user_id) {
@@ -577,7 +577,7 @@ class CartController extends Controller
             if (! empty($validCoupons)) {
                 $user = auth()->user();
                 $targetUser = $user;
-                if ($user && $user->hasRole('seller')) {
+                if ($user && $user->hasAnyRole(['seller', 'supervisor'])) {
                     $clientId = session()->get('user_id');
                     $targetUser = $clientId ? User::find($clientId) : $user;
                 }
@@ -698,15 +698,18 @@ class CartController extends Controller
         $user_id = $user->id;
         $actingUser = $user;
 
-        if ($user->hasRole('seller')) {
+        if ($user->hasAnyRole(['seller', 'supervisor'])) {
             $seller_id = $user->id;
             $user_id = session()->get('user_id');
             $actingUser = User::find($user_id) ?: $user;
         }
 
+        $isDraftClientCheckout = $actingUser && ($actingUser->isPendingClient() || $actingUser->isProspectClient());
+
         // Sync rutero data before processing order to ensure we have current data
         // This handles cases where zone data might have changed in external service
-        if ($actingUser && $actingUser->document) {
+        // Pending clients (24h rutero delay) skip getRuteros at checkout.
+        if ($actingUser && $actingUser->document && ! $isDraftClientCheckout) {
             try {
                 \Log::info('Syncing rutero data before order processing', [
                     'user_id' => $actingUser->id,
@@ -739,6 +742,7 @@ class CartController extends Controller
         // Inventory validation based on zone/bodega
         $inventoryEnabled = Setting::getByKey('inventory_enabled');
         $isInventoryEnabled = ($inventoryEnabled === '1' || $inventoryEnabled === 1 || $inventoryEnabled === true);
+        $enforceInventoryChecks = $isInventoryEnabled && ! $isDraftClientCheckout;
 
         // Bodega mapping uses logistics zone number (zones.zone, e.g. "933"), not CustRuteroID (zones.code).
         // zones.code is the stable key for checkout sucursal selection after rutero sync.
@@ -759,9 +763,9 @@ class CartController extends Controller
             })->toArray(),
         ]);
 
-        $bodega = $isInventoryEnabled ? ZoneWarehouse::getBodegaForZone($zoneCode) : null;
+        $bodega = $enforceInventoryChecks ? ZoneWarehouse::getBodegaForZone($zoneCode) : null;
 
-        if ($isInventoryEnabled && ! $bodega) {
+        if ($enforceInventoryChecks && ! $bodega) {
             \Log::warning('Bodega determination failed for selected zone', [
                 'user_id' => $user->id,
                 'acting_user_id' => $actingUser->id,
@@ -774,7 +778,7 @@ class CartController extends Controller
                     'zone' => $zone->zone,
                     'route' => $zone->route,
                 ] : null,
-                'is_seller' => $user->hasRole('seller'),
+                'is_seller' => $user->hasAnyRole(['seller', 'supervisor']),
                 'session_user_id' => session()->get('user_id'),
             ]);
 
@@ -868,6 +872,17 @@ class CartController extends Controller
             }
         }
 
+        if ($isDraftClientCheckout) {
+            $orderStatus = Order::STATUS_DRAFT;
+            $scheduledTransmissionDate = null;
+
+            Log::info('Order created as draft for non-cliente user (rutero not yet available)', [
+                'acting_user_id' => $actingUser->id,
+                'document' => $actingUser->document,
+                'client_status' => $actingUser->client_status,
+            ]);
+        }
+
         // Log if force delivery date bypassed the waiting status
         if ($forceDeliveryDate && $delivery_method === Order::DELIVERY_METHOD_TRONEX) {
             Log::warning('Force Delivery Date ACTIVE - Order will be processed immediately instead of waiting', [
@@ -881,7 +896,7 @@ class CartController extends Controller
         // Pre-check inventory and safety stock for each item (only when enabled)
         // For products with variations, inventory is checked at the parent product level
         // All variation items of a product share the same inventory pool
-        if ($isInventoryEnabled) {
+        if ($enforceInventoryChecks) {
             foreach ($cart as $cartItem) {
                 $product = Product::find($cartItem['product_id']);
                 if (! $product) {
@@ -1736,8 +1751,8 @@ class CartController extends Controller
                 }
             }
 
-            // Only dispatch job immediately if order is not waiting
-            if ($orderStatus !== Order::STATUS_WAITING) {
+            // Only dispatch job immediately if order is not waiting or draft
+            if ($orderStatus !== Order::STATUS_WAITING && $orderStatus !== Order::STATUS_DRAFT) {
                 // Dispatch job on the appropriate connection
                 \App\Jobs\ProcessOrderAsync::dispatch($order)->onConnection($queueConnection);
                 Log::info("Order {$order->id} created successfully, async processing dispatched on {$queueConnection} queue");
@@ -1799,7 +1814,7 @@ class CartController extends Controller
         if (! $user) {
             return null;
         }
-        if ($user->hasRole('seller')) {
+        if ($user->hasAnyRole(['seller', 'supervisor'])) {
             $clientId = session()->get('user_id');
 
             return $clientId ? User::find($clientId) : $user;
@@ -1956,7 +1971,7 @@ class CartController extends Controller
         // Verify the order belongs to the current user or their client (for sellers)
         $user = auth()->user();
 
-        if ($user->hasRole('seller')) {
+        if ($user->hasAnyRole(['seller', 'supervisor'])) {
             // Sellers can view orders they created for clients
             if ($order->seller_id !== $user->id) {
                 abort(403, 'No autorizado para ver este pedido.');

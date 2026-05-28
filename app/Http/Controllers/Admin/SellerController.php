@@ -6,6 +6,7 @@ use App\Exports\SellersExport;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Repositories\UserRepository;
+use App\Services\PendingClientProvisioningService;
 use Illuminate\Http\Request;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -121,7 +122,8 @@ class SellerController extends Controller
                     'email' => $email,
                     'document' => $document,
                     'password' => $password,
-                    'status_id' => User::PENDING
+                    'status_id' => User::PENDING,
+                    'client_status' => User::CLIENT_STATUS_CLIENTE,
                 ]);
 
                 foreach ($data['routes'] as $route) {
@@ -139,20 +141,34 @@ class SellerController extends Controller
 
                 return to_route('cart');
             } else {
-                return back()->with('error', 'No se encontró el rutero');
+                $provisioning = app(PendingClientProvisioningService::class);
+                $user = $provisioning->provisionProspectByDocument(
+                    $document,
+                    $zone !== null ? (string) $zone : null
+                );
+
+                session()->put('user_id', $user->id);
+                session()->forget('zone_id');
+
+                return to_route('cart')->with(
+                    'success',
+                    'Cliente prospecto vinculado. Puede realizar pedidos; la transmisión al sistema se hará cuando el rutero esté disponible.'
+                );
             }
         } else {
-            // Usuario ya existe, sincronizar zonas con datos actuales
-            // This will automatically retry without zone if zone doesn't match
-            $syncSuccess = UserRepository::syncUserRuteroData($user);
-            
-            if (!$syncSuccess) {
-                \Log::warning('Failed to sync rutero data for existing user', [
-                    'user_id' => $user->id,
-                    'document' => $document,
-                    'zone' => $zone,
-                ]);
-                // Continue anyway - user might still have valid zones from before
+            if (! $user->isPendingClient()) {
+                // Usuario ya existe, sincronizar zonas con datos actuales
+                // This will automatically retry without zone if zone doesn't match
+                $syncSuccess = UserRepository::syncUserRuteroData($user);
+
+                if (! $syncSuccess) {
+                    \Log::warning('Failed to sync rutero data for existing user', [
+                        'user_id' => $user->id,
+                        'document' => $document,
+                        'zone' => $zone,
+                    ]);
+                    // Continue anyway - user might still have valid zones from before
+                }
             }
 
             session()->put('user_id', $user->id);

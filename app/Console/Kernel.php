@@ -67,6 +67,12 @@ class Kernel extends ConsoleKernel
             ->dailyAt('03:20')
             ->withoutOverlapping()
             ->runInBackground();
+
+        // Promote pending clients after rutero sync and transmit draft orders
+        $schedule->command('clients:reconcile-pending-drafts')
+            ->dailyAt('03:45')
+            ->withoutOverlapping()
+            ->runInBackground();
     }
 
     /**

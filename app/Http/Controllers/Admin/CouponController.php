@@ -36,7 +36,7 @@ class CouponController extends Controller
         $categories = Category::active()->get(['id', 'name']);
         $brands = Brand::all(['id', 'name']);
         $vendors = Vendor::all(['id', 'name']);
-        $roles = Role::whereNotIn('name', ['admin', 'seller'])->get(['name']);
+        $roles = Role::whereNotIn('name', ['admin', 'seller', 'supervisor'])->get(['name']);
         
         // Get zones and unique routes for restrictions
         $zones = Zone::select('id', 'zone', 'route')->distinct()->get();
@@ -146,7 +146,7 @@ class CouponController extends Controller
         $categories = Category::active()->get(['id', 'name']);
         $brands = Brand::all(['id', 'name']);
         $vendors = Vendor::all(['id', 'name']);
-        $roles = Role::whereNotIn('name', ['admin', 'seller'])->get(['name']);
+        $roles = Role::whereNotIn('name', ['admin', 'seller', 'supervisor'])->get(['name']);
         
         // Get zones and unique routes for restrictions
         $zones = Zone::select('id', 'zone', 'route')->distinct()->get();
@@ -389,11 +389,11 @@ class CouponController extends Controller
             ->where(function ($outer) {
                 $outer->whereDoesntHave('roles')
                     ->orWhereHas('roles', function ($q) {
-                        $q->whereNotIn('name', ['admin', 'seller']);
+                        $q->whereNotIn('name', ['admin', 'seller', 'supervisor']);
                     });
             })
             ->whereDoesntHave('roles', function ($q) {
-                $q->whereIn('name', ['admin', 'seller']);
+                $q->whereIn('name', ['admin', 'seller', 'supervisor']);
             })
             ->limit(50)
             ->get(['id', 'name', 'email', 'document'])

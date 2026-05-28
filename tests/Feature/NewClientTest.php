@@ -67,6 +67,7 @@ it('validates required fields on store', function () {
         ->post(route('new-client.store'), [])
         ->assertSessionHasErrors([
             'Documento', 'TipoDocumento', 'NombreNegocio',
+            'RazonSocial',
             'IdClasificacionCliente', 'Departamento', 'Ciudad',
             'Direccion', 'Barrio', 'Zona', 'RutaZonaVentas',
             'DiaRecorrido', 'Posicion', 'Pep', 'signature', 'terms_accepted',
@@ -78,6 +79,7 @@ it('validates document format', function () {
         ->post(route('new-client.store'), [
             'Documento' => 'ABC!@#',
             'TipoDocumento' => 1,
+            'RazonSocial' => 'Razon Test',
             'NombreNegocio' => 'Test',
             'IdClasificacionCliente' => 1,
             'Departamento' => 'ANTIOQUIA',
@@ -101,6 +103,7 @@ it('requires PrimerNombre and PrimerApellido for CC and CE documents', function 
         ->post(route('new-client.store'), [
             'Documento' => '123456789',
             'TipoDocumento' => 1,
+            'RazonSocial' => 'Razon Test',
             'NombreNegocio' => 'Test',
             'IdClasificacionCliente' => 1,
             'Departamento' => 'ANTIOQUIA',
@@ -128,6 +131,7 @@ it('requires at least one contact number', function () {
         ->post(route('new-client.store'), [
             'Documento' => '123456789',
             'TipoDocumento' => 3,
+            'RazonSocial' => 'Razon Test',
             'NombreNegocio' => 'Test',
             'IdClasificacionCliente' => 1,
             'Departamento' => 'ANTIOQUIA',
@@ -150,6 +154,7 @@ it('rejects more than 6 documents for juridica', function () {
         ->post(route('new-client.store'), [
             'Documento' => '123456789',
             'TipoDocumento' => 3,
+            'RazonSocial' => 'Razon Test',
             'NombreNegocio' => 'Test',
             'IdClasificacionCliente' => 1,
             'Departamento' => 'ANTIOQUIA',
@@ -182,6 +187,7 @@ it('rejects unsupported document files', function () {
         ->post(route('new-client.store'), [
             'Documento' => '123456789',
             'TipoDocumento' => 3,
+            'RazonSocial' => 'Razon Test',
             'NombreNegocio' => 'Test',
             'IdClasificacionCliente' => 1,
             'Departamento' => 'ANTIOQUIA',

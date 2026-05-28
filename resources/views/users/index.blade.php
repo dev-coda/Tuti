@@ -148,6 +148,14 @@
                             </td>
 
                             <td class="p-4 text-sm text-gray-900 whitespace-nowrap">
+                                @if($user->isProspectClient())
+                                    <span class="px-2 py-1 text-xs font-semibold text-indigo-900 bg-indigo-100 rounded">Prospecto</span>
+                                @elseif($user->isPendingClient())
+                                    <span class="px-2 py-1 text-xs font-semibold text-amber-900 bg-amber-100 rounded">Pendiente</span>
+                                @elseif($user->isCliente())
+                                    <span class="px-2 py-1 text-xs font-semibold text-emerald-900 bg-emerald-100 rounded">Cliente</span>
+                                @endif
+                                <div class="mt-1">
                                 @if($user->is_locked)
                                     <span class="px-2 py-1 text-xs font-semibold text-white bg-red-500 rounded">Bloqueado</span>
                                 @elseif($user->customer_status == 'No')
@@ -155,6 +163,7 @@
                                 @else
                                     <span class="px-2 py-1 text-xs font-semibold text-white bg-green-500 rounded">Activo</span>
                                 @endif
+                                </div>
                             </td>
 
 

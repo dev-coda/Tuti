@@ -11,13 +11,11 @@
 
 
 @section('content')
+<div class="max-w-6xl container mx-auto mt-5 mb-20">
+    <h1 class="xl:text-4xl text-2xl font-bold text-center mb-8">Bienvenido Tendero</h1>
 
-
-<div class="max-w-5xl container mx-auto xl:space-y-10 space-y-0 mt-5 mb-20">
-    <h1 class="xl:text-4xl text-2xl font-bold  text-center">Bienvenido Tendero</h1>
-
-    <div class="max-w-2xl mx-auto">
-        <div id="login-section" class="border border-3 border-blue-900 p-5 rounded-lg flex flex-col items-center justify-center xl:flex xl:flex-col xl:items-center xl:justify-center">
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <div id="login-section" class="border border-2 border-blue-900 p-5 rounded-lg flex flex-col items-center">
             <div class="w-20 h-20 bg-blue-900 rounded-full flex items-center justify-center mb-5">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-white" viewBox="0 0 24 24" fill="currentColor">
                     <path fill-rule="evenodd" d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 01-.437-.695z" clip-rule="evenodd" />
@@ -53,7 +51,6 @@
                     </button>
                 </form>
 
-                <!-- Divider -->
                 <div class="relative my-6">
                     <div class="absolute inset-0 flex items-center">
                         <div class="w-full border-t border-gray-300"></div>
@@ -63,7 +60,6 @@
                     </div>
                 </div>
 
-                <!-- Magic Link Button -->
                 <button type="button" id="magic-link-btn" class="w-full border-2 border-gray-300 hover:border-orange-400 text-gray-700 hover:text-orange-600 font-semibold py-3 px-4 rounded-lg transition duration-300 flex items-center justify-center space-x-2">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 magic-link-icon" viewBox="0 0 20 20" fill="currentColor">
                         <path d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" />
@@ -77,7 +73,6 @@
                 <p class="text-center text-xs text-gray-500 mt-2" id="magic-link-hint">Te enviaremos un código de verificación a tu correo.</p>
                 <p class="text-center text-xs text-red-600 mt-2 hidden" id="magic-link-error"></p>
 
-                <!-- Tronex existing client -->
                 <div class="relative my-6">
                     <div class="absolute inset-0 flex items-center">
                         <div class="w-full border-t border-gray-300"></div>
@@ -93,19 +88,28 @@
                     <span>¿Ya eres cliente Tronex?</span>
                 </button>
                 <p class="text-center text-xs text-gray-500 mt-2">Si ya compras con Tronex, ingresa tu cédula para crear tu cuenta Tuti.</p>
-                <div class="relative my-6">
-                    <div class="absolute inset-0 flex items-center">
-                        <div class="w-full border-t border-gray-300"></div>
-                    </div>
-                    <div class="relative flex justify-center text-sm">
-                        <span class="px-4 bg-white text-gray-500 uppercase tracking-wider text-xs font-semibold">Nuevo en Tuti</span>
-                </div>
             </div>
+        </div>
 
-                <p class="text-center text-sm text-gray-600 mb-3">Si aun no eres cliente tronex, puedes registrarte en tuti:</p>
-                <a href="{{ route('new-client.create') }}" class="w-full inline-flex items-center justify-center border-2 border-orange-200 hover:border-orange-400 text-orange-700 hover:text-orange-800 font-semibold py-3 px-4 rounded-lg transition duration-300 bg-orange-50 hover:bg-orange-100">
-                    Registrar Cuenta Nueva
-                </a>
+        <div id="register-section" class="border border-2 border-blue-900 p-5 rounded-lg flex flex-col items-center">
+            <p class="text-center text-sm text-gray-600">Diligencia el formulario e inicia el proceso de activación como cliente TUTI</p>
+            <div class="w-20 h-20 bg-blue-900 rounded-full flex items-center justify-center my-6">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4m4-5h8a2 2 0 012 2v10H6V9a2 2 0 012-2z" />
+                </svg>
+            </div>
+            <h2 class="text-2xl font-bold text-center">Cliente nuevo</h2>
+            <h3 class="text-2xl text-center mb-4">Crea tu cuenta</h3>
+            <ul class="text-base text-gray-800 space-y-1">
+                <li>- Promociones y descuentos exclusivos</li>
+                <li>- Pago contra-entrega</li>
+                <li>- Programa tu pedido 24/48 horas</li>
+                <li>- Respaldo TRONEX</li>
+            </ul>
+
+            <a href="{{ route('new-client.create') }}" class="mt-8 w-full max-w-sm inline-flex items-center justify-center bg-blue-700 hover:bg-blue-800 text-white font-semibold py-3 px-4 rounded-lg transition duration-300">
+                Crear cuenta
+            </a>
         </div>
     </div>
 </div>
