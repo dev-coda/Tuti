@@ -2,7 +2,7 @@
 
 
 use App\Http\Controllers\CartController;
-use App\Http\Controllers\Admin\ContentController;
+use App\Http\Controllers\ContentController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PageController;
 use App\Http\Controllers\TronexMigrationController;

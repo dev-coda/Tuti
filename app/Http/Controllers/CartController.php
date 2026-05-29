@@ -1071,9 +1071,10 @@ class CartController extends Controller
             }
         }
 
-        // Check if bonifications block discounts BEFORE processing order
-        // Rule: If ANY product qualifies for a bonification with allow_discounts=false, block ALL discounts
-        $bonificationsBlockDiscounts = false;
+        // Check which products should block discounts BEFORE processing order.
+        // Rule: only products that qualify for a bonification with allow_discounts=false
+        // must lose discounts; other cart products keep their normal discount flow.
+        $discountBlockedProductIds = [];
         $productQuantitiesForBonificationCheck = [];
 
         // First, aggregate quantities by product_id (same as bonification logic)
@@ -1103,28 +1104,68 @@ class CartController extends Controller
 
                     if ($bonification_quantity > 0) {
                         // Customer qualifies for this bonification
-                        // If this bonification blocks discounts, set flag
+                        // If this bonification blocks discounts, mark only this product
                         if (! $bonification->allow_discounts) {
-                            $bonificationsBlockDiscounts = true;
-                            break 2; // Break out of both loops
+                            $discountBlockedProductIds[$productId] = true;
+                            break;
                         }
                     }
                 }
             }
         }
 
-        // If bonifications block discounts, clear all discount-related data
-        if ($bonificationsBlockDiscounts) {
-            // Clear coupon discount
-            $couponDiscount = 0;
-            $winningCoupons = [];
-            $couponResult = null;
-            $modifiedProductsLookup = [];
-            $this->clearAllCouponSessions();
-            Log::info('Bonifications block discounts - clearing all discounts', [
+        if (! empty($discountBlockedProductIds)) {
+            Log::info('Bonifications block discounts for specific products', [
                 'user_id' => $user_id,
                 'cart_items' => count($cart),
+                'blocked_product_ids' => array_keys($discountBlockedProductIds),
             ]);
+        }
+
+        // Coupon service can still return modified rows for products that must block discounts
+        // due to bonification rules. Remove those rows so order totals/coupon usage only
+        // reflect truly discount-eligible products.
+        if ($couponResult && ($couponResult['success'] ?? false) && ! empty($discountBlockedProductIds)) {
+            $modifiedProducts = collect($couponResult['modified_products'] ?? []);
+            $filteredModifiedProducts = $modifiedProducts
+                ->reject(function ($modProduct) use ($discountBlockedProductIds) {
+                    $productId = (int) ($modProduct['product_id'] ?? 0);
+
+                    return $productId > 0 && isset($discountBlockedProductIds[$productId]);
+                })
+                ->values();
+
+            if ($filteredModifiedProducts->count() !== $modifiedProducts->count()) {
+                $couponResult['modified_products'] = $filteredModifiedProducts->all();
+
+                $couponDiscount = (float) $filteredModifiedProducts->sum(function ($modProduct) {
+                    return (float) ($modProduct['coupon_contribution'] ?? 0);
+                });
+                $couponResult['total_coupon_discount'] = $couponDiscount;
+
+                $activeWinningCouponIds = $filteredModifiedProducts
+                    ->pluck('winning_coupon_id')
+                    ->filter()
+                    ->map(fn ($id) => (int) $id)
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                $winningCoupons = collect($winningCoupons)
+                    ->filter(function ($code, $couponId) use ($activeWinningCouponIds) {
+                        return in_array((int) $couponId, $activeWinningCouponIds, true);
+                    })
+                    ->all();
+                $couponResult['winning_coupons'] = $winningCoupons;
+
+                Log::info('Filtered coupon result for bonification-blocked products', [
+                    'user_id' => $user_id,
+                    'removed_products' => $modifiedProducts->count() - $filteredModifiedProducts->count(),
+                    'remaining_modified_products' => $filteredModifiedProducts->count(),
+                    'coupon_discount_after_filter' => $couponDiscount,
+                    'winning_coupons_after_filter' => $winningCoupons,
+                ]);
+            }
         }
 
         // Use database transaction to ensure atomicity
@@ -1248,11 +1289,11 @@ class CartController extends Controller
 
                 $lookupKey = $id.'_'.($row['variation_id'] ?? 'null');
 
-                // If bonifications block discounts, skip all discount logic
+                // If this product has a blocking bonification, skip all discount logic.
                 $orderDiscountType = 'percentage'; // Default
                 $flatDiscountAmount = 0;
 
-                if ($bonificationsBlockDiscounts) {
+                if (isset($discountBlockedProductIds[$id])) {
                     // No discounts allowed - use base price only
                     // Price storage depends on calculate_package_price flag
                     $variation = $p->items->where('id', $row['variation_id'])->first();
@@ -2134,6 +2175,7 @@ class CartController extends Controller
         $zoneCount = $actingUser->zones->count();
 
         $rawRequestZoneId = $this->normalizedCheckoutZoneId($request->input('zone_id'));
+        $postedSucursalZoneId = $this->normalizedCheckoutZoneId($request->input('sucursal_zone_id'));
         $sessionZoneId = $this->normalizedCheckoutZoneId(session()->get('zone_id'));
         $requestedZoneId = $rawRequestZoneId ?? ($zoneCount <= 1 ? $sessionZoneId : null);
 
@@ -2156,12 +2198,40 @@ class CartController extends Controller
                 ->first();
             if ($candidate) {
                 if ($this->sucursalRequestHasData($zoneFingerprint) && ! $this->zoneMatchesCheckoutFingerprint($candidate, $zoneFingerprint)) {
-                    \Log::warning('Checkout zone_id does not match posted sucursal fields; using posted zone_id (authoritative)', [
-                        'acting_user_id' => $actingUser->id,
-                        'zone_id' => $candidate->id,
-                    ]);
+                    $hiddenFieldsLookStale = $postedSucursalZoneId !== null
+                        && $requestedZoneId !== null
+                        && $postedSucursalZoneId !== $requestedZoneId;
+                    if ($hiddenFieldsLookStale) {
+                        \Log::warning('Checkout zone mismatch detected with stale hidden sucursal payload; keeping posted zone_id', [
+                            'acting_user_id' => $actingUser->id,
+                            'zone_id' => $candidate->id,
+                            'request_zone_id' => $requestedZoneId,
+                            'hidden_zone_id' => $postedSucursalZoneId,
+                        ]);
+                        $zone = $candidate;
+                    } else {
+                        $fingerprintMatches = $actingUser->zones->filter(function ($fingerprintCandidate) use ($zoneFingerprint) {
+                            return $this->zoneMatchesCheckoutFingerprint($fingerprintCandidate, $zoneFingerprint);
+                        });
+                        if ($fingerprintMatches->count() === 1) {
+                            $zone = $fingerprintMatches->first();
+                            \Log::warning('Checkout zone_id no longer matches selected sucursal after sync; remapped using fingerprint', [
+                                'acting_user_id' => $actingUser->id,
+                                'requested_zone_id' => $requestedZoneId,
+                                'resolved_zone_id' => $zone->id,
+                            ]);
+                        } else {
+                            \Log::warning('Checkout zone mismatch could not be safely remapped; keeping posted zone_id', [
+                                'acting_user_id' => $actingUser->id,
+                                'requested_zone_id' => $requestedZoneId,
+                                'fingerprint_matches' => $fingerprintMatches->pluck('id')->all(),
+                            ]);
+                            $zone = $candidate;
+                        }
+                    }
+                } else {
+                    $zone = $candidate;
                 }
-                $zone = $candidate;
             }
         }
 
@@ -2221,6 +2291,7 @@ class CartController extends Controller
         \Log::warning('Zone resolution failed for multi-zone user', [
             'acting_user_id' => $actingUser->id,
             'requested_zone_id' => $requestedZoneId,
+            'posted_sucursal_zone_id' => $postedSucursalZoneId,
             'sucursal_code' => $trimmedSucursalCode,
             'available_zone_ids' => $actingUser->zones->pluck('id')->all(),
             'available_zone_codes' => $actingUser->zones->pluck('code')->all(),
