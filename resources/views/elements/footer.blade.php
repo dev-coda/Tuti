@@ -60,6 +60,7 @@
                 <ul class="text-sm space-y-2">
                     <li><a href="{{route('form')}}" class="hover:text-gray-300 transition-colors">Quiero ser cliente</a></li>
                     <li><a href="{{ route('content.faq') }}" class="hover:text-gray-300 transition-colors">Preguntas frecuentes</a></li>
+                    <li><a href="{{ route('customer-service') }}" class="hover:text-gray-300 transition-colors">Servicio al cliente</a></li>
                 </ul>
             </div>
 

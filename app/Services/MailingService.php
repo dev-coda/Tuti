@@ -6,6 +6,7 @@ use App\Models\EmailTemplate;
 use App\Models\Order;
 use App\Models\User;
 use App\Models\Contact;
+use App\Models\CustomerServiceRequest;
 use App\Models\Setting;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
@@ -371,6 +372,43 @@ class MailingService
             Log::error("Failed to send email with attachments: {$templateSlug}", [
                 'error' => $e->getMessage(),
             ]);
+            return false;
+        }
+    }
+
+    /**
+     * Send customer service PQRS notification.
+     */
+    public function sendCustomerServiceRequestNotification(CustomerServiceRequest $request): bool
+    {
+        try {
+            $this->updateMailConfiguration();
+
+            $recipient = 'servicliente@tronex.com';
+            $subject = 'Nuevo PQRS Servicio al Cliente - ' . $request->request_type_label;
+
+            $html = view('emails.customer-service-pqrs', [
+                'request' => $request,
+            ])->render();
+
+            Mail::html($html, function ($message) use ($recipient, $subject) {
+                $message->to($recipient)
+                    ->subject($subject)
+                    ->from(config('mail.from.address'), config('mail.from.name'));
+            });
+
+            Log::info('Customer service PQRS email sent', [
+                'request_id' => $request->id,
+                'recipient' => $recipient,
+            ]);
+
+            return true;
+        } catch (\Throwable $e) {
+            Log::error('Failed to send customer service PQRS email', [
+                'request_id' => $request->id ?? null,
+                'error' => $e->getMessage(),
+            ]);
+
             return false;
         }
     }

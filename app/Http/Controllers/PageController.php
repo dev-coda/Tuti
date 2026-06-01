@@ -13,9 +13,11 @@ use Illuminate\Support\Facades\Auth;
 use Transliterator;
 use App\Models\City;
 use App\Models\Contact;
+use App\Models\CustomerServiceRequest;
 use App\Models\State;
 use App\Models\User;
 use Illuminate\Support\Facades\Storage;
+use App\Services\MailingService;
 
 class PageController extends Controller
 {
@@ -513,6 +515,37 @@ class PageController extends Controller
         Contact::create($contactData);
 
         return back()->with('success', 'Solicitud enviada correctamente. Nos pondremos en contacto contigo pronto.');
+    }
+
+    public function customerService()
+    {
+        return view('pages.customer-service');
+    }
+
+    public function customerServiceStore(Request $request)
+    {
+        $validated = $request->validate([
+            'full_name' => 'required|string|max:255',
+            'email' => 'required|email|max:255',
+            'city' => 'required|string|max:120',
+            'phone' => 'required|string|max:50',
+            'request_type' => 'required|in:pregunta,queja,reclamo',
+            'subject' => 'required|string|max:255',
+            'message' => 'required|string|max:5000',
+        ]);
+
+        $pqrs = CustomerServiceRequest::create($validated);
+
+        try {
+            app(MailingService::class)->sendCustomerServiceRequestNotification($pqrs);
+        } catch (\Throwable $e) {
+            \Log::error('PQRS email dispatch failed', [
+                'request_id' => $pqrs->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return back()->with('success', 'Tu solicitud fue enviada correctamente. Te contactaremos pronto.');
     }
 
     /**
