@@ -26,6 +26,7 @@ use App\Http\Controllers\Admin\VolumeDiscountController;
 use App\Http\Controllers\Admin\BannerController;
 use App\Http\Controllers\Admin\ContactController;
 use App\Http\Controllers\Admin\SellerController;
+use App\Http\Controllers\Admin\CustomerServiceRequestController;
 use App\Http\Controllers\Admin\FeaturedProductController;
 use App\Http\Controllers\Admin\FeaturedCategoryController;
 use App\Http\Controllers\Admin\ShippingMethodController;
@@ -59,6 +60,8 @@ Route::middleware(['auth', 'role:admin|supervisor'])->group(function () {
     Route::get('/contactexport', [ContactController::class, 'export'])->name('admin.export.contacts');
     Route::post('contacts/{contact}/submit-new-client', [ContactController::class, 'submitNewClient'])->name('contacts.submit-new-client');
     Route::resource('contacts', ContactController::class);
+    Route::get('customer-service-requests', [CustomerServiceRequestController::class, 'index'])->name('admin.customer-service-requests.index');
+    Route::get('customer-service-requests/{customerServiceRequest}', [CustomerServiceRequestController::class, 'show'])->name('admin.customer-service-requests.show');
 });
 
 Route::middleware(['auth', 'role:admin'])->group(function () {
