@@ -1,15 +1,29 @@
-@props(['product', 'bodegaCode' => null])
+@props(['product', 'bodegaCode' => null, 'imageHoverSwap' => true])
 @php
     $inventoryEnabled = \App\Models\Setting::getByKey('inventory_enabled');
     $showInventory = ($inventoryEnabled === '1' || $inventoryEnabled === 1 || $inventoryEnabled === true);
     $vacationInfo = \App\Models\Setting::getVacationModeInfo();
     $isVacationMode = $vacationInfo['active'];
     $formattedVacationDate = $vacationInfo['formatted_date'] ?? 'pronto';
+    $primaryImage = $product->images->first();
+    $secondaryImage = $product->images->skip(1)->first();
 @endphp
-<div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-3 md:p-4 flex flex-col max-w-[90vw]">
+<div class="group bg-white border border-gray-200 rounded-2xl shadow-sm p-3 md:p-4 flex flex-col max-w-[90vw]">
     <div class="flex w-full items-center justify-center py-2 text-gray-400 flex-grow relative">
-        @if($product->images->first())
-        <a href="{{route('product', $product->slug)}}" class="h-36 md:h-44 block w-full bg-contain bg-center bg-no-repeat hover:scale-105 transition duration-300 cursor-pointer" style="background-image: url({{asset('storage/'.$product->images->first()->path)}});">
+        @if($primaryImage)
+        <a href="{{route('product', $product->slug)}}" class="h-36 md:h-44 block w-full relative overflow-hidden cursor-pointer">
+            <img
+                src="{{ asset('storage/' . $primaryImage->path) }}"
+                alt="{{ $product->name }}"
+                class="absolute inset-0 h-full w-full object-contain transition duration-300 ease-out {{ ($imageHoverSwap && $secondaryImage) ? 'opacity-100 group-hover:opacity-0 group-hover:scale-105' : '' }}"
+            >
+            @if($imageHoverSwap && $secondaryImage)
+                <img
+                    src="{{ asset('storage/' . $secondaryImage->path) }}"
+                    alt="{{ $product->name }}"
+                    class="absolute inset-0 h-full w-full object-contain opacity-0 transition duration-300 ease-out group-hover:opacity-100 group-hover:scale-105"
+                >
+            @endif
         </a>
         <x-product-tag :product="$product" />
         @else
