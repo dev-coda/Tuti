@@ -14,10 +14,12 @@ class ContentPage extends Model
         'slug',
         'content',
         'enabled',
+        'show_in_footer',
     ];
 
     protected $casts = [
         'enabled' => 'boolean',
+        'show_in_footer' => 'boolean',
     ];
 
     /**
@@ -26,5 +28,10 @@ class ContentPage extends Model
     public function scopeEnabled($query)
     {
         return $query->where('enabled', true);
+    }
+
+    public function scopeShownInFooter($query)
+    {
+        return $query->where('show_in_footer', true);
     }
 }
