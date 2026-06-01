@@ -399,6 +399,23 @@
             <div class="p-4 mb-4 bg-white border border-gray-200 rounded-lg shadow-sm 2xl:col-span-2 ">
                 <h3 class="mb-4 text-xl font-semibold ">Imagenes</h3>
                 <div class="col-span-2 space-y-3">
+                    @php
+                        $enabledVariationItems = $product->items->where('pivot.enabled', 1)->values();
+                    @endphp
+                    @if($product->variation && $enabledVariationItems->count())
+                    <div>
+                        <label for="variation_item_id" class="block text-sm font-medium text-gray-700 mb-2">Asociar a variación (opcional)</label>
+                        <select id="variation_item_id" name="variation_item_id" class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg bg-white focus:outline-none focus:border-orange-500 p-2">
+                            <option value="">Sin variación específica</option>
+                            @foreach($enabledVariationItems as $variationItem)
+                                <option value="{{ $variationItem->id }}">
+                                    {{ $variationItem->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <p class="mt-1 text-xs text-gray-500">Si seleccionas una variación, estas imágenes se mostrarán al elegir esa opción en el detalle del producto.</p>
+                    </div>
+                    @endif
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Seleccione una o más imágenes</label>
                         <input type="file" name="images[]" multiple accept="image/*" class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none focus:border-blue-500 p-2">

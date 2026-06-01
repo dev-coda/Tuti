@@ -194,6 +194,15 @@
     <div class="xl:col-span-6 col-span-12">
         <div class="flex justify-center">
             <div class="w-full max-w-md">
+                @php
+                    $variationImageByItem = $product->images
+                        ->whereNotNull('variation_item_id')
+                        ->groupBy('variation_item_id')
+                        ->map(function ($images) {
+                            $firstImage = $images->sortBy('position')->first();
+                            return $firstImage ? asset('storage/' . $firstImage->path) : null;
+                        });
+                @endphp
                 <!-- Main Image Card -->
                 <div class="w-full mb-4 relative bg-white rounded-2xl border border-gray-200 p-4">
                     @if($product->images->first())
@@ -316,6 +325,7 @@
                     data-has-discount="{{ $fpVar['has_discount'] ? '1' : '0' }}"
                     data-per-item="{{ $fpVar['perItemPrice'] ?? '' }}"
                     data-orderable-stock="{{ $itemOrderableStock }}"
+                    data-variation-image="{{ $variationImageByItem->get($item->id, '') }}"
                     @selected((int) $item->id === (int) $preferredVariationItemId)
                 >{{ $item->name }}</option>
                 @endforeach
@@ -609,15 +619,30 @@
     }
 
     $(function() {
+        function updateMainImage(newImageSrc) {
+            if (!newImageSrc) {
+                return;
+            }
+
+            $('#mainProductImage').attr('src', newImageSrc);
+
+            var $matchingThumb = $('.thumbnail-link').filter(function() {
+                return $(this).data('image') === newImageSrc;
+            }).first();
+
+            $('.thumbnail-item').removeClass('border-orange-500').addClass('border-gray-200');
+            if ($matchingThumb.length) {
+                $matchingThumb.closest('.thumbnail-item')
+                    .removeClass('border-gray-200')
+                    .addClass('border-orange-500');
+            }
+        }
+
         // Thumbnail image click handler with selection indicator
         $('.thumbnail-link').on('click', function(e) {
             e.preventDefault();
             var newImageSrc = $(this).data('image');
-            $('#mainProductImage').attr('src', newImageSrc);
-            
-            // Update selection indicator
-            $('.thumbnail-item').removeClass('border-orange-500').addClass('border-gray-200');
-            $(this).closest('.thumbnail-item').removeClass('border-gray-200').addClass('border-orange-500');
+            updateMainImage(newImageSrc);
         });
 
         const step = parseInt('{{$product->step}}');
@@ -685,7 +710,14 @@
                         $low.addClass('hidden');
                     }
                 }
+
+                var variationImage = $opt.data('variation-image');
+                if (variationImage) {
+                    updateMainImage(variationImage);
+                }
             });
+
+            $sel.trigger('change');
         }
 
     })
