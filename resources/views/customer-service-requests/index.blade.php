@@ -3,7 +3,7 @@
 @section('content')
 <div class="p-4 bg-white border-b border-gray-200">
     <div class="flex items-center justify-between mb-4">
-        <h1 class="text-xl font-semibold text-gray-900 sm:text-2xl">PQRS Servicio al Cliente</h1>
+        <h1 class="text-xl font-semibold text-gray-900 sm:text-2xl">PQRS de servicio al cliente</h1>
     </div>
 
     <form method="GET" action="{{ route('admin.customer-service-requests.index') }}" class="flex flex-wrap items-end gap-4">
