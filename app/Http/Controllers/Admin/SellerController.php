@@ -102,11 +102,13 @@ class SellerController extends Controller
     {
         $validate = $request->validate([
             'document' => 'required|integer',
-            'zone' => 'nullable|integer',
         ]);
 
         $document = $validate['document'];
-        $zone = $request->zone ?? null;
+        $sellerZone = auth()->user()?->zone;
+        $requestZone = $request->input('zone');
+        $resolvedZone = $sellerZone !== null && $sellerZone !== '' ? $sellerZone : $requestZone;
+        $zone = $resolvedZone !== null && $resolvedZone !== '' ? (string) $resolvedZone : null;
         $user = User::whereDocument($document)->first();
         if (!$user) {
             // Try with zone first, if fails will retry without zone automatically
