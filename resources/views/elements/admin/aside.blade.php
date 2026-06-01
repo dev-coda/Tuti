@@ -4,8 +4,6 @@
             <div
                 class="flex-1 px-3 space-y-1 bg-white divide-y divide-gray-200">
                 <ul class="pb-2 space-y-2 mainmenu">
-                    
-                
                     <li>
                         <a href="{{ route('dashboard') }}">
                             @svg('heroicon-o-home', 'w-6 h-6 text-gray-500')
@@ -134,6 +132,12 @@
                                 @if ($contacts->count())
                                     <span class="ml-3 text-xs text-white bg-red-500 rounded-full px-2">{{ $contacts->count() }}</span>
                                 @endif --}}
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{{ route('admin.customer-service-requests.index') }}">
+                                @svg('heroicon-o-chat-bubble-left-right', 'w-6 h-6 text-gray-500')
+                                <span class="ml-3">PQRS</span>
                             </a>
                         </li>
 

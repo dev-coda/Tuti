@@ -26,6 +26,7 @@ use App\Http\Controllers\Admin\VolumeDiscountController;
 use App\Http\Controllers\Admin\BannerController;
 use App\Http\Controllers\Admin\ContactController;
 use App\Http\Controllers\Admin\SellerController;
+use App\Http\Controllers\Admin\CustomerServiceRequestController;
 use App\Http\Controllers\Admin\FeaturedProductController;
 use App\Http\Controllers\Admin\FeaturedCategoryController;
 use App\Http\Controllers\Admin\ShippingMethodController;
@@ -323,6 +324,8 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('/exports/{exportFile}/download', [OrderController::class, 'downloadExport'])->name('admin.exports.download');
     Route::get('/exports/{exportFile}/status', [OrderController::class, 'checkExportStatus'])->name('admin.exports.status');
     Route::resource('contacts', ContactController::class);
+    Route::get('customer-service-requests', [CustomerServiceRequestController::class, 'index'])->name('admin.customer-service-requests.index');
+    Route::get('customer-service-requests/{customerServiceRequest}', [CustomerServiceRequestController::class, 'show'])->name('admin.customer-service-requests.show');
     Route::get('email-templates', [App\Http\Controllers\Admin\EmailTemplateController::class, 'index'])->name('admin.email-templates.index');
     Route::get('email-templates/create', [App\Http\Controllers\Admin\EmailTemplateController::class, 'create'])->name('admin.email-templates.create');
     Route::post('email-templates', [App\Http\Controllers\Admin\EmailTemplateController::class, 'store'])->name('admin.email-templates.store');

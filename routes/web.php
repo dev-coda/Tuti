@@ -67,6 +67,8 @@ Route::get('/formulario', [PageController::class, 'form'])->name('form');
 Route::post('/formulario', [PageController::class, 'form_post'])->name('form_post');
 Route::post('/formulario/check-existing', [PageController::class, 'checkExistingClient'])->name('form.check-existing');
 Route::get('/formulario/cities-by-state', [PageController::class, 'citiesByState'])->name('form.cities-by-state');
+Route::get('/servicio-al-cliente', [PageController::class, 'customerService'])->name('customer-service');
+Route::post('/servicio-al-cliente', [PageController::class, 'customerServiceStore'])->name('customer-service.store');
 
 // Tronex existing client migration (self-service)
 Route::post('/tronex/migrate', [TronexMigrationController::class, 'migrate'])->name('tronex.migrate');
