@@ -54,6 +54,7 @@ class ContentPageController extends Controller
             ],
             'content' => 'nullable|string',
             'enabled' => 'nullable|boolean',
+            'show_in_footer' => 'nullable|boolean',
         ], [
             'slug.regex' => 'El slug solo puede contener letras minúsculas, números y guiones.',
             'slug.unique' => 'Ya existe una página con este slug.',
@@ -61,6 +62,7 @@ class ContentPageController extends Controller
 
         // Ensure enabled is set
         $validate['enabled'] = $request->has('enabled') ? true : false;
+        $validate['show_in_footer'] = $request->has('show_in_footer') ? true : false;
 
         ContentPage::create($validate);
 
@@ -102,6 +104,7 @@ class ContentPageController extends Controller
             ],
             'content' => 'nullable|string',
             'enabled' => 'nullable|boolean',
+            'show_in_footer' => 'nullable|boolean',
         ], [
             'slug.regex' => 'El slug solo puede contener letras minúsculas, números y guiones.',
             'slug.unique' => 'Ya existe una página con este slug.',
@@ -109,6 +112,7 @@ class ContentPageController extends Controller
 
         // Ensure enabled is set
         $validate['enabled'] = $request->has('enabled') ? true : false;
+        $validate['show_in_footer'] = $request->has('show_in_footer') ? true : false;
 
         $contentPage->update($validate);
 

@@ -61,6 +61,13 @@
                     <li><a href="{{route('form')}}" class="hover:text-gray-300 transition-colors">Quiero ser cliente</a></li>
                     <li><a href="{{ route('content.faq') }}" class="hover:text-gray-300 transition-colors">Preguntas frecuentes</a></li>
                     <li><a href="{{ route('customer-service') }}" class="hover:text-gray-300 transition-colors">Servicio al cliente</a></li>
+                    @foreach(($footerContentPages ?? collect()) as $footerPage)
+                        <li>
+                            <a href="{{ route('contenido.show', $footerPage->slug) }}" class="hover:text-gray-300 transition-colors">
+                                {{ $footerPage->title }}
+                            </a>
+                        </li>
+                    @endforeach
                 </ul>
             </div>
 
