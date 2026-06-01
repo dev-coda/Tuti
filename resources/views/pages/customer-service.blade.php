@@ -2,7 +2,7 @@
 
 @section('head')
 @include('elements.seo', [
-    'title' => 'Servicio al Cliente',
+    'title' => 'Servicio al cliente',
     'description' => 'Canales de atención y formulario PQRS de TRONEX-TUTI',
 ])
 @endsection
@@ -10,7 +10,7 @@
 @section('content')
 <section class="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <div class="mb-8">
-        <h1 class="text-3xl sm:text-4xl font-bold text-gray-900">Servicio al Cliente</h1>
+        <h1 class="text-3xl sm:text-4xl font-bold text-gray-900">Servicio al cliente</h1>
         <p class="text-gray-600 mt-2">Estamos para ayudarte. Usa nuestros canales de contacto o envíanos tu PQRS.</p>
     </div>
 
@@ -53,10 +53,11 @@
                             href="https://web.whatsapp.com/send?phone=573000000000"
                             target="_blank"
                             rel="noopener noreferrer"
-                            class="inline-flex items-center gap-2 text-green-700 hover:text-green-800 font-medium"
+                            class="inline-flex items-center gap-2 text-green-700 hover:text-green-800 font-medium underline underline-offset-2"
                         >
-                            Abrir WhatsApp Web (placeholder)
+                            Abrir WhatsApp Web
                         </a>
+                        <p class="text-xs text-gray-500 mt-1">Número de WhatsApp pendiente de confirmación.</p>
                     </div>
                 </div>
             </div>
@@ -71,26 +72,26 @@
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Nombre y apellido</label>
-                            <input type="text" name="full_name" value="{{ old('full_name') }}" class="w-full border-gray-300 rounded-lg text-sm" required>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Nombre y apellidos</label>
+                            <input type="text" name="full_name" value="{{ old('full_name') }}" class="w-full border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500" required>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                            <input type="email" name="email" value="{{ old('email') }}" class="w-full border-gray-300 rounded-lg text-sm" required>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Correo electrónico</label>
+                            <input type="email" name="email" value="{{ old('email') }}" class="w-full border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500" required>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Ciudad</label>
-                            <input type="text" name="city" value="{{ old('city') }}" class="w-full border-gray-300 rounded-lg text-sm" required>
+                            <input type="text" name="city" value="{{ old('city') }}" class="w-full border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500" required>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Teléfono o celular</label>
-                            <input type="text" name="phone" value="{{ old('phone') }}" class="w-full border-gray-300 rounded-lg text-sm" required>
+                            <input type="text" name="phone" value="{{ old('phone') }}" class="w-full border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500" required>
                         </div>
                     </div>
 
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Tipo de solicitud</label>
-                        <select name="request_type" class="w-full border-gray-300 rounded-lg text-sm" required>
+                        <select name="request_type" class="w-full border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500" required>
                             <option value="">Selecciona una opción</option>
                             <option value="pregunta" @selected(old('request_type') === 'pregunta')>Pregunta</option>
                             <option value="queja" @selected(old('request_type') === 'queja')>Queja</option>
@@ -100,12 +101,12 @@
 
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Asunto</label>
-                        <input type="text" name="subject" value="{{ old('subject') }}" class="w-full border-gray-300 rounded-lg text-sm" required>
+                        <input type="text" name="subject" value="{{ old('subject') }}" class="w-full border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500" required>
                     </div>
 
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Mensaje</label>
-                        <textarea name="message" rows="5" class="w-full border-gray-300 rounded-lg text-sm" required>{{ old('message') }}</textarea>
+                        <textarea name="message" rows="5" class="w-full border-gray-300 rounded-lg text-sm focus:ring-orange-500 focus:border-orange-500" required>{{ old('message') }}</textarea>
                     </div>
 
                     <div class="pt-2">

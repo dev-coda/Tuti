@@ -14,7 +14,7 @@
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
             <div>
-                <p class="text-gray-500">Nombre y apellido</p>
+                <p class="text-gray-500">Nombre y apellidos</p>
                 <p class="font-medium text-gray-900">{{ $requestEntry->full_name }}</p>
             </div>
             <div>
@@ -22,7 +22,7 @@
                 <p class="font-medium text-gray-900">{{ $requestEntry->request_type_label }}</p>
             </div>
             <div>
-                <p class="text-gray-500">Email</p>
+                <p class="text-gray-500">Correo electrónico</p>
                 <p class="font-medium text-gray-900">{{ $requestEntry->email }}</p>
             </div>
             <div>
