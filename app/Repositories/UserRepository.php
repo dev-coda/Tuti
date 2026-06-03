@@ -322,6 +322,83 @@ class UserRepository
     }
 
     /**
+     * Reconcile a user's zone rows against fresh rutero routes by stable sucursal identity.
+     *
+     * Each route is matched to an existing row by `sucursal_uid` (CustRuteroID, else address),
+     * with a code-equality fallback so legacy address-keyed rows that later gain a CustRuteroID
+     * still match. A matched row only has its mutable logistics attributes refreshed — its frozen
+     * `sucursal_uid` is never changed, so a row (and any order pointing at it) can never be
+     * silently repurposed to a different sucursal. Routes with no match create a new row; existing
+     * rows absent from the payload are deleted only when not referenced by an order.
+     *
+     * @param  \App\Models\User  $user
+     * @param  iterable<int, array<string, mixed>>  $routes
+     * @param  bool  $pruneMissing  Delete order-unreferenced rows absent from the payload.
+     * @return array<int, array{id: int, code: ?string, zone: ?string, route: ?string}>
+     */
+    public static function applyRoutesToZones($user, $routes, bool $pruneMissing = true): array
+    {
+        return DB::transaction(function () use ($user, $routes, $pruneMissing) {
+            $existingZones = $user->zones()->orderBy('id')->get();
+
+            $matchedIds = [];
+            $processedIds = [];
+            $syncedZones = [];
+
+            foreach ($routes as $route) {
+                $code = isset($route['code']) ? trim((string) $route['code']) : '';
+                $uid = \App\Models\Zone::makeSucursalUid($code !== '' ? $code : null, $route['address'] ?? null);
+                // Address identity this row would have had before Dynamics returned a CustRuteroID.
+                $addressUid = \App\Models\Zone::makeSucursalUid(null, $route['address'] ?? null);
+
+                $candidates = $existingZones->whereNotIn('id', $matchedIds);
+
+                // Prioritized match: exact frozen identity, then CustRuteroID equality (legacy rows
+                // that gained a code), then the address identity (legacy address-keyed rows).
+                $match = $candidates->first(fn ($zone) => $zone->sucursal_uid !== null && $zone->sucursal_uid === $uid)
+                    ?? ($code !== '' ? $candidates->first(fn ($zone) => trim((string) $zone->code) === $code) : null)
+                    ?? $candidates->first(fn ($zone) => $zone->sucursal_uid !== null && $zone->sucursal_uid === $addressUid);
+
+                $attributes = [
+                    'route' => $route['route'] ?? null,
+                    'zone' => $route['zone'] ?? null,
+                    'day' => $route['day'] ?? null,
+                    'address' => $route['address'] ?? null,
+                    'code' => $route['code'] ?? null,
+                ];
+
+                if ($match) {
+                    $matchedIds[] = $match->id;
+                    // Identity (sucursal_uid) is intentionally left untouched.
+                    $match->update($attributes);
+                    $zone = $match;
+                } else {
+                    $zone = $user->zones()->create($attributes);
+                }
+
+                $processedIds[] = $zone->id;
+                $syncedZones[] = [
+                    'id' => $zone->id,
+                    'code' => $zone->code,
+                    'zone' => $zone->zone,
+                    'route' => $zone->route,
+                ];
+            }
+
+            // Remove zones that disappeared from the rutero, but only when no order references them.
+            if ($pruneMissing) {
+                foreach ($existingZones->whereNotIn('id', $processedIds) as $stale) {
+                    if (! \App\Models\Order::where('zone_id', $stale->id)->exists()) {
+                        $stale->delete();
+                    }
+                }
+            }
+
+            return $syncedZones;
+        });
+    }
+
+    /**
      * Sync rutero data for a user and update their zones
      * This ensures we have current rutero data before processing orders
      * 
@@ -349,62 +426,10 @@ class UserRepository
             ]);
 
             if ($data && isset($data['routes'])) {
-                $existingZones = $user->zones()->orderBy('id')->get();
                 $newRoutes = $data['routes'];
 
-                // Update existing zones or create new ones (don't delete - they may be referenced by orders)
-                $syncedZones = [];
-                $processedZoneIds = [];
-                $matchedExistingIds = [];
-
-                foreach ($newRoutes as $index => $route) {
-                    $routeCode = $route['code'] ?? null;
-
-                    // Match by code, skipping zones already matched by a previous route
-                    $existingZone = null;
-                    if ($routeCode !== null && $routeCode !== '') {
-                        $existingZone = $existingZones
-                            ->whereNotIn('id', $matchedExistingIds)
-                            ->firstWhere('code', $routeCode);
-                    }
-
-                    // Fall back to next available unmatched zone
-                    if (!$existingZone) {
-                        $existingZone = $existingZones
-                            ->whereNotIn('id', $matchedExistingIds)
-                            ->first();
-                    }
-
-                    if ($existingZone) {
-                        $matchedExistingIds[] = $existingZone->id;
-                        $existingZone->update([
-                            'route' => $route['route'] ?? null,
-                            'zone' => $route['zone'] ?? null,
-                            'day' => $route['day'] ?? null,
-                            'address' => $route['address'] ?? null,
-                            'code' => $route['code'] ?? null,
-                        ]);
-                        $zone = $existingZone;
-                        $processedZoneIds[] = $existingZone->id;
-                    } else {
-                        // Create new zone
-                        $zone = $user->zones()->create([
-                            'route' => $route['route'] ?? null,
-                            'zone' => $route['zone'] ?? null,
-                            'day' => $route['day'] ?? null,
-                            'address' => $route['address'] ?? null,
-                            'code' => $route['code'] ?? null,
-                        ]);
-                        $processedZoneIds[] = $zone->id;
-                    }
-
-                    $syncedZones[] = [
-                        'id' => $zone->id,
-                        'code' => $zone->code,
-                        'zone' => $zone->zone,
-                        'route' => $zone->route,
-                    ];
-                }
+                // Reconcile zone rows by stable sucursal identity (no index-based repurposing).
+                $syncedZones = self::applyRoutesToZones($user, $newRoutes);
 
                 $routeCount = is_countable($newRoutes) ? count($newRoutes) : 0;
                 if ($routeCount > 1) {
@@ -421,16 +446,6 @@ class UserRepository
                             'routes_count' => $routeCount,
                             'routes_missing_code' => $missingCustId,
                         ]);
-                    }
-                }
-
-                // Only delete zones that are NOT referenced by any orders
-                $zonesToDelete = $existingZones->whereNotIn('id', $processedZoneIds);
-                foreach ($zonesToDelete as $zoneToDelete) {
-                    // Check if zone is referenced by orders
-                    $hasOrders = \App\Models\Order::where('zone_id', $zoneToDelete->id)->exists();
-                    if (!$hasOrders) {
-                        $zoneToDelete->delete();
                     }
                 }
 

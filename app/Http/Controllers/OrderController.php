@@ -470,28 +470,9 @@ class OrderController extends Controller
                 try {
                     $data = UserRepository::getCustomRuteroId($client->document);
                     if ($data && isset($data['routes'])) {
-                        $existingZones = $client->zones()->get();
-                        $newRoutes = $data['routes'];
-                        foreach ($newRoutes as $index => $route) {
-                            $zoneToUpdate = $existingZones[$index] ?? null;
-                            if ($zoneToUpdate) {
-                                $zoneToUpdate->update([
-                                    'route' => $route['route'],
-                                    'zone' => $route['zone'],
-                                    'day' => $route['day'],
-                                    'address' => $route['address'],
-                                    'code' => $route['code'],
-                                ]);
-                            } else {
-                                $client->zones()->create([
-                                    'route' => $route['route'],
-                                    'zone' => $route['zone'],
-                                    'day' => $route['day'],
-                                    'address' => $route['address'],
-                                    'code' => $route['code'],
-                                ]);
-                            }
-                        }
+                        // Identity-aware reconcile (no index-based row repurposing). Keep the
+                        // reorder path's historical behavior of never deleting existing rows.
+                        UserRepository::applyRoutesToZones($client, $data['routes'], pruneMissing: false);
                         $client->refresh();
                     }
                 } catch (\Throwable $th) {

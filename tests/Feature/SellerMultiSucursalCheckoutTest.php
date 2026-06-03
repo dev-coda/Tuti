@@ -167,6 +167,109 @@ it('seller checkout trusts posted zone_id when hidden sucursal fields are stale 
     expect($order->zone_id)->toBe($selected->id);
 });
 
+it('checkout selects the sucursal by stable sucursal_uid even when posted zone_id is stale', function () {
+    $s = createSellerAndClientWithProductAndThreeZones();
+    $selected = $s['zones'][2];
+    $staleZoneId = $s['zones'][0]->id;
+
+    expect($selected->sucursal_uid)->toBe('cust:'.$selected->code);
+
+    session([
+        'user_id' => $s['client']->id,
+        'cart' => [
+            [
+                'product_id' => $s['product']->id,
+                'quantity' => 1,
+                'variation_id' => null,
+            ],
+        ],
+    ]);
+
+    $response = actingAs($s['seller'])->post(route('cart.process'), [
+        // Stale row id (e.g. cached page / churned ids), but the stable identity is correct.
+        'zone_id' => (string) $staleZoneId,
+        'sucursal_uid' => $selected->sucursal_uid,
+        'delivery_method' => 'tronex',
+    ]);
+
+    $response->assertRedirect();
+    $order = Order::latest('id')->first();
+    expect($order)->not->toBeNull();
+    expect($order->zone_id)->toBe($selected->id);
+    expect($order->zone_snapshot['zone'] ?? null)->toBe($selected->zone);
+});
+
+it('falls back to posted zone_id when sucursal_uid is empty (pre-backfill / cached page)', function () {
+    $s = createSellerAndClientWithProductAndThreeZones();
+    $selected = $s['zones'][1];
+
+    session([
+        'user_id' => $s['client']->id,
+        'cart' => [
+            [
+                'product_id' => $s['product']->id,
+                'quantity' => 1,
+                'variation_id' => null,
+            ],
+        ],
+    ]);
+
+    $response = actingAs($s['seller'])->post(route('cart.process'), [
+        'zone_id' => (string) $selected->id,
+        'sucursal_uid' => '', // page rendered before backfill: no stable id available
+        'delivery_method' => 'tronex',
+    ]);
+
+    $response->assertRedirect();
+    $order = Order::latest('id')->first();
+    expect($order)->not->toBeNull();
+    expect($order->zone_id)->toBe($selected->id);
+});
+
+it('disambiguates duplicate sucursal_uid using the posted fingerprint', function () {
+    $s = createSellerAndClientWithProductAndThreeZones();
+
+    // Two uncoded rows sharing an address collapse to the same address-based identity.
+    // (Coded duplicates are impossible: zones has a UNIQUE(user_id, code) constraint.)
+    $dupA = Zone::create([
+        'user_id' => $s['client']->id,
+        'route' => 'RDUP-A', 'zone' => '777', 'day' => 'DiaA',
+        'address' => 'Calle Dup Compartida', 'code' => null,
+    ]);
+    $dupB = Zone::create([
+        'user_id' => $s['client']->id,
+        'route' => 'RDUP-B', 'zone' => '778', 'day' => 'DiaB',
+        'address' => 'Calle Dup Compartida', 'code' => null,
+    ]);
+    expect($dupA->sucursal_uid)->toBe($dupB->sucursal_uid);
+
+    session([
+        'user_id' => $s['client']->id,
+        'cart' => [
+            [
+                'product_id' => $s['product']->id,
+                'quantity' => 1,
+                'variation_id' => null,
+            ],
+        ],
+    ]);
+
+    $response = actingAs($s['seller'])->post(route('cart.process'), [
+        'zone_id' => (string) $dupA->id, // ambiguous; fingerprint should decide
+        'sucursal_uid' => $dupB->sucursal_uid,
+        'sucursal_route' => $dupB->route,
+        'sucursal_zone' => $dupB->zone,
+        'sucursal_day' => $dupB->day,
+        'sucursal_address' => $dupB->address,
+        'delivery_method' => 'tronex',
+    ]);
+
+    $response->assertRedirect();
+    $order = Order::latest('id')->first();
+    expect($order)->not->toBeNull();
+    expect($order->zone_id)->toBe($dupB->id);
+});
+
 it('xml keeps checkout sucursal when zone row changes after order creation', function () {
     $s = createSellerAndClientWithProductAndThreeZones();
     $selected = $s['zones'][1];
