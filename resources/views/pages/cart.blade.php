@@ -489,6 +489,7 @@
                             </svg>
                             Dirección de entrega
                         </label>
+                        <input type="hidden" name="sucursal_uid" id="checkout-sucursal-uid" value="">
                         <input type="hidden" name="sucursal_code" id="checkout-sucursal-code" value="">
                         <input type="hidden" name="sucursal_zone_id" id="checkout-sucursal-zone-id" value="">
                         <input type="hidden" name="sucursal_route" id="checkout-sucursal-route" value="">
@@ -499,6 +500,7 @@
                             @foreach($zoneOptions as $z)
                                 <option
                                     value="{{ $z->id }}"
+                                    data-sucursal-uid="{{ $z->sucursal_uid ?? '' }}"
                                     data-sucursal-code="{{ $z->code ?? '' }}"
                                     data-sucursal-route="{{ $z->route ?? '' }}"
                                     data-sucursal-zone="{{ $z->zone ?? '' }}"
@@ -953,6 +955,7 @@
         const deliveryOptions = document.querySelectorAll('.delivery-option');
         const deliveryMethodInput = document.getElementById('delivery_method');
         const zoneSelect = document.getElementById('states');
+        const sucursalUidInput = document.getElementById('checkout-sucursal-uid');
         const sucursalCodeInput = document.getElementById('checkout-sucursal-code');
         const sucursalZoneIdInput = document.getElementById('checkout-sucursal-zone-id');
         const sucursalRouteInput = document.getElementById('checkout-sucursal-route');
@@ -965,6 +968,9 @@
                 return;
             }
             const opt = zoneSelect.options[zoneSelect.selectedIndex];
+            if (sucursalUidInput) {
+                sucursalUidInput.value = opt ? (opt.getAttribute('data-sucursal-uid') || '') : '';
+            }
             sucursalCodeInput.value = opt ? (opt.getAttribute('data-sucursal-code') || '') : '';
             if (sucursalZoneIdInput) {
                 sucursalZoneIdInput.value = zoneSelect.value || '';

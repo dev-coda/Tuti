@@ -2190,9 +2190,31 @@ class CartController extends Controller
             'address' => $this->normalizeCheckoutZoneText($request->input('sucursal_address')),
         ];
 
+        $rawSucursalUid = $request->input('sucursal_uid');
+        $sucursalUid = is_string($rawSucursalUid) ? trim($rawSucursalUid) : '';
+        $sucursalUid = $sucursalUid !== '' ? $sucursalUid : null;
+
         $zone = null;
 
-        if ($requestedZoneId !== null) {
+        // Primary: the stable sucursal identity. Rutero sync never repurposes a row's
+        // sucursal_uid, so this selection survives the pre-checkout sync and any zone_id row
+        // churn — it identifies the exact sucursal the user picked, not a mutable row id.
+        if ($sucursalUid !== null) {
+            $byUid = $actingUser->zones->where('sucursal_uid', $sucursalUid);
+            if ($byUid->count() === 1) {
+                $zone = $byUid->first();
+            } elseif ($byUid->count() > 1) {
+                // Legacy duplicate identity (e.g. two uncoded rows sharing an address).
+                $fingerprintMatches = $byUid->filter(function ($candidate) use ($zoneFingerprint) {
+                    return $this->zoneMatchesCheckoutFingerprint($candidate, $zoneFingerprint);
+                });
+                if ($fingerprintMatches->count() === 1) {
+                    $zone = $fingerprintMatches->first();
+                }
+            }
+        }
+
+        if (! $zone && $requestedZoneId !== null) {
             $candidate = Zone::where('id', $requestedZoneId)
                 ->where('user_id', $actingUser->id)
                 ->first();
