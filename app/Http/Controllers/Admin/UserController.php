@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\City;
+use App\Models\ExportFile;
 use App\Models\Order;
 use App\Models\State;
 use App\Models\User;
@@ -16,7 +17,6 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Carbon\Carbon;
 use App\Exports\UsersExport;
-use Maatwebsite\Excel\Facades\Excel;
 
 class UserController extends Controller
 {
@@ -173,9 +173,78 @@ class UserController extends Controller
         return back()->with('success', 'Contraseña actualizada');
     }
 
+    /**
+     * Queue an async export of all clients.
+     *
+     * The full clients list is too large to export synchronously (it times out
+     * and exhausts memory in production), so the file is generated in the
+     * background and made available via "Mis Exportaciones".
+     */
     public function export()
     {
-        return Excel::download(new UsersExport, 'usuarios.xlsx');
+        $timestamp = time();
+        $filename = "clientes_{$timestamp}.xlsx";
+
+        $exportFile = ExportFile::create([
+            'user_id' => auth()->id(),
+            'type' => 'clients',
+            'filename' => $filename,
+            'file_path' => "exports/clients/{$filename}",
+            'status' => ExportFile::STATUS_PENDING,
+            'params' => [
+                'label' => 'Clientes ' . now()->format('d/m/Y H:i'),
+            ],
+        ]);
+
+        try {
+            (new UsersExport())
+                ->queue($exportFile->file_path, 'local')
+                ->chain([
+                    function () use ($exportFile) {
+                        $totalRecords = User::query()->whereDoesntHave('roles')->count();
+                        $exportFile->markAsCompleted($totalRecords);
+                    },
+                ]);
+
+            $exportFile->markAsProcessing();
+
+            return back()->with('success', 'La exportación de clientes se está generando en segundo plano. Aparecerá en "Mis Exportaciones" cuando esté lista.');
+        } catch (\Throwable $e) {
+            $exportFile->markAsFailed($e->getMessage());
+
+            return back()->with('error', 'No se pudo iniciar la exportación: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * List the current user's client exports (JSON, used by the exports modal).
+     */
+    public function getExports()
+    {
+        $exports = ExportFile::forUser(auth()->id())
+            ->where('type', 'clients')
+            ->recent(90)
+            ->orderByDesc('created_at')
+            ->get()
+            ->map(function ($export) {
+                return [
+                    'id' => $export->id,
+                    'filename' => $export->filename,
+                    'status' => $export->status,
+                    'label' => $export->params['label'] ?? $export->filename,
+                    'total_records' => $export->total_records,
+                    'file_size' => $export->file_size,
+                    'created_at' => $export->created_at->format('Y-m-d H:i'),
+                    'completed_at' => $export->completed_at?->format('Y-m-d H:i'),
+                    'download_url' => $export->download_url,
+                    'is_completed' => $export->isCompleted(),
+                    'is_processing' => $export->isProcessing(),
+                    'has_failed' => $export->hasFailed(),
+                    'error_message' => $export->error_message,
+                ];
+            });
+
+        return response()->json($exports);
     }
 
     public function updateZone48h(Request $request, User $user, Zone $zone)

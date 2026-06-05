@@ -6,11 +6,22 @@
 
 <div class="p-4 bg-white block sm:flex items-center justify-between border-b border-gray-200">
     <div class="w-full mb-1">
-    <div class="mb-4 flex justify-between">
+    <div class="mb-4 flex items-center justify-between">
             <h1 class="text-xl font-semibold text-gray-900 sm:text-2xl ">Clientes</h1>
-            <a href="/userexport">
-                @svg('heroicon-o-arrow-down-on-square', 'w-8 h-8 text-blue-500')
-            </a>
+            <div class="flex items-center gap-2">
+                <a href="{{ route('admin.export.users') }}"
+                   class="inline-flex items-center px-3 py-2 text-sm font-medium text-white rounded-lg bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300"
+                   title="Generar exportación de clientes">
+                    @svg('heroicon-o-arrow-down-on-square', 'w-5 h-5 sm:mr-2')
+                    <span class="hidden sm:inline">Exportar clientes</span>
+                </a>
+                <button type="button" onclick="openClientExportsModal()"
+                        class="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:ring-4 focus:ring-gray-100"
+                        title="Ver exportaciones generadas">
+                    @svg('heroicon-o-clock', 'w-5 h-5 sm:mr-2')
+                    <span class="hidden sm:inline">Mis Exportaciones</span>
+                </button>
+            </div>
         </div>
         <div class="items-center justify-between block sm:flex md:divide-x md:divide-gray-100 ">
             <div class="flex items-center mb-4 sm:mb-0">
@@ -192,14 +203,127 @@
 
 {{ $users->withQueryString()->links() }} 
 
+<!-- Client Exports List Modal -->
+<div id="clientExportsModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-6 border w-full max-w-2xl shadow-lg rounded-md bg-white">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-medium text-gray-900">Mis Exportaciones de Clientes</h3>
+            <button onclick="closeClientExportsModal()" class="text-gray-400 hover:text-gray-600">
+                @svg('heroicon-o-x-mark', 'w-6 h-6')
+            </button>
+        </div>
+        <div id="clientExportsList" class="space-y-2 max-h-[60vh] overflow-y-auto">
+            <div class="text-center py-8 text-gray-500">Cargando exportaciones...</div>
+        </div>
+        <div class="mt-6 flex justify-end">
+            <button onclick="closeClientExportsModal()"
+                    class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+                Cerrar
+            </button>
+        </div>
+    </div>
+</div>
 
+@endsection
 
+@section('scripts')
+<script>
+let clientExportsPollInterval = null;
 
+function openClientExportsModal() {
+    document.getElementById('clientExportsModal').classList.remove('hidden');
+    loadClientExportsList();
+}
 
+function closeClientExportsModal() {
+    document.getElementById('clientExportsModal').classList.add('hidden');
+    stopClientExportsPolling();
+}
 
+async function loadClientExportsList() {
+    const container = document.getElementById('clientExportsList');
 
+    try {
+        const response = await fetch('{{ route('admin.exports.clients.list') }}');
+        const exports = await response.json();
 
+        if (!exports.length) {
+            container.innerHTML = `
+                <div class="text-center py-8 text-gray-500">
+                    <p>Aún no tienes exportaciones de clientes.</p>
+                    <p class="text-sm mt-2">Usa el botón "Exportar clientes" para generar una.</p>
+                </div>`;
+            stopClientExportsPolling();
+            return;
+        }
 
+        container.innerHTML = exports.map(createClientExportCard).join('');
 
+        // Keep polling while any export is still processing.
+        if (exports.some(exp => exp.is_processing)) {
+            startClientExportsPolling();
+        } else {
+            stopClientExportsPolling();
+        }
+    } catch (error) {
+        console.error('Error loading client exports:', error);
+        container.innerHTML = '<div class="text-center py-8 text-red-500">Error al cargar las exportaciones</div>';
+    }
+}
 
+function startClientExportsPolling() {
+    if (clientExportsPollInterval) return;
+    clientExportsPollInterval = setInterval(loadClientExportsList, 5000);
+}
+
+function stopClientExportsPolling() {
+    if (clientExportsPollInterval) {
+        clearInterval(clientExportsPollInterval);
+        clientExportsPollInterval = null;
+    }
+}
+
+function createClientExportCard(exp) {
+    let statusBadge = '';
+    let actionButton = '';
+
+    if (exp.status === 'completed') {
+        statusBadge = '<span class="px-2 py-1 text-xs font-semibold text-green-800 bg-green-100 rounded-full">Completado</span>';
+        actionButton = `
+            <a href="${exp.download_url}"
+               class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded hover:bg-blue-700">
+                Descargar
+            </a>`;
+    } else if (exp.is_processing) {
+        statusBadge = '<span class="px-2 py-1 text-xs font-semibold text-yellow-800 bg-yellow-100 rounded-full">Procesando</span>';
+        actionButton = `<span class="text-sm text-gray-500">Preparando archivo...</span>`;
+    } else if (exp.status === 'failed') {
+        statusBadge = '<span class="px-2 py-1 text-xs font-semibold text-red-800 bg-red-100 rounded-full">Error</span>';
+        actionButton = `<span class="text-sm text-red-600">${exp.error_message || 'Error desconocido'}</span>`;
+    }
+
+    return `
+        <div class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
+            <div class="flex justify-between items-start">
+                <div class="flex-1">
+                    <div class="flex items-center gap-2 mb-2">
+                        <h4 class="text-sm font-semibold text-gray-900">${exp.label}</h4>
+                        ${statusBadge}
+                    </div>
+                    <div class="text-xs text-gray-600 space-y-1">
+                        <p>Creado: ${exp.created_at}</p>
+                        ${exp.completed_at ? `<p>Completado: ${exp.completed_at}</p>` : ''}
+                        ${exp.total_records ? `<p>Registros: ${exp.total_records.toLocaleString()}</p>` : ''}
+                        ${exp.file_size && exp.status === 'completed' ? `<p>Tamaño: ${exp.file_size}</p>` : ''}
+                    </div>
+                </div>
+                <div class="ml-4">${actionButton}</div>
+            </div>
+        </div>`;
+}
+
+document.getElementById('clientExportsModal').addEventListener('click', function (e) {
+    if (e.target === this) closeClientExportsModal();
+});
+</script>
 @endsection
