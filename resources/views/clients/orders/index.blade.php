@@ -116,6 +116,7 @@
                 @include('clients.orders.partials.orders-tab-panel', [
                     'tabKey' => 'orders-today',
                     'pageParam' => 'today_page',
+                    'showFilters' => false,
                     'orders' => $dailyOrders,
                     'statuses' => $statuses,
                     'sellerDashToday' => $sellerDashToday,

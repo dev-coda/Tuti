@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\ClientOrdersExport;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Order;
@@ -14,6 +15,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use App\Repositories\UserRepository;
+use Maatwebsite\Excel\Facades\Excel;
 
 class OrderController extends Controller
 {
@@ -62,6 +64,32 @@ class OrderController extends Controller
             'recentFilters',
             'todayFilters'
         ));
+    }
+
+    public function export(Request $request)
+    {
+        $user = auth()->user();
+        $isSeller = $user->hasAnyRole(['seller', 'supervisor']);
+        $tab = (string) $request->input('tab', 'orders');
+        $isTodayTab = $tab === 'orders-today' && $isSeller;
+
+        $filters = $isTodayTab
+            ? $this->extractOrderFilters($request, 'today_')
+            : $this->extractOrderFilters($request);
+
+        if ($isTodayTab) {
+            $today = Carbon::now($this->sellerReportTimezone())->format('Y-m-d');
+            $filters = $this->normalizeDailyFilters($filters, $today);
+        }
+
+        $orders = $this->buildOrdersQuery($user, $filters, $request)
+            ->orderByDesc('id')
+            ->get();
+
+        $filePrefix = $isTodayTab ? 'pedidos-del-dia' : 'pedidos-recientes';
+        $fileName = $filePrefix . '-' . now()->format('Ymd-His') . '.xlsx';
+
+        return Excel::download(new ClientOrdersExport($orders), $fileName);
     }
 
     /**

@@ -10,8 +10,20 @@
     ];
     $filters = $filters ?? [];
     $emptyMessage = $emptyMessage ?? 'No tienes pedidos.';
+    $showFilters = $showFilters ?? true;
+    $exportParams = request()->query();
+    unset($exportParams['page'], $exportParams['today_page'], $exportParams[$pageParam]);
+    $exportParams['tab'] = $tabKey;
+    $exportUrl = route('clients.orders.export', $exportParams);
 @endphp
 
+<div class="flex justify-end mb-4">
+    <a href="{{ $exportUrl }}" class="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors">
+        Descargar Excel
+    </a>
+</div>
+
+@if($showFilters)
 <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-4 sm:p-6 mb-6">
     <form method="GET" action="{{ route('clients.orders.index') }}" data-orders-form data-tab="{{ $tabKey }}" data-page-param="{{ $pageParam }}">
         <input type="hidden" name="tab" value="{{ $tabKey }}">
@@ -73,6 +85,7 @@
         </div>
     </form>
 </div>
+@endif
 
 <div class="space-y-4">
     @forelse ($orders as $order)
