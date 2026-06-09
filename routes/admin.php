@@ -26,6 +26,7 @@ use App\Http\Controllers\Admin\VolumeDiscountController;
 use App\Http\Controllers\Admin\BannerController;
 use App\Http\Controllers\Admin\ContactController;
 use App\Http\Controllers\Admin\SellerController;
+use App\Http\Controllers\Admin\CustomerServiceContactController;
 use App\Http\Controllers\Admin\CustomerServiceRequestController;
 use App\Http\Controllers\Admin\FeaturedProductController;
 use App\Http\Controllers\Admin\FeaturedCategoryController;
@@ -277,6 +278,9 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
 
     // Content Pages CRUD (Dynamic content pages)
     Route::resource('content-pages', ContentPageController::class);
+
+    Route::get('customer-service/contact', [CustomerServiceContactController::class, 'edit'])->name('admin.customer-service.contact.edit');
+    Route::put('customer-service/contact', [CustomerServiceContactController::class, 'update'])->name('admin.customer-service.contact.update');
 
     // Upsell/Cross-sell Management
     Route::prefix('upsell-zones')->name('admin.upsell-zones.')->group(function () {
