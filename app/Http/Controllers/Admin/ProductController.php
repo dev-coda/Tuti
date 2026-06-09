@@ -16,6 +16,7 @@ use App\Models\Variation;
 use App\Models\VariationItem;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Image;
 use Illuminate\Support\Str as Str;
 use Closure;
@@ -444,6 +445,11 @@ class ProductController extends Controller
         $validate = $request->validate([
             'images' => 'required',
             'images.*' => 'image|max:4096',
+            'variation_item_id' => [
+                'nullable',
+                Rule::exists('product_item_variation', 'variation_item_id')
+                    ->where(fn ($query) => $query->where('product_id', $product->id)),
+            ],
         ]);
 
         $uploadedCount = 0;
@@ -454,6 +460,7 @@ class ProductController extends Controller
 
             $image = $product->images()->create([
                 'path' => $path,
+                'variation_item_id' => $validate['variation_item_id'] ?? null,
             ]);
 
             // Set position to max(position)+1 within this product
@@ -490,6 +497,28 @@ class ProductController extends Controller
         }
 
         return response()->json(['success' => true]);
+    }
+
+    public function updateImageVariation(Request $request, Product $product, ProductImage $image)
+    {
+        abort_unless((int) $image->product_id === (int) $product->id, 404);
+
+        $validate = $request->validate([
+            'variation_item_id' => [
+                'nullable',
+                Rule::exists('product_item_variation', 'variation_item_id')
+                    ->where(fn ($query) => $query->where('product_id', $product->id)),
+            ],
+        ]);
+
+        $image->update([
+            'variation_item_id' => $validate['variation_item_id'] ?? null,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'variation_item_id' => $image->variation_item_id,
+        ]);
     }
 
     public function export()

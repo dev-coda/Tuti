@@ -194,6 +194,26 @@
     <div class="xl:col-span-6 col-span-12">
         <div class="flex justify-center">
             <div class="w-full max-w-md">
+                @php
+                    $variationImageByItem = $product->images
+                        ->whereNotNull('variation_item_id')
+                        ->groupBy('variation_item_id')
+                        ->map(function ($images) {
+                            $firstImage = $images->sortBy('position')->first();
+                            return $firstImage ? asset('storage/' . $firstImage->path) : null;
+                        });
+                    $productImagesPayload = $product->images
+                        ->sortBy('position')
+                        ->values()
+                        ->map(function ($image) {
+                            return [
+                                'url' => asset('storage/' . $image->path),
+                                'variation_item_id' => $image->variation_item_id,
+                            ];
+                        })
+                        ->values()
+                        ->all();
+                @endphp
                 <!-- Main Image Card -->
                 <div class="w-full mb-4 relative bg-white rounded-2xl border border-gray-200 p-4">
                     @if($product->images->first())
@@ -204,9 +224,9 @@
 
                 <!-- Thumbnails -->
                 <div class="w-full flex justify-center">
-                    <ul class="flex gap-3">
+                    <ul id="product-thumbnails" class="flex gap-3 flex-wrap justify-center">
                         @foreach ($product->images as $index => $image)
-                        <li class="thumbnail-item {{ $index === 0 ? 'border-2 border-orange-500' : 'border-2 border-gray-200' }} rounded-lg p-1 hover:border-orange-500 transition-colors cursor-pointer bg-white">
+                        <li class="thumbnail-item {{ $index === 0 ? 'border-2 border-orange-500' : 'border-2 border-gray-200' }} rounded-lg p-1 hover:border-orange-500 transition-colors cursor-pointer bg-white" data-variation-item-id="{{ $image->variation_item_id ?? '' }}">
                             <a href="#" class="thumbnail-link" data-image="{{asset('storage/'.$image->path)}}">
                                 <img src="{{asset('storage/'.$image->path)}}" alt="{{ $product->name }}" class="w-14 h-14 object-contain">
                             </a>
@@ -316,6 +336,7 @@
                     data-has-discount="{{ $fpVar['has_discount'] ? '1' : '0' }}"
                     data-per-item="{{ $fpVar['perItemPrice'] ?? '' }}"
                     data-orderable-stock="{{ $itemOrderableStock }}"
+                    data-variation-image="{{ $variationImageByItem->get($item->id, '') }}"
                     @selected((int) $item->id === (int) $preferredVariationItemId)
                 >{{ $item->name }}</option>
                 @endforeach
@@ -609,15 +630,85 @@
     }
 
     $(function() {
-        // Thumbnail image click handler with selection indicator
-        $('.thumbnail-link').on('click', function(e) {
-            e.preventDefault();
-            var newImageSrc = $(this).data('image');
+        const productImages = @json($productImagesPayload);
+
+        function imagesForVariation(variationItemId) {
+            const variationId = variationItemId ? Number(variationItemId) : null;
+            const generalImages = productImages.filter(function(image) {
+                return image.variation_item_id === null;
+            });
+            const variationImages = productImages.filter(function(image) {
+                return variationId !== null && Number(image.variation_item_id) === variationId;
+            });
+
+            if (variationId !== null && variationImages.length > 0) {
+                return variationImages.concat(generalImages);
+            }
+
+            if (generalImages.length > 0) {
+                return generalImages;
+            }
+
+            return productImages.slice();
+        }
+
+        function updateMainImage(newImageSrc) {
+            if (!newImageSrc) {
+                return;
+            }
+
             $('#mainProductImage').attr('src', newImageSrc);
-            
-            // Update selection indicator
+
+            var $matchingThumb = $('.thumbnail-link').filter(function() {
+                return $(this).data('image') === newImageSrc;
+            }).first();
+
             $('.thumbnail-item').removeClass('border-orange-500').addClass('border-gray-200');
-            $(this).closest('.thumbnail-item').removeClass('border-gray-200').addClass('border-orange-500');
+            if ($matchingThumb.length) {
+                $matchingThumb.closest('.thumbnail-item')
+                    .removeClass('border-gray-200')
+                    .addClass('border-orange-500');
+            }
+        }
+
+        function renderThumbnails(images) {
+            const $list = $('#product-thumbnails');
+            $list.empty();
+
+            images.forEach(function(image, index) {
+                const borderClass = index === 0 ? 'border-orange-500' : 'border-gray-200';
+                const variationAttr = image.variation_item_id ?? '';
+                const item = $('<li>')
+                    .addClass('thumbnail-item border-2 ' + borderClass + ' rounded-lg p-1 hover:border-orange-500 transition-colors cursor-pointer bg-white')
+                    .attr('data-variation-item-id', variationAttr)
+                    .append(
+                        $('<a>')
+                            .attr('href', '#')
+                            .addClass('thumbnail-link')
+                            .attr('data-image', image.url)
+                            .append(
+                                $('<img>')
+                                    .attr('src', image.url)
+                                    .attr('alt', @json($product->name))
+                                    .addClass('w-14 h-14 object-contain')
+                            )
+                    );
+
+                $list.append(item);
+            });
+
+            if (images.length > 0) {
+                updateMainImage(images[0].url);
+            }
+        }
+
+        function applyVariationImages(variationItemId) {
+            renderThumbnails(imagesForVariation(variationItemId));
+        }
+
+        $('#product-thumbnails').on('click', '.thumbnail-link', function(e) {
+            e.preventDefault();
+            updateMainImage($(this).data('image'));
         });
 
         const step = parseInt('{{$product->step}}');
@@ -685,7 +776,11 @@
                         $low.addClass('hidden');
                     }
                 }
+
+                applyVariationImages($(this).val());
             });
+
+            $sel.trigger('change');
         }
 
     })

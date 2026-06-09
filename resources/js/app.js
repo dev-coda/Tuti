@@ -172,6 +172,9 @@ if (imageReorderEl) {
     const props = {
         images: JSON.parse(imageReorderEl.dataset.images || "[]"),
         reorderUrl: imageReorderEl.dataset.reorderUrl,
+        variationItems: JSON.parse(
+            imageReorderEl.dataset.variationItems || "[]"
+        ),
         csrf: document
             .querySelector('meta[name="csrf-token"]')
             .getAttribute("content"),
