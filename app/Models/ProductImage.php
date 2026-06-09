@@ -12,5 +12,11 @@ class ProductImage extends Model
     protected $fillable = [
         'path',
         'position',
+        'variation_item_id',
     ];
+
+    public function variationItem()
+    {
+        return $this->belongsTo(VariationItem::class);
+    }
 }

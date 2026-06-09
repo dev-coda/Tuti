@@ -80,7 +80,29 @@
                                     </div>
                                 @endif
                             </td>
-                            
+
+                            <td class="px-4 py-3">
+                                @php
+                                    $variationImages = $product->images
+                                        ->where('variation_item_id', $item->id)
+                                        ->sortBy('position');
+                                    $primaryVariationImage = $variationImages->first();
+                                @endphp
+                                @if($primaryVariationImage)
+                                    <div class="flex items-center gap-2">
+                                        <img
+                                            src="{{ asset('storage/'.$primaryVariationImage->path) }}"
+                                            alt="{{ $item->name }}"
+                                            class="w-12 h-12 object-contain rounded border border-gray-200 bg-white"
+                                        >
+                                        @if($variationImages->count() > 1)
+                                            <span class="text-xs text-gray-500">+{{ $variationImages->count() - 1 }}</span>
+                                        @endif
+                                    </div>
+                                @else
+                                    <span class="text-xs text-gray-400">Sin imagen</span>
+                                @endif
+                            </td>
 
                         
                         </tr>
