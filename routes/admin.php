@@ -26,6 +26,7 @@ use App\Http\Controllers\Admin\VolumeDiscountController;
 use App\Http\Controllers\Admin\BannerController;
 use App\Http\Controllers\Admin\ContactController;
 use App\Http\Controllers\Admin\SellerController;
+use App\Http\Controllers\Admin\CustomerServiceContactController;
 use App\Http\Controllers\Admin\CustomerServiceRequestController;
 use App\Http\Controllers\Admin\FeaturedProductController;
 use App\Http\Controllers\Admin\FeaturedCategoryController;
@@ -81,6 +82,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::post('/products/{product}/images', [ProductController::class, 'images'])->name('products.images');
     Route::delete('/products/{product}/images/{image}', [ProductController::class, 'images_delete'])->name('products.images_delete');
     Route::post('/products/{product}/images/reorder', [ProductController::class, 'reorderImages'])->name('products.images_reorder');
+    Route::patch('/products/{product}/images/{image}/variation', [ProductController::class, 'updateImageVariation'])->name('products.images_variation');
 
     Route::delete('/products/{product}/add_combined', [ProductController::class, 'add_combined'])->name('products.add_combined');
     Route::delete('/products/{product}/sync_combined', [ProductController::class, 'sync_combined'])->name('products.sync_combined');
@@ -288,6 +290,9 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
 
     // Content Pages CRUD (Dynamic content pages)
     Route::resource('content-pages', ContentPageController::class);
+
+    Route::get('customer-service/contact', [CustomerServiceContactController::class, 'edit'])->name('admin.customer-service.contact.edit');
+    Route::put('customer-service/contact', [CustomerServiceContactController::class, 'update'])->name('admin.customer-service.contact.update');
 
     // Upsell/Cross-sell Management
     Route::prefix('upsell-zones')->name('admin.upsell-zones.')->group(function () {

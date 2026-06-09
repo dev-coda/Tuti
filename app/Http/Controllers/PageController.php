@@ -14,6 +14,7 @@ use Transliterator;
 use App\Models\City;
 use App\Models\Contact;
 use App\Models\CustomerServiceRequest;
+use App\Models\Setting;
 use App\Models\State;
 use App\Models\User;
 use Illuminate\Support\Facades\Storage;
@@ -519,7 +520,20 @@ class PageController extends Controller
 
     public function customerService()
     {
-        return view('pages.customer-service');
+        $contact = [
+            'address' => Setting::getByKeyWithDefault(
+                'customer_service_address',
+                'Cra. 67 #1 S-92, Guayabal, Medellín, Guayabal, Medellín, Antioquia'
+            ),
+            'phone' => Setting::getByKeyWithDefault('customer_service_phone', '44488090'),
+            'whatsapp' => Setting::getByKeyWithDefault('customer_service_whatsapp', ''),
+            'whatsapp_note' => Setting::getByKeyWithDefault(
+                'customer_service_whatsapp_note',
+                'Número de WhatsApp pendiente de confirmación.'
+            ),
+        ];
+
+        return view('pages.customer-service', compact('contact'));
     }
 
     public function customerServiceStore(Request $request)

@@ -39,25 +39,35 @@
                 <div class="space-y-4 text-sm text-gray-700">
                     <div>
                         <p class="text-xs uppercase tracking-wide text-gray-500 mb-1">Dirección</p>
-                        <p>Cra. 67 #1 S-92, Guayabal, Medellín, Guayabal, Medellín, Antioquia</p>
+                        <p>{{ $contact['address'] }}</p>
                     </div>
 
                     <div>
                         <p class="text-xs uppercase tracking-wide text-gray-500 mb-1">Teléfono</p>
-                        <p>44488090</p>
+                        <p>
+                            <a href="tel:{{ preg_replace('/\D+/', '', $contact['phone']) }}" class="hover:text-orange-700">
+                                {{ $contact['phone'] }}
+                            </a>
+                        </p>
                     </div>
 
                     <div>
                         <p class="text-xs uppercase tracking-wide text-gray-500 mb-1">Celular / WhatsApp</p>
-                        <a
-                            href="https://web.whatsapp.com/send?phone=573000000000"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            class="inline-flex items-center gap-2 text-green-700 hover:text-green-800 font-medium underline underline-offset-2"
-                        >
-                            Abrir WhatsApp Web
-                        </a>
-                        <p class="text-xs text-gray-500 mt-1">Número de WhatsApp pendiente de confirmación.</p>
+                        @if(!empty($contact['whatsapp']))
+                            <a
+                                href="https://web.whatsapp.com/send?phone={{ $contact['whatsapp'] }}"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="inline-flex items-center gap-2 text-green-700 hover:text-green-800 font-medium underline underline-offset-2"
+                            >
+                                Abrir WhatsApp Web
+                            </a>
+                        @else
+                            <p class="text-gray-500">WhatsApp no configurado.</p>
+                        @endif
+                        @if(!empty($contact['whatsapp_note']))
+                            <p class="text-xs text-gray-500 mt-1">{{ $contact['whatsapp_note'] }}</p>
+                        @endif
                     </div>
                 </div>
             </div>

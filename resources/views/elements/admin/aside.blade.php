@@ -91,6 +91,7 @@
                         :menu="[
                             'admin.content.index'=>'Gestión de Contenido',
                             'content-pages.index'=>'Páginas de Contenido',
+                            'admin.customer-service.contact.edit'=>'Servicio al Cliente',
                             ]" />
 
                     <x-dropdown title='Configuraciones'
