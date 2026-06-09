@@ -24,7 +24,7 @@
                         </a>
                     </li>
                     @else
-                
+
                     <li>
                         <a href="{{ route('dashboard') }}">
                             @svg('heroicon-o-home', 'w-6 h-6 text-gray-500')

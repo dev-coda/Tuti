@@ -3,6 +3,7 @@
 use App\Jobs\SyncProductInventory;
 use App\Models\Bonification;
 use App\Models\Brand;
+use App\Models\Coupon;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductInventory;
@@ -1465,4 +1466,285 @@ it('shows bonifications section in order details page', function () {
         ->assertSeeText('Bonificaciones aplicadas')
         ->assertSeeText('Order detail bonification')
         ->assertSeeText('Gift order bonif detail');
+});
+
+it('keeps vendor minimum discount on non-bonification products during checkout', function () {
+    $user = User::first();
+
+    Setting::updateOrCreate(
+        ['key' => 'inventory_enabled'],
+        ['name' => 'Inventory enabled', 'value' => '0', 'show' => false]
+    );
+    Setting::updateOrCreate(
+        ['key' => 'min_amount'],
+        ['name' => 'Min amount', 'value' => '0', 'show' => false]
+    );
+
+    $tax = Tax::create(['name' => 'IVA bonif min discount', 'tax' => 0]);
+    $vendor = Vendor::create([
+        'name' => 'Vendor bonif min discount',
+        'slug' => 'vendor-bonif-min-discount',
+        'minimum_purchase' => 0,
+        'minimum_discount_amount' => 150,
+        'discount' => 20,
+        'discount_type' => 'percentage',
+        'first_purchase_only' => false,
+        'active' => 1,
+    ]);
+    $brand = Brand::create([
+        'name' => 'Brand bonif min discount',
+        'slug' => 'brand-bonif-min-discount',
+        'vendor_id' => $vendor->id,
+        'discount' => 0,
+        'discount_type' => 'percentage',
+        'first_purchase_only' => false,
+        'active' => 1,
+    ]);
+
+    $giftProduct = Product::create([
+        'name' => 'Gift min discount',
+        'description' => 'Gift',
+        'short_description' => 'Gift',
+        'sku' => 'GIFT-MIN-DISCOUNT',
+        'slug' => 'gift-min-discount',
+        'active' => 1,
+        'price' => 0,
+        'delivery_days' => 1,
+        'discount' => 0,
+        'discount_type' => 'percentage',
+        'first_purchase_only' => false,
+        'quantity_min' => 1,
+        'quantity_max' => 100,
+        'step' => 1,
+        'tax_id' => $tax->id,
+        'brand_id' => $brand->id,
+        'package_quantity' => 1,
+    ]);
+
+    $bonificationTriggerProduct = Product::create([
+        'name' => 'Trigger min discount',
+        'description' => 'Trigger',
+        'short_description' => 'Trigger',
+        'sku' => 'TRIGGER-MIN-DISCOUNT',
+        'slug' => 'trigger-min-discount',
+        'active' => 1,
+        'price' => 100,
+        'delivery_days' => 1,
+        'discount' => 0,
+        'discount_type' => 'percentage',
+        'first_purchase_only' => false,
+        'quantity_min' => 1,
+        'quantity_max' => 100,
+        'step' => 1,
+        'tax_id' => $tax->id,
+        'brand_id' => $brand->id,
+        'package_quantity' => 1,
+    ]);
+
+    $regularProduct = Product::create([
+        'name' => 'Regular min discount',
+        'description' => 'Regular',
+        'short_description' => 'Regular',
+        'sku' => 'REGULAR-MIN-DISCOUNT',
+        'slug' => 'regular-min-discount',
+        'active' => 1,
+        'price' => 100,
+        'delivery_days' => 1,
+        'discount' => 0,
+        'discount_type' => 'percentage',
+        'first_purchase_only' => false,
+        'quantity_min' => 1,
+        'quantity_max' => 100,
+        'step' => 1,
+        'tax_id' => $tax->id,
+        'brand_id' => $brand->id,
+        'package_quantity' => 1,
+    ]);
+
+    $bonification = Bonification::create([
+        'name' => 'Buy 1 get 1 (blocks discounts)',
+        'buy' => 1,
+        'get' => 1,
+        'product_id' => $giftProduct->id,
+        'max' => 10,
+        'allow_discounts' => false,
+    ]);
+    $bonificationTriggerProduct->bonifications()->attach($bonification->id);
+
+    $zone = Zone::create([
+        'route' => '1',
+        'zone' => '933',
+        'day' => 'Monday',
+        'address' => 'Address min discount',
+        'code' => 'MIN-DISCOUNT',
+        'user_id' => $user->id,
+    ]);
+
+    session()->put('cart', [
+        ['product_id' => $bonificationTriggerProduct->id, 'quantity' => 1, 'variation_id' => null],
+        ['product_id' => $regularProduct->id, 'quantity' => 1, 'variation_id' => null],
+    ]);
+
+    actingAs($user)
+        ->post(route('cart.process'), [
+            'zone_id' => $zone->id,
+            'observations' => 'Bonification + regular product minimum discount test',
+        ])
+        ->assertSessionMissing('error');
+
+    $order = Order::latest('id')->first();
+    expect($order)->not->toBeNull();
+
+    $lines = $order->products()->get()->keyBy('product_id');
+    expect($lines)->toHaveCount(2);
+    expect((int) $lines[$bonificationTriggerProduct->id]->percentage)->toBe(0);
+    expect((int) $lines[$regularProduct->id]->percentage)->toBe(20);
+});
+
+it('excludes bonification-blocked products from coupon totals at checkout', function () {
+    $user = User::first();
+
+    Setting::updateOrCreate(
+        ['key' => 'inventory_enabled'],
+        ['name' => 'Inventory enabled', 'value' => '0', 'show' => false]
+    );
+    Setting::updateOrCreate(
+        ['key' => 'min_amount'],
+        ['name' => 'Min amount', 'value' => '0', 'show' => false]
+    );
+
+    $tax = Tax::create(['name' => 'IVA bonif coupon filter', 'tax' => 0]);
+    $vendor = Vendor::create([
+        'name' => 'Vendor bonif coupon filter',
+        'slug' => 'vendor-bonif-coupon-filter',
+        'minimum_purchase' => 0,
+        'minimum_discount_amount' => 0,
+        'discount' => 0,
+        'discount_type' => 'percentage',
+        'first_purchase_only' => false,
+        'active' => 1,
+    ]);
+    $brand = Brand::create([
+        'name' => 'Brand bonif coupon filter',
+        'slug' => 'brand-bonif-coupon-filter',
+        'vendor_id' => $vendor->id,
+        'discount' => 0,
+        'discount_type' => 'percentage',
+        'first_purchase_only' => false,
+        'active' => 1,
+    ]);
+
+    $giftProduct = Product::create([
+        'name' => 'Gift coupon filter',
+        'description' => 'Gift',
+        'short_description' => 'Gift',
+        'sku' => 'GIFT-COUPON-FILTER',
+        'slug' => 'gift-coupon-filter',
+        'active' => 1,
+        'price' => 0,
+        'delivery_days' => 1,
+        'discount' => 0,
+        'discount_type' => 'percentage',
+        'first_purchase_only' => false,
+        'quantity_min' => 1,
+        'quantity_max' => 100,
+        'step' => 1,
+        'tax_id' => $tax->id,
+        'brand_id' => $brand->id,
+        'package_quantity' => 1,
+    ]);
+
+    $bonificationTriggerProduct = Product::create([
+        'name' => 'Trigger coupon filter',
+        'description' => 'Trigger',
+        'short_description' => 'Trigger',
+        'sku' => 'TRIGGER-COUPON-FILTER',
+        'slug' => 'trigger-coupon-filter',
+        'active' => 1,
+        'price' => 100,
+        'delivery_days' => 1,
+        'discount' => 0,
+        'discount_type' => 'percentage',
+        'first_purchase_only' => false,
+        'quantity_min' => 1,
+        'quantity_max' => 100,
+        'step' => 1,
+        'tax_id' => $tax->id,
+        'brand_id' => $brand->id,
+        'package_quantity' => 1,
+    ]);
+
+    $regularProduct = Product::create([
+        'name' => 'Regular coupon filter',
+        'description' => 'Regular',
+        'short_description' => 'Regular',
+        'sku' => 'REGULAR-COUPON-FILTER',
+        'slug' => 'regular-coupon-filter',
+        'active' => 1,
+        'price' => 100,
+        'delivery_days' => 1,
+        'discount' => 0,
+        'discount_type' => 'percentage',
+        'first_purchase_only' => false,
+        'quantity_min' => 1,
+        'quantity_max' => 100,
+        'step' => 1,
+        'tax_id' => $tax->id,
+        'brand_id' => $brand->id,
+        'package_quantity' => 1,
+    ]);
+
+    $bonification = Bonification::create([
+        'name' => 'Buy 1 get 1 blocks coupon',
+        'buy' => 1,
+        'get' => 1,
+        'product_id' => $giftProduct->id,
+        'max' => 10,
+        'allow_discounts' => false,
+    ]);
+    $bonificationTriggerProduct->bonifications()->attach($bonification->id);
+
+    $coupon = Coupon::create([
+        'code' => 'BONIFCOUPON30',
+        'name' => 'Bonif Coupon 30%',
+        'type' => 'percentage',
+        'value' => 30,
+        'valid_from' => now()->subDay(),
+        'valid_to' => now()->addDay(),
+        'applies_to' => 'cart',
+        'active' => true,
+    ]);
+
+    $zone = Zone::create([
+        'route' => '1',
+        'zone' => '933',
+        'day' => 'Monday',
+        'address' => 'Address coupon filter',
+        'code' => 'COUPON-FILTER',
+        'user_id' => $user->id,
+    ]);
+
+    session()->put('applied_coupons', [
+        ['coupon_id' => $coupon->id, 'coupon_code' => $coupon->code],
+    ]);
+    session()->put('cart', [
+        ['product_id' => $bonificationTriggerProduct->id, 'quantity' => 1, 'variation_id' => null],
+        ['product_id' => $regularProduct->id, 'quantity' => 1, 'variation_id' => null],
+    ]);
+
+    actingAs($user)
+        ->post(route('cart.process'), [
+            'zone_id' => $zone->id,
+            'observations' => 'Bonification blocked coupon contribution test',
+        ])
+        ->assertSessionMissing('error');
+
+    $order = Order::latest('id')->first();
+    expect($order)->not->toBeNull();
+
+    $lines = $order->products()->get()->keyBy('product_id');
+    expect($lines)->toHaveCount(2);
+    expect((int) $lines[$bonificationTriggerProduct->id]->percentage)->toBe(0);
+    expect((int) $lines[$regularProduct->id]->percentage)->toBe(30);
+    expect((float) $order->coupon_discount)->toBe(30.0);
 });

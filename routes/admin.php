@@ -93,6 +93,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::post('/users/{user}/password', [UserController::class, 'password'])->name('users.password');
     Route::patch('/users/{user}/zones/{zone}/48h', [UserController::class, 'updateZone48h'])->name('users.zones.48h.update');
     Route::get('/userexport', [UserController::class, 'export'])->name('admin.export.users');
+    Route::get('/clientexports', [UserController::class, 'getExports'])->name('admin.exports.clients.list');
     Route::get('/sellerexport', [SellerController::class, 'export'])->name('admin.export.sellers');
     Route::get('/productexport', [ProductController::class, 'export'])->name('admin.export.products');
     Route::get('/orderexport', [OrderController::class, 'export'])->name('admin.export.orders');

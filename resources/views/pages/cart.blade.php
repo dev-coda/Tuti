@@ -491,6 +491,7 @@
                         </label>
                         <input type="hidden" name="sucursal_uid" id="checkout-sucursal-uid" value="">
                         <input type="hidden" name="sucursal_code" id="checkout-sucursal-code" value="">
+                        <input type="hidden" name="sucursal_zone_id" id="checkout-sucursal-zone-id" value="">
                         <input type="hidden" name="sucursal_route" id="checkout-sucursal-route" value="">
                         <input type="hidden" name="sucursal_zone" id="checkout-sucursal-zone" value="">
                         <input type="hidden" name="sucursal_day" id="checkout-sucursal-day" value="">
@@ -956,6 +957,7 @@
         const zoneSelect = document.getElementById('states');
         const sucursalUidInput = document.getElementById('checkout-sucursal-uid');
         const sucursalCodeInput = document.getElementById('checkout-sucursal-code');
+        const sucursalZoneIdInput = document.getElementById('checkout-sucursal-zone-id');
         const sucursalRouteInput = document.getElementById('checkout-sucursal-route');
         const sucursalZoneInput = document.getElementById('checkout-sucursal-zone');
         const sucursalDayInput = document.getElementById('checkout-sucursal-day');
@@ -970,6 +972,9 @@
                 sucursalUidInput.value = opt ? (opt.getAttribute('data-sucursal-uid') || '') : '';
             }
             sucursalCodeInput.value = opt ? (opt.getAttribute('data-sucursal-code') || '') : '';
+            if (sucursalZoneIdInput) {
+                sucursalZoneIdInput.value = zoneSelect.value || '';
+            }
             if (sucursalRouteInput) {
                 sucursalRouteInput.value = opt ? (opt.getAttribute('data-sucursal-route') || '') : '';
             }

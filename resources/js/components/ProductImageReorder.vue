@@ -33,6 +33,13 @@
             </div>
         </div>
 
+        <p
+            v-if="hasVariationItems"
+            class="text-xs text-gray-500"
+        >
+            Asigna cada imagen a una variación para que se muestre cuando el cliente la seleccione. Las imágenes sin variación se muestran siempre.
+        </p>
+
         <div
             ref="grid"
             class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4"
@@ -41,7 +48,7 @@
             <div
                 v-for="(img, index) in localImages"
                 :key="img.id"
-                class="group relative rounded-lg overflow-hidden bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow cursor-move"
+                class="group relative rounded-lg overflow-hidden bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow cursor-move flex flex-col"
                 draggable="true"
                 @dragstart="onDragStart(index, $event)"
                 @dragenter.prevent="onDragEnter(index)"
@@ -49,11 +56,11 @@
                 @dragend="onDragEnd"
             >
                 <div
-                    class="absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-0.5 rounded-full"
+                    class="absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-0.5 rounded-full z-10"
                 >
                     {{ index + 1 }}
                 </div>
-                <div class="absolute top-2 right-2 flex items-center space-x-1">
+                <div class="absolute top-2 right-2 flex items-center space-x-1 z-10">
                     <button
                         type="button"
                         class="p-1 bg-white/90 rounded hover:bg-white shadow"
@@ -79,6 +86,29 @@
                 >
                     <img :src="img.url" class="w-full h-full object-contain" />
                 </div>
+                <div
+                    v-if="hasVariationItems"
+                    class="p-2 border-t border-gray-100 bg-gray-50"
+                    @mousedown.stop
+                    @click.stop
+                >
+                    <label class="sr-only">Variación para imagen {{ index + 1 }}</label>
+                    <select
+                        class="block w-full text-xs text-gray-900 border border-gray-300 rounded bg-white focus:outline-none focus:border-orange-500 p-1.5"
+                        :value="img.variation_item_id ?? ''"
+                        :disabled="savingVariationId === img.id"
+                        @change="onVariationChange(img, $event)"
+                    >
+                        <option value="">Todas las variaciones</option>
+                        <option
+                            v-for="item in variationItems"
+                            :key="item.id"
+                            :value="item.id"
+                        >
+                            {{ item.name }}
+                        </option>
+                    </select>
+                </div>
             </div>
         </div>
 
@@ -100,15 +130,22 @@ export default {
         images: { type: Array, required: true },
         reorderUrl: { type: String, required: true },
         csrf: { type: String, required: true },
+        variationItems: { type: Array, default: () => [] },
     },
     data() {
         return {
             localImages: this.images.slice(),
             dragFromIndex: null,
             isSaving: false,
-            saveState: null, // null | 'success' | 'error'
+            saveState: null,
+            savingVariationId: null,
             toast: { show: false, message: "" },
         };
+    },
+    computed: {
+        hasVariationItems() {
+            return this.variationItems.length > 0;
+        },
     },
     methods: {
         onDragStart(index, e) {
@@ -152,6 +189,46 @@ export default {
             } finally {
                 this.isSaving = false;
                 setTimeout(() => (this.saveState = null), 1500);
+            }
+        },
+        async onVariationChange(img, event) {
+            const rawValue = event.target.value;
+            const variationItemId = rawValue === "" ? null : Number(rawValue);
+            const previousValue = img.variation_item_id ?? null;
+
+            if (previousValue === variationItemId) {
+                return;
+            }
+
+            img.variation_item_id = variationItemId;
+            this.savingVariationId = img.id;
+
+            try {
+                const res = await fetch(img.update_variation_url, {
+                    method: "PATCH",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRF-TOKEN": this.csrf,
+                        Accept: "application/json",
+                    },
+                    body: JSON.stringify({
+                        variation_item_id: variationItemId,
+                    }),
+                });
+
+                if (!res.ok) {
+                    throw new Error("failed");
+                }
+
+                const data = await res.json();
+                img.variation_item_id = data.variation_item_id ?? null;
+                this.showToast("Variación actualizada");
+            } catch (e) {
+                img.variation_item_id = previousValue;
+                event.target.value = previousValue ?? "";
+                this.showToast("No se pudo actualizar la variación");
+            } finally {
+                this.savingVariationId = null;
             }
         },
         async confirmDelete(img, index) {

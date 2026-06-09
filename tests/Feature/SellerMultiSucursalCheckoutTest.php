@@ -108,6 +108,7 @@ it('seller checkout persists selected non-first client sucursal and xml matches 
 
     $response = actingAs($s['seller'])->post(route('cart.process'), [
         'zone_id' => (string) $selected->id,
+        'sucursal_zone_id' => (string) $selected->id,
         'sucursal_code' => $selected->code,
         'sucursal_route' => $selected->route,
         'sucursal_zone' => $selected->zone,
@@ -152,6 +153,7 @@ it('seller checkout trusts posted zone_id when hidden sucursal fields are stale 
 
     $response = actingAs($s['seller'])->post(route('cart.process'), [
         'zone_id' => (string) $selected->id,
+        'sucursal_zone_id' => (string) $firstZone->id,
         // Stale: still the first branch fields (mismatch with zone_id on purpose)
         'sucursal_code' => $firstZone->code,
         'sucursal_route' => $firstZone->route,
@@ -345,6 +347,7 @@ it('multi-zone user does not fall back to session zone_id when request omits zon
     $second = $s['zones'][1];
     $response = actingAs($s['seller'])->post(route('cart.process'), [
         // no zone_id — but full fingerprint for second
+        'sucursal_zone_id' => (string) $second->id,
         'sucursal_code' => $second->code,
         'sucursal_route' => $second->route,
         'sucursal_zone' => $second->zone,
@@ -357,3 +360,4 @@ it('multi-zone user does not fall back to session zone_id when request omits zon
     $order = Order::latest('id')->first();
     expect($order->zone_id)->toBe($second->id);
 });
+

@@ -3,6 +3,7 @@
 namespace App\Exports;
 
 use App\Models\Contact;
+use App\Models\City;
 use Maatwebsite\Excel\Concerns\FromQuery;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
@@ -21,6 +22,7 @@ class ContactsExport implements FromQuery, WithMapping, WithHeadings
     public function query()
     {
         return Contact::query()
+            ->with('city:id,name')
             ->when($this->dateFrom, function ($query, $dateFrom) {
                 $query->whereDate('created_at', '>=', $dateFrom);
             })
@@ -32,13 +34,22 @@ class ContactsExport implements FromQuery, WithMapping, WithHeadings
 
     public function map($contact): array
     {
+        $cityName = $contact->city;
+        $cityRelation = $contact->getRelationValue('city');
+
+        if ($cityRelation && !empty($cityRelation->name)) {
+            $cityName = $cityRelation->name;
+        } elseif (is_numeric($cityName)) {
+            $cityName = optional(City::query()->select('id', 'name')->find((int) $cityName))->name ?? $cityName;
+        }
+
         return [
             $contact->id,
             $contact->name,
             $contact->email,
             $contact->phone,
             $contact->business_name,
-            $contact->city,
+            $cityName,
             $contact->city_id,
             $contact->nit,
             $contact->terms_accepted ? 'Sí' : 'No',

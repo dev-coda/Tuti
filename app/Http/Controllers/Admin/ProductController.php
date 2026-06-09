@@ -499,6 +499,28 @@ class ProductController extends Controller
         return response()->json(['success' => true]);
     }
 
+    public function updateImageVariation(Request $request, Product $product, ProductImage $image)
+    {
+        abort_unless((int) $image->product_id === (int) $product->id, 404);
+
+        $validate = $request->validate([
+            'variation_item_id' => [
+                'nullable',
+                Rule::exists('product_item_variation', 'variation_item_id')
+                    ->where(fn ($query) => $query->where('product_id', $product->id)),
+            ],
+        ]);
+
+        $image->update([
+            'variation_item_id' => $validate['variation_item_id'] ?? null,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'variation_item_id' => $image->variation_item_id,
+        ]);
+    }
+
     public function export()
     {
         return Excel::download(new ProductExport, 'productos.xlsx');

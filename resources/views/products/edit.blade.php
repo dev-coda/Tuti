@@ -377,17 +377,27 @@
     <div class="col-span-2">
         <div class="bg-white dark:bg-gray-800 relative shadow-md sm:rounded-lg overflow-hidden p-4">
             @php
+                $enabledVariationItems = $product->items->where('pivot.enabled', 1)->values();
                 $imagesPayload = $product->images->map(function ($img) use ($product) {
                     return [
                         'id' => $img->id,
                         'url' => asset('storage/'.$img->path),
                         'delete_url' => route('products.images_delete', [$product, $img]),
+                        'update_variation_url' => route('products.images_variation', [$product, $img]),
+                        'variation_item_id' => $img->variation_item_id,
+                    ];
+                })->values()->all();
+                $variationItemsPayload = $enabledVariationItems->map(function ($item) {
+                    return [
+                        'id' => $item->id,
+                        'name' => $item->name,
                     ];
                 })->values()->all();
             @endphp
             <div
                 id="product-image-reorder"
                 data-images='@json($imagesPayload)'
+                data-variation-items='@json($variationItemsPayload)'
                 data-reorder-url="{{ route('products.images_reorder', $product) }}"
             ></div>
         </div>
@@ -404,7 +414,7 @@
                     @endphp
                     @if($product->variation && $enabledVariationItems->count())
                     <div>
-                        <label for="variation_item_id" class="block text-sm font-medium text-gray-700 mb-2">Asociar a variación (opcional)</label>
+                        <label for="variation_item_id" class="block text-sm font-medium text-gray-700 mb-2">Asociar nuevas imágenes a variación (opcional)</label>
                         <select id="variation_item_id" name="variation_item_id" class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg bg-white focus:outline-none focus:border-orange-500 p-2">
                             <option value="">Sin variación específica</option>
                             @foreach($enabledVariationItems as $variationItem)
@@ -413,7 +423,7 @@
                                 </option>
                             @endforeach
                         </select>
-                        <p class="mt-1 text-xs text-gray-500">Si seleccionas una variación, estas imágenes se mostrarán al elegir esa opción en el detalle del producto.</p>
+                        <p class="mt-1 text-xs text-gray-500">Las imágenes ya cargadas se asignan en la cuadrícula de la izquierda. Aquí puedes elegir la variación al subir imágenes nuevas.</p>
                     </div>
                     @endif
                     <div>

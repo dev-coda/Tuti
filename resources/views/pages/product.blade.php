@@ -202,6 +202,17 @@
                             $firstImage = $images->sortBy('position')->first();
                             return $firstImage ? asset('storage/' . $firstImage->path) : null;
                         });
+                    $productImagesPayload = $product->images
+                        ->sortBy('position')
+                        ->values()
+                        ->map(function ($image) {
+                            return [
+                                'url' => asset('storage/' . $image->path),
+                                'variation_item_id' => $image->variation_item_id,
+                            ];
+                        })
+                        ->values()
+                        ->all();
                 @endphp
                 <!-- Main Image Card -->
                 <div class="w-full mb-4 relative bg-white rounded-2xl border border-gray-200 p-4">
@@ -213,9 +224,9 @@
 
                 <!-- Thumbnails -->
                 <div class="w-full flex justify-center">
-                    <ul class="flex gap-3">
+                    <ul id="product-thumbnails" class="flex gap-3 flex-wrap justify-center">
                         @foreach ($product->images as $index => $image)
-                        <li class="thumbnail-item {{ $index === 0 ? 'border-2 border-orange-500' : 'border-2 border-gray-200' }} rounded-lg p-1 hover:border-orange-500 transition-colors cursor-pointer bg-white">
+                        <li class="thumbnail-item {{ $index === 0 ? 'border-2 border-orange-500' : 'border-2 border-gray-200' }} rounded-lg p-1 hover:border-orange-500 transition-colors cursor-pointer bg-white" data-variation-item-id="{{ $image->variation_item_id ?? '' }}">
                             <a href="#" class="thumbnail-link" data-image="{{asset('storage/'.$image->path)}}">
                                 <img src="{{asset('storage/'.$image->path)}}" alt="{{ $product->name }}" class="w-14 h-14 object-contain">
                             </a>
@@ -619,6 +630,28 @@
     }
 
     $(function() {
+        const productImages = @json($productImagesPayload);
+
+        function imagesForVariation(variationItemId) {
+            const variationId = variationItemId ? Number(variationItemId) : null;
+            const generalImages = productImages.filter(function(image) {
+                return image.variation_item_id === null;
+            });
+            const variationImages = productImages.filter(function(image) {
+                return variationId !== null && Number(image.variation_item_id) === variationId;
+            });
+
+            if (variationId !== null && variationImages.length > 0) {
+                return variationImages.concat(generalImages);
+            }
+
+            if (generalImages.length > 0) {
+                return generalImages;
+            }
+
+            return productImages.slice();
+        }
+
         function updateMainImage(newImageSrc) {
             if (!newImageSrc) {
                 return;
@@ -638,11 +671,44 @@
             }
         }
 
-        // Thumbnail image click handler with selection indicator
-        $('.thumbnail-link').on('click', function(e) {
+        function renderThumbnails(images) {
+            const $list = $('#product-thumbnails');
+            $list.empty();
+
+            images.forEach(function(image, index) {
+                const borderClass = index === 0 ? 'border-orange-500' : 'border-gray-200';
+                const variationAttr = image.variation_item_id ?? '';
+                const item = $('<li>')
+                    .addClass('thumbnail-item border-2 ' + borderClass + ' rounded-lg p-1 hover:border-orange-500 transition-colors cursor-pointer bg-white')
+                    .attr('data-variation-item-id', variationAttr)
+                    .append(
+                        $('<a>')
+                            .attr('href', '#')
+                            .addClass('thumbnail-link')
+                            .attr('data-image', image.url)
+                            .append(
+                                $('<img>')
+                                    .attr('src', image.url)
+                                    .attr('alt', @json($product->name))
+                                    .addClass('w-14 h-14 object-contain')
+                            )
+                    );
+
+                $list.append(item);
+            });
+
+            if (images.length > 0) {
+                updateMainImage(images[0].url);
+            }
+        }
+
+        function applyVariationImages(variationItemId) {
+            renderThumbnails(imagesForVariation(variationItemId));
+        }
+
+        $('#product-thumbnails').on('click', '.thumbnail-link', function(e) {
             e.preventDefault();
-            var newImageSrc = $(this).data('image');
-            updateMainImage(newImageSrc);
+            updateMainImage($(this).data('image'));
         });
 
         const step = parseInt('{{$product->step}}');
@@ -711,10 +777,7 @@
                     }
                 }
 
-                var variationImage = $opt.data('variation-image');
-                if (variationImage) {
-                    updateMainImage(variationImage);
-                }
+                applyVariationImages($(this).val());
             });
 
             $sel.trigger('change');

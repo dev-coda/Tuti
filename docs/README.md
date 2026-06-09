@@ -24,4 +24,4 @@ Portal del repositorio. **Guía principal (por carpetas, español):** [guias/REA
 
 ## Idioma
 
-Guías bajo `guias/` y sumarios en `tecnica/*` (despliegue, colas, API, integración) en **español**. Documentos históricos en **inglés** siguen en la raíz de `docs/` y se listan en [tecnica/README.md](./tecnica/README.md).
+Guías bajo `guias/` y sumarios en `tecnica/`* (despliegue, colas, API, integración) en **español**. Documentos históricos en **inglés** siguen en la raíz de `docs/` y se listan en [tecnica/README.md](./tecnica/README.md).

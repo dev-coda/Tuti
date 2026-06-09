@@ -26,7 +26,7 @@ class ReportController extends Controller
             ],
             'users_export' => [
                 'name' => 'Exportar Usuarios',
-                'description' => 'Exporta todos los usuarios registrados en formato Excel',
+                'description' => 'Genera en segundo plano la exportación de todos los clientes (Excel). Descárgala desde "Mis Exportaciones" en la sección Clientes cuando esté lista.',
                 'has_filters' => false,
                 'type' => 'direct',
                 'url' => '/userexport',
