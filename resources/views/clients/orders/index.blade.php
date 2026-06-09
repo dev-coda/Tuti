@@ -101,39 +101,15 @@
 
         <div class="mt-6">
             <div data-tab-panel="orders">
-                <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-4 sm:p-6 mb-6">
-                    <form method="GET" action="{{ route('clients.orders.index') }}">
-                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 items-end">
-                            <div class="lg:col-span-2">
-                                <label class="block text-xs font-medium text-gray-500 mb-1">Buscar cliente</label>
-                                <input type="text" name="q" id="orders-filter-q" value="{{ request('q') }}" class="w-full border-gray-300 rounded-lg text-sm" placeholder="Nombre del cliente...">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-medium text-gray-500 mb-1">ID de orden</label>
-                                <input type="text" name="order_id" id="orders-filter-id" value="{{ request('order_id') }}" class="w-full border-gray-300 rounded-lg text-sm" placeholder="Ej: 1024">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-medium text-gray-500 mb-1">Desde</label>
-                                <input type="date" name="from_date" value="{{ request('from_date') }}" max="{{ $sellerDashToday }}"
-                                       autocomplete="off"
-                                       class="w-full min-h-[44px] border-gray-300 rounded-lg text-base sm:text-sm touch-manipulation">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-medium text-gray-500 mb-1">Hasta</label>
-                                <input type="date" name="to_date" value="{{ request('to_date') }}" max="{{ $sellerDashToday }}"
-                                       autocomplete="off"
-                                       class="w-full min-h-[44px] border-gray-300 rounded-lg text-base sm:text-sm touch-manipulation">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-medium text-gray-500 mb-1">Filtrar</label>
-                                <select name="status_id" class="w-full border-gray-300 rounded-lg text-sm">
-                                    @foreach($statuses as $value => $label)
-                                        <option value="{{ $value }}" @selected((string)request('status_id','') === (string)$value)>{{ $label }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                        </div>
-                    </form>
+                <div class="flex justify-end mb-4">
+                    @php
+                        $exportParams = request()->query();
+                        unset($exportParams['page']);
+                        $exportParams['tab'] = 'orders';
+                    @endphp
+                    <a href="{{ route('clients.orders.export', $exportParams) }}" class="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors">
+                        Descargar Excel
+                    </a>
                 </div>
 
                 <div class="space-y-4">
@@ -385,40 +361,6 @@
         const tabParam = urlParams.get('tab');
         const initialTab = tabParam && ['orders', 'account', 'addresses'].includes(tabParam) ? tabParam : 'orders';
         activateTab(initialTab);
-
-        /* ── Order filter debounce ─────────────────────────── */
-        const input = document.getElementById('orders-filter-q');
-        const idInput = document.getElementById('orders-filter-id');
-        if(input) {
-            let t;
-            input.addEventListener('input', function(){
-                clearTimeout(t);
-                t = setTimeout(() => {
-                    const params = new URLSearchParams(window.location.search);
-                    params.set('q', input.value || '');
-                    window.location = `${window.location.pathname}?${params.toString()}`;
-                }, 350);
-            });
-        }
-
-        if (idInput) {
-            let ti;
-            idInput.addEventListener('input', function(){
-                clearTimeout(ti);
-                ti = setTimeout(() => {
-                    const params = new URLSearchParams(window.location.search);
-                    params.set('order_id', idInput.value || '');
-                    window.location = `${window.location.pathname}?${params.toString()}`;
-                }, 350);
-            });
-        }
-
-        // submit form on date/status change
-        document.querySelectorAll("input[name='from_date'], input[name='to_date'], select[name='status_id']").forEach(el => {
-            el.addEventListener('change', function(){
-                this.form.submit();
-            });
-        });
 
         /* ── Seller Mini Dashboard ─────────────────────────── */
         @if(!empty($isSeller))
