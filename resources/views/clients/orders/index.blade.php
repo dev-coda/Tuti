@@ -68,8 +68,19 @@
 
         <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
             <div class="flex flex-col sm:flex-row">
-                <button type="button" data-tab-trigger="orders"
+                @if(!empty($isSeller))
+                <button type="button" data-tab-trigger="orders-today"
                         class="flex-1 px-4 py-4 text-sm font-semibold text-orange-600 bg-orange-50 border-b-2 border-orange-500">
+                    <div class="flex items-center justify-center gap-2">
+                        <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10m-12 9h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v11a2 2 0 002 2z" />
+                        </svg>
+                        Pedidos del dia
+                    </div>
+                </button>
+                @endif
+                <button type="button" data-tab-trigger="orders"
+                        class="flex-1 px-4 py-4 text-sm font-semibold text-gray-700 hover:bg-gray-50 border-b border-gray-200">
                     <div class="flex items-center justify-center gap-2">
                         <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
@@ -100,66 +111,46 @@
         </div>
 
         <div class="mt-6">
-            <div data-tab-panel="orders">
-                <div class="flex justify-end mb-4">
-                    @php
-                        $exportParams = request()->query();
-                        unset($exportParams['page']);
-                        $exportParams['tab'] = 'orders';
-                    @endphp
-                    <a href="{{ route('clients.orders.export', $exportParams) }}" class="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors">
-                        Descargar Excel
-                    </a>
-                </div>
+            @if(!empty($isSeller))
+            <div data-tab-panel="orders-today">
+                @include('clients.orders.partials.orders-tab-panel', [
+                    'tabKey' => 'orders-today',
+                    'pageParam' => 'today_page',
+                    'showFilters' => false,
+                    'orders' => $dailyOrders,
+                    'statuses' => $statuses,
+                    'sellerDashToday' => $sellerDashToday,
+                    'filters' => $todayFilters,
+                    'queryKeys' => [
+                        'q' => 'today_q',
+                        'order_id' => 'today_order_id',
+                        'from_date' => 'today_from_date',
+                        'to_date' => 'today_to_date',
+                        'status_id' => 'today_status_id',
+                    ],
+                    'emptyMessage' => 'No tienes pedidos para el rango seleccionado.',
+                ])
+            </div>
+            @endif
 
-                <div class="space-y-4">
-                    @forelse ($orders as $order)
-                        <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-4">
-                            <div class="flex-1">
-                                <div class="flex items-center justify-between">
-                                    <div>
-                                        <p class="text-sm font-semibold text-gray-900">Pedido #{{ $order->id }}</p>
-                                        <p class="text-xs text-gray-600 mt-0.5">{{ $order->user->name }}</p>
-                                        <p class="text-xs text-gray-500">{{ $order->created_at->subHour(5)->format('d M Y') }}</p>
-                                    </div>
-                                    <div class="text-right">
-                                        <p class="text-sm font-semibold text-orange-600">${{ number_format(($order->total + $order->discount) - $order->discount) }}</p>
-                                        <p class="text-xs text-gray-500">{{ $order->products_sum_quantity ?? 0 }} artículos</p>
-                                    </div>
-                                </div>
-                                <div class="mt-2 flex items-center gap-3">
-                                    <x-order-status :status="$order->status_id" />
-                                </div>
-                                @if($order->shipping_provider === \App\Models\Order::SHIPPING_PROVIDER_COORDINADORA)
-                                    <div class="mt-2 text-xs text-gray-600">
-                                        <span class="font-semibold">Coordinadora:</span>
-                                        {{ $order->coordinadora_status_text ?? 'Pendiente de guía' }}
-                                        @if($order->coordinadora_guide_number)
-                                            · Guía {{ $order->coordinadora_guide_number }}
-                                        @endif
-                                    </div>
-                                @endif
-                            </div>
-                            <div class="flex flex-col sm:items-end gap-2">
-                                <a href="{{ route('clients.orders.show', $order) }}" class="text-sm text-orange-600 hover:text-orange-700 font-medium">
-                                    Ver detalles
-                                </a>
-                                <form action="{{ route('clients.orders.reorder', $order) }}" method="POST">
-                                    @csrf
-                                    <button class="text-sm text-gray-600 hover:text-gray-800 font-medium">Volver a pedir</button>
-                                </form>
-                            </div>
-                        </div>
-                    @empty
-                        <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-6 text-center text-gray-500">
-                            No tienes pedidos recientes.
-                        </div>
-                    @endforelse
-                </div>
-
-                <div class="mt-6">
-                    {{ $orders->links() }}
-                </div>
+            <div data-tab-panel="orders" @if(!empty($isSeller)) class="hidden" @endif>
+                @include('clients.orders.partials.orders-tab-panel', [
+                    'tabKey' => 'orders',
+                    'pageParam' => 'page',
+                    'showFilters' => true,
+                    'orders' => $orders,
+                    'statuses' => $statuses,
+                    'sellerDashToday' => $sellerDashToday,
+                    'filters' => $recentFilters,
+                    'queryKeys' => [
+                        'q' => 'q',
+                        'order_id' => 'order_id',
+                        'from_date' => 'from_date',
+                        'to_date' => 'to_date',
+                        'status_id' => 'status_id',
+                    ],
+                    'emptyMessage' => 'No tienes pedidos recientes.',
+                ])
             </div>
 
             <div data-tab-panel="account" class="hidden">
@@ -350,17 +341,50 @@
                 trigger.classList.toggle('border-b-2', isActive);
                 trigger.classList.toggle('text-gray-700', !isActive);
             });
+
+            const params = new URLSearchParams(window.location.search);
+            params.set('tab', tabKey);
+            window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
         }
 
         tabTriggers.forEach(trigger => {
             trigger.addEventListener('click', () => activateTab(trigger.dataset.tabTrigger));
         });
 
-        // Check for tab query parameter, otherwise default to 'orders'
+        // Check for tab query parameter, otherwise default to seller/orders tab
         const urlParams = new URLSearchParams(window.location.search);
         const tabParam = urlParams.get('tab');
-        const initialTab = tabParam && ['orders', 'account', 'addresses'].includes(tabParam) ? tabParam : 'orders';
+        const availableTabs = Array.from(tabTriggers).map(trigger => trigger.dataset.tabTrigger);
+        const fallbackTab = availableTabs.includes('orders-today') ? 'orders-today' : 'orders';
+        const initialTab = tabParam && availableTabs.includes(tabParam) ? tabParam : fallbackTab;
         activateTab(initialTab);
+
+        /* ── Order filter debounce ─────────────────────────── */
+        document.querySelectorAll('[data-orders-filter]').forEach(input => {
+            let debounceTimer;
+            input.addEventListener('input', function () {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => {
+                    const form = input.closest('form[data-orders-form]');
+                    const params = new URLSearchParams(window.location.search);
+                    const fieldName = input.name;
+                    const pageParam = form?.dataset.pageParam || 'page';
+
+                    params.set(fieldName, input.value || '');
+                    params.set('tab', form?.dataset.tab || 'orders');
+                    params.delete(pageParam);
+
+                    window.location = `${window.location.pathname}?${params.toString()}`;
+                }, 350);
+            });
+        });
+
+        // submit each orders form on date/status change and keep active tab
+        document.querySelectorAll('[data-orders-autosubmit]').forEach(el => {
+            el.addEventListener('change', function() {
+                this.form.submit();
+            });
+        });
 
         /* ── Seller Mini Dashboard ─────────────────────────── */
         @if(!empty($isSeller))
