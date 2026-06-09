@@ -3,18 +3,19 @@
 namespace App\Exports;
 
 use App\Models\Order;
-use Illuminate\Support\Collection;
-use Maatwebsite\Excel\Concerns\FromCollection;
+use Illuminate\Database\Eloquent\Builder;
+use Maatwebsite\Excel\Concerns\FromQuery;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
+use Maatwebsite\Excel\Concerns\WithChunkReading;
 
-class ClientOrdersExport implements FromCollection, WithHeadings, WithMapping
+class ClientOrdersExport implements FromQuery, WithHeadings, WithMapping, WithChunkReading
 {
-    public function __construct(private readonly Collection $orders) {}
+    public function __construct(private readonly Builder $query) {}
 
-    public function collection(): Collection
+    public function query(): Builder
     {
-        return $this->orders;
+        return $this->query;
     }
 
     public function headings(): array
@@ -50,5 +51,10 @@ class ClientOrdersExport implements FromCollection, WithHeadings, WithMapping
             (float) $order->discount,
             (int) ($order->products_sum_quantity ?? 0),
         ];
+    }
+
+    public function chunkSize(): int
+    {
+        return 500;
     }
 }

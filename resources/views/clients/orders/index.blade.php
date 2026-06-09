@@ -386,6 +386,28 @@
             });
         });
 
+        // Prevent repeated export clicks and show feedback.
+        document.querySelectorAll('[data-orders-export]').forEach(link => {
+            link.addEventListener('click', function (event) {
+                if (link.dataset.downloading === '1') {
+                    event.preventDefault();
+                    return;
+                }
+
+                link.dataset.downloading = '1';
+                link.dataset.originalText = link.textContent.trim();
+                link.textContent = 'Descargando...';
+                link.classList.add('opacity-70', 'cursor-not-allowed');
+
+                // Re-enable after a grace period in case browser blocks/aborts download.
+                setTimeout(() => {
+                    link.dataset.downloading = '0';
+                    link.textContent = link.dataset.originalText || 'Descargar Excel';
+                    link.classList.remove('opacity-70', 'cursor-not-allowed');
+                }, 15000);
+            });
+        });
+
         /* ── Seller Mini Dashboard ─────────────────────────── */
         @if(!empty($isSeller))
         (function(){

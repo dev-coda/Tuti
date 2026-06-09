@@ -82,9 +82,10 @@ class OrderController extends Controller
             $filters = $this->normalizeDailyFilters($filters, $today);
         }
 
-        $orders = $this->buildOrdersQuery($user, $filters, $request)
+        $orders = $this->buildOrdersExportQuery($user, $filters, $request)
             ->orderByDesc('id')
-            ->get();
+            ->withCount('products')
+            ->withSum('products', 'quantity');
 
         $filePrefix = $isTodayTab ? 'pedidos-del-dia' : 'pedidos-recientes';
         $fileName = $filePrefix . '-' . now()->format('Ymd-His') . '.xlsx';
@@ -120,6 +121,45 @@ class OrderController extends Controller
                     $query->whereBetween('created_at', [$bounds[0], $bounds[1]]);
                 } else {
                     \Log::warning('clients.orders.index: date filter ignored (invalid or unparsable Y-m-d)', [
+                        'from_date' => $filters['from_date'],
+                        'to_date' => $filters['to_date'],
+                        'user_id' => $request->user()?->id,
+                    ]);
+                }
+            })
+            ->when($filters['status_id'] !== '', function ($query) use ($filters) {
+                $query->where('status_id', (int) $filters['status_id']);
+            });
+    }
+
+    /**
+     * Lightweight export query to avoid loading heavy relations in memory.
+     *
+     * @param  array{q:string,order_id:string,from_date:string,to_date:string,status_id:string}  $filters
+     */
+    private function buildOrdersExportQuery(User $user, array $filters, Request $request)
+    {
+        return Order::query()
+            ->with(['user:id,name'])
+            ->where(function ($query) use ($user) {
+                $query->whereBelongsTo($user)
+                    ->orWhere('seller_id', $user->id);
+            })
+            ->whereNot('total', '0')
+            ->when($filters['q'] !== '', function ($query) use ($filters) {
+                $query->whereHas('user', function ($sub) use ($filters) {
+                    $sub->where('name', 'ilike', '%' . $filters['q'] . '%');
+                });
+            })
+            ->when($filters['order_id'] !== '', function ($query) use ($filters) {
+                $query->whereRaw('CAST(id AS TEXT) ILIKE ?', ['%' . $filters['order_id'] . '%']);
+            })
+            ->when($filters['from_date'] !== '' && $filters['to_date'] !== '', function ($query) use ($filters, $request) {
+                $bounds = $this->utcBoundsFromOrderFilterDates($filters['from_date'], $filters['to_date']);
+                if ($bounds) {
+                    $query->whereBetween('created_at', [$bounds[0], $bounds[1]]);
+                } else {
+                    \Log::warning('clients.orders.export: date filter ignored (invalid or unparsable Y-m-d)', [
                         'from_date' => $filters['from_date'],
                         'to_date' => $filters['to_date'],
                         'user_id' => $request->user()?->id,

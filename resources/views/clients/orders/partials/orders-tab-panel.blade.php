@@ -18,7 +18,7 @@
 @endphp
 
 <div class="flex justify-end mb-4">
-    <a href="{{ $exportUrl }}" class="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors">
+    <a href="{{ $exportUrl }}" data-orders-export class="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors">
         Descargar Excel
     </a>
 </div>
