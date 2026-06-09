@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\ClientOrdersExport;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Order;
@@ -14,53 +15,34 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use App\Repositories\UserRepository;
+use Maatwebsite\Excel\Facades\Excel;
 
 class OrderController extends Controller
 {
     public function index(Request $request)
     {
         $user = auth()->user();
+        $isSeller = $user->hasAnyRole(['seller', 'supervisor']);
+        $sellerDashToday = Carbon::now($this->sellerReportTimezone())->format('Y-m-d');
 
-        $orders = Order::query()
-            ->with(['user', 'products.product.images'])
-            ->withCount('products')
-            ->withSum('products', 'quantity')
-            ->where(function ($query) use ($user) {
-                $query->whereBelongsTo($user)
-                    ->orWhere('seller_id', $user->id);
-            })
-            ->whereNot('total', '0')
-            ->when($request->filled('q'), function ($query) use ($request) {
-                $q = $request->q;
-                $query->whereHas('user', function ($sub) use ($q) {
-                    $sub->where('name', 'ilike', "%$q%");
-                });
-            })
-            ->when($request->filled('order_id'), function ($query) use ($request) {
-                $idq = trim((string) $request->order_id);
-                // Cast id to text for ILIKE partial search (PostgreSQL)
-                $query->whereRaw('CAST(id AS TEXT) ILIKE ?', ["%{$idq}%"]);
-            })
-            ->when($request->filled('from_date') && $request->filled('to_date'), function ($query) use ($request) {
-                $bounds = $this->utcBoundsFromOrderFilterDates($request->from_date, $request->to_date);
-                if ($bounds) {
-                    $query->whereBetween('created_at', [$bounds[0], $bounds[1]]);
-                } else {
-                    \Log::warning('clients.orders.index: date filter ignored (invalid or unparsable Y-m-d)', [
-                        'from_date' => $request->from_date,
-                        'to_date' => $request->to_date,
-                        'user_id' => $request->user()?->id,
-                    ]);
-                }
-            })
-            ->when($request->filled('status_id') || $request->status_id === '0', function ($query) use ($request) {
-                if ($request->status_id !== '') {
-                    $query->where('status_id', (int) $request->status_id);
-                }
-            })
+        $recentFilters = $this->extractOrderFilters($request);
+        $todayFilters = $this->extractOrderFilters($request, 'today_');
+
+        $orders = $this->buildOrdersQuery($user, $recentFilters, $request)
             ->orderByDesc('id')
             ->paginate()
             ->withQueryString();
+
+        if ($isSeller) {
+            $todayFilters = $this->normalizeDailyFilters($todayFilters, $sellerDashToday);
+        }
+
+        $dailyOrders = $isSeller
+            ? $this->buildOrdersQuery($user, $todayFilters, $request)
+                ->orderByDesc('id')
+                ->paginate(15, ['*'], 'today_page')
+                ->withQueryString()
+            : null;
 
         $statuses = [
             '' => 'Todos',
@@ -71,10 +53,119 @@ class OrderController extends Controller
         ];
 
         $accountUser = $user->load(['zones', 'city']);
-        $isSeller = $user->hasRole('seller');
-        $sellerDashToday = Carbon::now($this->sellerReportTimezone())->format('Y-m-d');
 
-        return view('clients.orders.index', compact('orders', 'statuses', 'accountUser', 'isSeller', 'sellerDashToday'));
+        return view('clients.orders.index', compact(
+            'orders',
+            'dailyOrders',
+            'statuses',
+            'accountUser',
+            'isSeller',
+            'sellerDashToday',
+            'recentFilters',
+            'todayFilters'
+        ));
+    }
+
+    public function export(Request $request)
+    {
+        $user = auth()->user();
+        $isSeller = $user->hasAnyRole(['seller', 'supervisor']);
+        $tab = (string) $request->input('tab', 'orders');
+        $isTodayTab = $tab === 'orders-today' && $isSeller;
+
+        $filters = $isTodayTab
+            ? $this->extractOrderFilters($request, 'today_')
+            : $this->extractOrderFilters($request);
+
+        if ($isTodayTab) {
+            $today = Carbon::now($this->sellerReportTimezone())->format('Y-m-d');
+            $filters = $this->normalizeDailyFilters($filters, $today);
+        }
+
+        $orders = $this->buildOrdersQuery($user, $filters, $request)
+            ->orderByDesc('id')
+            ->get();
+
+        $filePrefix = $isTodayTab ? 'pedidos-del-dia' : 'pedidos-recientes';
+        $fileName = $filePrefix . '-' . now()->format('Ymd-His') . '.xlsx';
+
+        return Excel::download(new ClientOrdersExport($orders), $fileName);
+    }
+
+    /**
+     * @param  array{q:string,order_id:string,from_date:string,to_date:string,status_id:string}  $filters
+     */
+    private function buildOrdersQuery(User $user, array $filters, Request $request)
+    {
+        return Order::query()
+            ->with(['user', 'products.product.images'])
+            ->withCount('products')
+            ->withSum('products', 'quantity')
+            ->where(function ($query) use ($user) {
+                $query->whereBelongsTo($user)
+                    ->orWhere('seller_id', $user->id);
+            })
+            ->whereNot('total', '0')
+            ->when($filters['q'] !== '', function ($query) use ($filters) {
+                $query->whereHas('user', function ($sub) use ($filters) {
+                    $sub->where('name', 'ilike', '%' . $filters['q'] . '%');
+                });
+            })
+            ->when($filters['order_id'] !== '', function ($query) use ($filters) {
+                $query->whereRaw('CAST(id AS TEXT) ILIKE ?', ['%' . $filters['order_id'] . '%']);
+            })
+            ->when($filters['from_date'] !== '' && $filters['to_date'] !== '', function ($query) use ($filters, $request) {
+                $bounds = $this->utcBoundsFromOrderFilterDates($filters['from_date'], $filters['to_date']);
+                if ($bounds) {
+                    $query->whereBetween('created_at', [$bounds[0], $bounds[1]]);
+                } else {
+                    \Log::warning('clients.orders.index: date filter ignored (invalid or unparsable Y-m-d)', [
+                        'from_date' => $filters['from_date'],
+                        'to_date' => $filters['to_date'],
+                        'user_id' => $request->user()?->id,
+                    ]);
+                }
+            })
+            ->when($filters['status_id'] !== '', function ($query) use ($filters) {
+                $query->where('status_id', (int) $filters['status_id']);
+            });
+    }
+
+    /**
+     * @return array{q:string,order_id:string,from_date:string,to_date:string,status_id:string}
+     */
+    private function extractOrderFilters(Request $request, string $prefix = ''): array
+    {
+        return [
+            'q' => trim((string) $request->input($prefix . 'q', '')),
+            'order_id' => trim((string) $request->input($prefix . 'order_id', '')),
+            'from_date' => trim((string) $request->input($prefix . 'from_date', '')),
+            'to_date' => trim((string) $request->input($prefix . 'to_date', '')),
+            'status_id' => trim((string) $request->input($prefix . 'status_id', '')),
+        ];
+    }
+
+    /**
+     * @param  array{q:string,order_id:string,from_date:string,to_date:string,status_id:string}  $filters
+     * @return array{q:string,order_id:string,from_date:string,to_date:string,status_id:string}
+     */
+    private function normalizeDailyFilters(array $filters, string $today): array
+    {
+        if ($filters['from_date'] === '' && $filters['to_date'] === '') {
+            $filters['from_date'] = $today;
+            $filters['to_date'] = $today;
+            return $filters;
+        }
+
+        if ($filters['from_date'] === '' && $filters['to_date'] !== '') {
+            $filters['from_date'] = $filters['to_date'];
+        }
+
+        if ($filters['to_date'] === '' && $filters['from_date'] !== '') {
+            $filters['to_date'] = $filters['from_date'];
+        }
+
+        return $filters;
     }
 
     /**
@@ -85,7 +176,7 @@ class OrderController extends Controller
     {
         $user = auth()->user();
 
-        if (!$user || !$user->hasRole('seller')) {
+        if (!$user || !$user->hasAnyRole(['seller', 'supervisor'])) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
@@ -391,7 +482,7 @@ class OrderController extends Controller
 
         // Preserve client and zone from the original order for confirmation step
         // If current user is a seller, set the acting client for the cart
-        if ($user->hasRole('seller')) {
+        if ($user->hasAnyRole(['seller', 'supervisor'])) {
             session()->put('user_id', $order->user_id);
 
             // Ensure client zones are available (run SOAP-backed sync if necessary)

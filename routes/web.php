@@ -81,6 +81,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/tronex/completar-perfil', [TronexMigrationController::class, 'storeCompleteProfile'])->name('tronex.complete-profile.store');
 
     Route::get('/ordenes', [OrderController::class, 'index'])->name('clients.orders.index');
+    Route::get('/ordenes/export', [OrderController::class, 'export'])->name('clients.orders.export');
     Route::get('/ordenes/{order}', [OrderController::class, 'show'])->name('clients.orders.show');
     Route::post('/ordenes/{order}/reorder', [OrderController::class, 'reorder'])->name('clients.orders.reorder');
     
