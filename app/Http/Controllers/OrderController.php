@@ -44,6 +44,8 @@ class OrderController extends Controller
                 ->withQueryString()
             : null;
 
+        $myRoute = $isSeller ? $this->buildMyRouteData($user, $request) : null;
+
         $statuses = [
             '' => 'Todos',
             0 => 'Pendiente',
@@ -62,8 +64,65 @@ class OrderController extends Controller
             'isSeller',
             'sellerDashToday',
             'recentFilters',
-            'todayFilters'
+            'todayFilters',
+            'myRoute'
         ));
+    }
+
+    /**
+     * Data for the seller "Mi Ruta" tab: routes available in the seller's zone and,
+     * once a route is selected, the clients whose visit day matches today (Colombia).
+     *
+     * @return array{sellerZone:string,routeOptions:\Illuminate\Support\Collection,selectedRoute:string,clients:\Illuminate\Support\Collection|null,todayLabel:string}
+     */
+    private function buildMyRouteData(User $user, Request $request): array
+    {
+        $sellerZone = trim((string) $user->zone);
+        $today = Carbon::now($this->sellerReportTimezone());
+
+        $routeOptions = $sellerZone === ''
+            ? collect()
+            : Zone::query()
+                ->where('zone', $sellerZone)
+                ->whereNotNull('route')
+                ->where('route', '!=', '')
+                ->distinct()
+                ->orderBy('route')
+                ->pluck('route');
+
+        $selectedRoute = trim((string) $request->input('ruta', ''));
+        if ($selectedRoute === '' || !$routeOptions->contains($selectedRoute)) {
+            $selectedRoute = '';
+        }
+
+        $clients = null;
+        if ($selectedRoute !== '') {
+            $todayDow = $today->dayOfWeek;
+
+            $clients = Zone::query()
+                ->with('user:id,name,document,business_name,phone,mobile_phone,order_sequence')
+                ->where('zone', $sellerZone)
+                ->where('route', $selectedRoute)
+                ->get()
+                ->filter(fn (Zone $zone) => $zone->user !== null
+                    && Zone::carbonDayOfWeekFromDay($zone->day) === $todayDow)
+                ->sortBy(function (Zone $zone) {
+                    // Visit order (aOrden) first when available, then name.
+                    $sequence = (int) ($zone->user->order_sequence ?? 0);
+                    $sequenceKey = $sequence > 0 ? str_pad((string) $sequence, 10, '0', STR_PAD_LEFT) : '9999999999';
+
+                    return $sequenceKey . '|' . mb_strtolower((string) $zone->user->name, 'UTF-8');
+                })
+                ->values();
+        }
+
+        return [
+            'sellerZone' => $sellerZone,
+            'routeOptions' => $routeOptions,
+            'selectedRoute' => $selectedRoute,
+            'clients' => $clients,
+            'todayLabel' => $today->locale('es')->isoFormat('dddd D [de] MMMM'),
+        ];
     }
 
     public function export(Request $request)
