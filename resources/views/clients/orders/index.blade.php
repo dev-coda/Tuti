@@ -78,6 +78,15 @@
                         Pedidos del dia
                     </div>
                 </button>
+                <button type="button" data-tab-trigger="mi-ruta"
+                        class="flex-1 px-4 py-4 text-sm font-semibold text-gray-700 hover:bg-gray-50 border-b border-gray-200">
+                    <div class="flex items-center justify-center gap-2">
+                        <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                        </svg>
+                        Mi Ruta
+                    </div>
+                </button>
                 @endif
                 <button type="button" data-tab-trigger="orders"
                         class="flex-1 px-4 py-4 text-sm font-semibold text-gray-700 hover:bg-gray-50 border-b border-gray-200">
@@ -130,6 +139,10 @@
                     ],
                     'emptyMessage' => 'No tienes pedidos para el rango seleccionado.',
                 ])
+            </div>
+
+            <div data-tab-panel="mi-ruta" class="hidden">
+                @include('clients.orders.partials.my-route-panel', ['myRoute' => $myRoute])
             </div>
             @endif
 

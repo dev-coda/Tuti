@@ -173,6 +173,27 @@ class UserRepository
     }
 
     /**
+     * Fetch every rutero registered in a zone (getRuteros with no document filter).
+     * Unlike getCustomRuteroId, this never retries without the zone: an empty result
+     * for a zone must stay empty instead of pulling the entire customer base.
+     *
+     * @return \Illuminate\Support\Collection<int, array<string, mixed>>|null Route rows (zone, route, day, code, ...) or null when the zone returned nothing.
+     */
+    public static function getRuterosForZone(string $zone): ?\Illuminate\Support\Collection
+    {
+        $token = Setting::where('key', 'microsoft_token')->first();
+
+        if ($token->updated_at->diffInMinutes(now()) > 25) {
+            Artisan::call('app:get-token');
+            $token = Setting::where('key', 'microsoft_token')->first();
+        }
+
+        $result = self::fetchRuteroData('', $zone, $token->value);
+
+        return $result ? collect($result['routes']) : null;
+    }
+
+    /**
      * Internal method to fetch rutero data from SOAP service
      * 
      * @param string $document
