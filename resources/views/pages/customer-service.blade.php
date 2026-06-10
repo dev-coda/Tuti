@@ -20,6 +20,12 @@
         </div>
     @endif
 
+    @if(session('warning'))
+        <div class="mb-6 p-4 rounded-lg border border-yellow-200 bg-yellow-50 text-yellow-800 text-sm">
+            {{ session('warning') }}
+        </div>
+    @endif
+
     @if($errors->any())
         <div class="mb-6 p-4 rounded-lg border border-red-200 bg-red-50 text-red-800 text-sm">
             <p class="font-semibold mb-2">Por favor revisa la información:</p>

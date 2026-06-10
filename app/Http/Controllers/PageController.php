@@ -551,12 +551,20 @@ class PageController extends Controller
         $pqrs = CustomerServiceRequest::create($validated);
 
         try {
-            app(MailingService::class)->sendCustomerServiceRequestNotification($pqrs);
+            $emailSent = app(MailingService::class)->sendCustomerServiceRequestNotification($pqrs);
         } catch (\Throwable $e) {
             \Log::error('PQRS email dispatch failed', [
                 'request_id' => $pqrs->id,
                 'error' => $e->getMessage(),
             ]);
+            $emailSent = false;
+        }
+
+        if (! $emailSent) {
+            return back()->with(
+                'warning',
+                'Tu solicitud fue registrada, pero tuvimos un problema notificando al equipo de servicio. Si es urgente, contáctanos por teléfono o WhatsApp.'
+            );
         }
 
         return back()->with('success', 'Tu solicitud fue enviada correctamente. Te contactaremos pronto.');
