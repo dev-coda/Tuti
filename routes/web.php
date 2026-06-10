@@ -76,6 +76,10 @@ Route::post('/tronex/migrate', [TronexMigrationController::class, 'migrate'])->n
 // New account creation landing (ClienteNuevo workflow)
 Route::get('/cliente-nuevo', [\App\Http\Controllers\NewClientController::class, 'create'])->name('new-client.create');
 Route::post('/cliente-nuevo', [\App\Http\Controllers\NewClientController::class, 'store'])->name('new-client.store');
+// Existing client lookup for "Agregar sucursal" prefill (seller flow only)
+Route::get('/cliente-nuevo/cliente-existente', [\App\Http\Controllers\NewClientController::class, 'existingClient'])
+    ->middleware(['auth', 'role:seller|supervisor|admin'])
+    ->name('new-client.existing-client');
 
 Route::post('/carrito', [CartController::class, 'processOrder'])->name('cart.process');
 

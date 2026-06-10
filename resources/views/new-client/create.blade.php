@@ -31,6 +31,43 @@
     <form method="POST" action="{{ route('new-client.store') }}" enctype="multipart/form-data" id="new-client-form">
         @csrf
 
+        @if($isSellerFlow)
+        {{-- Registration mode (seller flow only) --}}
+        <div class="bg-white border border-gray-200 rounded-xl p-6 mb-6">
+            <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                Tipo de registro
+            </h2>
+            <input type="hidden" name="is_sucursal" id="is_sucursal" value="{{ old('is_sucursal', '0') }}">
+            <div class="flex flex-col sm:flex-row gap-3">
+                <label class="flex-1 flex items-center gap-3 border rounded-lg px-4 py-3 cursor-pointer transition-colors" data-mode-option="cliente">
+                    <input type="radio" name="registration_mode" value="cliente" class="text-orange-600 focus:ring-orange-500" {{ old('is_sucursal') === '1' ? '' : 'checked' }}>
+                    <span class="text-sm font-medium text-gray-800">Cliente nuevo</span>
+                </label>
+                <label class="flex-1 flex items-center gap-3 border rounded-lg px-4 py-3 cursor-pointer transition-colors" data-mode-option="sucursal">
+                    <input type="radio" name="registration_mode" value="sucursal" class="text-orange-600 focus:ring-orange-500" {{ old('is_sucursal') === '1' ? 'checked' : '' }}>
+                    <span class="text-sm font-medium text-gray-800">Agregar sucursal</span>
+                </label>
+            </div>
+
+            <div id="sucursal-lookup" class="mt-4 {{ old('is_sucursal') === '1' ? '' : 'hidden' }}">
+                <p class="text-sm text-gray-500 mb-3">Ingresa el documento del cliente existente. Los datos del cliente se completarán automáticamente; solo debes diligenciar la información de la nueva sucursal (ubicación y ruta).</p>
+                <div class="flex flex-col sm:flex-row gap-3">
+                    <div class="flex-1">
+                        <label for="sucursal-document" class="block text-sm font-medium text-gray-700 mb-1">Documento del cliente existente</label>
+                        <input type="text" id="sucursal-document" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" maxlength="20" placeholder="NIT o Cédula">
+                    </div>
+                    <div class="sm:self-end">
+                        <button type="button" id="sucursal-search" class="w-full sm:w-auto px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium rounded-lg transition-colors">
+                            Buscar cliente
+                        </button>
+                    </div>
+                </div>
+                <p id="sucursal-feedback" class="text-sm mt-2 hidden"></p>
+            </div>
+        </div>
+        @endif
+
         {{-- Commercial Establishment Data --}}
         <div class="bg-white border border-gray-200 rounded-xl p-6 mb-6">
             <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
@@ -478,6 +515,84 @@ document.addEventListener('DOMContentLoaded', function() {
         signatureInput.value = '';
         hasDrawn = false;
     });
+
+    // -- "Agregar sucursal" mode (seller flow only) --
+    const modeRadios = document.querySelectorAll('input[name="registration_mode"]');
+    if (modeRadios.length) {
+        const isSucursalInput = document.getElementById('is_sucursal');
+        const lookupBox = document.getElementById('sucursal-lookup');
+        const documentoInput = document.getElementById('Documento');
+        const submitBtn = document.getElementById('submit-btn');
+        const feedback = document.getElementById('sucursal-feedback');
+        const searchBtn = document.getElementById('sucursal-search');
+        const lookupUrl = @json(route('new-client.existing-client'));
+
+        function applyMode(mode) {
+            const sucursal = mode === 'sucursal';
+            isSucursalInput.value = sucursal ? '1' : '0';
+            lookupBox.classList.toggle('hidden', !sucursal);
+            // In sucursal mode the document comes from the lookup of an existing client.
+            documentoInput.readOnly = sucursal;
+            documentoInput.classList.toggle('bg-gray-50', sucursal);
+            submitBtn.textContent = sucursal ? 'Registrar Sucursal' : 'Registrar Cliente';
+            document.querySelectorAll('[data-mode-option]').forEach(el => {
+                const active = el.dataset.modeOption === mode;
+                el.classList.toggle('border-orange-500', active);
+                el.classList.toggle('bg-orange-50', active);
+                el.classList.toggle('border-gray-300', !active);
+            });
+        }
+
+        modeRadios.forEach(radio => radio.addEventListener('change', () => applyMode(radio.value)));
+        applyMode(document.querySelector('input[name="registration_mode"]:checked')?.value || 'cliente');
+
+        function showSucursalFeedback(message, ok) {
+            feedback.textContent = message;
+            feedback.classList.remove('hidden', 'text-green-600', 'text-red-600');
+            feedback.classList.add(ok ? 'text-green-600' : 'text-red-600');
+        }
+
+        searchBtn.addEventListener('click', function() {
+            const doc = (document.getElementById('sucursal-document').value || '').trim();
+            if (!doc) {
+                showSucursalFeedback('Ingresa el documento del cliente.', false);
+                return;
+            }
+
+            searchBtn.disabled = true;
+            searchBtn.textContent = 'Buscando...';
+
+            fetch(lookupUrl + '?document=' + encodeURIComponent(doc), {
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+            })
+                .then(async r => ({ ok: r.ok, body: await r.json().catch(() => ({})) }))
+                .then(({ ok, body }) => {
+                    if (!ok || !body.found) {
+                        showSucursalFeedback(body.message || 'No encontramos un cliente con ese documento.', false);
+                        return;
+                    }
+
+                    Object.entries(body.client).forEach(([field, value]) => {
+                        const input = document.getElementById(field);
+                        if (input && value) {
+                            input.value = value;
+                        }
+                    });
+
+                    showSucursalFeedback(
+                        'Cliente encontrado: ' + (body.client.RazonSocial || body.client.NombreNegocio || doc)
+                        + '. Completa la ubicación y la ruta de la nueva sucursal.',
+                        true
+                    );
+                })
+                .catch(() => showSucursalFeedback('Error consultando el cliente. Intenta de nuevo.', false))
+                .finally(() => {
+                    searchBtn.disabled = false;
+                    searchBtn.textContent = 'Buscar cliente';
+                });
+        });
+    }
 
     // -- Form submission validation --
     document.getElementById('new-client-form').addEventListener('submit', function(e) {

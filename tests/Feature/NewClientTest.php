@@ -250,6 +250,171 @@ it('builds correct XML in service', function () {
         ->toContain('</ClienteNuevo>');
 });
 
+/**
+ * Valid base64 PNG data URL large enough to pass signature processing.
+ */
+function validSignatureDataUrl(): string
+{
+    $img = imagecreatetruecolor(120, 60);
+    $white = imagecolorallocate($img, 255, 255, 255);
+    imagefill($img, 0, 0, $white);
+    $black = imagecolorallocate($img, 0, 0, 0);
+    imageline($img, 10, 30, 110, 30, $black);
+    ob_start();
+    imagepng($img);
+    $png = ob_get_clean();
+    imagedestroy($img);
+
+    return 'data:image/png;base64,'.base64_encode($png);
+}
+
+it('returns prefill data for an existing client in sucursal lookup', function () {
+    User::factory()->create([
+        'name' => 'Juan Carlos Perez Gomez',
+        'document' => '900123456',
+        'business_name' => 'Tienda El Sol',
+        'phone' => '8871234',
+        'mobile_phone' => '3101234567',
+        'whatsapp' => '3107654321',
+        'email' => 'cliente@example.com',
+    ]);
+
+    actingAs($this->seller)
+        ->getJson(route('new-client.existing-client', ['document' => '900123456']))
+        ->assertOk()
+        ->assertJson([
+            'found' => true,
+            'client' => [
+                'Documento' => '900123456',
+                'RazonSocial' => 'Juan Carlos Perez Gomez',
+                'NombreNegocio' => 'Tienda El Sol',
+                'PrimerNombre' => 'Juan',
+                'SegundoNombre' => 'Carlos',
+                'PrimerApellido' => 'Perez',
+                'SegundoApellido' => 'Gomez',
+                'Telefono' => '8871234',
+                'Movil' => '3101234567',
+                'Whatsapp' => '3107654321',
+                'Correo' => 'cliente@example.com',
+            ],
+        ]);
+});
+
+it('returns not found for unknown document in sucursal lookup', function () {
+    actingAs($this->seller)
+        ->getJson(route('new-client.existing-client', ['document' => '999999999']))
+        ->assertNotFound()
+        ->assertJson(['found' => false]);
+});
+
+it('blocks guests and regular customers from sucursal lookup', function () {
+    $this->getJson(route('new-client.existing-client', ['document' => '900123456']))
+        ->assertUnauthorized();
+
+    // Role middleware redirects authenticated users without the required role.
+    $response = actingAs($this->customer)
+        ->getJson(route('new-client.existing-client', ['document' => '900123456']));
+
+    expect($response->status())->toBeIn([302, 403]);
+});
+
+it('rejects sucursal registration when document does not belong to an existing client', function () {
+    $this->mock(NewClientService::class, function ($mock) {
+        $mock->shouldNotReceive('registerClient');
+    });
+
+    actingAs($this->seller)
+        ->post(route('new-client.store'), [
+            'is_sucursal' => '1',
+            'Documento' => '999999999',
+            'TipoDocumento' => 3,
+            'RazonSocial' => 'Razon Test',
+            'NombreNegocio' => 'Test',
+            'IdClasificacionCliente' => 1,
+            'Departamento' => 'ANTIOQUIA',
+            'Ciudad' => 'MEDELLIN',
+            'Direccion' => 'Calle 1',
+            'Barrio' => 'Centro',
+            'Zona' => '001',
+            'RutaZonaVentas' => '1234',
+            'DiaRecorrido' => 'LUNES',
+            'Posicion' => 1,
+            'Pep' => 'NO',
+            'Movil' => '3101234567',
+            'signature' => validSignatureDataUrl(),
+            'terms_accepted' => '1',
+        ])
+        ->assertSessionHasErrors('Documento');
+});
+
+it('registers a sucursal for an existing client without demoting their status', function () {
+    \Illuminate\Support\Facades\Storage::fake('public');
+
+    $client = User::factory()->create([
+        'name' => 'Tienda El Sol SAS',
+        'document' => '900123456',
+        'business_name' => 'Tienda El Sol',
+        'status_id' => User::ACTIVE,
+        'client_status' => User::CLIENT_STATUS_CLIENTE,
+    ]);
+    $client->zones()->create([
+        'zone' => '001',
+        'route' => '1111',
+        'day' => '1-Lunes',
+        'address' => 'Sucursal principal',
+        'code' => 'SUC-1',
+    ]);
+
+    $this->mock(NewClientService::class, function ($mock) {
+        $mock->shouldReceive('registerClient')->once()->andReturn([
+            'success' => true,
+            'id' => 55,
+            'codigo_cliente' => 'C-0055',
+            'message' => 'ok',
+        ]);
+        $mock->shouldReceive('uploadMedia')->once()->andReturn([
+            'success' => true,
+            'message' => 'ok',
+        ]);
+    });
+
+    actingAs($this->seller)
+        ->post(route('new-client.store'), [
+            'is_sucursal' => '1',
+            'Documento' => '900123456',
+            'TipoDocumento' => 3,
+            'RazonSocial' => 'Tienda El Sol SAS',
+            'NombreNegocio' => 'Tienda El Sol',
+            'IdClasificacionCliente' => 1,
+            'Departamento' => 'ANTIOQUIA',
+            'Ciudad' => 'MEDELLIN',
+            'Direccion' => 'Calle Nueva Sucursal 2',
+            'Barrio' => 'Laureles',
+            'Zona' => '001',
+            'RutaZonaVentas' => '1234',
+            'DiaRecorrido' => 'MARTES',
+            'Posicion' => 3,
+            'Pep' => 'NO',
+            'Movil' => '3101234567',
+            'signature' => validSignatureDataUrl(),
+            'terms_accepted' => '1',
+        ])
+        ->assertRedirect(route('new-client.create'))
+        ->assertSessionHas('success');
+
+    expect(session('success'))->toContain('Sucursal registrada');
+
+    $client->refresh();
+    expect($client->client_status)->toBe(User::CLIENT_STATUS_CLIENTE)
+        ->and((int) $client->status_id)->toBe(User::ACTIVE)
+        ->and($client->zones()->count())->toBe(2);
+
+    $newZone = $client->zones()->where('route', '1234')->first();
+    expect($newZone)->not->toBeNull()
+        ->and($newZone->zone)->toBe('001')
+        ->and($newZone->day)->toBe('MARTES');
+});
+
 it('escapes XML special characters in service', function () {
     $service = new NewClientService();
 

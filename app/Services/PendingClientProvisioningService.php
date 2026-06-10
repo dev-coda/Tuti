@@ -11,11 +11,14 @@ class PendingClientProvisioningService
      * Create or update a local pending client after ClienteNuevo registration (seller flow).
      *
      * @param  array<string, mixed>  $validated
+     * @param  bool  $preserveExistingStatus  Keep the current status of an already active client
+     *                                        (sucursal additions must not demote a "cliente" to pending).
      */
     public function provisionFromNewClient(
         array $validated,
         ?string $externalClientCode = null,
-        string $clientStatus = User::CLIENT_STATUS_PENDIENTE
+        string $clientStatus = User::CLIENT_STATUS_PENDIENTE,
+        bool $preserveExistingStatus = false
     ): User
     {
         $document = $this->normalizeDocument((string) ($validated['Documento'] ?? ''));
@@ -28,15 +31,20 @@ class PendingClientProvisioningService
         $user = User::query()->where('document', $document)->first();
 
         if ($user) {
-            $user->update([
+            $payload = [
                 'name' => $displayName,
                 'business_name' => $businessName ?: $user->business_name,
-                'client_status' => $clientStatus,
-                'status_id' => User::PENDING,
                 'mobile_phone' => $validated['Movil'] ?? $user->mobile_phone,
                 'whatsapp' => $validated['Whatsapp'] ?? $user->whatsapp,
                 'phone' => $validated['Telefono'] ?? $user->phone,
-            ]);
+            ];
+
+            if (! ($preserveExistingStatus && $user->isCliente())) {
+                $payload['client_status'] = $clientStatus;
+                $payload['status_id'] = User::PENDING;
+            }
+
+            $user->update($payload);
         } else {
             $user = User::create([
                 'name' => $displayName,

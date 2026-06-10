@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Contact;
 use App\Models\State;
+use App\Models\User;
 use App\Models\ZoneRoute;
 use App\Services\NewClientService;
 use App\Services\PendingClientProvisioningService;
@@ -70,6 +71,67 @@ class NewClientController extends Controller
         ));
     }
 
+    /**
+     * Lookup an existing client by document to prefill the "Agregar sucursal" mode.
+     * Only non address/route/zone data is returned: the new sucursal needs its own.
+     */
+    public function existingClient(Request $request)
+    {
+        $validated = $request->validate([
+            'document' => ['required', 'string', 'max:20', 'regex:/^[0-9\-]+$/'],
+        ]);
+
+        $client = User::query()
+            ->where('document', preg_replace('/\D+/', '', $validated['document']))
+            ->first();
+
+        if (! $client) {
+            return response()->json([
+                'found' => false,
+                'message' => 'No encontramos un cliente con ese documento.',
+            ], 404);
+        }
+
+        [$primerNombre, $segundoNombre, $primerApellido, $segundoApellido] = $this->splitFullName((string) $client->name);
+
+        return response()->json([
+            'found' => true,
+            'client' => [
+                'Documento' => $client->document,
+                'RazonSocial' => $client->name,
+                'NombreNegocio' => $client->business_name ?: $client->name,
+                'PrimerNombre' => $primerNombre,
+                'SegundoNombre' => $segundoNombre,
+                'PrimerApellido' => $primerApellido,
+                'SegundoApellido' => $segundoApellido,
+                'Telefono' => $client->phone,
+                'Movil' => $client->mobile_phone,
+                'Whatsapp' => $client->whatsapp,
+                'Correo' => str_ends_with((string) $client->email, '@tuti.com') ? null : $client->email,
+            ],
+        ]);
+    }
+
+    /**
+     * Best-effort split of a full name into [PrimerNombre, SegundoNombre, PrimerApellido, SegundoApellido].
+     * Only a prefill aid — the seller reviews and corrects before submitting.
+     *
+     * @return array{0:?string,1:?string,2:?string,3:?string}
+     */
+    private function splitFullName(string $fullName): array
+    {
+        $parts = preg_split('/\s+/', trim($fullName)) ?: [];
+        $parts = array_values(array_filter($parts, fn ($p) => $p !== ''));
+
+        return match (true) {
+            count($parts) === 0 => [null, null, null, null],
+            count($parts) === 1 => [$parts[0], null, null, null],
+            count($parts) === 2 => [$parts[0], null, $parts[1], null],
+            count($parts) === 3 => [$parts[0], null, $parts[1], $parts[2]],
+            default => [$parts[0], $parts[1], $parts[2], implode(' ', array_slice($parts, 3))],
+        };
+    }
+
     public function store(Request $request, NewClientService $service)
     {
         $isSellerFlow = $this->isSellerFlow();
@@ -102,6 +164,7 @@ class NewClientController extends Controller
             'DiaRecorrido' => [$isSellerFlow ? 'required' : 'nullable', 'string', Rule::in(self::DIA_OPTIONS)],
             'Posicion' => [$isSellerFlow ? 'required' : 'nullable', 'integer', 'min:1'],
             'Pep' => ['required', 'string', Rule::in(['SI', 'NO'])],
+            'is_sucursal' => ['nullable', 'boolean'],
 
             'signature' => ['required', 'string'],
             'terms_accepted' => ['required', 'accepted'],
@@ -110,6 +173,20 @@ class NewClientController extends Controller
         ]);
         if (!empty($validated['Zona'])) {
             $validated['Zona'] = strtoupper((string) $validated['Zona']);
+        }
+
+        // "Agregar sucursal": the document must belong to an already registered client.
+        $isSucursal = $isSellerFlow && $request->boolean('is_sucursal');
+        if ($isSucursal) {
+            $documentExists = User::query()
+                ->where('document', preg_replace('/\D+/', '', $validated['Documento']))
+                ->exists();
+
+            if (! $documentExists) {
+                return back()->withInput()->withErrors([
+                    'Documento' => 'Para agregar una sucursal el documento debe pertenecer a un cliente existente.',
+                ]);
+            }
         }
 
         $hasContact = ! empty($validated['Telefono']) || ! empty($validated['Movil']) || ! empty($validated['Whatsapp']);
@@ -169,7 +246,8 @@ class NewClientController extends Controller
 
             app(PendingClientProvisioningService::class)->provisionFromNewClient(
                 $validated,
-                $result['codigo_cliente'] ?? null
+                $result['codigo_cliente'] ?? null,
+                preserveExistingStatus: $isSucursal
             );
 
             return back()->with('warning',
@@ -179,11 +257,16 @@ class NewClientController extends Controller
 
         $localClient = app(PendingClientProvisioningService::class)->provisionFromNewClient(
             $validated,
-            $result['codigo_cliente'] ?? null
+            $result['codigo_cliente'] ?? null,
+            preserveExistingStatus: $isSucursal
         );
 
+        $successMessage = $isSucursal
+            ? "Sucursal registrada exitosamente. Código: {$result['codigo_cliente']}. Documento del cliente: {$localClient->document}"
+            : "Cliente registrado exitosamente. Código: {$result['codigo_cliente']}. Documento para pedidos: {$localClient->document}";
+
         return redirect()->route('new-client.create')
-            ->with('success', "Cliente registrado exitosamente. Código: {$result['codigo_cliente']}. Documento para pedidos: {$localClient->document}");
+            ->with('success', $successMessage);
     }
 
     private function storeAsInteresado(array $validated, UploadedFile $signaturePdf, array $storedDocumentPaths)
