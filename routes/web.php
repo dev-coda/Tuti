@@ -78,7 +78,7 @@ Route::get('/cliente-nuevo', [\App\Http\Controllers\NewClientController::class, 
 Route::post('/cliente-nuevo', [\App\Http\Controllers\NewClientController::class, 'store'])->name('new-client.store');
 // Existing client lookup for "Agregar sucursal" prefill (seller flow only)
 Route::get('/cliente-nuevo/cliente-existente', [\App\Http\Controllers\NewClientController::class, 'existingClient'])
-    ->middleware(['auth', 'role:seller|supervisor|admin'])
+    ->middleware(['auth', 'role:seller|supervisor|admin', 'throttle:30,1'])
     ->name('new-client.existing-client');
 
 Route::post('/carrito', [CartController::class, 'processOrder'])->name('cart.process');
