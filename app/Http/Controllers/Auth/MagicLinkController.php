@@ -48,6 +48,14 @@ class MagicLinkController extends Controller
             ]);
         }
 
+        if ($user->requiresClientEmailUpdate()) {
+            return response()->json([
+                'success' => false,
+                'requires_data_update' => true,
+                'message' => 'Es necesario actualizar tus datos de contacto antes de ingresar. Usa la opción "¿Ya eres cliente Tronex?" para validar tu identidad.',
+            ], 422);
+        }
+
         // Generate the code
         $magicCode = MagicLoginCode::generateFor($email);
 
@@ -132,9 +140,15 @@ class MagicLinkController extends Controller
         $request->session()->regenerate();
 
         // Determine redirect URL based on user role
-        $redirectUrl = $user->hasRole('admin')
-            ? route('dashboard')
-            : ($user->hasRole('supervisor') ? route('dashboard') : RouteServiceProvider::HOME);
+        if ($user->requiresClientEmailUpdate()) {
+            $redirectUrl = route('client-data-updates.client.edit');
+        } elseif ($user->hasRole('admin')) {
+            $redirectUrl = route('dashboard');
+        } elseif ($user->hasRole('supervisor')) {
+            $redirectUrl = route('dashboard');
+        } else {
+            $redirectUrl = RouteServiceProvider::HOME;
+        }
 
         Log::info("Magic link login successful for: {$email}");
 

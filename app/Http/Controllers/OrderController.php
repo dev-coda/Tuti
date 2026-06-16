@@ -100,7 +100,10 @@ class OrderController extends Controller
             $todayDow = $today->dayOfWeek;
 
             $clients = Zone::query()
-                ->with('user:id,name,document,business_name,phone,mobile_phone,order_sequence')
+                ->with([
+                    'user:id,name,document,business_name,phone,mobile_phone,whatsapp,email,order_sequence,city_id',
+                    'user.city:id,name',
+                ])
                 ->where('zone', $sellerZone)
                 ->where('route', $selectedRoute)
                 ->get()

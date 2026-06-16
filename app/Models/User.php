@@ -38,6 +38,7 @@ class User extends Authenticatable
         'email',
         'city_id',
         'password',
+        'must_change_password',
         'document',
         'phone',
         'status_id',
@@ -72,6 +73,12 @@ class User extends Authenticatable
     const CLIENT_STATUS_CLIENTE = 'cliente';
     const CLIENT_STATUS_RECHAZADO = 'rechazado';
 
+    private const INTERNAL_EMAIL_SUFFIXES = [
+        '@tuti',
+        '@tuti.com',
+        '@tuti.com.co',
+    ];
+
     /**
      * The attributes that should be hidden for serialization.
      *
@@ -90,6 +97,7 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
+        'must_change_password' => 'boolean',
         'tronex_migration_pending' => 'boolean',
         'rutero_synced_at' => 'datetime',
         'is_locked' => 'boolean',
@@ -147,5 +155,60 @@ class User extends Authenticatable
             ->whereNotNull('code')
             ->where('code', '!=', '')
             ->exists();
+    }
+
+    public static function defaultPassword(): string
+    {
+        return (string) config('auth.default_user_password', 'Tendero2026');
+    }
+
+    public static function isInvalidClientEmail(?string $email): bool
+    {
+        if (!is_string($email) || trim($email) === '') {
+            return true;
+        }
+
+        $email = strtolower(trim($email));
+
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return true;
+        }
+
+        foreach (self::INTERNAL_EMAIL_SUFFIXES as $suffix) {
+            if (str_ends_with($email, $suffix)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function requiresClientEmailUpdate(): bool
+    {
+        if ($this->hasAnyRole(['admin', 'seller', 'supervisor'])) {
+            return false;
+        }
+
+        return self::isInvalidClientEmail($this->email);
+    }
+
+    public function clientDisplayEmail(): ?string
+    {
+        if (self::isInvalidClientEmail($this->email)) {
+            return null;
+        }
+
+        return $this->email;
+    }
+
+    public function flagDefaultPasswordIfUsed(string $plainPassword): void
+    {
+        if ($this->hasRole('admin') || $plainPassword !== self::defaultPassword()) {
+            return;
+        }
+
+        if (!$this->must_change_password) {
+            $this->forceFill(['must_change_password' => true])->save();
+        }
     }
 }

@@ -37,6 +37,8 @@ class Kernel extends HttpKernel
             \App\Http\Middleware\VerifyCsrfToken::class,
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
             \App\Http\Middleware\EnsureTronexProfileCompleted::class,
+            \App\Http\Middleware\EnsureValidClientEmail::class,
+            \App\Http\Middleware\EnsurePasswordIsChanged::class,
         ],
 
         'api' => [
@@ -66,6 +68,8 @@ class Kernel extends HttpKernel
         'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
 
         'tronex.profile' => \App\Http\Middleware\EnsureTronexProfileCompleted::class,
+        'client.email' => \App\Http\Middleware\EnsureValidClientEmail::class,
+        'password.changed' => \App\Http\Middleware\EnsurePasswordIsChanged::class,
         'role' => \Spatie\Permission\Middlewares\RoleMiddleware::class,
         'permission' => \Spatie\Permission\Middlewares\PermissionMiddleware::class,
         'role_or_permission' => \Spatie\Permission\Middlewares\RoleOrPermissionMiddleware::class,

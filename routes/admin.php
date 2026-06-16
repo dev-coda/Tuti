@@ -28,6 +28,7 @@ use App\Http\Controllers\Admin\ContactController;
 use App\Http\Controllers\Admin\SellerController;
 use App\Http\Controllers\Admin\CustomerServiceContactController;
 use App\Http\Controllers\Admin\CustomerServiceRequestController;
+use App\Http\Controllers\Admin\ClientDataUpdateRequestController;
 use App\Http\Controllers\Admin\FeaturedProductController;
 use App\Http\Controllers\Admin\FeaturedCategoryController;
 use App\Http\Controllers\Admin\ShippingMethodController;
@@ -47,6 +48,8 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(['auth', 'role:seller|supervisor'])->group(function () {
     Route::post('/setclient', [SellerController::class, 'setclient'])->name('seller.setclient');
     Route::post('/removeclient', [SellerController::class, 'removeclient'])->name('seller.removeclient');
+    Route::get('/actualizacion-datos/{zone}/editar', [\App\Http\Controllers\ClientDataUpdateController::class, 'edit'])->name('client-data-updates.edit');
+    Route::post('/actualizacion-datos/{zone}', [\App\Http\Controllers\ClientDataUpdateController::class, 'store'])->name('client-data-updates.store');
 });
 
 Route::middleware(['auth', 'role:admin|supervisor'])->group(function () {
@@ -63,6 +66,8 @@ Route::middleware(['auth', 'role:admin|supervisor'])->group(function () {
     Route::resource('contacts', ContactController::class);
     Route::get('customer-service-requests', [CustomerServiceRequestController::class, 'index'])->name('admin.customer-service-requests.index');
     Route::get('customer-service-requests/{customerServiceRequest}', [CustomerServiceRequestController::class, 'show'])->name('admin.customer-service-requests.show');
+    Route::get('client-data-update-requests', [ClientDataUpdateRequestController::class, 'index'])->name('admin.client-data-update-requests.index');
+    Route::get('client-data-update-requests/{clientDataUpdateRequest}', [ClientDataUpdateRequestController::class, 'show'])->name('admin.client-data-update-requests.show');
 });
 
 Route::middleware(['auth', 'role:admin'])->group(function () {

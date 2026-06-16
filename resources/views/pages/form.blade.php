@@ -540,7 +540,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 body: JSON.stringify({ email }),
             });
             const data = await response.json();
-            if (!response.ok) { const err = data.message || 'Error al enviar el código.'; if (showOnBtn) showBtnError(err); else showMagicError(err); return false; }
+            if (!response.ok) {
+                const err = data.message || 'Error al enviar el código.';
+                if (showOnBtn) showBtnError(err); else showMagicError(err);
+                return false;
+            }
             return true;
         } catch (e) {
             const err = 'Error de conexión. Por favor intenta de nuevo.';

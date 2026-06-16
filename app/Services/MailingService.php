@@ -7,6 +7,7 @@ use App\Models\Order;
 use App\Models\User;
 use App\Models\Contact;
 use App\Models\CustomerServiceRequest;
+use App\Models\ClientDataUpdateRequest;
 use App\Models\Setting;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
@@ -406,6 +407,45 @@ class MailingService
         } catch (\Throwable $e) {
             Log::error('Failed to send customer service PQRS email', [
                 'request_id' => $request->id ?? null,
+                'error' => $e->getMessage(),
+            ]);
+
+            return false;
+        }
+    }
+
+    /**
+     * Notify Tronex admin about a client data update request submitted by a seller.
+     */
+    public function sendClientDataUpdateNotification(ClientDataUpdateRequest $updateRequest): bool
+    {
+        try {
+            $this->updateMailConfiguration();
+
+            $recipient = 'administradorbdtat@tronex.com';
+            $subject = 'Actualización de datos de cliente - ' . ($updateRequest->business_name ?: $updateRequest->name ?: $updateRequest->document);
+
+            $updateRequest->loadMissing(['seller:id,name,email', 'client:id,name,document']);
+
+            $html = view('emails.client-data-update', [
+                'updateRequest' => $updateRequest,
+            ])->render();
+
+            Mail::html($html, function ($message) use ($recipient, $subject) {
+                $message->to($recipient)
+                    ->subject($subject)
+                    ->from(config('mail.from.address'), config('mail.from.name'));
+            });
+
+            Log::info('Client data update email sent', [
+                'request_id' => $updateRequest->id,
+                'recipient' => $recipient,
+            ]);
+
+            return true;
+        } catch (\Throwable $e) {
+            Log::error('Failed to send client data update email', [
+                'request_id' => $updateRequest->id ?? null,
                 'error' => $e->getMessage(),
             ]);
 

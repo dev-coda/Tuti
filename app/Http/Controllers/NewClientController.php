@@ -6,6 +6,7 @@ use App\Models\Contact;
 use App\Models\State;
 use App\Models\User;
 use App\Models\ZoneRoute;
+use App\Rules\ValidClientEmail;
 use App\Services\NewClientService;
 use App\Services\PendingClientProvisioningService;
 use Illuminate\Http\Request;
@@ -156,7 +157,7 @@ class NewClientController extends Controller
             'Telefono' => ['nullable', 'string', 'regex:/^\d{7}$/'],
             'Movil' => ['nullable', 'string', 'regex:/^\d{10}$/'],
             'Whatsapp' => ['nullable', 'string', 'regex:/^\d{10}$/'],
-            'Correo' => ['nullable', 'email', 'max:100'],
+            'Correo' => [$isSellerFlow ? 'nullable' : 'required', 'email', 'max:100', new ValidClientEmail()],
             'Direccion' => ['required', 'string', 'max:100'],
             'Barrio' => ['required', 'string', 'max:100'],
             'Zona' => [$isSellerFlow ? 'required' : 'nullable', 'string', 'max:3'],

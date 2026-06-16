@@ -5,6 +5,8 @@ use App\Http\Controllers\CartController;
 use App\Http\Controllers\ContentController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PageController;
+use App\Http\Controllers\Auth\ForcedPasswordChangeController;
+use App\Http\Controllers\ClientDataUpdateController;
 use App\Http\Controllers\TronexMigrationController;
 use App\Http\Controllers\Seller\PageController as SellerPageController;
 use App\Http\Controllers\Shopper\PageController as ShopperPageController;
@@ -91,6 +93,12 @@ Route::middleware(['auth'])->group(function () {
     // Tronex migration: complete profile (email + password) - only for tronex_migration_pending users
     Route::get('/tronex/completar-perfil', [TronexMigrationController::class, 'showCompleteProfile'])->name('tronex.complete-profile');
     Route::post('/tronex/completar-perfil', [TronexMigrationController::class, 'storeCompleteProfile'])->name('tronex.complete-profile.store');
+
+    Route::get('/cambiar-contrasena', [ForcedPasswordChangeController::class, 'create'])->name('password.forced-change');
+    Route::post('/cambiar-contrasena', [ForcedPasswordChangeController::class, 'store'])->name('password.forced-change.store');
+
+    Route::get('/actualizacion-datos', [ClientDataUpdateController::class, 'clientEdit'])->name('client-data-updates.client.edit');
+    Route::post('/actualizacion-datos', [ClientDataUpdateController::class, 'clientStore'])->name('client-data-updates.client.store');
 
     Route::get('/ordenes', [OrderController::class, 'index'])->name('clients.orders.index');
     Route::get('/ordenes/export', [OrderController::class, 'export'])->name('clients.orders.export');

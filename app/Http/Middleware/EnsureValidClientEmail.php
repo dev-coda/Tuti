@@ -7,23 +7,22 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\Response;
 
-class EnsureTronexProfileCompleted
+class EnsureValidClientEmail
 {
     /**
-     * Redirect users with tronex_migration_pending to the profile completion page.
+     * Redirect clients with placeholder or internal emails to the data update form.
      */
     public function handle(Request $request, Closure $next): Response
     {
         $user = Auth::user();
-        if (!$user || !$user->tronex_migration_pending || $user->requiresClientEmailUpdate()) {
+        if (!$user || !$user->requiresClientEmailUpdate()) {
             return $next($request);
         }
 
-        // Allow access to the complete profile page and logout
         $routeName = $request->route()?->getName();
         $allowed = [
-            'tronex.complete-profile',
-            'tronex.complete-profile.store',
+            'client-data-updates.client.edit',
+            'client-data-updates.client.store',
             'logout',
         ];
 
@@ -31,6 +30,6 @@ class EnsureTronexProfileCompleted
             return $next($request);
         }
 
-        return redirect()->route('tronex.complete-profile');
+        return redirect()->route('client-data-updates.client.edit');
     }
 }
