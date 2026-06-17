@@ -8,6 +8,7 @@ use App\Models\State;
 use App\Models\User;
 use App\Providers\RouteServiceProvider;
 use App\Repositories\UserRepository;
+use App\Rules\ValidClientEmail;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -71,7 +72,7 @@ class RegisteredUserController extends Controller
     {
         $validate = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
+            'email' => ['required', 'string', 'email', 'max:255', 'unique:users', new ValidClientEmail()],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
             'phone' => ['required', 'string', 'max:20'],
             'city_id' => ['required', 'exists:cities,id'],

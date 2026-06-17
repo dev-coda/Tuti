@@ -31,6 +31,82 @@
     <form method="POST" action="{{ route('new-client.store') }}" enctype="multipart/form-data" id="new-client-form">
         @csrf
 
+        @if($isSellerFlow)
+        {{-- Registration mode (seller flow only) --}}
+        <div class="bg-white border border-gray-200 rounded-xl p-6 mb-6">
+            <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                Tipo de registro
+            </h2>
+            <input type="hidden" name="is_sucursal" id="is_sucursal" value="{{ old('is_sucursal', '0') }}">
+            <div class="flex flex-col sm:flex-row gap-3">
+                <label class="flex-1 flex items-center gap-3 border rounded-lg px-4 py-3 cursor-pointer transition-colors" data-mode-option="cliente">
+                    <input type="radio" name="registration_mode" value="cliente" class="text-orange-600 focus:ring-orange-500" {{ old('is_sucursal') === '1' ? '' : 'checked' }}>
+                    <span class="text-sm font-medium text-gray-800">Cliente nuevo</span>
+                </label>
+                <label class="flex-1 flex items-center gap-3 border rounded-lg px-4 py-3 cursor-pointer transition-colors" data-mode-option="sucursal">
+                    <input type="radio" name="registration_mode" value="sucursal" class="text-orange-600 focus:ring-orange-500" {{ old('is_sucursal') === '1' ? 'checked' : '' }}>
+                    <span class="text-sm font-medium text-gray-800">Agregar sucursal</span>
+                </label>
+            </div>
+
+            <div id="sucursal-lookup" class="mt-4 {{ old('is_sucursal') === '1' ? '' : 'hidden' }}">
+                <p class="text-sm text-gray-500 mb-3">Ingresa el documento del cliente existente. Los datos del cliente se completarán automáticamente; solo debes diligenciar la información de la nueva sucursal (ubicación y ruta).</p>
+                <div class="flex flex-col sm:flex-row gap-3">
+                    <div class="flex-1">
+                        <label for="sucursal-document" class="block text-sm font-medium text-gray-700 mb-1">Documento del cliente existente</label>
+                        <input type="text" id="sucursal-document" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" maxlength="20" placeholder="NIT o Cédula">
+                    </div>
+                    <div class="sm:self-end">
+                        <button type="button" id="sucursal-search" class="w-full sm:w-auto px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium rounded-lg transition-colors">
+                            Buscar cliente
+                        </button>
+                    </div>
+                </div>
+                <p id="sucursal-feedback" class="text-sm mt-2 hidden"></p>
+            </div>
+        </div>
+        @endif
+
+        {{-- Commercial Establishment Data --}}
+        <div class="bg-white border border-gray-200 rounded-xl p-6 mb-6">
+            <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+                Datos establecimiento comercial
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label for="RazonSocial" class="block text-sm font-medium text-gray-700 mb-1">Razón social *</label>
+                    <input type="text" name="RazonSocial" id="RazonSocial" value="{{ old('RazonSocial') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" maxlength="100" required>
+                    @error('RazonSocial') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                </div>
+                <div>
+                    <label for="NombreNegocio" class="block text-sm font-medium text-gray-700 mb-1">Nombre del negocio *</label>
+                    <input type="text" name="NombreNegocio" id="NombreNegocio" value="{{ old('NombreNegocio') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" maxlength="100" required>
+                    @error('NombreNegocio') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                </div>
+                <div>
+                    <label for="IdClasificacionCliente" class="block text-sm font-medium text-gray-700 mb-1">Clasificación del cliente *</label>
+                    <select name="IdClasificacionCliente" id="IdClasificacionCliente" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" required>
+                        <option value="">Seleccione...</option>
+                        @foreach($clasificacionOptions as $id => $label)
+                        <option value="{{ $id }}" {{ old('IdClasificacionCliente') == $id ? 'selected' : '' }}>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                    @error('IdClasificacionCliente') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                </div>
+                <div>
+                    <label for="Pep" class="block text-sm font-medium text-gray-700 mb-1">Persona expuesta políticamente (PEP) *</label>
+                    <select name="Pep" id="Pep" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" required>
+                        <option value="">Seleccione...</option>
+                        <option value="SI" {{ old('Pep') === 'SI' ? 'selected' : '' }}>Sí</option>
+                        <option value="NO" {{ old('Pep') === 'NO' ? 'selected' : '' }}>No</option>
+                    </select>
+                    @error('Pep') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                </div>
+            </div>
+        </div>
+
         {{-- Document Information --}}
         <div class="bg-white border border-gray-200 rounded-xl p-6 mb-6">
             <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
@@ -56,11 +132,11 @@
             </div>
         </div>
 
-        {{-- Personal Information --}}
+        {{-- Commercial Contact --}}
         <div class="bg-white border border-gray-200 rounded-xl p-6 mb-6">
             <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
                 <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
-                Datos Personales
+                Contacto comercial (responsable del establecimiento)
             </h2>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -86,45 +162,11 @@
             </div>
         </div>
 
-        {{-- Business Information --}}
-        <div class="bg-white border border-gray-200 rounded-xl p-6 mb-6">
-            <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
-                Negocio
-            </h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label for="NombreNegocio" class="block text-sm font-medium text-gray-700 mb-1">Nombre del negocio *</label>
-                    <input type="text" name="NombreNegocio" id="NombreNegocio" value="{{ old('NombreNegocio') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" maxlength="100" required>
-                    @error('NombreNegocio') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
-                </div>
-                <div>
-                    <label for="IdClasificacionCliente" class="block text-sm font-medium text-gray-700 mb-1">Clasificación *</label>
-                    <select name="IdClasificacionCliente" id="IdClasificacionCliente" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" required>
-                        <option value="">Seleccione...</option>
-                        @foreach($clasificacionOptions as $id => $label)
-                        <option value="{{ $id }}" {{ old('IdClasificacionCliente') == $id ? 'selected' : '' }}>{{ $label }}</option>
-                        @endforeach
-                    </select>
-                    @error('IdClasificacionCliente') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
-                </div>
-                <div>
-                    <label for="Pep" class="block text-sm font-medium text-gray-700 mb-1">Persona Expuesta Políticamente (PEP) *</label>
-                    <select name="Pep" id="Pep" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" required>
-                        <option value="">Seleccione...</option>
-                        <option value="SI" {{ old('Pep') === 'SI' ? 'selected' : '' }}>Sí</option>
-                        <option value="NO" {{ old('Pep') === 'NO' ? 'selected' : '' }}>No</option>
-                    </select>
-                    @error('Pep') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
-                </div>
-            </div>
-        </div>
-
-        {{-- Location --}}
+        {{-- Main branch location --}}
         <div class="bg-white border border-gray-200 rounded-xl p-6 mb-6">
             <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
                 <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                Ubicación
+                Ubicación (sucursal principal)
             </h2>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -138,7 +180,7 @@
                     @error('Departamento') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                 </div>
                 <div>
-                    <label for="Ciudad" class="block text-sm font-medium text-gray-700 mb-1">Ciudad / Municipio *</label>
+                    <label for="Ciudad" class="block text-sm font-medium text-gray-700 mb-1">Ciudad / municipio *</label>
                     <select name="Ciudad" id="Ciudad" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" required>
                         <option value="">Primero seleccione departamento</option>
                     </select>
@@ -188,22 +230,32 @@
             </div>
         </div>
 
-        {{-- Route Information --}}
+        @if($isSellerFlow)
+        {{-- Route Information (seller flow only) --}}
         <div class="bg-white border border-gray-200 rounded-xl p-6 mb-6">
             <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
                 <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
-                Ruta de Ventas
+                Ruta de ventas
             </h2>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <label for="Zona" class="block text-sm font-medium text-gray-700 mb-1">Zona (máx. 3 caracteres) *</label>
-                    <input type="text" name="Zona" id="Zona" value="{{ old('Zona') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" maxlength="3" required placeholder="001">
+                    <label for="ZonaDisplay" class="block text-sm font-medium text-gray-700 mb-1">Zona *</label>
+                    <input type="text" id="ZonaDisplay" value="{{ old('Zona', $sellerZone) }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700" readonly>
+                    <input type="hidden" name="Zona" value="{{ old('Zona', $sellerZone) }}">
                     @error('Zona') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                 </div>
                 <div>
                     <label for="RutaZonaVentas" class="block text-sm font-medium text-gray-700 mb-1">Ruta zona de ventas *</label>
-                    <input type="text" name="RutaZonaVentas" id="RutaZonaVentas" value="{{ old('RutaZonaVentas') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" maxlength="100" required placeholder="RUTA-NORTE">
+                    <select name="RutaZonaVentas" id="RutaZonaVentas" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" required>
+                        <option value="">Seleccione ruta...</option>
+                        @foreach($zoneRoutes as $route)
+                            <option value="{{ $route }}" @selected(old('RutaZonaVentas') === $route)>{{ $route }}</option>
+                        @endforeach
+                    </select>
                     @error('RutaZonaVentas') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                    @if(empty($zoneRoutes))
+                        <p class="text-xs text-amber-700 mt-1">No hay rutas configuradas para esta zona. Un administrador debe crearlas en "Rutas por Zona".</p>
+                    @endif
                 </div>
                 <div>
                     <label for="DiaRecorrido" class="block text-sm font-medium text-gray-700 mb-1">Día de recorrido *</label>
@@ -222,12 +274,28 @@
                 </div>
             </div>
         </div>
+        @endif
 
-        {{-- Signature --}}
+        {{-- Documents --}}
+        <div class="bg-white border border-gray-200 rounded-xl p-6 mb-6">
+            <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                Documentos
+            </h2>
+            <p id="documents-help-text" class="text-sm text-gray-500 mb-3"></p>
+            <p id="documents-limit-text" class="text-xs text-gray-500 mb-3"></p>
+
+            <input type="file" name="documents[]" id="documents" multiple accept=".pdf,.jpg,.jpeg,.png" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100">
+            <div id="documents-preview" class="mt-3 space-y-2"></div>
+            @error('documents') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+            @error('documents.*') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+        </div>
+
+        {{-- Signature (final step) --}}
         <div class="bg-white border border-gray-200 rounded-xl p-6 mb-6">
             <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
                 <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
-                Firma del Cliente *
+                Firma del cliente *
             </h2>
             <p class="text-sm text-gray-500 mb-3">Use el mouse o el dedo (en dispositivos táctiles) para firmar en el recuadro.</p>
 
@@ -241,26 +309,23 @@
             </div>
             <input type="hidden" name="signature" id="signature-data">
             @error('signature') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
-        </div>
 
-        {{-- Photos --}}
-        <div class="bg-white border border-gray-200 rounded-xl p-6 mb-6">
-            <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                Fotos (opcional, máximo 3)
-            </h2>
-            <p class="text-sm text-gray-500 mb-3">Formatos permitidos: JPG, JPEG, PNG. Máximo 5 MB por archivo.</p>
-
-            <input type="file" name="imagenes[]" id="imagenes" multiple accept="image/jpeg,image/png" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100">
-            <div id="image-preview" class="mt-3 flex gap-3 flex-wrap"></div>
-            @error('imagenes') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
-            @error('imagenes.*') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+            <div class="mt-4 pt-4 border-t border-gray-200">
+                <label class="inline-flex items-start gap-2 text-sm text-gray-700">
+                    <input type="checkbox" name="terms_accepted" value="1" class="mt-0.5 rounded border-gray-300 text-orange-600 focus:ring-orange-500" {{ old('terms_accepted') ? 'checked' : '' }} required>
+                    <span>
+                        Aceptar
+                        <a href="{{ route('content.terms') }}" target="_blank" rel="noopener noreferrer" class="text-orange-700 underline hover:text-orange-800">términos y condiciones</a>
+                    </span>
+                </label>
+                @error('terms_accepted') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+            </div>
         </div>
 
         {{-- Submit --}}
         <div class="flex justify-end">
             <button type="submit" id="submit-btn" class="px-8 py-3 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-lg shadow-sm transition-colors text-lg">
-                Registrar Cliente
+                {{ $isSellerFlow ? 'Registrar Cliente' : 'Enviar Solicitud' }}
             </button>
         </div>
     </form>
@@ -318,45 +383,72 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (depSelect.value) depSelect.dispatchEvent(new Event('change'));
 
-    // -- Image file validation --
-    const imageInput = document.getElementById('imagenes');
-    const imagePreview = document.getElementById('image-preview');
+    // -- Documents upload rules by client type --
+    const documentsInput = document.getElementById('documents');
+    const documentsPreview = document.getElementById('documents-preview');
+    const documentsHelpText = document.getElementById('documents-help-text');
+    const documentsLimitText = document.getElementById('documents-limit-text');
 
-    imageInput.addEventListener('change', function() {
-        imagePreview.innerHTML = '';
-        const files = Array.from(this.files);
+    function getDocConfigByTipoDocumento() {
+        const tipo = parseInt(tipoDoc.value || '0', 10);
+        const isJuridica = tipo === 3;
 
-        if (files.length > 3) {
-            alert('Máximo 3 imágenes permitidas.');
-            this.value = '';
-            return;
-        }
-
-        const allowed = ['image/jpeg', 'image/png'];
-        for (const file of files) {
-            if (!allowed.includes(file.type)) {
-                alert('Solo se permiten archivos JPG y PNG. Archivo rechazado: ' + file.name);
-                this.value = '';
-                imagePreview.innerHTML = '';
-                return;
-            }
-            if (file.size > 5 * 1024 * 1024) {
-                alert('El archivo ' + file.name + ' excede los 5 MB permitidos.');
-                this.value = '';
-                imagePreview.innerHTML = '';
-                return;
-            }
-
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const img = document.createElement('img');
-                img.src = e.target.result;
-                img.className = 'w-24 h-24 object-cover rounded-lg border border-gray-200';
-                imagePreview.appendChild(img);
+        if (isJuridica) {
+            return {
+                maxFiles: 6,
+                help: 'Persona jurídica: sube RUT, foto del documento del representante legal, certificado de existencia, cámara de comercio, certificado de accionistas y beneficiarios finales.',
             };
-            reader.readAsDataURL(file);
         }
-    });
+
+        return {
+            maxFiles: 2,
+            help: 'Persona natural: sube Cédula o RUT.',
+        };
+    }
+
+    function updateDocumentsHelp() {
+        const config = getDocConfigByTipoDocumento();
+        documentsHelpText.textContent = config.help;
+        documentsLimitText.textContent = `Formatos permitidos: PDF, JPG, JPEG, PNG. Máximo ${config.maxFiles} archivo(s), 5 MB por archivo.`;
+    }
+
+    if (documentsInput) {
+        documentsInput.addEventListener('change', function() {
+            documentsPreview.innerHTML = '';
+            const files = Array.from(this.files);
+            const config = getDocConfigByTipoDocumento();
+
+            if (files.length > config.maxFiles) {
+                alert(`Máximo ${config.maxFiles} archivo(s) permitidos para este tipo de cliente.`);
+                this.value = '';
+                return;
+            }
+
+            const allowed = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+            for (const file of files) {
+                if (!allowed.includes(file.type)) {
+                    alert('Solo se permiten archivos PDF, JPG y PNG. Archivo rechazado: ' + file.name);
+                    this.value = '';
+                    documentsPreview.innerHTML = '';
+                    return;
+                }
+                if (file.size > 5 * 1024 * 1024) {
+                    alert('El archivo ' + file.name + ' excede los 5 MB permitidos.');
+                    this.value = '';
+                    documentsPreview.innerHTML = '';
+                    return;
+                }
+
+                const row = document.createElement('div');
+                row.className = 'text-sm text-gray-700 border border-gray-200 rounded-lg px-3 py-2 bg-gray-50';
+                row.textContent = file.name;
+                documentsPreview.appendChild(row);
+            }
+        });
+    }
+
+    tipoDoc.addEventListener('change', updateDocumentsHelp);
+    updateDocumentsHelp();
 
     // -- Signature pad --
     const canvas = document.getElementById('signature-canvas');
@@ -423,6 +515,84 @@ document.addEventListener('DOMContentLoaded', function() {
         signatureInput.value = '';
         hasDrawn = false;
     });
+
+    // -- "Agregar sucursal" mode (seller flow only) --
+    const modeRadios = document.querySelectorAll('input[name="registration_mode"]');
+    if (modeRadios.length) {
+        const isSucursalInput = document.getElementById('is_sucursal');
+        const lookupBox = document.getElementById('sucursal-lookup');
+        const documentoInput = document.getElementById('Documento');
+        const submitBtn = document.getElementById('submit-btn');
+        const feedback = document.getElementById('sucursal-feedback');
+        const searchBtn = document.getElementById('sucursal-search');
+        const lookupUrl = @json(route('new-client.existing-client'));
+
+        function applyMode(mode) {
+            const sucursal = mode === 'sucursal';
+            isSucursalInput.value = sucursal ? '1' : '0';
+            lookupBox.classList.toggle('hidden', !sucursal);
+            // In sucursal mode the document comes from the lookup of an existing client.
+            documentoInput.readOnly = sucursal;
+            documentoInput.classList.toggle('bg-gray-50', sucursal);
+            submitBtn.textContent = sucursal ? 'Registrar Sucursal' : 'Registrar Cliente';
+            document.querySelectorAll('[data-mode-option]').forEach(el => {
+                const active = el.dataset.modeOption === mode;
+                el.classList.toggle('border-orange-500', active);
+                el.classList.toggle('bg-orange-50', active);
+                el.classList.toggle('border-gray-300', !active);
+            });
+        }
+
+        modeRadios.forEach(radio => radio.addEventListener('change', () => applyMode(radio.value)));
+        applyMode(document.querySelector('input[name="registration_mode"]:checked')?.value || 'cliente');
+
+        function showSucursalFeedback(message, ok) {
+            feedback.textContent = message;
+            feedback.classList.remove('hidden', 'text-green-600', 'text-red-600');
+            feedback.classList.add(ok ? 'text-green-600' : 'text-red-600');
+        }
+
+        searchBtn.addEventListener('click', function() {
+            const doc = (document.getElementById('sucursal-document').value || '').trim();
+            if (!doc) {
+                showSucursalFeedback('Ingresa el documento del cliente.', false);
+                return;
+            }
+
+            searchBtn.disabled = true;
+            searchBtn.textContent = 'Buscando...';
+
+            fetch(lookupUrl + '?document=' + encodeURIComponent(doc), {
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+            })
+                .then(async r => ({ ok: r.ok, body: await r.json().catch(() => ({})) }))
+                .then(({ ok, body }) => {
+                    if (!ok || !body.found) {
+                        showSucursalFeedback(body.message || 'No encontramos un cliente con ese documento.', false);
+                        return;
+                    }
+
+                    Object.entries(body.client).forEach(([field, value]) => {
+                        const input = document.getElementById(field);
+                        if (input && value) {
+                            input.value = value;
+                        }
+                    });
+
+                    showSucursalFeedback(
+                        'Cliente encontrado: ' + (body.client.RazonSocial || body.client.NombreNegocio || doc)
+                        + '. Completa la ubicación y la ruta de la nueva sucursal.',
+                        true
+                    );
+                })
+                .catch(() => showSucursalFeedback('Error consultando el cliente. Intenta de nuevo.', false))
+                .finally(() => {
+                    searchBtn.disabled = false;
+                    searchBtn.textContent = 'Buscar cliente';
+                });
+        });
+    }
 
     // -- Form submission validation --
     document.getElementById('new-client-form').addEventListener('submit', function(e) {

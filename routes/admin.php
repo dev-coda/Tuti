@@ -28,6 +28,7 @@ use App\Http\Controllers\Admin\ContactController;
 use App\Http\Controllers\Admin\SellerController;
 use App\Http\Controllers\Admin\CustomerServiceContactController;
 use App\Http\Controllers\Admin\CustomerServiceRequestController;
+use App\Http\Controllers\Admin\ClientDataUpdateRequestController;
 use App\Http\Controllers\Admin\FeaturedProductController;
 use App\Http\Controllers\Admin\FeaturedCategoryController;
 use App\Http\Controllers\Admin\ShippingMethodController;
@@ -39,21 +40,38 @@ use App\Http\Controllers\Admin\UpsellRuleController;
 use App\Http\Controllers\Admin\CampaignController;
 use App\Http\Controllers\Admin\RetentionRuleController;
 use App\Http\Controllers\Admin\DocumentationController;
+use App\Http\Controllers\Admin\ZoneRouteController;
+use App\Http\Controllers\Admin\SupervisorController;
 use Illuminate\Support\Facades\Route;
 
 
-Route::middleware(['auth', 'role:seller'])->group(function () {
+Route::middleware(['auth', 'role:seller|supervisor'])->group(function () {
     Route::post('/setclient', [SellerController::class, 'setclient'])->name('seller.setclient');
     Route::post('/removeclient', [SellerController::class, 'removeclient'])->name('seller.removeclient');
+    Route::get('/actualizacion-datos/{zone}/editar', [\App\Http\Controllers\ClientDataUpdateController::class, 'edit'])->name('client-data-updates.edit');
+    Route::post('/actualizacion-datos/{zone}', [\App\Http\Controllers\ClientDataUpdateController::class, 'store'])->name('client-data-updates.store');
+});
+
+Route::middleware(['auth', 'role:admin|supervisor'])->group(function () {
+    Route::get('/dashboard', function () {
+        if (auth()->user()->hasRole('supervisor')) {
+            return to_route('contacts.index');
+        }
+
+        return to_route('products.index');
+    })->name('dashboard');
+
+    Route::get('/contactexport', [ContactController::class, 'export'])->name('admin.export.contacts');
+    Route::post('contacts/{contact}/submit-new-client', [ContactController::class, 'submitNewClient'])->name('contacts.submit-new-client');
+    Route::resource('contacts', ContactController::class);
+    Route::get('customer-service-requests', [CustomerServiceRequestController::class, 'index'])->name('admin.customer-service-requests.index');
+    Route::get('customer-service-requests/{customerServiceRequest}', [CustomerServiceRequestController::class, 'show'])->name('admin.customer-service-requests.show');
+    Route::get('client-data-update-requests', [ClientDataUpdateRequestController::class, 'index'])->name('admin.client-data-update-requests.index');
+    Route::get('client-data-update-requests/{clientDataUpdateRequest}', [ClientDataUpdateRequestController::class, 'show'])->name('admin.client-data-update-requests.show');
 });
 
 Route::middleware(['auth', 'role:admin'])->group(function () {
 
-
-    Route::get('/dashboard', function () {
-        return to_route('products.index');
-        return view('dashboard');
-    })->name('dashboard');
 
     Route::get('/documentacion', [DocumentationController::class, 'index'])->name('admin.documentation.index');
     Route::get('/documentacion/ver', [DocumentationController::class, 'show'])->name('admin.documentation.show');
@@ -85,7 +103,6 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('/productexport', [ProductController::class, 'export'])->name('admin.export.products');
     Route::get('/orderexport', [OrderController::class, 'export'])->name('admin.export.orders');
     Route::get('/orderauditexport', [OrderController::class, 'exportAudit'])->name('admin.export.orders.audit');
-    Route::get('/contactexport', [ContactController::class, 'export'])->name('admin.export.contacts');
 
     Route::resource('users', UserController::class);
     Route::resource('brands', BrandController::class);
@@ -197,6 +214,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('route-cycles-import', [RouteCycleController::class, 'showImport'])->name('route-cycles.import');
     Route::post('route-cycles-import', [RouteCycleController::class, 'import'])->name('route-cycles.import.store');
     Route::get('route-cycles-template', [RouteCycleController::class, 'exportTemplate'])->name('route-cycles.template');
+    Route::resource('zone-routes', ZoneRouteController::class)->only(['index', 'store', 'destroy']);
     Route::post('test-email', function (\Illuminate\Http\Request $request) {
         try {
             // Validate email input
@@ -314,6 +332,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
         Route::get('/daily-sales/export', [App\Http\Controllers\Admin\ReportController::class, 'exportDailySales'])->name('daily-sales.export');
     });
     Route::resource('sellers', SellerController::class);
+    Route::resource('supervisors', SupervisorController::class);
 
 
     Route::resource('orders', OrderController::class);
@@ -327,9 +346,6 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('/exports', [OrderController::class, 'getExports'])->name('admin.exports.list');
     Route::get('/exports/{exportFile}/download', [OrderController::class, 'downloadExport'])->name('admin.exports.download');
     Route::get('/exports/{exportFile}/status', [OrderController::class, 'checkExportStatus'])->name('admin.exports.status');
-    Route::resource('contacts', ContactController::class);
-    Route::get('customer-service-requests', [CustomerServiceRequestController::class, 'index'])->name('admin.customer-service-requests.index');
-    Route::get('customer-service-requests/{customerServiceRequest}', [CustomerServiceRequestController::class, 'show'])->name('admin.customer-service-requests.show');
     Route::get('email-templates', [App\Http\Controllers\Admin\EmailTemplateController::class, 'index'])->name('admin.email-templates.index');
     Route::get('email-templates/create', [App\Http\Controllers\Admin\EmailTemplateController::class, 'create'])->name('admin.email-templates.create');
     Route::post('email-templates', [App\Http\Controllers\Admin\EmailTemplateController::class, 'store'])->name('admin.email-templates.store');

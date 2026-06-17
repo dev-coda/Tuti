@@ -143,16 +143,7 @@ class UserRepository
      */
     public static function getCustomRuteroId($document, $zone = null)
     {
-        $token = Setting::where('key', 'microsoft_token')->first();
-
-        //check if updated_at is grander than 30 minutes
-        if ($token->updated_at->diffInMinutes(now()) > 25) {
-            //call command app:get-token
-            Artisan::call('app:get-token');
-            $token = Setting::where('key', 'microsoft_token')->first();
-        }
-
-        $token = $token->value;
+        $token = self::freshMicrosoftToken();
         $originalZone = $zone;
         $zone = $zone ?? '';
 
@@ -170,6 +161,35 @@ class UserRepository
         }
 
         return $result;
+    }
+
+    /**
+     * Fetch every rutero registered in a zone (getRuteros with no document filter).
+     * Unlike getCustomRuteroId, this never retries without the zone: an empty result
+     * for a zone must stay empty instead of pulling the entire customer base.
+     *
+     * @return \Illuminate\Support\Collection<int, array<string, mixed>>|null Route rows (zone, route, day, code, ...) or null when the zone returned nothing.
+     */
+    public static function getRuterosForZone(string $zone): ?\Illuminate\Support\Collection
+    {
+        $result = self::fetchRuteroData('', $zone, self::freshMicrosoftToken());
+
+        return $result ? collect($result['routes']) : null;
+    }
+
+    /**
+     * Current Microsoft token value, refreshed via app:get-token when older than 25 minutes.
+     */
+    private static function freshMicrosoftToken(): string
+    {
+        $token = Setting::where('key', 'microsoft_token')->first();
+
+        if ($token->updated_at->diffInMinutes(now()) > 25) {
+            Artisan::call('app:get-token');
+            $token = Setting::where('key', 'microsoft_token')->first();
+        }
+
+        return $token->value;
     }
 
     /**

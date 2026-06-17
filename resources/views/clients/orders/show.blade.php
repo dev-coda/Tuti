@@ -298,15 +298,20 @@
                     Dirección de Entrega
                 </h2>
                 
+                @php
+                    $zoneSnapshot = is_array($order->zone_snapshot) ? $order->zone_snapshot : [];
+                    $zone = $order->zone;
+                    $deliveryAddress = $zoneSnapshot['address'] ?? ($zone?->address);
+                    $deliveryZone = $zoneSnapshot['zone'] ?? ($zone?->zone);
+                    $deliveryRoute = $zoneSnapshot['route'] ?? ($zone?->route);
+                    $deliveryCode = $zoneSnapshot['code'] ?? ($zone?->code);
+                @endphp
+
                 <div class="space-y-2 text-sm">
                     <p class="font-semibold text-gray-900">{{ $order->user->name }}</p>
-                    
-                    @php
-                        $zone = $order->zone;
-                    @endphp
-                    
-                    @if($zone && $zone->address)
-                        <p class="text-gray-600">{{ $zone->address }}</p>
+
+                    @if($deliveryAddress)
+                        <p class="text-gray-600">{{ $deliveryAddress }}</p>
                     @endif
                     
                     @if($order->user->city)
@@ -333,7 +338,7 @@
                     @endif
                 </div>
 
-                @if($zone)
+                @if($deliveryZone || $deliveryRoute || $deliveryCode)
                 <div class="border-t border-gray-200 mt-4 pt-4">
                     <p class="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-3">
                         <span class="w-6 h-6 rounded-full bg-orange-50 flex items-center justify-center">
@@ -344,22 +349,22 @@
                         Información de Rutero
                     </p>
                     <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
-                        @if($zone->zone)
+                        @if($deliveryZone)
                         <div>
                             <p class="text-xs text-gray-500 uppercase">Zona</p>
-                            <p class="font-semibold text-gray-800 break-words">{{ $zone->zone }}</p>
+                            <p class="font-semibold text-gray-800 break-words">{{ $deliveryZone }}</p>
                         </div>
                         @endif
-                        @if($zone->route)
+                        @if($deliveryRoute)
                         <div>
                             <p class="text-xs text-gray-500 uppercase">Ruta</p>
-                            <p class="font-semibold text-gray-800 break-words">{{ $zone->route }}</p>
+                            <p class="font-semibold text-gray-800 break-words">{{ $deliveryRoute }}</p>
                         </div>
                         @endif
-                        @if($zone->code)
+                        @if($deliveryCode)
                         <div class="col-span-2 sm:col-span-1">
                             <p class="text-xs text-gray-500 uppercase">Rutero</p>
-                            <p class="font-semibold text-gray-800 break-words">{{ $zone->code }}</p>
+                            <p class="font-semibold text-gray-800 break-words">{{ $deliveryCode }}</p>
                         </div>
                         @endif
                     </div>

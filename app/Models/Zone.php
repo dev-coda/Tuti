@@ -90,6 +90,62 @@ class Zone extends Model
         return mb_strtolower(trim(preg_replace('/\s+/', ' ', $address) ?? $address), 'UTF-8');
     }
 
+    /**
+     * Resolve the Carbon dayOfWeek (0=domingo..6=sábado) encoded in a rutero `day`
+     * value. Depending on the source the field may be "5", "5-Viernes" or "Viernes".
+     */
+    public static function carbonDayOfWeekFromDay(?string $day): ?int
+    {
+        $raw = trim((string) $day);
+        if ($raw === '') {
+            return null;
+        }
+
+        $names = [
+            'domingo' => 0,
+            'lunes' => 1,
+            'martes' => 2,
+            'miercoles' => 3,
+            'miércoles' => 3,
+            'jueves' => 4,
+            'viernes' => 5,
+            'sabado' => 6,
+            'sábado' => 6,
+        ];
+
+        // Prefer the weekday name when present ("5-Viernes" or "Viernes").
+        $namePart = str_contains($raw, '-') ? trim(explode('-', $raw, 2)[1] ?? '') : $raw;
+        $nameKey = mb_strtolower($namePart, 'UTF-8');
+        if (isset($names[$nameKey])) {
+            return $names[$nameKey];
+        }
+
+        if (preg_match('/^\d+/', $raw, $matches)) {
+            $num = (int) $matches[0];
+            if ($num === 7) {
+                return 0; // 1=lunes..7=domingo convention
+            }
+            if ($num >= 0 && $num <= 6) {
+                return $num;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Spanish weekday label for a rutero `day` value, or null when unparsable.
+     */
+    public static function weekdayLabelFromDay(?string $day): ?string
+    {
+        $dow = self::carbonDayOfWeekFromDay($day);
+        if ($dow === null) {
+            return null;
+        }
+
+        return ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][$dow] ?? null;
+    }
+
     public function usesCoordinadoraFor48h(): bool
     {
         return ($this->fulfillment_provider_48h ?? self::FULFILLMENT_PROVIDER_COORDINADORA) === self::FULFILLMENT_PROVIDER_COORDINADORA;

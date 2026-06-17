@@ -15,7 +15,7 @@ class EnsureTronexProfileCompleted
     public function handle(Request $request, Closure $next): Response
     {
         $user = Auth::user();
-        if (!$user || !$user->tronex_migration_pending) {
+        if (!$user || !$user->tronex_migration_pending || $user->requiresClientEmailUpdate()) {
             return $next($request);
         }
 

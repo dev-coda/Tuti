@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Models\User;
 use App\Providers\RouteServiceProvider;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -29,10 +30,23 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
-        if($request->user()->hasRole('admin')){
+        $user = $request->user();
+        $user->flagDefaultPasswordIfUsed($request->input('password'));
 
+        if ($user->requiresClientEmailUpdate()) {
+            return redirect()->route('client-data-updates.client.edit');
+        }
+
+        if ($user->must_change_password && !$user->hasRole('admin')) {
+            return redirect()->route('password.forced-change');
+        }
+
+        if ($user->hasRole('admin')) {
             return to_route('dashboard');
+        }
 
+        if ($user->hasRole('supervisor')) {
+            return to_route('dashboard');
         }
 
 

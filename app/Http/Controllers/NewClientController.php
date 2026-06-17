@@ -2,10 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Contact;
 use App\Models\State;
+use App\Models\User;
+use App\Models\ZoneRoute;
+use App\Rules\ValidClientEmail;
 use App\Services\NewClientService;
+use App\Services\PendingClientProvisioningService;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class NewClientController extends Controller
@@ -31,7 +38,7 @@ class NewClientController extends Controller
     ];
 
     private const DIA_OPTIONS = [
-        'LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES', 'SABADO',
+        'LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES',
     ];
 
     public function create()
@@ -40,16 +47,101 @@ class NewClientController extends Controller
         $tipoDocumentoOptions = self::TIPO_DOCUMENTO_OPTIONS;
         $clasificacionOptions = self::CLASIFICACION_OPTIONS;
         $diaOptions = self::DIA_OPTIONS;
+        $isSellerFlow = $this->isSellerFlow();
+        $sellerZone = $this->resolveSellerZone();
+        $zoneRoutes = [];
+        if ($isSellerFlow && $sellerZone) {
+            $zoneRoutes = ZoneRoute::query()
+                ->where('zone', $sellerZone)
+                ->orderBy('route')
+                ->pluck('route')
+                ->all();
+        }
 
         $layout = $this->resolveLayout();
 
         return view('new-client.create', compact(
-            'states', 'tipoDocumentoOptions', 'clasificacionOptions', 'diaOptions', 'layout'
+            'states',
+            'tipoDocumentoOptions',
+            'clasificacionOptions',
+            'diaOptions',
+            'layout',
+            'isSellerFlow',
+            'sellerZone',
+            'zoneRoutes'
         ));
+    }
+
+    /**
+     * Lookup an existing client by document to prefill the "Agregar sucursal" mode.
+     * Only non address/route/zone data is returned: the new sucursal needs its own.
+     */
+    public function existingClient(Request $request)
+    {
+        $validated = $request->validate([
+            'document' => ['required', 'string', 'max:20', 'regex:/^[0-9\-]+$/'],
+        ]);
+
+        $client = User::query()
+            ->where('document', preg_replace('/\D+/', '', $validated['document']))
+            ->first();
+
+        if (! $client) {
+            return response()->json([
+                'found' => false,
+                'message' => 'No encontramos un cliente con ese documento.',
+            ], 404);
+        }
+
+        [$primerNombre, $segundoNombre, $primerApellido, $segundoApellido] = $this->splitFullName((string) $client->name);
+
+        return response()->json([
+            'found' => true,
+            'client' => [
+                'Documento' => $client->document,
+                'RazonSocial' => $client->name,
+                'NombreNegocio' => $client->business_name ?: $client->name,
+                'PrimerNombre' => $primerNombre,
+                'SegundoNombre' => $segundoNombre,
+                'PrimerApellido' => $primerApellido,
+                'SegundoApellido' => $segundoApellido,
+                'Telefono' => $client->phone,
+                'Movil' => $client->mobile_phone,
+                'Whatsapp' => $client->whatsapp,
+                'Correo' => str_ends_with((string) $client->email, '@tuti.com') ? null : $client->email,
+            ],
+        ]);
+    }
+
+    /**
+     * Best-effort split of a full name into [PrimerNombre, SegundoNombre, PrimerApellido, SegundoApellido].
+     * Only a prefill aid — the seller reviews and corrects before submitting.
+     *
+     * @return array{0:?string,1:?string,2:?string,3:?string}
+     */
+    private function splitFullName(string $fullName): array
+    {
+        $parts = preg_split('/\s+/', trim($fullName)) ?: [];
+        $parts = array_values(array_filter($parts, fn ($p) => $p !== ''));
+
+        return match (true) {
+            count($parts) === 0 => [null, null, null, null],
+            count($parts) === 1 => [$parts[0], null, null, null],
+            count($parts) === 2 => [$parts[0], null, $parts[1], null],
+            count($parts) === 3 => [$parts[0], null, $parts[1], $parts[2]],
+            default => [$parts[0], $parts[1], $parts[2], implode(' ', array_slice($parts, 3))],
+        };
     }
 
     public function store(Request $request, NewClientService $service)
     {
+        $isSellerFlow = $this->isSellerFlow();
+        $rutaRules = [$isSellerFlow ? 'required' : 'nullable', 'string', 'regex:/^\d{4}$/'];
+        if ($isSellerFlow) {
+            $rutaRules[] = Rule::exists('zone_routes', 'route')
+                ->where(fn ($q) => $q->where('zone', strtoupper((string) $request->input('Zona'))));
+        }
+
         $validated = $request->validate([
             'Documento' => ['required', 'string', 'max:20', 'regex:/^[0-9\-]+$/'],
             'TipoDocumento' => ['required', 'integer', Rule::in(array_keys(self::TIPO_DOCUMENTO_OPTIONS))],
@@ -57,6 +149,7 @@ class NewClientController extends Controller
             'SegundoNombre' => ['nullable', 'string', 'max:50'],
             'PrimerApellido' => ['nullable', 'string', 'max:50', 'required_if:TipoDocumento,1,2'],
             'SegundoApellido' => ['nullable', 'string', 'max:50'],
+            'RazonSocial' => ['required', 'string', 'max:100'],
             'NombreNegocio' => ['required', 'string', 'max:100'],
             'IdClasificacionCliente' => ['required', 'integer', Rule::in(array_keys(self::CLASIFICACION_OPTIONS))],
             'Departamento' => ['required', 'string', 'max:100'],
@@ -64,24 +157,51 @@ class NewClientController extends Controller
             'Telefono' => ['nullable', 'string', 'regex:/^\d{7}$/'],
             'Movil' => ['nullable', 'string', 'regex:/^\d{10}$/'],
             'Whatsapp' => ['nullable', 'string', 'regex:/^\d{10}$/'],
-            'Correo' => ['nullable', 'email', 'max:100'],
+            'Correo' => [$isSellerFlow ? 'nullable' : 'required', 'email', 'max:100', new ValidClientEmail()],
             'Direccion' => ['required', 'string', 'max:100'],
             'Barrio' => ['required', 'string', 'max:100'],
-            'Zona' => ['required', 'string', 'max:3'],
-            'RutaZonaVentas' => ['required', 'string', 'max:100'],
-            'DiaRecorrido' => ['required', 'string', Rule::in(self::DIA_OPTIONS)],
-            'Posicion' => ['required', 'integer', 'min:1'],
+            'Zona' => [$isSellerFlow ? 'required' : 'nullable', 'string', 'max:3'],
+            'RutaZonaVentas' => $rutaRules,
+            'DiaRecorrido' => [$isSellerFlow ? 'required' : 'nullable', 'string', Rule::in(self::DIA_OPTIONS)],
+            'Posicion' => [$isSellerFlow ? 'required' : 'nullable', 'integer', 'min:1'],
             'Pep' => ['required', 'string', Rule::in(['SI', 'NO'])],
+            'is_sucursal' => ['nullable', 'boolean'],
 
             'signature' => ['required', 'string'],
-            'imagenes' => ['nullable', 'array', 'max:3'],
-            'imagenes.*' => ['file', 'mimes:jpg,jpeg,png', 'max:5120'],
+            'terms_accepted' => ['required', 'accepted'],
+            'documents' => ['nullable', 'array'],
+            'documents.*' => ['file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
         ]);
+        if (!empty($validated['Zona'])) {
+            $validated['Zona'] = strtoupper((string) $validated['Zona']);
+        }
+
+        // "Agregar sucursal": the document must belong to an already registered client.
+        $isSucursal = $isSellerFlow && $request->boolean('is_sucursal');
+        if ($isSucursal) {
+            $documentExists = User::query()
+                ->where('document', preg_replace('/\D+/', '', $validated['Documento']))
+                ->exists();
+
+            if (! $documentExists) {
+                return back()->withInput()->withErrors([
+                    'Documento' => 'Para agregar una sucursal el documento debe pertenecer a un cliente existente.',
+                ]);
+            }
+        }
 
         $hasContact = ! empty($validated['Telefono']) || ! empty($validated['Movil']) || ! empty($validated['Whatsapp']);
         if (! $hasContact) {
             return back()->withInput()->withErrors([
                 'Telefono' => 'Debe proporcionar al menos un número de contacto (Teléfono, Móvil o WhatsApp).',
+            ]);
+        }
+
+        $maxDocuments = ((int) $validated['TipoDocumento']) === 3 ? 6 : 2;
+        $documentsCount = count($request->file('documents') ?? []);
+        if ($documentsCount > $maxDocuments) {
+            return back()->withInput()->withErrors([
+                'documents' => "Puedes adjuntar maximo {$maxDocuments} archivos para este tipo de cliente.",
             ]);
         }
 
@@ -91,6 +211,15 @@ class NewClientController extends Controller
                 'signature' => 'No se pudo procesar la firma. Intente de nuevo.',
             ]);
         }
+
+        $storedDocumentPaths = $this->storeUploadedDocuments($request);
+
+        if (! $isSellerFlow) {
+            return $this->storeAsInteresado($validated, $signaturePdf, $storedDocumentPaths);
+        }
+
+        // Persist signature locally for audit/traceability in seller flow as well.
+        $this->storeSignatureForContact($signaturePdf, $storedDocumentPaths);
 
         // Step 1: Register client
         $result = $service->registerClient($validated);
@@ -102,7 +231,10 @@ class NewClientController extends Controller
         $clientId = $result['id'];
 
         // Step 2: Upload signature PDF + optional images
-        $images = $request->file('imagenes') ?? [];
+        $images = array_values(array_filter(
+            $request->file('documents') ?? [],
+            fn ($file) => in_array(strtolower($file->getClientOriginalExtension()), ['jpg', 'jpeg', 'png'], true)
+        ));
         $mediaResult = $service->uploadMedia($clientId, $signaturePdf, $images);
 
         @unlink($signaturePdf->getPathname());
@@ -113,13 +245,104 @@ class NewClientController extends Controller
                 'error' => $mediaResult['message'],
             ]);
 
+            app(PendingClientProvisioningService::class)->provisionFromNewClient(
+                $validated,
+                $result['codigo_cliente'] ?? null,
+                preserveExistingStatus: $isSucursal
+            );
+
             return back()->with('warning',
                 "Cliente registrado (Código: {$result['codigo_cliente']}), pero hubo un error al subir los archivos: {$mediaResult['message']}"
             );
         }
 
+        $localClient = app(PendingClientProvisioningService::class)->provisionFromNewClient(
+            $validated,
+            $result['codigo_cliente'] ?? null,
+            preserveExistingStatus: $isSucursal
+        );
+
+        $successMessage = $isSucursal
+            ? "Sucursal registrada exitosamente. Código: {$result['codigo_cliente']}. Documento del cliente: {$localClient->document}"
+            : "Cliente registrado exitosamente. Código: {$result['codigo_cliente']}. Documento para pedidos: {$localClient->document}";
+
         return redirect()->route('new-client.create')
-            ->with('success', "Cliente registrado exitosamente. Código: {$result['codigo_cliente']}");
+            ->with('success', $successMessage);
+    }
+
+    private function storeAsInteresado(array $validated, UploadedFile $signaturePdf, array $storedDocumentPaths)
+    {
+        $documentPaths = $this->storeSignatureForContact($signaturePdf, $storedDocumentPaths);
+        $payloadForReview = collect($validated)
+            ->except(['signature', 'documents'])
+            ->toArray();
+
+        $fullName = trim(implode(' ', array_filter([
+            $validated['PrimerNombre'] ?? '',
+            $validated['SegundoNombre'] ?? '',
+            $validated['PrimerApellido'] ?? '',
+            $validated['SegundoApellido'] ?? '',
+        ])));
+        if ($fullName === '') {
+            $fullName = $validated['NombreNegocio'];
+        }
+
+        $phone = $validated['Movil'] ?: ($validated['Whatsapp'] ?: ($validated['Telefono'] ?? null));
+        $personType = ((int) $validated['TipoDocumento']) === 3 ? 'juridica' : 'natural';
+
+        Contact::create([
+            'person_type' => $personType,
+            'name' => $fullName,
+            'business_name' => $validated['NombreNegocio'],
+            'email' => $validated['Correo'] ?? null,
+            'phone' => $phone,
+            'department' => $validated['Departamento'],
+            'city' => $validated['Ciudad'],
+            'address' => $validated['Direccion'],
+            'nit' => $validated['Documento'],
+            'terms_accepted' => (bool) ($validated['terms_accepted'] ?? false),
+            'documents' => $documentPaths,
+            'status' => 'interesado',
+            'new_client_mode' => 'self_service',
+            'new_client_payload' => $payloadForReview,
+        ]);
+
+        app(PendingClientProvisioningService::class)->provisionFromNewClient(
+            $validated,
+            null,
+            \App\Models\User::CLIENT_STATUS_PROSPECTO
+        );
+
+        @unlink($signaturePdf->getPathname());
+
+        return redirect()->route('new-client.create')->with(
+            'success',
+            'Solicitud recibida. Un administrador validara tus documentos y completara la activacion.'
+        );
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function storeUploadedDocuments(Request $request): array
+    {
+        $paths = [];
+        foreach (($request->file('documents') ?? []) as $document) {
+            $paths[] = $document->store('contact-documents/new-client-documents', 'public');
+        }
+
+        return $paths;
+    }
+
+    private function storeSignatureForContact(UploadedFile $signaturePdf, array $existingPaths = []): array
+    {
+        $paths = $existingPaths;
+        $signatureFilename = 'signature_'.now()->format('YmdHis').'_'.uniqid().'.pdf';
+        $signaturePath = 'contact-documents/signatures/'.$signatureFilename;
+        Storage::disk('public')->put($signaturePath, $signaturePdf->getContent());
+        $paths[] = $signaturePath;
+
+        return $paths;
     }
 
     /**
@@ -253,5 +476,22 @@ class NewClientController extends Controller
         }
 
         return 'layouts.page';
+    }
+
+    private function isSellerFlow(): bool
+    {
+        $user = auth()->user();
+
+        return $user && $user->hasAnyRole(['seller', 'supervisor']);
+    }
+
+    private function resolveSellerZone(): ?string
+    {
+        $user = auth()->user();
+        if (! $user) {
+            return null;
+        }
+
+        return $user->zone ?: $user->zones()->orderBy('id')->value('zone');
     }
 }

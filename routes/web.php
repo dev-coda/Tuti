@@ -5,6 +5,8 @@ use App\Http\Controllers\CartController;
 use App\Http\Controllers\ContentController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PageController;
+use App\Http\Controllers\Auth\ForcedPasswordChangeController;
+use App\Http\Controllers\ClientDataUpdateController;
 use App\Http\Controllers\TronexMigrationController;
 use App\Http\Controllers\Seller\PageController as SellerPageController;
 use App\Http\Controllers\Shopper\PageController as ShopperPageController;
@@ -68,10 +70,20 @@ Route::post('/formulario', [PageController::class, 'form_post'])->name('form_pos
 Route::post('/formulario/check-existing', [PageController::class, 'checkExistingClient'])->name('form.check-existing');
 Route::get('/formulario/cities-by-state', [PageController::class, 'citiesByState'])->name('form.cities-by-state');
 Route::get('/servicio-al-cliente', [PageController::class, 'customerService'])->name('customer-service');
-Route::post('/servicio-al-cliente', [PageController::class, 'customerServiceStore'])->name('customer-service.store');
+Route::post('/servicio-al-cliente', [PageController::class, 'customerServiceStore'])
+    ->middleware('throttle:5,1')
+    ->name('customer-service.store');
 
 // Tronex existing client migration (self-service)
 Route::post('/tronex/migrate', [TronexMigrationController::class, 'migrate'])->name('tronex.migrate');
+
+// New account creation landing (ClienteNuevo workflow)
+Route::get('/cliente-nuevo', [\App\Http\Controllers\NewClientController::class, 'create'])->name('new-client.create');
+Route::post('/cliente-nuevo', [\App\Http\Controllers\NewClientController::class, 'store'])->name('new-client.store');
+// Existing client lookup for "Agregar sucursal" prefill (seller flow only)
+Route::get('/cliente-nuevo/cliente-existente', [\App\Http\Controllers\NewClientController::class, 'existingClient'])
+    ->middleware(['auth', 'role:seller|supervisor|admin', 'throttle:30,1'])
+    ->name('new-client.existing-client');
 
 Route::post('/carrito', [CartController::class, 'processOrder'])->name('cart.process');
 
@@ -82,6 +94,12 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/tronex/completar-perfil', [TronexMigrationController::class, 'showCompleteProfile'])->name('tronex.complete-profile');
     Route::post('/tronex/completar-perfil', [TronexMigrationController::class, 'storeCompleteProfile'])->name('tronex.complete-profile.store');
 
+    Route::get('/cambiar-contrasena', [ForcedPasswordChangeController::class, 'create'])->name('password.forced-change');
+    Route::post('/cambiar-contrasena', [ForcedPasswordChangeController::class, 'store'])->name('password.forced-change.store');
+
+    Route::get('/actualizacion-datos', [ClientDataUpdateController::class, 'clientEdit'])->name('client-data-updates.client.edit');
+    Route::post('/actualizacion-datos', [ClientDataUpdateController::class, 'clientStore'])->name('client-data-updates.client.store');
+
     Route::get('/ordenes', [OrderController::class, 'index'])->name('clients.orders.index');
     Route::get('/ordenes/export', [OrderController::class, 'export'])->name('clients.orders.export');
     Route::get('/ordenes/{order}', [OrderController::class, 'show'])->name('clients.orders.show');
@@ -89,10 +107,6 @@ Route::middleware(['auth'])->group(function () {
     
     // Seller mini-dashboard API
     Route::get('/api/seller-dashboard', [OrderController::class, 'sellerDashboard'])->name('api.seller.dashboard');
-
-    // New client registration (sellers and admins)
-    Route::get('/cliente-nuevo', [\App\Http\Controllers\NewClientController::class, 'create'])->name('new-client.create');
-    Route::post('/cliente-nuevo', [\App\Http\Controllers\NewClientController::class, 'store'])->name('new-client.store');
 
     // Thank you page after order placement
     Route::get('/ordenes/{order}/gracias', [CartController::class, 'thankYou'])->name('orders.thank-you');

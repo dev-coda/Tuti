@@ -50,15 +50,18 @@ class Contact extends Model
     protected $fillable = [
         'name', 'email', 'phone', 'business_name', 'read', 'city', 'city_id',
         'nit', 'terms_accepted', 'address', 'person_type', 'department', 'status', 'documents',
+        'new_client_mode', 'new_client_payload', 'external_client_id', 'external_client_code', 'external_submitted_at',
     ];
 
     protected $casts = [
         'terms_accepted' => 'boolean',
         'read' => 'boolean',
         'documents' => 'array',
+        'new_client_payload' => 'array',
+        'external_submitted_at' => 'datetime',
     ];
 
-    protected $appends = ['state'];
+    protected $appends = ['state', 'workflow_status_label', 'workflow_status_color', 'transmit_status_label', 'transmit_status_color'];
 
     public const STATUSES = [
         'interesado'     => 'Interesado',
@@ -77,6 +80,11 @@ class Contact extends Model
     public function city()
     {
         return $this->belongsTo(City::class);
+    }
+
+    public function clientUser()
+    {
+        return $this->hasOne(User::class, 'document', 'nit');
     }
 
     public function scopeUnRead($query)
@@ -115,5 +123,91 @@ class Contact extends Model
             $existe = User::where('email', $this->email)->exists();
             return $existe ? 'Existente' : 'Nuevo';
         });
+    }
+
+    public function getWorkflowStatusLabelAttribute(): string
+    {
+        $status = $this->resolveClientStatus();
+        return match ($status) {
+            User::CLIENT_STATUS_PENDIENTE => 'Pendiente',
+            User::CLIENT_STATUS_CLIENTE => 'Cliente',
+            User::CLIENT_STATUS_RECHAZADO => 'Rechazado',
+            default => 'Prospecto',
+        };
+    }
+
+    public function getWorkflowStatusColorAttribute(): string
+    {
+        $status = $this->resolveClientStatus();
+        return match ($status) {
+            User::CLIENT_STATUS_CLIENTE => 'bg-green-100 text-green-800',
+            User::CLIENT_STATUS_PENDIENTE => 'bg-amber-100 text-amber-800',
+            User::CLIENT_STATUS_RECHAZADO => 'bg-red-100 text-red-800',
+            default => 'bg-indigo-100 text-indigo-800',
+        };
+    }
+
+    public function getTransmitStatusLabelAttribute(): string
+    {
+        return $this->isReadyToTransmit() ? 'OK' : 'Pendiente';
+    }
+
+    public function getTransmitStatusColorAttribute(): string
+    {
+        return $this->isReadyToTransmit()
+            ? 'bg-green-100 text-green-800'
+            : 'bg-amber-100 text-amber-800';
+    }
+
+    public function isReadyToTransmit(): bool
+    {
+        $status = $this->resolveClientStatus();
+        if (! in_array($status, [User::CLIENT_STATUS_PENDIENTE, User::CLIENT_STATUS_CLIENTE], true)) {
+            return false;
+        }
+
+        $payload = is_array($this->new_client_payload) ? $this->new_client_payload : [];
+        $requiredPayloadKeys = ['Zona', 'RutaZonaVentas', 'DiaRecorrido', 'Posicion'];
+        foreach ($requiredPayloadKeys as $key) {
+            if (empty($payload[$key])) {
+                return false;
+            }
+        }
+
+        if (empty($this->nit) || empty($this->name) || empty($this->business_name) || empty($this->phone) || empty($this->address)) {
+            return false;
+        }
+
+        $docs = is_array($this->documents) ? $this->documents : [];
+        return count($docs) > 0;
+    }
+
+    public function resolveLinkedClient(): ?User
+    {
+        if ($this->relationLoaded('clientUser')) {
+            $linked = $this->getRelation('clientUser');
+            if ($linked) {
+                return $linked;
+            }
+        }
+
+        if (! empty($this->nit)) {
+            $byDocument = User::where('document', $this->nit)->first();
+            if ($byDocument) {
+                return $byDocument;
+            }
+        }
+
+        if (! empty($this->email)) {
+            return User::where('email', $this->email)->first();
+        }
+
+        return null;
+    }
+
+    public function resolveClientStatus(): string
+    {
+        $user = $this->resolveLinkedClient();
+        return $user?->client_status ?? User::CLIENT_STATUS_PROSPECTO;
     }
 }

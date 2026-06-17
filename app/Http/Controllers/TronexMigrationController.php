@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Rules\ValidClientEmail;
 use App\Repositories\UserRepository;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -151,26 +152,51 @@ class TronexMigrationController extends Controller
                 'status_id' => User::PENDING,
                 'tronex_migration_pending' => true,
             ]);
-
-            foreach (($context['routes'] ?? []) as $route) {
-                $user->zones()->create([
-                    'route' => $route['route'] ?? null,
-                    'zone' => $route['zone'] ?? null,
-                    'day' => $route['day'] ?? null,
-                    'address' => $route['address'] ?? null,
-                    'code' => $route['code'] ?? null,
-                ]);
-            }
         }
+
+        $this->ensureUserZonesFromContext($user, $context);
 
         Auth::login($user);
         $request->session()->forget(self::VERIFY_SESSION_KEY);
 
         return response()->json([
             'success' => true,
-            'verified_redirect' => route('tronex.complete-profile'),
-            'redirect' => route('tronex.complete-profile'),
+            'verified_redirect' => $this->resolvePostVerificationRedirect($user),
+            'redirect' => $this->resolvePostVerificationRedirect($user),
         ]);
+    }
+
+    private function resolvePostVerificationRedirect(User $user): string
+    {
+        if ($user->requiresClientEmailUpdate()) {
+            return route('client-data-updates.client.edit');
+        }
+
+        if ($user->tronex_migration_pending) {
+            return route('tronex.complete-profile');
+        }
+
+        return route('home');
+    }
+
+    /**
+     * @param  array<string, mixed>  $context
+     */
+    private function ensureUserZonesFromContext(User $user, array $context): void
+    {
+        if ($user->zones()->exists()) {
+            return;
+        }
+
+        foreach (($context['routes'] ?? []) as $route) {
+            $user->zones()->create([
+                'route' => $route['route'] ?? null,
+                'zone' => $route['zone'] ?? null,
+                'day' => $route['day'] ?? null,
+                'address' => $route['address'] ?? null,
+                'code' => $route['code'] ?? null,
+            ]);
+        }
     }
 
     private function normalizeDocument(string $document): string
@@ -318,6 +344,10 @@ class TronexMigrationController extends Controller
             return redirect()->route('home');
         }
 
+        if ($user->requiresClientEmailUpdate()) {
+            return redirect()->route('client-data-updates.client.edit');
+        }
+
         return view('auth.tronex-complete-profile');
     }
 
@@ -332,7 +362,7 @@ class TronexMigrationController extends Controller
         }
 
         $validated = $request->validate([
-            'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email,' . $user->id],
+            'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email,' . $user->id, new ValidClientEmail()],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 
@@ -340,6 +370,7 @@ class TronexMigrationController extends Controller
             'email' => $validated['email'],
             'password' => $validated['password'],
             'tronex_migration_pending' => false,
+            'must_change_password' => false,
         ]);
 
         return redirect()->route('home')->with('success', '¡Perfil completado! Ya puedes comprar en Tuti.');

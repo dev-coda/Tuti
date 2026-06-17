@@ -101,6 +101,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Default User Password
+    |--------------------------------------------------------------------------
+    |
+    | Temporary password assigned to users without one. Users who log in with
+    | this password must change it before accessing the application.
+    |
+    */
+
+    'default_user_password' => env('DEFAULT_USER_PASSWORD', 'Tendero2026'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Password Confirmation Timeout
     |--------------------------------------------------------------------------
     |

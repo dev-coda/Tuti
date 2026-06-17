@@ -1125,7 +1125,7 @@ class OrderRepository
     {
         // Check if the order is being created by a seller
         // If so, delivery date is always next business day
-        if (auth()->check() && auth()->user()->hasRole('seller')) {
+        if (auth()->check() && auth()->user()->hasAnyRole(['seller', 'supervisor'])) {
             return self::getBusinessDay(0);
         }
 

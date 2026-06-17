@@ -59,7 +59,7 @@ it('creates pending user and redirects when phone matches', function () {
         ->assertJson([
             'success' => true,
         ])
-        ->assertJsonPath('redirect', route('tronex.complete-profile'));
+        ->assertJsonPath('redirect', route('client-data-updates.client.edit'));
 
     $user = User::where('document', '123456789')->first();
     expect($user)->not()->toBeNull();
@@ -120,7 +120,7 @@ it('uses phone fallback precedence and allows country-prefix tolerant matching',
         'document' => '123456789',
         'phone' => '573001234567',
     ])->assertOk()
-        ->assertJsonPath('redirect', route('tronex.complete-profile'));
+        ->assertJsonPath('redirect', route('client-data-updates.client.edit'));
 });
 
 it('returns 429 after repeated document lookup failures', function () {
@@ -165,7 +165,7 @@ it('prefers rutero phone over mismatched user phone columns', function () {
         'document' => '123456789',
         'phone' => '3001234567',
     ])->assertOk()
-        ->assertJsonPath('redirect', route('tronex.complete-profile'));
+        ->assertJsonPath('redirect', route('client-data-updates.client.edit'));
 });
 
 it('reuses pending tronex user after successful verification', function () {
@@ -193,9 +193,9 @@ it('reuses pending tronex user after successful verification', function () {
         'document' => '123456789',
         'phone' => '3001234567',
     ])->assertOk()
-        ->assertJsonPath('redirect', route('tronex.complete-profile'));
+        ->assertJsonPath('redirect', route('client-data-updates.client.edit'));
 
     expect(User::where('document', '123456789')->count())->toBe(1);
     $this->assertAuthenticatedAs($existing->fresh());
-    $this->get(route('tronex.complete-profile'))->assertOk();
+    $this->get(route('client-data-updates.client.edit'))->assertOk();
 });

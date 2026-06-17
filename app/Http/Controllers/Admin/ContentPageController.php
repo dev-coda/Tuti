@@ -54,13 +54,15 @@ class ContentPageController extends Controller
             ],
             'content' => 'nullable|string',
             'enabled' => 'nullable|boolean',
+            'show_in_footer' => 'nullable|boolean',
         ], [
             'slug.regex' => 'El slug solo puede contener letras minúsculas, números y guiones.',
             'slug.unique' => 'Ya existe una página con este slug.',
         ]);
 
-        // Ensure enabled is set
-        $validate['enabled'] = $request->has('enabled') ? true : false;
+        // boolean() reads the actual value, so the hidden 0 + checkbox 1 pattern can deactivate.
+        $validate['enabled'] = $request->boolean('enabled');
+        $validate['show_in_footer'] = $request->boolean('show_in_footer');
 
         ContentPage::create($validate);
 
@@ -102,13 +104,15 @@ class ContentPageController extends Controller
             ],
             'content' => 'nullable|string',
             'enabled' => 'nullable|boolean',
+            'show_in_footer' => 'nullable|boolean',
         ], [
             'slug.regex' => 'El slug solo puede contener letras minúsculas, números y guiones.',
             'slug.unique' => 'Ya existe una página con este slug.',
         ]);
 
-        // Ensure enabled is set
-        $validate['enabled'] = $request->has('enabled') ? true : false;
+        // boolean() reads the actual value, so the hidden 0 + checkbox 1 pattern can deactivate.
+        $validate['enabled'] = $request->boolean('enabled');
+        $validate['show_in_footer'] = $request->boolean('show_in_footer');
 
         $contentPage->update($validate);
 

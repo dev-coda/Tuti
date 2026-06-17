@@ -30,7 +30,7 @@
                 <div class='grid grid-cols-1 gap-5'>
             
                     {{ Aire::input('document', 'Documento Cliente: Escribe el NIT sin dígito de verificación')->groupClass('mb-0') }} 
-                    {{ Aire::input('zone', 'Zona Sucursal: Diligencia este campo si tu cliente cuenta con varias sucursales')->helpText('*En el siguiente paso verás las direcciones asociadas')->groupClass('mb-0') }} 
+                    <p class="text-sm text-gray-500 -mt-2">La zona se asigna automaticamente usando la zona del vendedor.</p>
                 </div>
 
             <div class="flex items-center  mt-4">

@@ -187,6 +187,16 @@
                                                     Transmisión: {{ \Carbon\Carbon::parse($order->scheduled_transmission_date)->format('d/m/Y') }}
                                                 </div>
                                             @endif
+                                            @if($order->status_id === \App\Models\Order::STATUS_DRAFT && $order->draft_reconciliation_note)
+                                                <div class="text-xs text-amber-700 mt-1" title="Último intento de reconciliación">
+                                                    {{ $order->draft_reconciliation_note }}
+                                                </div>
+                                            @endif
+                                            @if($order->user && $order->user->isProspectClient())
+                                                <div class="text-xs text-indigo-600 mt-1">Cliente prospecto (borrador bloqueado)</div>
+                                            @elseif($order->user && $order->user->isPendingClient())
+                                                <div class="text-xs text-amber-600 mt-1">Cliente pendiente rutero</div>
+                                            @endif
                                             @if($order->status_id === 3)
                                                 <form action="{{ route('orders.resend', $order) }}" method="POST" class="inline ml-2">
                                                     @csrf

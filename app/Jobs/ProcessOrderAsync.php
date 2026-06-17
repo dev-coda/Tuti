@@ -86,6 +86,12 @@ class ProcessOrderAsync implements ShouldQueue, ShouldBeUnique
             return;
         }
 
+        if ($this->order->status_id === Order::STATUS_DRAFT) {
+            Log::info("Order {$this->order->id} is draft, skipping async transmission");
+
+            return;
+        }
+
         // Check if order is waiting for scheduled transmission date
         // BUT: Skip waiting if force delivery date is enabled (emergency override)
         $forceDeliveryDate = \App\Models\Setting::getByKey('force_delivery_date_enabled') == '1';

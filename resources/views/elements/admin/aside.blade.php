@@ -4,6 +4,33 @@
             <div
                 class="flex-1 px-3 space-y-1 bg-white divide-y divide-gray-200">
                 <ul class="pb-2 space-y-2 mainmenu">
+                    @if(auth()->user()->hasRole('supervisor'))
+                    <li>
+                        <a href="{{ route('dashboard') }}">
+                            @svg('heroicon-o-home', 'w-6 h-6 text-gray-500')
+                            <span class="ml-3" sidebar-toggle-item>Dashboard</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{{ route('contacts.index') }}">
+                            @svg('heroicon-o-inbox-arrow-down', 'w-6 h-6 text-gray-500')
+                            <span class="ml-3" sidebar-toggle-item>Interesados</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{{ route('admin.customer-service-requests.index') }}">
+                            @svg('heroicon-o-chat-bubble-left-right', 'w-6 h-6 text-gray-500')
+                            <span class="ml-3" sidebar-toggle-item>PQRS</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{{ route('admin.client-data-update-requests.index') }}">
+                            @svg('heroicon-o-pencil-square', 'w-6 h-6 text-gray-500')
+                            <span class="ml-3" sidebar-toggle-item>Actualización de datos</span>
+                        </a>
+                    </li>
+                    @else
+
                     <li>
                         <a href="{{ route('dashboard') }}">
                             @svg('heroicon-o-home', 'w-6 h-6 text-gray-500')
@@ -85,6 +112,7 @@
                             'holidays.index'=>'Festivos y Sabados',
                             'delivery-calendars.index'=>'Calendario de Entrega',
                             'route-cycles.index'=>'Ciclos de Rutas',
+                            'zone-routes.index'=>'Rutas por Zona',
                             'banners.index'=>'Banners',
                             'featured-products.index'=>'Productos Destacados',
                             'featured-categories.index'=>'Categorías Destacadas',
@@ -116,6 +144,12 @@
                             </a>
                         </li>
                         <li>
+                            <a href="{{ route('supervisors.index') }}">
+                                @svg('heroicon-o-clipboard-document-check', 'w-6 h-6 text-gray-500')
+                                <span class="ml-3" sidebar-toggle-item>Supervisores</span>
+                            </a>
+                        </li>
+                        <li>
                             <a href="{{ route('admins.index') }}">
                                 @svg('heroicon-o-lock-closed', 'w-6 h-6 text-gray-500')
                                 <span class="ml-3" sidebar-toggle-item>Administradores</span>
@@ -141,10 +175,17 @@
                                 <span class="ml-3">PQRS</span>
                             </a>
                         </li>
+                        <li>
+                            <a href="{{ route('admin.client-data-update-requests.index') }}">
+                                @svg('heroicon-o-pencil-square', 'w-6 h-6 text-gray-500')
+                                <span class="ml-3">Actualización de datos</span>
+                            </a>
+                        </li>
 
 
                 
-                
+                    @endif
+
                
                 </ul>
             
