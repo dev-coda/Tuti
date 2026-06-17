@@ -215,6 +215,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::post('route-cycles-import', [RouteCycleController::class, 'import'])->name('route-cycles.import.store');
     Route::get('route-cycles-template', [RouteCycleController::class, 'exportTemplate'])->name('route-cycles.template');
     Route::resource('zone-routes', ZoneRouteController::class)->only(['index', 'store', 'destroy']);
+    Route::post('zone-routes/sync-from-ruteros', [ZoneRouteController::class, 'syncFromRuteros'])->name('zone-routes.sync-from-ruteros');
     Route::post('test-email', function (\Illuminate\Http\Request $request) {
         try {
             // Validate email input

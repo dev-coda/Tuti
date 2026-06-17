@@ -4,8 +4,7 @@ namespace App\Console\Commands;
 
 use App\Jobs\SyncZoneRuteros;
 use App\Models\Setting;
-use App\Models\User;
-use App\Models\Zone;
+use App\Services\RuteroZoneSyncService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Str;
 
@@ -15,7 +14,7 @@ class SyncZoneRuterosWeekly extends Command
 
     protected $description = 'Queue Dynamics (getRuteros) sync per zone to refresh clients zona/ruta/día (weekly job)';
 
-    public function handle(): int
+    public function handle(RuteroZoneSyncService $syncService): int
     {
         $enabled = Setting::getByKeyWithDefault('weekly_zone_rutero_sync_enabled', '1');
         if ($enabled !== '1' && $enabled !== 1 && $enabled !== true) {
@@ -24,25 +23,7 @@ class SyncZoneRuterosWeekly extends Command
             return self::SUCCESS;
         }
 
-        // Possible zones: seller zones plus every zone already present on client zone rows.
-        $zoneCodes = User::query()
-            ->whereRelation('roles', 'name', 'seller')
-            ->whereNotNull('zone')
-            ->where('zone', '!=', '')
-            ->pluck('zone')
-            ->merge(
-                Zone::query()
-                    ->whereNotNull('zone')
-                    ->where('zone', '!=', '')
-                    ->distinct()
-                    ->pluck('zone')
-            )
-            ->map(fn ($zone) => trim((string) $zone))
-            ->filter()
-            ->unique()
-            ->sort()
-            ->values()
-            ->all();
+        $zoneCodes = $syncService->discoverZoneCodes();
 
         if ($zoneCodes === []) {
             $this->warn('No zones found to sync.');

@@ -3,9 +3,12 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SyncZoneRuteros;
 use App\Models\Zone;
 use App\Models\ZoneRoute;
+use App\Services\RuteroZoneSyncService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class ZoneRouteController extends Controller
 {
@@ -54,6 +57,40 @@ class ZoneRouteController extends Controller
         $zoneRoute->delete();
 
         return back()->with('success', 'Ruta eliminada de la zona.');
+    }
+
+    public function syncFromRuteros(Request $request, RuteroZoneSyncService $syncService)
+    {
+        $zones = collect($request->input('zones', []))
+            ->map(fn ($zone) => trim((string) $zone))
+            ->filter()
+            ->values()
+            ->all();
+
+        $zoneCodes = $syncService->discoverZoneCodes($zones !== [] ? $zones : null);
+
+        if ($zoneCodes === []) {
+            return back()->with('error', 'No hay zonas configuradas para sincronizar.');
+        }
+
+        $sessionId = 'manual-' . now()->format('Ymd-His') . '-' . Str::random(8);
+        $queueConnection = config('queue.default');
+        if ($queueConnection === 'sync') {
+            $queueConnection = 'database';
+        }
+
+        SyncZoneRuteros::dispatch(
+            $zoneCodes,
+            $sessionId,
+            ! $request->boolean('catalog_only'),
+        )
+            ->onConnection($queueConnection)
+            ->onQueue('default');
+
+        return back()->with(
+            'success',
+            'Sincronización enviada a la cola para '.count($zoneCodes).' zona(s). Session: '.$sessionId
+        );
     }
 }
 

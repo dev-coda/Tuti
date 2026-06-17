@@ -24,11 +24,14 @@
                             >
                                 <a
                                     :href="product.url"
-                                    class="h-36 md:h-44 block w-full bg-contain bg-center bg-no-repeat hover:scale-105 transition duration-300 cursor-pointer"
-                                    :style="{
-                                        backgroundImage: `url(${product.image})`,
-                                    }"
+                                    class="h-36 md:h-44 block w-full relative overflow-hidden cursor-pointer"
                                 >
+                                    <img
+                                        v-if="product.image"
+                                        :src="product.image"
+                                        :alt="product.name"
+                                        class="absolute inset-0 h-full w-full object-contain transition duration-300 ease-out hover:scale-105"
+                                    >
                                 </a>
                                 <div v-if="product.tags && product.tags.length" class="absolute top-2 right-2 z-10 flex flex-col gap-1">
                                     <div

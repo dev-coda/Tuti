@@ -46,3 +46,29 @@ function something()
 {
     // ..
 }
+
+/**
+ * Build a getRuteros SOAP response in the exact shape UserRepository::fetchRuteroData parses.
+ *
+ * @param  array<int, array{code:string, zone:string, route:string, day:string, address:string, name:string}>  $sucursales
+ */
+function fakeGetRuterosSoap(array $sucursales): string
+{
+    $ruteros = '';
+    foreach ($sucursales as $s) {
+        $ruteros .= '<aListRuteros>'
+            .'<aDiaRecorrido>'.$s['day'].'</aDiaRecorrido>'
+            .'<aRoute>'.$s['route'].'</aRoute>'
+            .'<aZona>'.$s['zone'].'</aZona>'
+            .'<aDetail><aListDetailsRuteros>'
+                .'<aCustRuteroID>'.$s['code'].'</aCustRuteroID>'
+                .'<aAddress>'.$s['address'].'</aAddress>'
+                .'<aName>'.$s['name'].'</aName>'
+            .'</aListDetailsRuteros></aDetail>'
+        .'</aListRuteros>';
+    }
+
+    return '<sEnvelope><sBody><getRuterosResponse><result><agetRuterosResult>'
+        .$ruteros
+        .'</agetRuterosResult></result></getRuterosResponse></sBody></sEnvelope>';
+}
