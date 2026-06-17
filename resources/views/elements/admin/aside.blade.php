@@ -141,6 +141,12 @@
                                 <span class="ml-3">PQRS</span>
                             </a>
                         </li>
+                        <li>
+                            <a href="{{ route('admin.client-data-update-requests.index') }}">
+                                @svg('heroicon-o-pencil-square', 'w-6 h-6 text-gray-500')
+                                <span class="ml-3">Actualización de datos</span>
+                            </a>
+                        </li>
 
 
                 

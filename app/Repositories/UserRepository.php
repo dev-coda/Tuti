@@ -143,16 +143,7 @@ class UserRepository
      */
     public static function getCustomRuteroId($document, $zone = null)
     {
-        $token = Setting::where('key', 'microsoft_token')->first();
-
-        //check if updated_at is grander than 30 minutes
-        if ($token->updated_at->diffInMinutes(now()) > 25) {
-            //call command app:get-token
-            Artisan::call('app:get-token');
-            $token = Setting::where('key', 'microsoft_token')->first();
-        }
-
-        $token = $token->value;
+        $token = self::freshMicrosoftToken();
         $originalZone = $zone;
         $zone = $zone ?? '';
 
@@ -181,6 +172,16 @@ class UserRepository
      */
     public static function getRuterosForZone(string $zone): ?\Illuminate\Support\Collection
     {
+        $result = self::fetchRuteroData('', $zone, self::freshMicrosoftToken());
+
+        return $result ? collect($result['routes']) : null;
+    }
+
+    /**
+     * Current Microsoft token value, refreshed via app:get-token when older than 25 minutes.
+     */
+    private static function freshMicrosoftToken(): string
+    {
         $token = Setting::where('key', 'microsoft_token')->first();
 
         if ($token->updated_at->diffInMinutes(now()) > 25) {
@@ -188,9 +189,7 @@ class UserRepository
             $token = Setting::where('key', 'microsoft_token')->first();
         }
 
-        $result = self::fetchRuteroData('', $zone, $token->value);
-
-        return $result ? collect($result['routes']) : null;
+        return $token->value;
     }
 
     /**

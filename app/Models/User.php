@@ -66,6 +66,12 @@ class User extends Authenticatable
     const PENDING = 1;
     const ACTIVE = 2;
 
+    private const INTERNAL_EMAIL_SUFFIXES = [
+        '@tuti',
+        '@tuti.com',
+        '@tuti.com.co',
+    ];
+
     /**
      * The attributes that should be hidden for serialization.
      *
@@ -113,5 +119,35 @@ class User extends Authenticatable
     {
         return $this->belongsToMany(Product::class, 'user_favorite_products')
             ->withTimestamps();
+    }
+
+    public static function isInvalidClientEmail(?string $email): bool
+    {
+        if (!is_string($email) || trim($email) === '') {
+            return true;
+        }
+
+        $email = strtolower(trim($email));
+
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return true;
+        }
+
+        foreach (self::INTERNAL_EMAIL_SUFFIXES as $suffix) {
+            if (str_ends_with($email, $suffix)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function clientDisplayEmail(): ?string
+    {
+        if (self::isInvalidClientEmail($this->email)) {
+            return null;
+        }
+
+        return $this->email;
     }
 }

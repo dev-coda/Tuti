@@ -30,7 +30,15 @@ it('shows only route clients whose visit day matches today in mi ruta tab', func
     $todayDow = Carbon::now('America/Bogota')->dayOfWeek;
     $otherDow = ($todayDow + 1) % 7;
 
-    $clientToday = User::factory()->create(['name' => 'Cliente Visita Hoy', 'document' => '111222333']);
+    $clientToday = User::factory()->create([
+        'name' => 'Cliente Visita Hoy',
+        'document' => '901234567',
+        'business_name' => 'Tienda El Progreso',
+        'phone' => '6012345678',
+        'mobile_phone' => '3001234567',
+        'whatsapp' => '3007654321',
+        'email' => 'tienda@example.com',
+    ]);
     Zone::create([
         'user_id' => $clientToday->id,
         'zone' => '301',
@@ -65,6 +73,13 @@ it('shows only route clients whose visit day matches today in mi ruta tab', func
     $response->assertOk()
         ->assertSee('Mi Ruta')
         ->assertSee('Cliente Visita Hoy')
+        ->assertSee('Tienda El Progreso')
+        ->assertSee('901234567')
+        ->assertSee('6012345678')
+        ->assertSee('3001234567')
+        ->assertSee('3007654321')
+        ->assertSee('tienda@example.com')
+        ->assertSee('Calle 1 # 2-3')
         ->assertDontSee('Cliente Otro Dia')
         ->assertDontSee('Cliente Otra Ruta');
 });

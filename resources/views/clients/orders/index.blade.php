@@ -20,6 +20,12 @@
             <p class="text-sm text-gray-500 mt-1">Gestiona tu información personal y pedidos</p>
         </div>
 
+        @if(session('success'))
+            <div class="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl text-sm text-green-800">
+                {{ session('success') }}
+            </div>
+        @endif
+
         {{-- ── Seller Mini Dashboard ─────────────────────────── --}}
         @if(!empty($isSeller))
         <div id="seller-dashboard" class="mb-8">
