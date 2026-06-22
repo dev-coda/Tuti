@@ -95,6 +95,8 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('/products/{product}/combinations{combination}', [ProductCombinationsController::class, 'remove_combination'])->name('products.remove_combination');
 
     //Route::post('/users/{user}/code', [UserController::class, 'code'])->name('users.code');
+    Route::post('/users/sync-rutero', [UserController::class, 'syncRuteroByDocument'])->name('users.sync-rutero-by-document');
+    Route::post('/users/{user}/sync-rutero', [UserController::class, 'syncRutero'])->name('users.sync-rutero');
     Route::post('/users/{user}/password', [UserController::class, 'password'])->name('users.password');
     Route::patch('/users/{user}/zones/{zone}/48h', [UserController::class, 'updateZone48h'])->name('users.zones.48h.update');
     Route::get('/userexport', [UserController::class, 'export'])->name('admin.export.users');

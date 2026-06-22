@@ -6,6 +6,7 @@ use App\Exports\SellersExport;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Repositories\UserRepository;
+use App\Services\DraftOrderReconciliationService;
 use App\Services\PendingClientProvisioningService;
 use Illuminate\Http\Request;
 use Maatwebsite\Excel\Facades\Excel;
@@ -101,42 +102,32 @@ class SellerController extends Controller
     public function setclient(Request $request)
     {
         $validate = $request->validate([
-            'document' => 'required|integer',
+            'document' => ['required', 'string', 'regex:/^\d+$/'],
         ]);
 
-        $document = $validate['document'];
+        $document = preg_replace('/\D+/', '', $validate['document']) ?: $validate['document'];
         $sellerZone = auth()->user()?->zone;
         $requestZone = $request->input('zone');
         $resolvedZone = $sellerZone !== null && $sellerZone !== '' ? $sellerZone : $requestZone;
         $zone = $resolvedZone !== null && $resolvedZone !== '' ? (string) $resolvedZone : null;
+        $reconciliation = app(DraftOrderReconciliationService::class);
         $user = User::whereDocument($document)->first();
         if (!$user) {
             // Try with zone first, if fails will retry without zone automatically
             $data = UserRepository::getCustomRuteroId($document, $zone);
 
             if ($data) {
-                $name = $data['name'];
-
-                $email = time() . '@tuti.com';
-                $password = bcrypt($email);
                 $user = User::create([
-                    'name' => $name,
-                    'email' => $email,
+                    'name' => $data['name'] ?? ('Cliente '.$document),
+                    'email' => time().'@tuti.com',
                     'document' => $document,
-                    'password' => $password,
-                    'status_id' => User::PENDING,
+                    'password' => bcrypt(time().'@tuti.com'),
+                    'status_id' => User::ACTIVE,
                     'client_status' => User::CLIENT_STATUS_CLIENTE,
                 ]);
 
-                foreach ($data['routes'] as $route) {
-                    $user->zones()->create([
-                        'route' => $route['route'],
-                        'zone' => $route['zone'],
-                        'day' => $route['day'],
-                        'address' => $route['address'],
-                        'code' => $route['code'],
-                    ]);
-                }
+                UserRepository::syncUserRuteroData($user);
+                $user = $user->fresh(['zones']);
 
                 session()->put('user_id', $user->id);
                 session()->forget('zone_id');
@@ -158,25 +149,24 @@ class SellerController extends Controller
                 );
             }
         } else {
-            if (! $user->isPendingClient()) {
-                // Usuario ya existe, sincronizar zonas con datos actuales
-                // This will automatically retry without zone if zone doesn't match
-                $syncSuccess = UserRepository::syncUserRuteroData($user);
-
-                if (! $syncSuccess) {
-                    \Log::warning('Failed to sync rutero data for existing user', [
-                        'user_id' => $user->id,
-                        'document' => $document,
-                        'zone' => $zone,
-                    ]);
-                    // Continue anyway - user might still have valid zones from before
-                }
-            }
+            $reconciliation->syncUserFromRutero(
+                $user,
+                promoteIfPossible: ! $user->isCliente(),
+                transmitDrafts: true,
+            );
+            $user = $user->fresh(['zones']);
 
             session()->put('user_id', $user->id);
             session()->forget('zone_id');
 
-            return to_route('cart');
+            if ($user->isCliente()) {
+                return to_route('cart');
+            }
+
+            return to_route('cart')->with(
+                'success',
+                'Cliente prospecto vinculado. Puede realizar pedidos; la transmisión al sistema se hará cuando el rutero esté disponible.'
+            );
         }
 
 

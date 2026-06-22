@@ -12,6 +12,7 @@ use App\Models\Zone;
 use App\Repositories\OrderRepository;
 use App\Models\Setting;
 use App\Repositories\UserRepository;
+use App\Services\DraftOrderReconciliationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
@@ -171,6 +172,34 @@ class UserController extends Controller
         $user->update($validate);
 
         return back()->with('success', 'Contraseña actualizada');
+    }
+
+    public function syncRuteroByDocument(Request $request, DraftOrderReconciliationService $reconciliationService)
+    {
+        $validated = $request->validate([
+            'document' => ['required', 'string', 'max:255'],
+        ]);
+
+        $result = $reconciliationService->syncByDocument($validated['document']);
+
+        if ($result['user']) {
+            return redirect()
+                ->route('users.edit', $result['user'])
+                ->with($result['success'] ? 'success' : 'error', $result['message']);
+        }
+
+        return back()->with('error', $result['message']);
+    }
+
+    public function syncRutero(User $user, DraftOrderReconciliationService $reconciliationService)
+    {
+        if ($user->roles()->exists()) {
+            return back()->with('error', 'Solo aplica a clientes, no a usuarios administrativos o vendedores.');
+        }
+
+        $result = $reconciliationService->syncUserFromRutero($user, true, true);
+
+        return back()->with($result['success'] ? 'success' : 'error', $result['message']);
     }
 
     /**

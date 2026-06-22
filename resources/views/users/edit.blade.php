@@ -71,8 +71,31 @@
     </div>
 
     <div>
-       
-     
+        <div class="p-4 mb-4 bg-white border border-gray-200 rounded-lg shadow-sm 2xl:col-span-2 ">
+            <h3 class="mb-2 text-xl font-semibold">Dynamics (rutero)</h3>
+            <p class="text-sm text-gray-600 mb-3">
+                Estado:
+                @if($user->isProspectClient())
+                    <span class="font-medium text-indigo-700">Prospecto</span>
+                @elseif($user->isPendingClient())
+                    <span class="font-medium text-amber-700">Pendiente</span>
+                @elseif($user->isCliente())
+                    <span class="font-medium text-emerald-700">Cliente</span>
+                @else
+                    <span class="font-medium text-gray-700">{{ $user->client_status ?? '—' }}</span>
+                @endif
+                @if($user->rutero_synced_at)
+                    · Última sync {{ $user->rutero_synced_at->timezone(config('app.timezone'))->format('d/m/Y H:i') }}
+                @endif
+            </p>
+            <form method="post" action="{{ route('users.sync-rutero', $user) }}">
+                @csrf
+                <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-orange-600 rounded-lg hover:bg-orange-700">
+                    Sincronizar rutero ahora
+                </button>
+            </form>
+        </div>
+
         <div class="p-4 mb-4 bg-white border border-gray-200 rounded-lg shadow-sm 2xl:col-span-2 ">
             <h3 class="mb-4 text-xl font-semibold ">Contraseña</h3>
           

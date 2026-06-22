@@ -4,7 +4,7 @@ namespace App\Repositories;
 
 use App\Models\Setting;
 use App\Models\User;
-use Illuminate\Support\Facades\Artisan;
+use App\Services\MicrosoftTokenService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 
@@ -178,18 +178,17 @@ class UserRepository
     }
 
     /**
-     * Current Microsoft token value, refreshed via app:get-token when older than 25 minutes.
+     * Current Microsoft token value, refreshed when missing or older than 25 minutes.
      */
     private static function freshMicrosoftToken(): string
     {
         $token = Setting::where('key', 'microsoft_token')->first();
 
-        if ($token->updated_at->diffInMinutes(now()) > 25) {
-            Artisan::call('app:get-token');
-            $token = Setting::where('key', 'microsoft_token')->first();
+        if ($token && filled($token->value) && $token->updated_at->diffInMinutes(now()) <= 25) {
+            return $token->value;
         }
 
-        return $token->value;
+        return MicrosoftTokenService::refresh();
     }
 
     /**

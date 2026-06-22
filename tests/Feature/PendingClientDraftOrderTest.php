@@ -130,7 +130,7 @@ it('provisions pending prospect when rutero is missing', function () {
 
     $this->actingAs($seller)
         ->post(route('seller.setclient'), [
-            'document' => 800111222,
+            'document' => '800111222',
             'zone' => 933,
         ])
         ->assertRedirect(route('cart'));
@@ -327,7 +327,194 @@ it('creates prospecto for self-created client payload and blocks draft processin
     expect($result)->toBe('drafts_failed');
     $order->refresh();
     expect($order->status_id)->toBe(Order::STATUS_DRAFT)
-        ->and($order->draft_reconciliation_note)->toContain('Prospecto');
+        ->and($order->draft_reconciliation_note)->toContain('CustRuteroID');
 
     Bus::assertNotDispatched(ProcessOrderAsync::class);
+});
+
+it('promotes existing pending client when seller re-links and rutero is available', function () {
+    config(['microsoft.resource' => 'https://dynamics.test']);
+
+    Setting::updateOrCreate(
+        ['key' => 'microsoft_token'],
+        ['name' => 'Microsoft token', 'value' => 'test-token', 'show' => false]
+    );
+
+    Http::fake([
+        'https://dynamics.test*' => Http::response(fakeGetRuterosSoap([
+            [
+                'code' => 'CUST-1110286609',
+                'zone' => '933',
+                'route' => '1234',
+                'day' => 'LUNES',
+                'address' => 'Calle 1 # 2-3',
+                'name' => 'Cliente Rutero Real',
+            ],
+        ])),
+    ]);
+
+    $seller = User::factory()->create(['zone' => '933']);
+    $seller->assignRole('seller');
+
+    $client = User::factory()->create([
+        'document' => '1110286609',
+        'name' => 'Prospecto 1110286609',
+        'client_status' => User::CLIENT_STATUS_PENDIENTE,
+        'status_id' => User::PENDING,
+    ]);
+
+    Zone::create([
+        'user_id' => $client->id,
+        'route' => '',
+        'zone' => '933',
+        'day' => '',
+        'address' => 'Pendiente de sincronización rutero',
+        'code' => null,
+    ]);
+
+    $this->actingAs($seller)
+        ->post(route('seller.setclient'), ['document' => '1110286609'])
+        ->assertRedirect(route('cart'));
+
+    $client->refresh()->load('zones');
+
+    expect($client->client_status)->toBe(User::CLIENT_STATUS_CLIENTE)
+        ->and($client->status_id)->toBe(User::ACTIVE)
+        ->and($client->name)->toBe('Cliente Rutero Real')
+        ->and($client->zones->first()->code)->toBe('CUST-1110286609');
+});
+
+it('promotes pending client at checkout when rutero becomes available', function () {
+    Bus::fake([ProcessOrderAsync::class]);
+
+    config(['microsoft.resource' => 'https://dynamics.test']);
+
+    Setting::updateOrCreate(
+        ['key' => 'microsoft_token'],
+        ['name' => 'Microsoft token', 'value' => 'test-token', 'show' => false]
+    );
+
+    Http::fake([
+        'https://dynamics.test*' => Http::response(fakeGetRuterosSoap([
+            [
+                'code' => 'CUST-800333444',
+                'zone' => '933',
+                'route' => '1001',
+                'day' => 'LUNES',
+                'address' => 'Addr actualizada',
+                'name' => 'Cliente Promovido',
+            ],
+        ])),
+    ]);
+
+    ['seller' => $seller, 'client' => $client, 'zone' => $zone, 'product' => $product] = createSellerClientProductForDraftTest();
+    $client->update(['document' => '800333444']);
+
+    $this->actingAs($seller)
+        ->withSession(['user_id' => $client->id, 'cart' => [
+            [
+                'product_id' => $product->id,
+                'quantity' => 1,
+                'price' => 10_000,
+                'discount' => 0,
+            ],
+        ]])
+        ->post(route('cart.process'), [
+            'zone_id' => $zone->id,
+            'delivery_method' => Order::DELIVERY_METHOD_TRONEX,
+            'observations' => '',
+        ])
+        ->assertRedirect();
+
+    $client->refresh();
+    $order = Order::query()->latest('id')->first();
+
+    expect($client->client_status)->toBe(User::CLIENT_STATUS_CLIENTE)
+        ->and($order)->not->toBeNull()
+        ->and($order->status_id)->toBe(Order::STATUS_PENDING);
+
+    Bus::assertDispatched(ProcessOrderAsync::class);
+});
+
+it('promotes prospecto client during reconcileAll when rutero code is available', function () {
+    config(['microsoft.resource' => 'https://dynamics.test']);
+
+    Setting::updateOrCreate(
+        ['key' => 'microsoft_token'],
+        ['name' => 'Microsoft token', 'value' => 'test-token', 'show' => false]
+    );
+
+    Http::fake([
+        'https://dynamics.test*' => Http::response(fakeGetRuterosSoap([
+            [
+                'code' => 'CUST-PROSP-1',
+                'zone' => '933',
+                'route' => '1001',
+                'day' => 'LUNES',
+                'address' => 'Calle Prospecto',
+                'name' => 'Prospecto Promovido',
+            ],
+        ])),
+    ]);
+
+    $client = User::factory()->create([
+        'document' => '911000222',
+        'client_status' => User::CLIENT_STATUS_PROSPECTO,
+        'status_id' => User::PENDING,
+    ]);
+
+    Zone::create([
+        'user_id' => $client->id,
+        'route' => '0000',
+        'zone' => '000',
+        'day' => '',
+        'address' => 'Dirección prospecto pendiente de validación',
+        'code' => null,
+    ]);
+
+    $stats = app(DraftOrderReconciliationService::class)->reconcileAll();
+
+    $client->refresh();
+
+    expect($stats['users_promoted'])->toBeGreaterThanOrEqual(1)
+        ->and($client->client_status)->toBe(User::CLIENT_STATUS_CLIENTE)
+        ->and($client->status_id)->toBe(User::ACTIVE)
+        ->and($client->zones()->where('code', 'CUST-PROSP-1')->exists())->toBeTrue();
+});
+
+it('creates new seller client as active with full rutero sync', function () {
+    config(['microsoft.resource' => 'https://dynamics.test']);
+
+    Setting::updateOrCreate(
+        ['key' => 'microsoft_token'],
+        ['name' => 'Microsoft token', 'value' => 'test-token', 'show' => false]
+    );
+
+    Http::fake([
+        'https://dynamics.test*' => Http::response(fakeGetRuterosSoap([
+            [
+                'code' => 'CUST-NEW-1',
+                'zone' => '933',
+                'route' => '4321',
+                'day' => 'MIERCOLES',
+                'address' => 'Calle Nueva 1',
+                'name' => 'Cliente Nuevo Rutero',
+            ],
+        ])),
+    ]);
+
+    $seller = User::factory()->create(['zone' => '933']);
+    $seller->assignRole('seller');
+
+    $this->actingAs($seller)
+        ->post(route('seller.setclient'), ['document' => '700123456'])
+        ->assertRedirect(route('cart'));
+
+    $client = User::query()->where('document', '700123456')->first();
+
+    expect($client)->not->toBeNull()
+        ->and($client->client_status)->toBe(User::CLIENT_STATUS_CLIENTE)
+        ->and($client->status_id)->toBe(User::ACTIVE)
+        ->and($client->name)->toBe('Cliente Nuevo Rutero')
+        ->and($client->zones()->where('code', 'CUST-NEW-1')->exists())->toBeTrue();
 });

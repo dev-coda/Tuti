@@ -193,32 +193,7 @@ class OrderController extends Controller
 
     private function refreshMicrosoftToken()
     {
-        $client_id = config('microsoft.client_id');
-        $client_secret = config('microsoft.client_secret');
-        $resource = config('microsoft.resource');
-        $url = config('microsoft.url_token');
-
-        $data = [
-            'grant_type' => 'client_credentials',
-            'client_id' => $client_id,
-            'client_secret' => $client_secret,
-            'resource' => $resource,
-        ];
-
-        $response = Http::asForm()->post($url, $data);
-
-        if (!$response->successful()) {
-            throw new \Exception('No se pudo actualizar el token de autenticación');
-        }
-
-        $json = $response->json();
-        $token = $json['access_token'] ?? null;
-
-        if (!$token) {
-            throw new \Exception('Token de autenticación no válido');
-        }
-
-        Setting::where('key', 'microsoft_token')->update(['value' => $token]);
+        \App\Services\MicrosoftTokenService::refresh();
     }
 
     /**

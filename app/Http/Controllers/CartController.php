@@ -18,6 +18,7 @@ use App\Repositories\OrderRepository;
 use App\Repositories\UserRepository;
 use App\Services\BonificationCheckoutService;
 use App\Services\CouponService;
+use App\Services\DraftOrderReconciliationService;
 use App\Services\Shipping\CoordinadoraQuoteService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -704,11 +705,25 @@ class CartController extends Controller
             $actingUser = User::find($user_id) ?: $user;
         }
 
+        if ($actingUser && $actingUser->document && ($actingUser->isPendingClient() || $actingUser->isProspectClient())) {
+            try {
+                app(DraftOrderReconciliationService::class)
+                    ->syncUserFromRutero($actingUser, true, true);
+                $actingUser->refresh();
+                $actingUser->load('zones');
+            } catch (\Throwable $th) {
+                \Log::warning('Failed to sync rutero for pending/prospect client at checkout', [
+                    'user_id' => $actingUser->id,
+                    'document' => $actingUser->document,
+                    'error' => $th->getMessage(),
+                ]);
+            }
+        }
+
         $isDraftClientCheckout = $actingUser && ($actingUser->isPendingClient() || $actingUser->isProspectClient());
 
         // Sync rutero data before processing order to ensure we have current data
         // This handles cases where zone data might have changed in external service
-        // Pending clients (24h rutero delay) skip getRuteros at checkout.
         if ($actingUser && $actingUser->document && ! $isDraftClientCheckout) {
             try {
                 \Log::info('Syncing rutero data before order processing', [

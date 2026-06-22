@@ -68,6 +68,29 @@
         @endif
         <a href="{{ route('bulk-operations.index') }}" class="text-sm text-blue-600 hover:underline">Ver todos los informes</a>
     </div>
+    <div class="mt-4 pt-4 border-t border-slate-200">
+        <h3 class="font-medium text-gray-900 mb-2">Sincronizar un cliente por documento</h3>
+        <p class="text-gray-600 mb-3 text-xs">Consulta getRuteros para un cliente específico, actualiza sus datos y lo activa si Dynamics devuelve CustRuteroID.</p>
+        <form method="post" action="{{ route('users.sync-rutero-by-document') }}" class="flex flex-wrap items-end gap-2">
+            @csrf
+            <div>
+                <label for="sync-rutero-document" class="block text-xs font-medium text-gray-700 mb-1">Documento (NIT sin DV)</label>
+                <input
+                    type="text"
+                    name="document"
+                    id="sync-rutero-document"
+                    value="{{ old('document') }}"
+                    inputmode="numeric"
+                    class="w-56 text-sm border border-gray-300 rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="1110286609"
+                    required
+                >
+            </div>
+            <button type="submit" class="px-4 py-2 bg-orange-600 text-white rounded-lg text-sm font-medium hover:bg-orange-700">
+                Sincronizar rutero
+            </button>
+        </form>
+    </div>
 </div>
 
 <div class="flex flex-col">

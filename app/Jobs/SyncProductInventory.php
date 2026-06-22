@@ -7,13 +7,13 @@ use App\Models\Product;
 use App\Models\ProductInventory;
 use App\Models\Setting;
 use App\Models\ZoneWarehouse;
+use App\Services\MicrosoftTokenService;
 use Exception;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -83,25 +83,12 @@ class SyncProductInventory implements ShouldQueue
             return;
         }
 
-        Log::info('Token found, checking freshness...', [
-            'token_updated_at' => $tokenSetting->updated_at->toDateTimeString(),
-            'minutes_since_update' => $tokenSetting->updated_at->diffInMinutes(now()),
-        ]);
-
-        if ($tokenSetting->updated_at->diffInMinutes(now()) > 2) {
+        if (blank($tokenSetting->value)) {
             try {
-                Log::info('Token is stale, refreshing...');
-                Artisan::call('app:get-token');
+                Log::info('Microsoft token empty, refreshing before inventory sync...');
+                MicrosoftTokenService::refresh();
                 $tokenSetting = Setting::where('key', 'microsoft_token')->first();
-                if (! $tokenSetting) {
-                    Log::error('Inventory sync failed - Token setting not found after refresh');
-                    $this->logToDatabase(null, 'error', 'Token setting not found after refresh');
-                    $this->updateSyncProgress('error', 'No se encontró microsoft_token después de refrescar.');
-
-                    return;
-                }
-                Log::info('Token refreshed successfully');
-            } catch (Exception $e) {
+            } catch (\Throwable $e) {
                 Log::error('Inventory sync failed - Token refresh error: '.$e->getMessage());
                 $this->logToDatabase(null, 'error', 'Token refresh error: '.$e->getMessage());
                 $this->updateSyncProgress('error', 'Error refrescando token: '.$e->getMessage());
@@ -109,6 +96,19 @@ class SyncProductInventory implements ShouldQueue
                 return;
             }
         }
+
+        if (! $tokenSetting || blank($tokenSetting->value)) {
+            Log::error('Inventory sync failed - microsoft_token setting is empty');
+            $this->logToDatabase(null, 'error', 'microsoft_token setting is empty');
+            $this->updateSyncProgress('error', 'Falta el valor de microsoft_token. Ejecute php artisan app:get-token.');
+
+            return;
+        }
+
+        Log::info('Using stored Microsoft token for inventory sync', [
+            'token_updated_at' => $tokenSetting->updated_at->toDateTimeString(),
+            'minutes_since_update' => $tokenSetting->updated_at->diffInMinutes(now()),
+        ]);
 
         $token = $tokenSetting->value;
 
