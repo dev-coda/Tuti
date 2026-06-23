@@ -280,6 +280,37 @@ it('retries inventory sync once when dynamics rejects the bearer token', functio
         ->and((int) ProductInventory::whereHas('product', fn ($query) => $query->where('sku', 'RETRY-SKU'))->value('available'))->toBe(8);
 });
 
+it('logs an error when microsoft oauth config is missing', function () {
+    config([
+        'microsoft.resource' => 'https://dynamics.test',
+        'microsoft.url_token' => '',
+        'microsoft.client_id' => '',
+        'microsoft.client_secret' => '',
+    ]);
+    Setting::updateOrCreate(
+        ['key' => 'inventory_enabled'],
+        ['name' => 'Inventory enabled', 'value' => '1', 'show' => false]
+    );
+    $setting = Setting::updateOrCreate(
+        ['key' => 'microsoft_token'],
+        ['name' => 'Microsoft token', 'value' => 'stale-token', 'show' => false]
+    );
+    $setting->forceFill(['updated_at' => now()->subMinutes(30)])->save();
+    ZoneWarehouse::updateOrCreate(
+        ['zone_code' => '933'],
+        ['bodega_code' => 'BOD-SYNC']
+    );
+
+    Http::fake();
+
+    (new SyncProductInventory())->handle();
+
+    $log = InventorySyncLog::latest('id')->first();
+    expect($log)->not->toBeNull()
+        ->and($log->status)->toBe('error')
+        ->and($log->error_message)->toContain('MICROSOFT_URL_TOKEN');
+});
+
 it('logs an error and avoids inventory changes when microsoft token refresh fails', function () {
     config([
         'microsoft.resource' => 'https://dynamics.test',

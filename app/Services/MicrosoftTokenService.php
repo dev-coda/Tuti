@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Setting;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 class MicrosoftTokenService
@@ -18,6 +19,17 @@ class MicrosoftTokenService
         $resource = config('microsoft.resource');
         $url = config('microsoft.url_token');
 
+        foreach ([
+            'MICROSOFT_URL_TOKEN' => $url,
+            'MICROSOFT_CLIENT_ID' => $clientId,
+            'MICROSOFT_CLIENT_SECRET' => $clientSecret,
+            'MICROSOFT_RESOURCE_URL' => $resource,
+        ] as $envKey => $value) {
+            if (blank($value)) {
+                throw new RuntimeException("Microsoft OAuth no está configurado: falta {$envKey}.");
+            }
+        }
+
         $response = Http::asForm()->post($url, [
             'grant_type' => 'client_credentials',
             'client_id' => $clientId,
@@ -25,18 +37,46 @@ class MicrosoftTokenService
             'resource' => $resource,
         ]);
 
-        $json = $response->json() ?? [];
+        $payload = $response->json();
+        if (! is_array($payload)) {
+            Log::warning('Microsoft token refresh returned non-JSON response', [
+                'status' => $response->status(),
+                'body_preview' => substr(trim((string) $response->body()), 0, 300),
+            ]);
 
-        if (! $response->successful()) {
-            $description = $json['error_description'] ?? $json['error'] ?? $response->body();
+            throw new RuntimeException(
+                'No se pudo obtener el token de Microsoft (HTTP '.$response->status().'): respuesta no JSON.'
+            );
+        }
+
+        $oauthError = data_get($payload, 'error');
+        if ($oauthError) {
+            $description = (string) (data_get($payload, 'error_description') ?: $oauthError);
+
             throw new RuntimeException(
                 'No se pudo obtener el token de Microsoft (HTTP '.$response->status().'): '.$description
             );
         }
 
-        $token = $json['access_token'] ?? null;
-        if (! $token) {
-            throw new RuntimeException('La respuesta de Microsoft no incluyó access_token.');
+        if (! $response->successful()) {
+            $description = (string) (data_get($payload, 'error_description') ?: data_get($payload, 'error') ?: $response->body());
+
+            throw new RuntimeException(
+                'No se pudo obtener el token de Microsoft (HTTP '.$response->status().'): '.$description
+            );
+        }
+
+        $token = data_get($payload, 'access_token');
+        if (! is_string($token) || $token === '') {
+            Log::warning('Microsoft token refresh response missing access_token', [
+                'status' => $response->status(),
+                'keys' => array_keys($payload),
+                'body_preview' => substr(trim((string) $response->body()), 0, 300),
+            ]);
+
+            throw new RuntimeException(
+                'No se pudo obtener el token de Microsoft: la respuesta no incluyó access_token.'
+            );
         }
 
         $setting = Setting::firstOrCreate(
