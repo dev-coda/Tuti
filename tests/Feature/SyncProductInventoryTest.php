@@ -214,8 +214,79 @@ it('keeps automatic sync disabled when inventory is off', function () {
         ->and(InventorySyncLog::count())->toBe(0);
 });
 
-it('logs an error and avoids inventory changes when the microsoft token is missing', function () {
-    config(['microsoft.resource' => 'https://dynamics.test']);
+it('refreshes a stale microsoft token before syncing inventory', function () {
+    configureInventorySyncJob();
+
+    $setting = Setting::where('key', 'microsoft_token')->first();
+    $setting->forceFill([
+        'value' => 'stale-token',
+        'updated_at' => now()->subMinutes(30),
+    ])->save();
+
+    config([
+        'microsoft.url_token' => 'https://login.microsoftonline.com/token',
+        'microsoft.client_id' => 'client-id',
+        'microsoft.client_secret' => 'client-secret',
+    ]);
+
+    Http::fake([
+        'https://login.microsoftonline.com/token' => Http::response(['access_token' => 'fresh-token'], 200),
+        'https://dynamics.test/soap/services/DIITDWSSalesForceGroup' => Http::response(inventorySyncSoapResponse([
+            ['sku' => 'FRESH-SKU', 'available' => 3],
+        ]), 200),
+    ]);
+
+    inventorySyncProduct('FRESH-SKU');
+
+    (new SyncProductInventory())->handle();
+
+    Http::assertSent(function ($request) {
+        return $request->url() === 'https://login.microsoftonline.com/token';
+    });
+    expect(Setting::where('key', 'microsoft_token')->value('value'))->toBe('fresh-token');
+});
+
+it('retries inventory sync once when dynamics rejects the bearer token', function () {
+    configureInventorySyncJob();
+
+    config([
+        'microsoft.url_token' => 'https://login.microsoftonline.com/token',
+        'microsoft.client_id' => 'client-id',
+        'microsoft.client_secret' => 'client-secret',
+    ]);
+
+    $attempts = 0;
+    Http::fake(function ($request) use (&$attempts) {
+        if ($request->url() === 'https://login.microsoftonline.com/token') {
+            return Http::response(['access_token' => 'fresh-token'], 200);
+        }
+
+        $attempts++;
+
+        if ($attempts === 1) {
+            return Http::response('Unauthorized', 401);
+        }
+
+        return Http::response(inventorySyncSoapResponse([
+            ['sku' => 'RETRY-SKU', 'available' => 8],
+        ]), 200);
+    });
+
+    inventorySyncProduct('RETRY-SKU');
+
+    (new SyncProductInventory())->handle();
+
+    expect($attempts)->toBe(2)
+        ->and((int) ProductInventory::whereHas('product', fn ($query) => $query->where('sku', 'RETRY-SKU'))->value('available'))->toBe(8);
+});
+
+it('logs an error and avoids inventory changes when microsoft token refresh fails', function () {
+    config([
+        'microsoft.resource' => 'https://dynamics.test',
+        'microsoft.url_token' => 'https://login.microsoftonline.com/token',
+        'microsoft.client_id' => 'client-id',
+        'microsoft.client_secret' => 'client-secret',
+    ]);
     Setting::updateOrCreate(
         ['key' => 'inventory_enabled'],
         ['name' => 'Inventory enabled', 'value' => '1', 'show' => false]
@@ -234,15 +305,17 @@ it('logs an error and avoids inventory changes when the microsoft token is missi
         'reserved' => 0,
     ]);
 
-    Http::fake();
+    Http::fake([
+        'https://login.microsoftonline.com/token' => Http::response(['error' => 'invalid_client'], 401),
+    ]);
 
     (new SyncProductInventory())->handle();
 
-    Http::assertNothingSent();
+    Http::assertSentCount(1);
     expect((int) ProductInventory::where('product_id', $product->id)->where('bodega_code', 'BOD-SYNC')->value('available'))->toBe(19);
 
     $log = InventorySyncLog::latest('id')->first();
     expect($log)->not->toBeNull()
         ->and($log->status)->toBe('error')
-        ->and($log->error_message)->toBe('Missing microsoft_token setting');
+        ->and($log->error_message)->toContain('Token refresh error:');
 });
