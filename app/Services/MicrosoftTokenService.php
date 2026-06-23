@@ -9,9 +9,6 @@ use RuntimeException;
 
 class MicrosoftTokenService
 {
-    /** Refresh stored access tokens before Dynamics rejects them (~60 min lifetime). */
-    private const MAX_TOKEN_AGE_MINUTES = 25;
-
     public static function refresh(): string
     {
         $clientId = config('microsoft.client_id');
@@ -89,16 +86,15 @@ class MicrosoftTokenService
         return $token;
     }
 
+    /**
+     * Return the stored Dynamics token, refreshing only when missing or forced.
+     * Callers should retry with forceRefresh after Dynamics returns 401.
+     */
     public static function currentOrRefresh(bool $forceRefresh = false): string
     {
         $setting = Setting::where('key', 'microsoft_token')->first();
 
-        if (
-            ! $forceRefresh
-            && $setting
-            && filled($setting->value)
-            && $setting->updated_at->diffInMinutes(now()) <= self::MAX_TOKEN_AGE_MINUTES
-        ) {
+        if (! $forceRefresh && $setting && filled($setting->value)) {
             return $setting->value;
         }
 

@@ -214,36 +214,30 @@ it('keeps automatic sync disabled when inventory is off', function () {
         ->and(InventorySyncLog::count())->toBe(0);
 });
 
-it('refreshes a stale microsoft token before syncing inventory', function () {
+it('reuses a stored microsoft token without refreshing until dynamics rejects it', function () {
     configureInventorySyncJob();
 
     $setting = Setting::where('key', 'microsoft_token')->first();
     $setting->forceFill([
-        'value' => 'stale-token',
+        'value' => 'still-valid-token',
         'updated_at' => now()->subMinutes(30),
     ])->save();
 
-    config([
-        'microsoft.url_token' => 'https://login.microsoftonline.com/token',
-        'microsoft.client_id' => 'client-id',
-        'microsoft.client_secret' => 'client-secret',
-    ]);
-
     Http::fake([
-        'https://login.microsoftonline.com/token' => Http::response(['access_token' => 'fresh-token'], 200),
         'https://dynamics.test/soap/services/DIITDWSSalesForceGroup' => Http::response(inventorySyncSoapResponse([
-            ['sku' => 'FRESH-SKU', 'available' => 3],
+            ['sku' => 'STORED-SKU', 'available' => 5],
         ]), 200),
     ]);
 
-    inventorySyncProduct('FRESH-SKU');
+    inventorySyncProduct('STORED-SKU');
 
     (new SyncProductInventory())->handle();
 
+    Http::assertSentCount(1);
     Http::assertSent(function ($request) {
-        return $request->url() === 'https://login.microsoftonline.com/token';
+        return str_contains($request->url(), 'dynamics.test')
+            && $request->header('Authorization')[0] === 'Bearer still-valid-token';
     });
-    expect(Setting::where('key', 'microsoft_token')->value('value'))->toBe('fresh-token');
 });
 
 it('retries inventory sync once when dynamics rejects the bearer token', function () {
@@ -291,11 +285,10 @@ it('logs an error when microsoft oauth config is missing', function () {
         ['key' => 'inventory_enabled'],
         ['name' => 'Inventory enabled', 'value' => '1', 'show' => false]
     );
-    $setting = Setting::updateOrCreate(
+    Setting::updateOrCreate(
         ['key' => 'microsoft_token'],
-        ['name' => 'Microsoft token', 'value' => 'stale-token', 'show' => false]
+        ['name' => 'Microsoft token', 'value' => '', 'show' => false]
     );
-    $setting->forceFill(['updated_at' => now()->subMinutes(30)])->save();
     ZoneWarehouse::updateOrCreate(
         ['zone_code' => '933'],
         ['bodega_code' => 'BOD-SYNC']
