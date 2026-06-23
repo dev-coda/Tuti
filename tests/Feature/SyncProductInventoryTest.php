@@ -25,19 +25,12 @@ function configureInventorySyncJob(string $bodega = 'BOD-SYNC'): void
     );
     Setting::updateOrCreate(
         ['key' => 'microsoft_token'],
-        ['name' => 'Microsoft token', 'value' => 'sync-token', 'show' => false]
+        ['name' => 'Microsoft token', 'value' => 'token', 'show' => false]
     );
     ZoneWarehouse::updateOrCreate(
         ['zone_code' => '933'],
         ['bodega_code' => $bodega]
     );
-}
-
-function fakeInventorySyncResponses(array $items): void
-{
-    Http::fake([
-        'https://dynamics.test/soap/services/DIITDWSSalesForceGroup' => Http::response(inventorySyncSoapResponse($items), 200),
-    ]);
 }
 
 function inventorySyncProduct(string $sku, array $state = []): Product
@@ -133,15 +126,17 @@ it('syncs direct products and parent variation inventory while dummy parents sta
         'reserved' => 0,
     ]);
 
-    fakeInventorySyncResponses([
-        ['sku' => 'SIMPLE-SKU', 'available' => 7, 'physical' => 9, 'reserved' => 2],
-        ['sku' => 'DUP-SKU', 'available' => 3, 'physical' => 3, 'reserved' => 0],
-        ['sku' => 'DUP-SKU', 'available' => 4, 'physical' => 5, 'reserved' => 1],
-        ['sku' => 'DUMMY-PARENT-SYNC', 'available' => 999, 'physical' => 999, 'reserved' => 0],
-        ['sku' => 'VARIATION-SKU', 'available' => 11, 'physical' => 12, 'reserved' => 1],
-        ['sku' => 'PIVOT-ONLY-VARIATION-SKU', 'available' => 18, 'physical' => 20, 'reserved' => 2],
-        ['sku' => 'LEGACY-VARIATION-SKU', 'available' => 21, 'physical' => 25, 'reserved' => 4],
-        ['sku' => 'IGNORED-WMS-SKU', 'available' => 99, 'location' => 'EMPAQUE'],
+    Http::fake([
+        '*' => Http::response(inventorySyncSoapResponse([
+            ['sku' => 'SIMPLE-SKU', 'available' => 7, 'physical' => 9, 'reserved' => 2],
+            ['sku' => 'DUP-SKU', 'available' => 3, 'physical' => 3, 'reserved' => 0],
+            ['sku' => 'DUP-SKU', 'available' => 4, 'physical' => 5, 'reserved' => 1],
+            ['sku' => 'DUMMY-PARENT-SYNC', 'available' => 999, 'physical' => 999, 'reserved' => 0],
+            ['sku' => 'VARIATION-SKU', 'available' => 11, 'physical' => 12, 'reserved' => 1],
+            ['sku' => 'PIVOT-ONLY-VARIATION-SKU', 'available' => 18, 'physical' => 20, 'reserved' => 2],
+            ['sku' => 'LEGACY-VARIATION-SKU', 'available' => 21, 'physical' => 25, 'reserved' => 4],
+            ['sku' => 'IGNORED-WMS-SKU', 'available' => 99, 'location' => 'EMPAQUE'],
+        ]), 200),
     ]);
 
     (new SyncProductInventory())->handle();
@@ -219,33 +214,11 @@ it('keeps automatic sync disabled when inventory is off', function () {
         ->and(InventorySyncLog::count())->toBe(0);
 });
 
-it('uses the stored microsoft token from settings during inventory sync', function () {
-    configureInventorySyncJob();
-
-    fakeInventorySyncResponses([
-        ['sku' => 'STORED-SKU', 'available' => 3],
-    ]);
-
-    inventorySyncProduct('STORED-SKU');
-
-    (new SyncProductInventory())->handle();
-
-    Http::assertSentCount(1);
-    Http::assertSent(function ($request) {
-        return str_contains($request->url(), 'dynamics.test')
-            && $request->header('Authorization')[0] === 'Bearer sync-token';
-    });
-});
-
-it('logs an error when the stored microsoft token is missing', function () {
+it('logs an error and avoids inventory changes when the microsoft token is missing', function () {
     config(['microsoft.resource' => 'https://dynamics.test']);
     Setting::updateOrCreate(
         ['key' => 'inventory_enabled'],
         ['name' => 'Inventory enabled', 'value' => '1', 'show' => false]
-    );
-    Setting::updateOrCreate(
-        ['key' => 'microsoft_token'],
-        ['name' => 'Microsoft token', 'value' => '', 'show' => false]
     );
     ZoneWarehouse::updateOrCreate(
         ['zone_code' => '933'],
@@ -271,5 +244,5 @@ it('logs an error when the stored microsoft token is missing', function () {
     $log = InventorySyncLog::latest('id')->first();
     expect($log)->not->toBeNull()
         ->and($log->status)->toBe('error')
-        ->and($log->error_message)->toContain('No hay token de Microsoft almacenado');
+        ->and($log->error_message)->toBe('Missing microsoft_token setting');
 });

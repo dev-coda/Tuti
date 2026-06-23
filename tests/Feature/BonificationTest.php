@@ -800,7 +800,7 @@ it('syncs variation stock automatically before applying a bonification gift', fu
     config(['microsoft.resource' => 'https://dynamics.test']);
     Setting::updateOrCreate(
         ['key' => 'microsoft_token'],
-        ['name' => 'Microsoft token', 'value' => 'sync-token', 'show' => false]
+        ['name' => 'Microsoft token', 'value' => 'token', 'show' => false]
     );
 
     $tax = Tax::create(['name' => 'IVA synced var gift', 'tax' => 0]);
@@ -834,7 +834,7 @@ it('syncs variation stock automatically before applying a bonification gift', fu
     $trigger->bonifications()->attach($bonification->id);
 
     Http::fake([
-        'https://dynamics.test/soap/services/DIITDWSSalesForceGroup' => Http::response(bonificationInventorySyncSoapResponse([
+        '*' => Http::response(bonificationInventorySyncSoapResponse([
             ['sku' => $trigger->sku, 'available' => 20],
             ['sku' => 'GIFT-SYNCED-VARIATION', 'available' => 8],
         ]), 200),

@@ -26,13 +26,7 @@ class getToken extends Command
      */
     public function handle()
     {
-        try {
-            MicrosoftTokenService::refresh();
-        } catch (\Throwable $e) {
-            $this->error($e->getMessage());
-
-            return self::FAILURE;
-        }
+        MicrosoftTokenService::refresh();
 
         $this->info('Token actualizado correctamente.');
     }

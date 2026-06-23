@@ -74,21 +74,43 @@ class SyncProductInventory implements ShouldQueue
             return;
         }
 
-        try {
-            $token = MicrosoftTokenService::storedOrFail();
-        } catch (\Throwable $e) {
-            Log::error('Inventory sync failed - Missing Microsoft token: '.$e->getMessage());
-            $this->logToDatabase(null, 'error', $e->getMessage());
-            $this->updateSyncProgress('error', $e->getMessage());
+        $tokenSetting = Setting::where('key', 'microsoft_token')->first();
+        if (! $tokenSetting) {
+            Log::warning('Inventory sync failed - Missing microsoft_token setting.');
+            $this->logToDatabase(null, 'error', 'Missing microsoft_token setting');
+            $this->updateSyncProgress('error', 'Falta la configuración microsoft_token.');
 
             return;
         }
 
-        $tokenSetting = Setting::where('key', 'microsoft_token')->first();
+        if (blank($tokenSetting->value)) {
+            try {
+                Log::info('Microsoft token empty, refreshing before inventory sync...');
+                MicrosoftTokenService::refresh();
+                $tokenSetting = Setting::where('key', 'microsoft_token')->first();
+            } catch (\Throwable $e) {
+                Log::error('Inventory sync failed - Token refresh error: '.$e->getMessage());
+                $this->logToDatabase(null, 'error', 'Token refresh error: '.$e->getMessage());
+                $this->updateSyncProgress('error', 'Error refrescando token: '.$e->getMessage());
+
+                return;
+            }
+        }
+
+        if (! $tokenSetting || blank($tokenSetting->value)) {
+            Log::error('Inventory sync failed - microsoft_token setting is empty');
+            $this->logToDatabase(null, 'error', 'microsoft_token setting is empty');
+            $this->updateSyncProgress('error', 'Falta el valor de microsoft_token. Ejecute php artisan app:get-token.');
+
+            return;
+        }
+
         Log::info('Using stored Microsoft token for inventory sync', [
-            'token_updated_at' => $tokenSetting?->updated_at?->toDateTimeString(),
-            'minutes_since_update' => $tokenSetting?->updated_at?->diffInMinutes(now()),
+            'token_updated_at' => $tokenSetting->updated_at->toDateTimeString(),
+            'minutes_since_update' => $tokenSetting->updated_at->diffInMinutes(now()),
         ]);
+
+        $token = $tokenSetting->value;
 
         $bodegas = ZoneWarehouse::query()->select('bodega_code')->distinct()->pluck('bodega_code');
         if ($bodegas->isEmpty()) {
@@ -109,9 +131,9 @@ class SyncProductInventory implements ShouldQueue
         foreach ($bodegas as $bodega) {
             $this->updateSyncProgress('running', "Procesando bodega {$bodega}.", (string) $bodega, $processedBodegas, $bodegas->count());
             Log::info("Processing bodega: {$bodega}");
+            $body = $this->buildSoapBody($bodega);
 
             try {
-                $body = $this->buildSoapBody($bodega);
                 $response = Http::withHeaders([
                     'Content-Type' => 'text/xml;charset=UTF-8',
                     'SOAPAction' => 'http://tempuri.org/DWSSalesForce/obtenerExistenciaDeInventarioEspecifica',

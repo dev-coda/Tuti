@@ -143,7 +143,7 @@ class UserRepository
      */
     public static function getCustomRuteroId($document, $zone = null)
     {
-        $token = MicrosoftTokenService::currentOrRefresh();
+        $token = self::freshMicrosoftToken();
         $originalZone = $zone;
         $zone = $zone ?? '';
 
@@ -172,9 +172,23 @@ class UserRepository
      */
     public static function getRuterosForZone(string $zone): ?\Illuminate\Support\Collection
     {
-        $result = self::fetchRuteroData('', $zone, MicrosoftTokenService::currentOrRefresh());
+        $result = self::fetchRuteroData('', $zone, self::freshMicrosoftToken());
 
         return $result ? collect($result['routes']) : null;
+    }
+
+    /**
+     * Current Microsoft token value, refreshed when missing or older than 25 minutes.
+     */
+    private static function freshMicrosoftToken(): string
+    {
+        $token = Setting::where('key', 'microsoft_token')->first();
+
+        if ($token && filled($token->value) && $token->updated_at->diffInMinutes(now()) <= 25) {
+            return $token->value;
+        }
+
+        return MicrosoftTokenService::refresh();
     }
 
     /**
