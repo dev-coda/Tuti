@@ -4,6 +4,16 @@
 
 @section('content')
 <div class="grid grid-cols-1 p-4 xl:gap-4">
+    @if(session('error'))
+        <div class="col-span-full rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            {{ session('error') }}
+        </div>
+    @endif
+    @if(session('success'))
+        <div class="col-span-full rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+            {{ session('success') }}
+        </div>
+    @endif
     <div class="mb-4 col-span-full">
         <div class="flex items-center justify-between">
             <div>
@@ -85,6 +95,11 @@
                 <div class="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
                     <div class="h-2 rounded-full bg-blue-600 transition-all duration-500" data-sync-bar style="width: {{ (int) ($syncStatus['percentage'] ?? 0) }}%"></div>
                 </div>
+                @if(!empty($syncStatus['error_message']))
+                    <p class="mt-3 text-sm text-red-700" data-sync-error>{{ $syncStatus['error_message'] }}</p>
+                @else
+                    <p class="mt-3 text-sm text-red-700 hidden" data-sync-error></p>
+                @endif
             </div>
         </div>
     </div>
@@ -279,6 +294,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const statusUrl = root.dataset.statusUrl;
     const message = root.querySelector('[data-sync-message]');
+    const errorMessage = root.querySelector('[data-sync-error]');
     const details = root.querySelector('[data-sync-details]');
     const badge = root.querySelector('[data-sync-badge]');
     const count = root.querySelector('[data-sync-count]');
@@ -311,6 +327,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const percentage = Number(data.percentage || 0);
 
         message.textContent = data.message || 'No hay sincronización activa.';
+        if (errorMessage) {
+            if (status === 'error' && data.error_message) {
+                errorMessage.textContent = data.error_message;
+                errorMessage.classList.remove('hidden');
+            } else {
+                errorMessage.textContent = '';
+                errorMessage.classList.add('hidden');
+            }
+        }
         details.textContent = data.current_bodega
             ? `Bodega actual: ${data.current_bodega}`
             : (data.finished_at || data.last_synced_at ? `Última finalización: ${data.finished_at || data.last_synced_at}` : 'Esperando una sincronización.');

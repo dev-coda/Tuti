@@ -90,8 +90,8 @@ class SyncProductInventory implements ShouldQueue
                 $tokenSetting = Setting::where('key', 'microsoft_token')->first();
             } catch (\Throwable $e) {
                 Log::error('Inventory sync failed - Token refresh error: '.$e->getMessage());
-                $this->logToDatabase(null, 'error', 'Token refresh error: '.$e->getMessage());
-                $this->updateSyncProgress('error', 'Error refrescando token: '.$e->getMessage());
+                $this->logToDatabase(null, 'error', $e->getMessage());
+                $this->updateSyncProgress('error', 'No se pudo renovar el token de Microsoft.', null, 0, 0, $e->getMessage());
 
                 return;
             }

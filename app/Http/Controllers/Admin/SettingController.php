@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Setting;
 use App\Models\ZoneWarehouse;
+use App\Services\MicrosoftTokenService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use App\Jobs\SyncProductInventory;
@@ -68,7 +69,18 @@ class SettingController extends Controller
     {
         // Check if user wants to run synchronously (for testing/debugging)
         $runSync = $request->has('sync') || $request->query('sync') === '1';
-        
+
+        try {
+            MicrosoftTokenService::refresh();
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Inventory sync aborted before dispatch: '.$e->getMessage());
+
+            return $this->recordInventorySyncFailure(
+                'No se pudo renovar el token de Microsoft.',
+                $e->getMessage()
+            );
+        }
+
         try {
             $this->setInventorySyncProgress($runSync ? 'running' : 'queued', $runSync ? 'Sincronización manual iniciada.' : 'Sincronización enviada a la cola.');
 
@@ -106,8 +118,37 @@ class SettingController extends Controller
             \Illuminate\Support\Facades\Log::error('Inventory sync failed: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString()
             ]);
-            return back()->with('error', 'Error al sincronizar inventario: ' . $e->getMessage());
+
+            return $this->recordInventorySyncFailure(
+                'La sincronización de inventario falló.',
+                $e->getMessage()
+            );
         }
+    }
+
+    private function recordInventorySyncFailure(string $summary, string $detail)
+    {
+        Setting::updateOrCreate(
+            ['key' => 'inventory_sync_progress'],
+            [
+                'name' => 'Inventario - progreso de sincronización',
+                'value' => json_encode([
+                    'status' => 'error',
+                    'message' => $summary,
+                    'error_message' => $detail,
+                    'current_bodega' => null,
+                    'processed_bodegas' => 0,
+                    'total_bodegas' => 0,
+                    'percentage' => 0,
+                    'started_at' => now()->toDateTimeString(),
+                    'updated_at' => now()->toDateTimeString(),
+                    'finished_at' => now()->toDateTimeString(),
+                ]),
+                'show' => false,
+            ]
+        );
+
+        return back()->with('error', $summary.' '.$detail);
     }
 
     public function inventorySyncStatus()
