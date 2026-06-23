@@ -17,12 +17,7 @@ uses(RefreshDatabase::class);
 
 function configureInventorySyncJob(string $bodega = 'BOD-SYNC'): void
 {
-    config([
-        'microsoft.resource' => 'https://dynamics.test',
-        'microsoft.url_token' => 'https://login.microsoftonline.com/token',
-        'microsoft.client_id' => 'client-id',
-        'microsoft.client_secret' => 'client-secret',
-    ]);
+    config(['microsoft.resource' => 'https://dynamics.test']);
 
     Setting::updateOrCreate(
         ['key' => 'inventory_enabled'],
@@ -30,7 +25,7 @@ function configureInventorySyncJob(string $bodega = 'BOD-SYNC'): void
     );
     Setting::updateOrCreate(
         ['key' => 'microsoft_token'],
-        ['name' => 'Microsoft token', 'value' => 'old-token', 'show' => false]
+        ['name' => 'Microsoft token', 'value' => 'sync-token', 'show' => false]
     );
     ZoneWarehouse::updateOrCreate(
         ['zone_code' => '933'],
@@ -38,10 +33,9 @@ function configureInventorySyncJob(string $bodega = 'BOD-SYNC'): void
     );
 }
 
-function fakeInventorySyncResponses(array $items, string $accessToken = 'sync-token'): void
+function fakeInventorySyncResponses(array $items): void
 {
     Http::fake([
-        'https://login.microsoftonline.com/token' => Http::response(['access_token' => $accessToken], 200),
         'https://dynamics.test/soap/services/DIITDWSSalesForceGroup' => Http::response(inventorySyncSoapResponse($items), 200),
     ]);
 }
@@ -225,34 +219,26 @@ it('keeps automatic sync disabled when inventory is off', function () {
         ->and(InventorySyncLog::count())->toBe(0);
 });
 
-it('refreshes the microsoft token before syncing inventory', function () {
+it('uses the stored microsoft token from settings during inventory sync', function () {
     configureInventorySyncJob();
 
     fakeInventorySyncResponses([
-        ['sku' => 'FRESH-SKU', 'available' => 3],
-    ], 'fresh-token');
+        ['sku' => 'STORED-SKU', 'available' => 3],
+    ]);
 
-    inventorySyncProduct('FRESH-SKU');
+    inventorySyncProduct('STORED-SKU');
 
     (new SyncProductInventory())->handle();
 
-    Http::assertSent(function ($request) {
-        return $request->url() === 'https://login.microsoftonline.com/token';
-    });
+    Http::assertSentCount(1);
     Http::assertSent(function ($request) {
         return str_contains($request->url(), 'dynamics.test')
-            && $request->header('Authorization')[0] === 'Bearer fresh-token';
+            && $request->header('Authorization')[0] === 'Bearer sync-token';
     });
-    expect(Setting::where('key', 'microsoft_token')->value('value'))->toBe('fresh-token');
 });
 
-it('logs an error when microsoft oauth config is missing', function () {
-    config([
-        'microsoft.resource' => 'https://dynamics.test',
-        'microsoft.url_token' => '',
-        'microsoft.client_id' => '',
-        'microsoft.client_secret' => '',
-    ]);
+it('logs an error when the stored microsoft token is missing', function () {
+    config(['microsoft.resource' => 'https://dynamics.test']);
     Setting::updateOrCreate(
         ['key' => 'inventory_enabled'],
         ['name' => 'Inventory enabled', 'value' => '1', 'show' => false]
@@ -260,32 +246,6 @@ it('logs an error when microsoft oauth config is missing', function () {
     Setting::updateOrCreate(
         ['key' => 'microsoft_token'],
         ['name' => 'Microsoft token', 'value' => '', 'show' => false]
-    );
-    ZoneWarehouse::updateOrCreate(
-        ['zone_code' => '933'],
-        ['bodega_code' => 'BOD-SYNC']
-    );
-
-    Http::fake();
-
-    (new SyncProductInventory())->handle();
-
-    $log = InventorySyncLog::latest('id')->first();
-    expect($log)->not->toBeNull()
-        ->and($log->status)->toBe('error')
-        ->and($log->error_message)->toContain('MICROSOFT_URL_TOKEN');
-});
-
-it('logs an error and avoids inventory changes when microsoft token refresh fails', function () {
-    config([
-        'microsoft.resource' => 'https://dynamics.test',
-        'microsoft.url_token' => 'https://login.microsoftonline.com/token',
-        'microsoft.client_id' => 'client-id',
-        'microsoft.client_secret' => 'client-secret',
-    ]);
-    Setting::updateOrCreate(
-        ['key' => 'inventory_enabled'],
-        ['name' => 'Inventory enabled', 'value' => '1', 'show' => false]
     );
     ZoneWarehouse::updateOrCreate(
         ['zone_code' => '933'],
@@ -301,17 +261,15 @@ it('logs an error and avoids inventory changes when microsoft token refresh fail
         'reserved' => 0,
     ]);
 
-    Http::fake([
-        'https://login.microsoftonline.com/token' => Http::response(['error' => 'invalid_client'], 401),
-    ]);
+    Http::fake();
 
     (new SyncProductInventory())->handle();
 
-    Http::assertSentCount(1);
+    Http::assertNothingSent();
     expect((int) ProductInventory::where('product_id', $product->id)->where('bodega_code', 'BOD-SYNC')->value('available'))->toBe(19);
 
     $log = InventorySyncLog::latest('id')->first();
     expect($log)->not->toBeNull()
         ->and($log->status)->toBe('error')
-        ->and($log->error_message)->toContain('Token refresh error:');
+        ->and($log->error_message)->toContain('No hay token de Microsoft almacenado');
 });

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Setting;
 use App\Models\ZoneWarehouse;
+use App\Services\MicrosoftTokenService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use App\Jobs\SyncProductInventory;
@@ -68,6 +69,17 @@ class SettingController extends Controller
     {
         // Check if user wants to run synchronously (for testing/debugging)
         $runSync = $request->has('sync') || $request->query('sync') === '1';
+
+        try {
+            \Illuminate\Support\Facades\Log::info('Refreshing Microsoft token before inventory sync dispatch');
+            MicrosoftTokenService::refresh();
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Inventory sync token refresh failed before dispatch: '.$e->getMessage());
+
+            $this->setInventorySyncProgress('error', 'Error refrescando token: '.$e->getMessage());
+
+            return back()->with('error', 'Error al obtener token de Microsoft: '.$e->getMessage());
+        }
         
         try {
             $this->setInventorySyncProgress($runSync ? 'running' : 'queued', $runSync ? 'Sincronización manual iniciada.' : 'Sincronización enviada a la cola.');

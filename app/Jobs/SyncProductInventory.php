@@ -75,18 +75,17 @@ class SyncProductInventory implements ShouldQueue
         }
 
         try {
-            Log::info('Refreshing Microsoft token before inventory sync...');
-            $token = MicrosoftTokenService::refresh();
+            $token = MicrosoftTokenService::storedOrFail();
         } catch (\Throwable $e) {
-            Log::error('Inventory sync failed - Token refresh error: '.$e->getMessage());
-            $this->logToDatabase(null, 'error', 'Token refresh error: '.$e->getMessage());
-            $this->updateSyncProgress('error', 'Error refrescando token: '.$e->getMessage());
+            Log::error('Inventory sync failed - Missing Microsoft token: '.$e->getMessage());
+            $this->logToDatabase(null, 'error', $e->getMessage());
+            $this->updateSyncProgress('error', $e->getMessage());
 
             return;
         }
 
         $tokenSetting = Setting::where('key', 'microsoft_token')->first();
-        Log::info('Using Microsoft token for inventory sync', [
+        Log::info('Using stored Microsoft token for inventory sync', [
             'token_updated_at' => $tokenSetting?->updated_at?->toDateTimeString(),
             'minutes_since_update' => $tokenSetting?->updated_at?->diffInMinutes(now()),
         ]);

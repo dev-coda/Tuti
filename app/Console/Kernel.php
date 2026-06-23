@@ -32,6 +32,8 @@ class Kernel extends ConsoleKernel
             $syncEnabled = Setting::getByKeyWithDefault('inventory_sync_enabled', '1');
             $inventoryEnabled = Setting::getByKeyWithDefault('inventory_enabled', '1');
             if (($syncEnabled === '1' || $syncEnabled === 1 || $syncEnabled === true) && ($inventoryEnabled === '1' || $inventoryEnabled === 1 || $inventoryEnabled === true)) {
+                \App\Services\MicrosoftTokenService::refresh();
+
                 $queueConnection = config('queue.default');
                 // If queue is set to 'sync', use 'redis' instead to ensure async processing with Horizon
                 if ($queueConnection === 'sync') {

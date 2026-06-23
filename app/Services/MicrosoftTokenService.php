@@ -86,9 +86,19 @@ class MicrosoftTokenService
         return $token;
     }
 
+    public static function storedOrFail(): string
+    {
+        $setting = Setting::where('key', 'microsoft_token')->first();
+
+        if (! $setting || blank($setting->value)) {
+            throw new RuntimeException('No hay token de Microsoft almacenado. Ejecute php artisan app:get-token.');
+        }
+
+        return $setting->value;
+    }
+
     /**
      * Return the stored Dynamics token, refreshing only when missing or forced.
-     * Callers should retry with forceRefresh after Dynamics returns 401.
      */
     public static function currentOrRefresh(bool $forceRefresh = false): string
     {
