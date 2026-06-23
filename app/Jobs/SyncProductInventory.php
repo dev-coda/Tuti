@@ -75,7 +75,8 @@ class SyncProductInventory implements ShouldQueue
         }
 
         try {
-            $token = MicrosoftTokenService::currentOrRefresh();
+            Log::info('Refreshing Microsoft token before inventory sync...');
+            $token = MicrosoftTokenService::refresh();
         } catch (\Throwable $e) {
             Log::error('Inventory sync failed - Token refresh error: '.$e->getMessage());
             $this->logToDatabase(null, 'error', 'Token refresh error: '.$e->getMessage());
@@ -111,7 +112,14 @@ class SyncProductInventory implements ShouldQueue
             Log::info("Processing bodega: {$bodega}");
 
             try {
-                [$response, $token] = $this->fetchInventorySoap($bodega, $token);
+                $body = $this->buildSoapBody($bodega);
+                $response = Http::withHeaders([
+                    'Content-Type' => 'text/xml;charset=UTF-8',
+                    'SOAPAction' => 'http://tempuri.org/DWSSalesForce/obtenerExistenciaDeInventarioEspecifica',
+                    'Authorization' => "Bearer {$token}",
+                ])->timeout(30)->send('POST', config('microsoft.resource').'/soap/services/DIITDWSSalesForceGroup', [
+                    'body' => $body,
+                ]);
 
                 Log::info("SOAP response received for bodega {$bodega}", [
                     'status' => $response->status(),
@@ -656,39 +664,6 @@ class SyncProductInventory implements ShouldQueue
         }
 
         return $report;
-    }
-
-    /**
-     * @return array{0: \Illuminate\Http\Client\Response, 1: string}
-     */
-    private function fetchInventorySoap(string $bodega, string $token): array
-    {
-        $body = $this->buildSoapBody($bodega);
-        $url = config('microsoft.resource').'/soap/services/DIITDWSSalesForceGroup';
-        $headers = [
-            'Content-Type' => 'text/xml;charset=UTF-8',
-            'SOAPAction' => 'http://tempuri.org/DWSSalesForce/obtenerExistenciaDeInventarioEspecifica',
-        ];
-
-        $response = Http::withHeaders(array_merge($headers, [
-            'Authorization' => "Bearer {$token}",
-        ]))->timeout(30)->send('POST', $url, [
-            'body' => $body,
-        ]);
-
-        if ($response->status() === 401) {
-            Log::warning('Inventory sync: Microsoft token rejected, refreshing and retrying', [
-                'bodega' => $bodega,
-            ]);
-            $token = MicrosoftTokenService::currentOrRefresh(forceRefresh: true);
-            $response = Http::withHeaders(array_merge($headers, [
-                'Authorization' => "Bearer {$token}",
-            ]))->timeout(30)->send('POST', $url, [
-                'body' => $body,
-            ]);
-        }
-
-        return [$response, $token];
     }
 
     private function buildSoapBody(string $bodega): string

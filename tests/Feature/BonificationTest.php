@@ -797,7 +797,12 @@ it('transmits separate order and bonification XMLs with rule-correct variation S
 it('syncs variation stock automatically before applying a bonification gift', function () {
     $user = User::first();
     $zone = configureBonificationInventoryCheckout($user);
-    config(['microsoft.resource' => 'https://dynamics.test']);
+    config([
+        'microsoft.resource' => 'https://dynamics.test',
+        'microsoft.url_token' => 'https://login.microsoftonline.com/token',
+        'microsoft.client_id' => 'client-id',
+        'microsoft.client_secret' => 'client-secret',
+    ]);
     Setting::updateOrCreate(
         ['key' => 'microsoft_token'],
         ['name' => 'Microsoft token', 'value' => 'token', 'show' => false]
@@ -834,7 +839,8 @@ it('syncs variation stock automatically before applying a bonification gift', fu
     $trigger->bonifications()->attach($bonification->id);
 
     Http::fake([
-        '*' => Http::response(bonificationInventorySyncSoapResponse([
+        'https://login.microsoftonline.com/token' => Http::response(['access_token' => 'sync-token'], 200),
+        'https://dynamics.test/soap/services/DIITDWSSalesForceGroup' => Http::response(bonificationInventorySyncSoapResponse([
             ['sku' => $trigger->sku, 'available' => 20],
             ['sku' => 'GIFT-SYNCED-VARIATION', 'available' => 8],
         ]), 200),
