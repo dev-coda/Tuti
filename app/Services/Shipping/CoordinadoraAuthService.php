@@ -6,6 +6,11 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
+/**
+ * OAuth client for the Coordinadora APIs (docs/COORDINADORA/API Cotizador Nacional).
+ * The token endpoint uses HTTP Basic auth with the credentials provided by
+ * Coordinadora and a x-www-form-urlencoded body with grant_type=client_credentials.
+ */
 class CoordinadoraAuthService
 {
     public function getAccessToken(): string
@@ -27,15 +32,19 @@ class CoordinadoraAuthService
 
         $response = Http::asForm()
             ->timeout(20)
+            ->withBasicAuth($key, $secret)
             ->post($url, [
                 'grant_type' => 'client_credentials',
-                'client_id' => $key,
-                'client_secret' => $secret,
             ])
             ->throw()
             ->json();
 
-        $token = (string) data_get($response, 'access_token', '');
+        // The vendor docs show "acces_token" (sic); accept both spellings.
+        $token = (string) (
+            data_get($response, 'access_token')
+            ?? data_get($response, 'acces_token')
+            ?? ''
+        );
         if ($token === '') {
             throw new RuntimeException('Coordinadora token response did not include access_token.');
         }

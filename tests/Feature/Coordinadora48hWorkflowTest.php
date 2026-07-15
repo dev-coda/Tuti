@@ -74,21 +74,30 @@ it('quotes express shipping for coordinadora zones', function () {
         'day' => '1',
         'address' => 'Calle 1',
         'code' => 'C001',
-        'zip_code' => '110111',
+        'dane_code' => '11001000',
         'fulfillment_provider_48h' => 'coordinadora',
     ]);
 
     config([
-        'services.coordinadora.oauth_url' => 'https://coordinadora.test/oauth',
+        'services.coordinadora.oauth_url' => 'https://coordinadora.test/oauth/token',
         'services.coordinadora.base_url' => 'https://coordinadora.test',
         'services.coordinadora.key' => 'k',
         'services.coordinadora.secret' => 's',
         'services.coordinadora.id_proceso' => '11577',
+        'services.coordinadora.nit' => '811025446',
+        'services.coordinadora.origin_dane' => '05001000',
     ]);
 
     Http::fake([
-        'https://coordinadora.test/oauth' => Http::response(['access_token' => 'token', 'expires_in' => 3600], 200),
-        'https://coordinadora.test/quote' => Http::response(['shipping_cost' => 12900], 200),
+        'https://coordinadora.test/oauth/token' => Http::response(['access_token' => 'token', 'expires_in' => 3600], 200),
+        'https://coordinadora.test/cotizador/nacional' => Http::response([
+            'isError' => false,
+            'data' => [
+                'flete_total' => 12900,
+                'valor_envio' => 12900,
+                'dias_entrega' => 1,
+            ],
+        ], 200),
     ]);
 
     session()->put('cart', []);
@@ -100,6 +109,17 @@ it('quotes express shipping for coordinadora zones', function () {
             'provider' => Order::SHIPPING_PROVIDER_COORDINADORA,
             'shipping_cost' => 12900.0,
         ]);
+
+    Http::assertSent(function ($request) {
+        if (!str_contains($request->url(), '/cotizador/nacional')) {
+            return $request->url() === 'https://coordinadora.test/oauth/token';
+        }
+
+        return $request['destino'] === '11001000'
+            && $request['origen'] === '05001000'
+            && $request['codigo_postal_origen'] === ''
+            && $request['codigo_postal_destino'] === '';
+    });
 });
 
 it('appends fl0001 line in diagnostic xml when shipping exists', function () {
@@ -178,7 +198,7 @@ function makeCoordinadoraOrder(): Order
         'day' => '1',
         'address' => 'Calle 1',
         'code' => 'C001',
-        'zip_code' => '110111',
+        'dane_code' => '11001000',
         'fulfillment_provider_48h' => 'coordinadora',
     ]);
     $user = User::create([
@@ -215,13 +235,19 @@ function makeCoordinadoraOrder(): Order
 
     config([
         'app.url' => '',
-        'services.coordinadora.oauth_url' => 'https://coordinadora.test/oauth',
+        'services.coordinadora.oauth_url' => 'https://coordinadora.test/oauth/token',
         'services.coordinadora.base_url' => 'https://coordinadora.test',
+        'services.coordinadora.guides_path' => '/guias',
         'services.coordinadora.key' => 'k',
         'services.coordinadora.secret' => 's',
         'services.coordinadora.id_proceso' => '11577',
         'services.fv.endpoint' => 'https://dynamics.test/soap/services/DYNPRODWSSalesForceGroup',
         'services.fv.default_warehouse' => 'MD15',
+        'services.coordinadora.nit' => '811025446',
+        'services.coordinadora.origin_dane' => '05001000',
+        'services.coordinadora.origin_name' => 'Tronex',
+        'services.coordinadora.origin_address' => 'Calle 10 # 45-20',
+        'services.coordinadora.origin_phone' => '3001234567',
     ]);
 
     Setting::updateOrCreate(
@@ -236,9 +262,9 @@ it('processes coordinadora fv plus guide workflow', function () {
     $order = makeCoordinadoraOrder();
 
     Http::fake([
-        'https://coordinadora.test/oauth' => Http::response(['access_token' => 'token', 'expires_in' => 3600], 200),
-        'https://coordinadora.test/guides' => Http::response([
-            'guide_number' => '90012345678',
+        'https://coordinadora.test/oauth/token' => Http::response(['access_token' => 'token', 'expires_in' => 3600], 200),
+        'https://coordinadora.test/guias' => Http::response([
+            'data' => ['numero_guia' => '90012345678'],
             'status_code' => 'CREATED',
             'status_text' => 'Guia creada',
         ], 200),
@@ -285,14 +311,28 @@ it('processes coordinadora fv plus guide workflow', function () {
 
         return true;
     });
+
+    Http::assertSent(function ($request) {
+        if (!str_contains($request->url(), '/guias')) {
+            return true;
+        }
+
+        return $request['datosDestinatario']['codigoCiudadDestinatario'] === '11001000'
+            && $request['datosRemitente']['codigoCiudadRemitente'] === '05001000'
+            && $request['codigoPais'] === 170;
+    });
 });
 
 it('treats duplicate fv (YA_CREADO) as success', function () {
     $order = makeCoordinadoraOrder();
 
     Http::fake([
-        'https://coordinadora.test/oauth' => Http::response(['access_token' => 'token', 'expires_in' => 3600], 200),
-        'https://coordinadora.test/guides' => Http::response(['guide_number' => '90012345678'], 200),
+        'https://coordinadora.test/oauth/token' => Http::response(['access_token' => 'token', 'expires_in' => 3600], 200),
+        'https://coordinadora.test/guias' => Http::response([
+            'data' => ['numero_guia' => '90012345678'],
+            'status_code' => 'CREATED',
+            'status_text' => 'Guia creada',
+        ], 200),
         'https://dynamics.test/*' => Http::response(
             fvSoapResponse('PV1547000', 'false', 'YA_CREADO ~ PV1547000'),
             200
@@ -322,4 +362,81 @@ it('throws when fv service rejects the order', function () {
     $order->refresh();
     expect($order->fv_number)->toBeNull();
     expect($order->status_id)->toBe(Order::STATUS_PENDING);
+});
+
+it('resolves zone dane codes from explicit values, legacy zip and user city', function () {
+    // Explicit dane_code wins and is normalized from 5-digit divipola form.
+    $explicit = Zone::create([
+        'route' => 'R1', 'zone' => 'Z1', 'day' => '1', 'address' => 'Calle 1', 'code' => 'D001',
+        'dane_code' => '11001',
+    ]);
+    expect($explicit->coordinadoraDaneCode())->toBe('11001000');
+
+    // A DANE-looking value stored in the legacy zip_code field is honored.
+    $legacyZip = Zone::create([
+        'route' => 'R1', 'zone' => 'Z1', 'day' => '1', 'address' => 'Calle 2', 'code' => 'D002',
+        'zip_code' => '05001000',
+    ]);
+    expect($legacyZip->coordinadoraDaneCode())->toBe('05001000');
+
+    // A real 6-digit postal code is not mistaken for a DANE code.
+    $postal = Zone::create([
+        'route' => 'R1', 'zone' => 'Z1', 'day' => '1', 'address' => 'Calle 3', 'code' => 'D003',
+        'zip_code' => '110111',
+    ]);
+    expect($postal->coordinadoraDaneCode())->toBeNull();
+
+    // Falls back to the owning user's Dynamics city code.
+    $user = User::create([
+        'name' => 'Dane User',
+        'email' => 'dane-user@example.com',
+        'password' => Hash::make('password123'),
+        'city_code' => '76001',
+    ]);
+    $fromUser = Zone::create([
+        'route' => 'R1', 'zone' => 'Z1', 'day' => '1', 'address' => 'Calle 4', 'code' => 'D004',
+        'user_id' => $user->id,
+    ]);
+    expect($fromUser->coordinadoraDaneCode())->toBe('76001000');
+});
+
+it('resolves dane codes from the city catalog by name', function () {
+    expect(\App\Services\Shipping\DaneCodeService::forCity('Medellín', 'Antioquia'))->toBe('05001000');
+    expect(\App\Services\Shipping\DaneCodeService::forCity('medellin'))->toBe('05001000');
+    expect(\App\Services\Shipping\DaneCodeService::forCity('Cali'))->toBe('76001000');
+    expect(\App\Services\Shipping\DaneCodeService::forCity('Ciudad Inexistente'))->toBeNull();
+    // Municipality codes whose trailing zeros were trimmed by the spreadsheet ("5.03").
+    expect(\App\Services\Shipping\DaneCodeService::forCity('Amagá', 'Antioquia'))->toBe('05030000');
+});
+
+it('fails the express quote when the zone has no dane destination', function () {
+    Setting::updateOrCreate(
+        ['key' => 'express_48h_enabled'],
+        ['name' => 'Express 48h', 'value' => '1', 'show' => false]
+    );
+    Cache::forget('setting_express_48h_enabled');
+
+    $zone = Zone::create([
+        'route' => 'R1', 'zone' => 'Z1', 'day' => '1', 'address' => 'Calle 1', 'code' => 'N001',
+        'zip_code' => '110111', // postal code only; no DANE resolvable
+        'fulfillment_provider_48h' => 'coordinadora',
+    ]);
+
+    config([
+        'services.coordinadora.oauth_url' => 'https://coordinadora.test/oauth/token',
+        'services.coordinadora.base_url' => 'https://coordinadora.test',
+        'services.coordinadora.key' => 'k',
+        'services.coordinadora.secret' => 's',
+        'services.coordinadora.origin_dane' => '05001000',
+    ]);
+
+    Http::fake();
+
+    session()->put('cart', []);
+
+    $this->getJson('/api/shipping-quote/express?zone_id=' . $zone->id)
+        ->assertStatus(422)
+        ->assertJson(['success' => false]);
+
+    Http::assertNothingSent();
 });

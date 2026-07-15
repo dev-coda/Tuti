@@ -143,6 +143,9 @@
                                 ZIP
                             </th>
                             <th scope="col" class="px-6 py-3">
+                                Código DANE
+                            </th>
+                            <th scope="col" class="px-6 py-3">
                                 Proveedor 48H
                             </th>
                             <th scope="col" class="px-6 py-3">
@@ -176,6 +179,9 @@
                                     {{ Aire::open()->route('users.zones.48h.update', [$user, $zone])->bind($zone)->class('flex items-center gap-2') }}
                                     @method('PATCH')
                                     {{ Aire::input('zip_code')->value($zone->zip_code)->groupClass('mb-0 w-28') }}
+                                </td>
+                                <td class="px-6 py-4">
+                                    {{ Aire::input('dane_code')->value($zone->dane_code)->placeholder($zone->coordinadoraDaneCode() ?? 'ej. 11001000')->groupClass('mb-0 w-32') }}
                                 </td>
                                 <td class="px-6 py-4">
                                     {{ Aire::select(['coordinadora' => 'Coordinadora', 'tronex' => 'Tronex'], 'fulfillment_provider_48h')->value($zone->fulfillment_provider_48h ?? 'coordinadora')->groupClass('mb-0') }}
