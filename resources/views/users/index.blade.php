@@ -33,7 +33,7 @@
 
 <div class="mx-4 mb-4 p-4 bg-slate-50 border border-slate-200 rounded-lg text-sm">
     <h2 class="font-semibold text-gray-900 mb-2">Sincronización con Dynamics (rutero)</h2>
-    <p class="text-gray-600 mb-2 text-xs">Los datos de cliente (nombre, teléfonos, saldo, correo si viene en la respuesta, zonas) se actualizan desde el servicio getRuteros. También se ejecuta al crear un pedido.</p>
+    <p class="text-gray-600 mb-2 text-xs">La sincronización periódica actualiza únicamente los datos de contacto del cliente (correo y teléfonos) desde el servicio getRuteros. El perfil completo (nombre, saldo, zonas, etc.) solo se refresca al crear un pedido o con la sincronización individual del cliente.</p>
     <ul class="text-gray-600 space-y-1 mb-3 text-xs sm:text-sm">
         <li>
             <span class="font-medium">Sync diaria (03:20):</span>
