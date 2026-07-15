@@ -170,6 +170,16 @@ class NewClientService
             'DiaRecorrido', 'Posicion', 'Pep',
         ];
 
+        // For NIT clients (persona jurídica) the ERP must receive the razón
+        // social as the client name, not the commercial contact's name.
+        $razonSocial = trim((string) ($data['RazonSocial'] ?? ''));
+        if ((int) ($data['TipoDocumento'] ?? 0) === 3 && $razonSocial !== '') {
+            $data['PrimerNombre'] = $razonSocial;
+            $data['SegundoNombre'] = '';
+            $data['PrimerApellido'] = '';
+            $data['SegundoApellido'] = '';
+        }
+
         $xml = '<?xml version="1.0" encoding="UTF-8"?>'."\n<ClienteNuevo>\n";
 
         foreach ($fields as $field) {

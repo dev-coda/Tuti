@@ -5,6 +5,12 @@
 @endsection
 
 @section('content')
+<style>
+    /* All the information entered in the form is registered in uppercase. */
+    #new-client-form input[type="text"]:not(#sucursal-document) {
+        text-transform: uppercase;
+    }
+</style>
 <div class="max-w-4xl mx-auto px-4 py-8">
 
     <h1 class="text-3xl font-bold text-gray-900 mb-2">Registrar Cliente Nuevo</h1>
@@ -127,6 +133,7 @@
                 <div>
                     <label for="Documento" class="block text-sm font-medium text-gray-700 mb-1">Documento *</label>
                     <input type="text" name="Documento" id="Documento" value="{{ old('Documento') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" maxlength="20" placeholder="NIT o Cédula" required>
+                    <p id="documento-nit-hint" class="text-xs text-amber-700 mt-1 hidden">Registra el NIT <strong>sin el dígito de verificación</strong>.</p>
                     @error('Documento') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                 </div>
             </div>
@@ -280,9 +287,18 @@
         <div class="bg-white border border-gray-200 rounded-xl p-6 mb-6">
             <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
                 <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                Documentos
+                Documentos *
             </h2>
             <p id="documents-help-text" class="text-sm text-gray-500 mb-3"></p>
+            <div class="text-xs text-gray-600 bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3">
+                <p class="font-semibold text-amber-800 mb-1">Vigencia de los documentos:</p>
+                <ul class="list-disc list-inside space-y-0.5">
+                    <li>Cámara de comercio: no mayor a 60 días de la fecha de expedición.</li>
+                    <li>Certificado de composición accionaria: no mayor a 60 días de la fecha de expedición.</li>
+                    <li>RUT: vigencia mínima de un año.</li>
+                </ul>
+            </div>
+            <p class="text-xs text-gray-600 mb-3">Debes adjuntar al menos un documento. <strong>La firma no es válida como documento adjunto.</strong></p>
             <p id="documents-limit-text" class="text-xs text-gray-500 mb-3"></p>
 
             <input type="file" name="documents[]" id="documents" multiple accept=".pdf,.jpg,.jpeg,.png" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100">
@@ -295,9 +311,9 @@
         <div class="bg-white border border-gray-200 rounded-xl p-6 mb-6">
             <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
                 <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
-                Firma del cliente *
+                Firma del representante legal o suplente *
             </h2>
-            <p class="text-sm text-gray-500 mb-3">Use el mouse o el dedo (en dispositivos táctiles) para firmar en el recuadro.</p>
+            <p class="text-sm text-gray-500 mb-3">La firma debe ser la del representante legal o su suplente. Use el mouse o el dedo (en dispositivos táctiles) para firmar en el recuadro. La firma y la autorización de habeas data quedarán registradas en un mismo documento PDF.</p>
 
             <div class="border-2 border-dashed border-gray-300 rounded-lg p-1 bg-gray-50 relative" style="touch-action: none;">
                 <canvas id="signature-canvas" class="w-full bg-white rounded" style="height: 200px; cursor: crosshair;"></canvas>
@@ -310,15 +326,25 @@
             <input type="hidden" name="signature" id="signature-data">
             @error('signature') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
 
-            <div class="mt-4 pt-4 border-t border-gray-200">
-                <label class="inline-flex items-start gap-2 text-sm text-gray-700">
+            <div class="mt-4 pt-4 border-t border-gray-200 space-y-3">
+                <label class="flex items-start gap-2 text-sm text-gray-700">
                     <input type="checkbox" name="terms_accepted" value="1" class="mt-0.5 rounded border-gray-300 text-orange-600 focus:ring-orange-500" {{ old('terms_accepted') ? 'checked' : '' }} required>
                     <span>
-                        Aceptar
+                        Acepto los
                         <a href="{{ route('content.terms') }}" target="_blank" rel="noopener noreferrer" class="text-orange-700 underline hover:text-orange-800">términos y condiciones</a>
                     </span>
                 </label>
                 @error('terms_accepted') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+
+                <label class="flex items-start gap-2 text-sm text-gray-700">
+                    <input type="checkbox" name="privacy_accepted" value="1" class="mt-0.5 rounded border-gray-300 text-orange-600 focus:ring-orange-500" {{ old('privacy_accepted') ? 'checked' : '' }} required>
+                    <span>
+                        Acepto la
+                        <a href="{{ route('content.privacy') }}" target="_blank" rel="noopener noreferrer" class="text-orange-700 underline hover:text-orange-800">política de privacidad y tratamiento de datos personales</a>
+                        (habeas data)
+                    </span>
+                </label>
+                @error('privacy_accepted') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
             </div>
         </div>
 
@@ -342,11 +368,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function updateNameRequirements() {
         const v = parseInt(tipoDoc.value);
-        const required = (v === 1 || v === 2);
+        const required = (v === 1 || v === 2 || v === 4);
         nombreReq.classList.toggle('hidden', !required);
         apellidoReq.classList.toggle('hidden', !required);
         document.getElementById('PrimerNombre').required = required;
         document.getElementById('PrimerApellido').required = required;
+        // NITs must be registered without the verification digit.
+        document.getElementById('documento-nit-hint').classList.toggle('hidden', v !== 3);
     }
     tipoDoc.addEventListener('change', updateNameRequirements);
     updateNameRequirements();
@@ -396,13 +424,13 @@ document.addEventListener('DOMContentLoaded', function() {
         if (isJuridica) {
             return {
                 maxFiles: 6,
-                help: 'Persona jurídica: sube RUT, foto del documento del representante legal, certificado de existencia, cámara de comercio, certificado de accionistas y beneficiarios finales.',
+                help: 'Persona jurídica: sube RUT (vigencia mínima de un año), foto del documento del representante legal, certificado de existencia, cámara de comercio (no mayor a 60 días), certificado de composición accionaria (no mayor a 60 días) y beneficiarios finales.',
             };
         }
 
         return {
             maxFiles: 2,
-            help: 'Persona natural: sube Cédula o RUT.',
+            help: 'Persona natural: sube Cédula, PPT o RUT (vigencia mínima de un año).',
         };
     }
 
@@ -596,9 +624,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // -- Form submission validation --
     document.getElementById('new-client-form').addEventListener('submit', function(e) {
+        // The signature is not a valid attachment: real documents are mandatory.
+        if (!documentsInput || documentsInput.files.length === 0) {
+            e.preventDefault();
+            alert('Debes adjuntar al menos un documento. La firma no es válida como documento adjunto.');
+            return;
+        }
         if (!hasDrawn || !signatureInput.value) {
             e.preventDefault();
-            alert('Por favor firme en el recuadro antes de enviar.');
+            alert('Por favor firme en el recuadro antes de enviar. La firma debe ser la del representante legal o suplente.');
             return;
         }
         document.getElementById('submit-btn').disabled = true;

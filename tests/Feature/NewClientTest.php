@@ -71,6 +71,7 @@ it('validates required fields on store', function () {
             'IdClasificacionCliente', 'Departamento', 'Ciudad',
             'Direccion', 'Barrio', 'Zona', 'RutaZonaVentas',
             'DiaRecorrido', 'Posicion', 'Pep', 'signature', 'terms_accepted',
+            'privacy_accepted', 'documents',
         ]);
 });
 
@@ -145,6 +146,8 @@ it('requires at least one contact number', function () {
             'Pep' => 'NO',
             'signature' => 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg',
             'terms_accepted' => '1',
+            'privacy_accepted' => '1',
+            'documents' => [UploadedFile::fake()->image('rut.jpg')],
         ])
         ->assertSessionHasErrors('Telefono');
 });
@@ -169,6 +172,7 @@ it('rejects more than 6 documents for juridica', function () {
             'Movil' => '3101234567',
             'signature' => 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg',
             'terms_accepted' => '1',
+            'privacy_accepted' => '1',
             'documents' => [
                 UploadedFile::fake()->image('a.jpg'),
                 UploadedFile::fake()->image('b.jpg'),
@@ -343,6 +347,8 @@ it('rejects sucursal registration when document does not belong to an existing c
             'Movil' => '3101234567',
             'signature' => validSignatureDataUrl(),
             'terms_accepted' => '1',
+            'privacy_accepted' => '1',
+            'documents' => [UploadedFile::fake()->image('rut.jpg')],
         ])
         ->assertSessionHasErrors('Documento');
 });
@@ -398,6 +404,8 @@ it('registers a sucursal for an existing client without demoting their status', 
             'Movil' => '3101234567',
             'signature' => validSignatureDataUrl(),
             'terms_accepted' => '1',
+            'privacy_accepted' => '1',
+            'documents' => [UploadedFile::fake()->image('rut.jpg')],
         ])
         ->assertRedirect(route('new-client.create'))
         ->assertSessionHas('success');
@@ -413,6 +421,159 @@ it('registers a sucursal for an existing client without demoting their status', 
     expect($newZone)->not->toBeNull()
         ->and($newZone->zone)->toBe('001')
         ->and($newZone->day)->toBe('MARTES');
+});
+
+function validNewClientPayload(array $overrides = []): array
+{
+    return array_merge([
+        'Documento' => '900123456',
+        'TipoDocumento' => 3,
+        'RazonSocial' => 'Tienda El Sol SAS',
+        'NombreNegocio' => 'Tienda El Sol',
+        'IdClasificacionCliente' => 1,
+        'Departamento' => 'ANTIOQUIA',
+        'Ciudad' => 'MEDELLIN',
+        'Direccion' => 'Calle 10 # 5-20',
+        'Barrio' => 'Centro',
+        'Zona' => '001',
+        'RutaZonaVentas' => '1234',
+        'DiaRecorrido' => 'LUNES',
+        'Posicion' => 1,
+        'Pep' => 'NO',
+        'Movil' => '3101234567',
+        'signature' => validSignatureDataUrl(),
+        'terms_accepted' => '1',
+        'privacy_accepted' => '1',
+        'documents' => [UploadedFile::fake()->image('rut.jpg')],
+    ], $overrides);
+}
+
+it('rejects submission without attached documents', function () {
+    $this->mock(NewClientService::class, function ($mock) {
+        $mock->shouldNotReceive('registerClient');
+    });
+
+    actingAs($this->seller)
+        ->post(route('new-client.store'), validNewClientPayload(['documents' => []]))
+        ->assertSessionHasErrors('documents');
+});
+
+it('requires accepting the privacy policy (habeas data)', function () {
+    $this->mock(NewClientService::class, function ($mock) {
+        $mock->shouldNotReceive('registerClient');
+    });
+
+    actingAs($this->seller)
+        ->post(route('new-client.store'), validNewClientPayload(['privacy_accepted' => null]))
+        ->assertSessionHasErrors('privacy_accepted');
+});
+
+it('accepts PPT as document type and requires contact names for it', function () {
+    actingAs($this->seller)
+        ->post(route('new-client.store'), validNewClientPayload([
+            'TipoDocumento' => 4,
+            'PrimerNombre' => null,
+            'PrimerApellido' => null,
+        ]))
+        ->assertSessionHasErrors(['PrimerNombre', 'PrimerApellido'])
+        ->assertSessionDoesntHaveErrors('TipoDocumento');
+});
+
+it('strips the NIT verification digit and uppercases registered data', function () {
+    \Illuminate\Support\Facades\Storage::fake('public');
+
+    $captured = null;
+    $this->mock(NewClientService::class, function ($mock) use (&$captured) {
+        $mock->shouldReceive('registerClient')->once()->andReturnUsing(function (array $data) use (&$captured) {
+            $captured = $data;
+
+            return ['success' => true, 'id' => 10, 'codigo_cliente' => 'C-0010', 'message' => 'ok'];
+        });
+        $mock->shouldReceive('uploadMedia')->once()->andReturn(['success' => true, 'message' => 'ok']);
+    });
+
+    actingAs($this->seller)
+        ->post(route('new-client.store'), validNewClientPayload([
+            'Documento' => '900123456-7',
+            'RazonSocial' => 'tienda el sol sas',
+            'NombreNegocio' => 'tienda el sol',
+            'Direccion' => 'calle 10 # 5-20',
+        ]))
+        ->assertRedirect(route('new-client.create'))
+        ->assertSessionHas('success');
+
+    expect($captured)->not->toBeNull()
+        ->and($captured['Documento'])->toBe('900123456')
+        ->and($captured['RazonSocial'])->toBe('TIENDA EL SOL SAS')
+        ->and($captured['NombreNegocio'])->toBe('TIENDA EL SOL')
+        ->and($captured['Direccion'])->toBe('CALLE 10 # 5-20');
+});
+
+it('sends the razon social instead of the contact name for NIT clients', function () {
+    $service = new NewClientService();
+
+    $reflection = new ReflectionClass($service);
+    $method = $reflection->getMethod('buildClientXml');
+    $method->setAccessible(true);
+
+    $xml = $method->invoke($service, [
+        'Documento' => '900123456',
+        'TipoDocumento' => 3,
+        'RazonSocial' => 'TIENDA EL SOL SAS',
+        'PrimerNombre' => 'JUAN',
+        'SegundoNombre' => 'CARLOS',
+        'PrimerApellido' => 'PEREZ',
+        'SegundoApellido' => 'GOMEZ',
+        'NombreNegocio' => 'TIENDA EL SOL',
+    ]);
+
+    expect($xml)->toContain('<PrimerNombre>TIENDA EL SOL SAS</PrimerNombre>')
+        ->toContain('<SegundoNombre></SegundoNombre>')
+        ->toContain('<PrimerApellido></PrimerApellido>')
+        ->toContain('<SegundoApellido></SegundoApellido>')
+        ->not->toContain('JUAN');
+});
+
+it('keeps the contact name for natural person clients', function () {
+    $service = new NewClientService();
+
+    $reflection = new ReflectionClass($service);
+    $method = $reflection->getMethod('buildClientXml');
+    $method->setAccessible(true);
+
+    $xml = $method->invoke($service, [
+        'Documento' => '123456789',
+        'TipoDocumento' => 1,
+        'RazonSocial' => 'JUAN PEREZ',
+        'PrimerNombre' => 'JUAN',
+        'PrimerApellido' => 'PEREZ',
+    ]);
+
+    expect($xml)->toContain('<PrimerNombre>JUAN</PrimerNombre>')
+        ->toContain('<PrimerApellido>PEREZ</PrimerApellido>');
+});
+
+it('embeds the habeas data authorization in the signature pdf', function () {
+    \Illuminate\Support\Facades\Storage::fake('public');
+
+    $this->mock(NewClientService::class, function ($mock) {
+        $mock->shouldReceive('registerClient')->once()->andReturn([
+            'success' => true, 'id' => 11, 'codigo_cliente' => 'C-0011', 'message' => 'ok',
+        ]);
+        $mock->shouldReceive('uploadMedia')->once()->andReturnUsing(function ($clientId, $pdf) {
+            $content = $pdf->getContent();
+            expect($content)->toContain('%PDF-1.4')
+                ->toContain('HABEAS DATA')
+                ->toContain('Firma del representante legal o suplente');
+
+            return ['success' => true, 'message' => 'ok'];
+        });
+    });
+
+    actingAs($this->seller)
+        ->post(route('new-client.store'), validNewClientPayload())
+        ->assertRedirect(route('new-client.create'))
+        ->assertSessionHas('success');
 });
 
 it('escapes XML special characters in service', function () {

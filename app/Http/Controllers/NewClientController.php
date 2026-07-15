@@ -21,6 +21,17 @@ class NewClientController extends Controller
         1 => 'Cédula de Ciudadanía',
         2 => 'Cédula de Extranjería',
         3 => 'NIT',
+        4 => 'Permiso por Protección Temporal (PPT)',
+    ];
+
+    /**
+     * Free-text fields normalized to uppercase before storing/sending,
+     * so every registration is recorded in capital letters.
+     */
+    private const UPPERCASE_FIELDS = [
+        'PrimerNombre', 'SegundoNombre', 'PrimerApellido', 'SegundoApellido',
+        'RazonSocial', 'NombreNegocio', 'Departamento', 'Ciudad',
+        'Direccion', 'Barrio',
     ];
 
     private const CLASIFICACION_OPTIONS = [
@@ -145,9 +156,9 @@ class NewClientController extends Controller
         $validated = $request->validate([
             'Documento' => ['required', 'string', 'max:20', 'regex:/^[0-9\-]+$/'],
             'TipoDocumento' => ['required', 'integer', Rule::in(array_keys(self::TIPO_DOCUMENTO_OPTIONS))],
-            'PrimerNombre' => ['nullable', 'string', 'max:50', 'required_if:TipoDocumento,1,2'],
+            'PrimerNombre' => ['nullable', 'string', 'max:50', 'required_if:TipoDocumento,1,2,4'],
             'SegundoNombre' => ['nullable', 'string', 'max:50'],
-            'PrimerApellido' => ['nullable', 'string', 'max:50', 'required_if:TipoDocumento,1,2'],
+            'PrimerApellido' => ['nullable', 'string', 'max:50', 'required_if:TipoDocumento,1,2,4'],
             'SegundoApellido' => ['nullable', 'string', 'max:50'],
             'RazonSocial' => ['required', 'string', 'max:100'],
             'NombreNegocio' => ['required', 'string', 'max:100'],
@@ -169,11 +180,31 @@ class NewClientController extends Controller
 
             'signature' => ['required', 'string'],
             'terms_accepted' => ['required', 'accepted'],
-            'documents' => ['nullable', 'array'],
+            'privacy_accepted' => ['required', 'accepted'],
+            // The signature is captured separately and is NOT a valid attachment:
+            // at least one real document (cédula, RUT, etc.) must be uploaded.
+            'documents' => ['required', 'array', 'min:1'],
             'documents.*' => ['file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+        ], [
+            'documents.required' => 'Debes adjuntar al menos un documento. La firma no es válida como documento adjunto.',
+            'documents.min' => 'Debes adjuntar al menos un documento. La firma no es válida como documento adjunto.',
+            'privacy_accepted.required' => 'Debes aceptar la política de privacidad y tratamiento de datos personales.',
+            'privacy_accepted.accepted' => 'Debes aceptar la política de privacidad y tratamiento de datos personales.',
         ]);
         if (!empty($validated['Zona'])) {
             $validated['Zona'] = strtoupper((string) $validated['Zona']);
+        }
+
+        // Register everything in uppercase.
+        foreach (self::UPPERCASE_FIELDS as $field) {
+            if (isset($validated[$field]) && is_string($validated[$field])) {
+                $validated[$field] = mb_strtoupper($validated[$field], 'UTF-8');
+            }
+        }
+
+        // NITs are registered without the verification digit (e.g. "900123456-7" -> "900123456").
+        if ((int) $validated['TipoDocumento'] === 3) {
+            $validated['Documento'] = preg_replace('/-.*$/', '', $validated['Documento']);
         }
 
         // "Agregar sucursal": the document must belong to an already registered client.
@@ -205,7 +236,7 @@ class NewClientController extends Controller
             ]);
         }
 
-        $signaturePdf = $this->convertSignatureToPdf($validated['signature']);
+        $signaturePdf = $this->convertSignatureToPdf($validated['signature'], $validated);
         if (! $signaturePdf) {
             return back()->withInput()->withErrors([
                 'signature' => 'No se pudo procesar la firma. Intente de nuevo.',
@@ -348,10 +379,11 @@ class NewClientController extends Controller
     /**
      * Convert a base64 data-URL signature image into a temporary UploadedFile containing a PDF.
      *
-     * Uses pure-PHP PDF generation (no external library) to embed a JPEG version of the
-     * signature canvas into a single-page PDF document.
+     * Uses pure-PHP PDF generation (no external library). The resulting single-page PDF
+     * contains the habeas data authorization text and the signature together, identifying
+     * the signer (legal representative or substitute).
      */
-    private function convertSignatureToPdf(string $signatureDataUrl): ?\Illuminate\Http\UploadedFile
+    private function convertSignatureToPdf(string $signatureDataUrl, array $validated = []): ?\Illuminate\Http\UploadedFile
     {
         try {
             if (! preg_match('/^data:image\/(png|jpeg|jpg);base64,/', $signatureDataUrl)) {
@@ -391,7 +423,7 @@ class NewClientController extends Controller
             $jpegData = ob_get_clean();
             imagedestroy($canvas);
 
-            $pdfContent = $this->buildMinimalPdfWithJpeg($jpegData, $imgWidth, $imgHeight);
+            $pdfContent = $this->buildMinimalPdfWithJpeg($jpegData, $imgWidth, $imgHeight, $this->habeasDataLines($validated));
 
             $tmpPdfPath = tempnam(sys_get_temp_dir(), 'sig_pdf_').'.pdf';
             file_put_contents($tmpPdfPath, $pdfContent);
@@ -413,19 +445,93 @@ class NewClientController extends Controller
     }
 
     /**
-     * Build a minimal valid PDF 1.4 file containing a single JPEG image.
+     * Lines of the habeas data authorization included in the signature PDF.
+     * First entry is rendered as a bold title.
+     *
+     * @return array<int, string>
      */
-    private function buildMinimalPdfWithJpeg(string $jpegData, int $imgWidth, int $imgHeight): string
+    private function habeasDataLines(array $validated): array
+    {
+        $signerName = trim(implode(' ', array_filter([
+            $validated['PrimerNombre'] ?? '',
+            $validated['SegundoNombre'] ?? '',
+            $validated['PrimerApellido'] ?? '',
+            $validated['SegundoApellido'] ?? '',
+        ])));
+        $razonSocial = trim((string) ($validated['RazonSocial'] ?? ''));
+        $documento = trim((string) ($validated['Documento'] ?? ''));
+
+        return [
+            'AUTORIZACIÓN DE TRATAMIENTO DE DATOS PERSONALES (HABEAS DATA)',
+            '',
+            'De manera libre, previa, expresa e informada, autorizo a TUTI / TRONEX para',
+            'recolectar, almacenar, usar y tratar mis datos personales conforme a la',
+            'Ley 1581 de 2012 y sus decretos reglamentarios, de acuerdo con la política',
+            'de privacidad y tratamiento de datos personales publicada por la compañía.',
+            '',
+            'Declaro que acepto los términos y condiciones y la política de privacidad',
+            'y tratamiento de datos personales.',
+            '',
+            'Razón social: '.($razonSocial !== '' ? $razonSocial : '-'),
+            'Documento: '.($documento !== '' ? $documento : '-'),
+            'Firmante (representante legal o suplente): '.($signerName !== '' ? $signerName : $razonSocial),
+            'Fecha: '.now()->format('d/m/Y H:i'),
+            '',
+            'Firma del representante legal o suplente:',
+        ];
+    }
+
+    /**
+     * Escape and encode a text line for a PDF literal string (WinAnsi).
+     */
+    private function pdfTextLine(string $text): string
+    {
+        $encoded = @iconv('UTF-8', 'CP1252//TRANSLIT//IGNORE', $text);
+        if ($encoded === false) {
+            $encoded = preg_replace('/[^\x20-\x7E]/', '?', $text) ?? '';
+        }
+
+        return str_replace(['\\', '(', ')'], ['\\\\', '\\(', '\\)'], $encoded);
+    }
+
+    /**
+     * Build a minimal valid PDF 1.4 file containing the habeas data text block
+     * followed by the signature JPEG, all on a single page.
+     *
+     * @param  array<int, string>  $textLines
+     */
+    private function buildMinimalPdfWithJpeg(string $jpegData, int $imgWidth, int $imgHeight, array $textLines = []): string
     {
         $pageWidth = 612;  // Letter width in points
         $pageHeight = 792; // Letter height in points
         $margin = 36;
+        $fontSize = 11;
+        $lineHeight = 16;
+
+        // Text block starts at the top; the signature image goes right below it.
+        $textStream = '';
+        $cursorY = $pageHeight - $margin - $fontSize;
+        foreach ($textLines as $index => $line) {
+            if (trim($line) !== '') {
+                $font = $index === 0 ? '/F2' : '/F1';
+                $textStream .= sprintf(
+                    "BT {$font} %d Tf %.2f %.2f Td (%s) Tj ET\n",
+                    $fontSize,
+                    (float) $margin,
+                    $cursorY,
+                    $this->pdfTextLine($line)
+                );
+            }
+            $cursorY -= $lineHeight;
+        }
 
         $displayWidth = $pageWidth - (2 * $margin);
         $scale = $displayWidth / $imgWidth;
-        $displayHeight = min($imgHeight * $scale, $pageHeight - (2 * $margin));
+        $availableHeight = max($cursorY - $margin, 60);
+        $displayHeight = min($imgHeight * $scale, $availableHeight);
+        $displayWidth = min($displayWidth, $displayHeight / $imgHeight * $imgWidth);
 
-        $yPos = $pageHeight - $margin - $displayHeight;
+        $yPos = $cursorY - $displayHeight;
 
         $jpegLen = strlen($jpegData);
 
@@ -440,9 +546,11 @@ class NewClientController extends Controller
 
         $offsets[3] = strlen($pdf);
         $pdf .= "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {$pageWidth} {$pageHeight}]"
-            ." /Contents 4 0 R /Resources << /XObject << /Img0 5 0 R >> >> >>\nendobj\n";
+            ." /Contents 4 0 R /Resources << /XObject << /Img0 5 0 R >>"
+            ." /Font << /F1 6 0 R /F2 7 0 R >> >> >>\nendobj\n";
 
-        $stream = sprintf("q %.4f 0 0 %.4f %.4f %.4f cm /Img0 Do Q", $displayWidth, $displayHeight, (float) $margin, $yPos);
+        $stream = $textStream
+            .sprintf("q %.4f 0 0 %.4f %.4f %.4f cm /Img0 Do Q", $displayWidth, $displayHeight, (float) $margin, $yPos);
         $streamLen = strlen($stream);
         $offsets[4] = strlen($pdf);
         $pdf .= "4 0 obj\n<< /Length {$streamLen} >>\nstream\n{$stream}\nendstream\nendobj\n";
@@ -453,6 +561,12 @@ class NewClientController extends Controller
             ."stream\n";
         $pdf .= $jpegData;
         $pdf .= "\nendstream\nendobj\n";
+
+        $offsets[6] = strlen($pdf);
+        $pdf .= "6 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n";
+
+        $offsets[7] = strlen($pdf);
+        $pdf .= "7 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>\nendobj\n";
 
         $xrefOffset = strlen($pdf);
         $numObjects = count($offsets) + 1;
