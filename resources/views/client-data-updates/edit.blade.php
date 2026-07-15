@@ -19,7 +19,7 @@
                 Cerrar sesión
             </a>
         @else
-            <a href="{{ route('clients.orders.index', array_filter(['tab' => $returnTab, 'ruta' => $returnRoute ?: null])) }}"
+            <a href="{{ route('clients.orders.index', array_filter(['tab' => $returnTab, 'ruta' => $returnRoute ?: null, 'ruta_q' => $returnSearch ?: null])) }}"
                class="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-4">
                 ← Volver a Mi Ruta
             </a>
@@ -59,6 +59,7 @@
         @unless($isClientSelfService)
             <input type="hidden" name="return_tab" value="{{ $returnTab }}">
             <input type="hidden" name="return_route" value="{{ $returnRoute }}">
+            <input type="hidden" name="return_search" value="{{ $returnSearch }}">
         @endunless
 
         <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-5 sm:p-6 space-y-4">
@@ -160,7 +161,7 @@
                 Enviar actualización
             </button>
             @unless($isClientSelfService)
-                <a href="{{ route('clients.orders.index', array_filter(['tab' => $returnTab, 'ruta' => $returnRoute ?: null])) }}"
+                <a href="{{ route('clients.orders.index', array_filter(['tab' => $returnTab, 'ruta' => $returnRoute ?: null, 'ruta_q' => $returnSearch ?: null])) }}"
                    class="text-sm text-gray-600 hover:text-gray-900">Cancelar</a>
             @endunless
         </div>

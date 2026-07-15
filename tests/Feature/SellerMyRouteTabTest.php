@@ -84,6 +84,68 @@ it('shows only route clients whose visit day matches today in mi ruta tab', func
         ->assertDontSee('Cliente Otra Ruta');
 });
 
+it('filters mi ruta clients by name or document', function () {
+    Role::firstOrCreate(['name' => 'seller', 'guard_name' => 'web']);
+
+    $seller = User::factory()->create(['zone' => '301']);
+    $seller->assignRole('seller');
+
+    $todayDow = Carbon::now('America/Bogota')->dayOfWeek;
+
+    $clientA = User::factory()->create([
+        'name' => 'Maria Lopez',
+        'business_name' => 'Tienda La Esquina',
+        'document' => '901234567',
+    ]);
+    Zone::create([
+        'user_id' => $clientA->id,
+        'zone' => '301',
+        'route' => 'R100',
+        'day' => (string) $todayDow,
+        'address' => 'Calle 1 # 2-3',
+        'code' => 'RUT-A',
+    ]);
+
+    $clientB = User::factory()->create([
+        'name' => 'Pedro Gomez',
+        'business_name' => 'Supermercado Central',
+        'document' => '800111222',
+    ]);
+    Zone::create([
+        'user_id' => $clientB->id,
+        'zone' => '301',
+        'route' => 'R100',
+        'day' => (string) $todayDow,
+        'address' => 'Calle 4 # 5-6',
+        'code' => 'RUT-B',
+    ]);
+
+    // By partial name (case-insensitive).
+    actingAs($seller)->get('/ordenes?tab=mi-ruta&ruta=R100&ruta_q=maria')
+        ->assertOk()
+        ->assertSee('Maria Lopez')
+        ->assertDontSee('Pedro Gomez');
+
+    // By business name.
+    actingAs($seller)->get('/ordenes?tab=mi-ruta&ruta=R100&ruta_q=Supermercado')
+        ->assertOk()
+        ->assertSee('Pedro Gomez')
+        ->assertDontSee('Maria Lopez');
+
+    // By partial document.
+    actingAs($seller)->get('/ordenes?tab=mi-ruta&ruta=R100&ruta_q=901234')
+        ->assertOk()
+        ->assertSee('Maria Lopez')
+        ->assertDontSee('Pedro Gomez');
+
+    // No matches shows the search-specific empty state.
+    actingAs($seller)->get('/ordenes?tab=mi-ruta&ruta=R100&ruta_q=inexistente')
+        ->assertOk()
+        ->assertSee('que coincidan con')
+        ->assertDontSee('Maria Lopez')
+        ->assertDontSee('Pedro Gomez');
+});
+
 it('lists the routes available for the seller zone', function () {
     Role::firstOrCreate(['name' => 'seller', 'guard_name' => 'web']);
 

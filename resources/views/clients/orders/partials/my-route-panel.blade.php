@@ -3,6 +3,7 @@
     $sellerZone = $myRoute['sellerZone'] ?? '';
     $routeOptions = $myRoute['routeOptions'] ?? collect();
     $selectedRoute = $myRoute['selectedRoute'] ?? '';
+    $searchTerm = $myRoute['searchTerm'] ?? '';
     $routeClients = $myRoute['clients'] ?? null;
     $todayLabel = $myRoute['todayLabel'] ?? '';
 @endphp
@@ -35,6 +36,28 @@
                         Hoy: <span class="font-medium text-gray-700 capitalize">{{ $todayLabel }}</span>
                     </p>
                 </div>
+                @if($selectedRoute !== '')
+                    <div class="flex flex-col sm:flex-row sm:items-end gap-3 mt-3">
+                        <div class="flex-1 min-w-0">
+                            <label for="mi-ruta-search" class="block text-xs font-medium text-gray-500 mb-1">Buscar cliente</label>
+                            <input type="text" id="mi-ruta-search" name="ruta_q" value="{{ $searchTerm }}"
+                                   placeholder="Nombre o NIT/documento"
+                                   class="w-full border-gray-300 rounded-lg text-sm px-3 py-2 focus:ring-orange-500 focus:border-orange-500">
+                        </div>
+                        <div class="flex gap-2">
+                            <button type="submit"
+                                    class="px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700 transition-colors">
+                                Buscar
+                            </button>
+                            @if($searchTerm !== '')
+                                <a href="{{ route('clients.orders.index', ['tab' => 'mi-ruta', 'ruta' => $selectedRoute]) }}"
+                                   class="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors">
+                                    Limpiar
+                                </a>
+                            @endif
+                        </div>
+                    </div>
+                @endif
             </form>
         </div>
 
@@ -44,7 +67,11 @@
             </div>
         @elseif($routeClients === null || $routeClients->isEmpty())
             <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-6 text-center text-gray-500">
-                No hay clientes en la ruta {{ $selectedRoute }} con visita programada para hoy.
+                @if($searchTerm !== '')
+                    No encontramos clientes en la ruta {{ $selectedRoute }} que coincidan con "{{ $searchTerm }}".
+                @else
+                    No hay clientes en la ruta {{ $selectedRoute }} con visita programada para hoy.
+                @endif
             </div>
         @else
             <div class="space-y-4">
@@ -110,7 +137,7 @@
 
                         @if($client->document)
                             <div class="mt-4 pt-4 border-t border-gray-100 flex flex-col sm:flex-row sm:justify-end gap-2">
-                                <a href="{{ route('client-data-updates.edit', ['zone' => $clientZone->id, 'return_tab' => 'mi-ruta', 'ruta' => $selectedRoute]) }}"
+                                <a href="{{ route('client-data-updates.edit', array_filter(['zone' => $clientZone->id, 'return_tab' => 'mi-ruta', 'ruta' => $selectedRoute, 'ruta_q' => $searchTerm])) }}"
                                    class="px-3 py-2 border border-gray-300 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-50 transition-colors text-center">
                                     Actualizar datos
                                 </a>

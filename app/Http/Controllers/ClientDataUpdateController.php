@@ -24,6 +24,7 @@ class ClientDataUpdateController extends Controller
         return view('client-data-updates.edit', $this->formViewData($zone->user, $zone, [
             'returnTab' => (string) $request->query('return_tab', 'mi-ruta'),
             'returnRoute' => (string) $request->query('ruta', ''),
+            'returnSearch' => (string) $request->query('ruta_q', ''),
         ]));
     }
 
@@ -46,6 +47,7 @@ class ClientDataUpdateController extends Controller
         $redirectParams = array_filter([
             'tab' => $validated['return_tab'] ?? 'mi-ruta',
             'ruta' => $validated['return_route'] ?? null,
+            'ruta_q' => $validated['return_search'] ?? null,
         ]);
 
         return redirect()
@@ -106,6 +108,7 @@ class ClientDataUpdateController extends Controller
             'ruteroUnavailable' => $ruteroRoute === null && $this->documentForRutero($client) !== '',
             'returnTab' => 'mi-ruta',
             'returnRoute' => '',
+            'returnSearch' => '',
             'isClientSelfService' => false,
         ], $extra);
     }
@@ -132,6 +135,7 @@ class ClientDataUpdateController extends Controller
             'seller_notes' => ['nullable', 'string', 'max:2000'],
             'return_tab' => ['nullable', 'string', 'max:50'],
             'return_route' => ['nullable', 'string', 'max:100'],
+            'return_search' => ['nullable', 'string', 'max:100'],
         ]);
     }
 
