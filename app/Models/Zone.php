@@ -26,6 +26,7 @@ class Zone extends Model
         'sucursal_uid',
         'tax_group',
         'zip_code',
+        'dane_code',
         'fulfillment_provider_48h',
         'user_id',
     ];
@@ -149,6 +150,43 @@ class Zone extends Model
     public function usesCoordinadoraFor48h(): bool
     {
         return ($this->fulfillment_provider_48h ?? self::FULFILLMENT_PROVIDER_COORDINADORA) === self::FULFILLMENT_PROVIDER_COORDINADORA;
+    }
+
+    /**
+     * Destination DANE code (8-digit Coordinadora format "ddmmm000") for this zone.
+     *
+     * Resolution order: explicit zones.dane_code, a DANE-looking value stored in the
+     * legacy zip_code field, the owning user's numeric city_code from Dynamics, and
+     * finally a catalog lookup by the user's city/state names.
+     */
+    public function coordinadoraDaneCode(): ?string
+    {
+        $explicit = \App\Services\Shipping\DaneCodeService::normalize($this->dane_code);
+        if ($explicit !== null) {
+            return $explicit;
+        }
+
+        $fromZip = \App\Services\Shipping\DaneCodeService::normalize($this->zip_code);
+        if ($fromZip !== null) {
+            return $fromZip;
+        }
+
+        $user = $this->user;
+        if (!$user) {
+            return null;
+        }
+
+        $fromUserCode = \App\Services\Shipping\DaneCodeService::normalize($user->city_code);
+        if ($fromUserCode !== null) {
+            return $fromUserCode;
+        }
+
+        $city = $user->city;
+
+        return \App\Services\Shipping\DaneCodeService::forCity(
+            $city?->name ?? $user->city_code,
+            $city?->state?->name
+        );
     }
 
     public function user()

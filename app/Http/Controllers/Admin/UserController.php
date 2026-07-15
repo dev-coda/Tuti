@@ -284,8 +284,17 @@ class UserController extends Controller
 
         $validated = $request->validate([
             'zip_code' => ['nullable', 'string', 'max:50'],
+            'dane_code' => ['nullable', 'string', 'max:12', 'regex:/^\d{4,8}$/'],
             'fulfillment_provider_48h' => ['required', 'in:coordinadora,tronex'],
         ]);
+
+        if (array_key_exists('dane_code', $validated) && filled($validated['dane_code'])) {
+            $normalized = \App\Services\Shipping\DaneCodeService::normalize($validated['dane_code']);
+            if ($normalized === null) {
+                return back()->with('error', 'El código DANE no es válido (use 5 u 8 dígitos, ej. 11001 o 11001000).');
+            }
+            $validated['dane_code'] = $normalized;
+        }
 
         $zone->update($validated);
 
