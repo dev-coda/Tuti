@@ -8,6 +8,8 @@ Capa de *transporte* y *jobs* que conecta el *checkout* web a **Microsoft Dynami
 |-------------------|-----------------|-------------------------|
 | **Microsoft Dynamics (precios)** | `App\Jobs\UpdateProductPrices` | SOAP *getPriceAndDiscount*; parseo XML; actualiza precios y, opcionalmente, variaciones. |
 | **Microsoft Dynamics (inventario)** | `App\Jobs\SyncProductInventory` | Operación SOAP de existencia por bodega; *logs* de cuerpos o errores. |
+| **Microsoft Dynamics (dimensiones)** | `App\Jobs\SyncProductDimensions` | SOAP *ObtenerArticulos* (`docs/dimensiones y peso.pdf`); sincroniza peso/alto/ancho/largo a `products.coordinadora_*`; nunca sobrescribe con ceros; *log* en `product_dimension_sync_logs`; comando `products:sync-dimensions`. |
+| **Tamaños de empaque (Coordinadora)** | `PackageAssignmentService`, modelo `PackageType`, panel `package-types` | Asigna el empaque más pequeño que cubra volumen/peso del pedido (o múltiplos del mayor); se envía como `empaques` en la guía y se persiste en `orders.coordinadora_packages`. |
 | **Pedido / presales (XML)** | `OrderRepository` + `ProcessOrder` / `ProcessOrderAsync` | Reintento, almacenamiento de *request*/*response*; en admin, `orders.retry-xml-transmission`. |
 | **Coordinadora (envío)** | `CoordinadoraOrderProcessingService`, `CoordinadoraQuoteService`, *guides* | Express 48h; cotización en `GET /api/shipping-quote/{method}`. |
 | **Correo** | `MailingService` + Mailgun (Symfony) | Ajustes vía *settings*; prueba con ruta *admin* `test.email`. |

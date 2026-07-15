@@ -14,7 +14,8 @@ use RuntimeException;
 class CoordinadoraGuideService
 {
     public function __construct(
-        private readonly CoordinadoraAuthService $authService
+        private readonly CoordinadoraAuthService $authService,
+        private readonly PackageAssignmentService $packageAssignmentService
     ) {
     }
 
@@ -38,6 +39,8 @@ class CoordinadoraGuideService
         if ($origenDane === null) {
             throw new RuntimeException('Coordinadora origin DANE code is not configured.');
         }
+
+        $packages = $this->packageAssignmentService->assignForOrder($order);
 
         $payload = [
             'identificacion' => (string) ($config['nit'] ?? ''),
@@ -80,6 +83,13 @@ class CoordinadoraGuideService
             'fuente' => 'integracion',
             'quienPagaEnvio' => '1',
             'tipoEnvioEspecial' => false,
+            'empaques' => collect($packages)->map(function (array $package) {
+                return [
+                    'codigo' => $package['code'],
+                    'nombre' => $package['name'],
+                    'cantidad' => $package['count'],
+                ];
+            })->values()->all(),
         ];
 
         $baseUrl = rtrim((string) config('services.coordinadora.base_url'), '/');
@@ -109,6 +119,7 @@ class CoordinadoraGuideService
             'guide_number' => $guideNumber,
             'status_code' => (string) (data_get($response, 'status_code') ?? 'CREATED'),
             'status_text' => (string) (data_get($response, 'status_text') ?? 'Guia creada'),
+            'packages' => $packages,
             'request_payload' => $payload,
             'response_payload' => is_array($response) ? $response : [],
         ];

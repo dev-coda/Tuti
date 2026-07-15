@@ -1,0 +1,106 @@
+{
+	"info": {
+		"_postman_id": "be5647a1-5d82-4024-a8c6-f34186e1ead5",
+		"name": "TRONEX API CLIENTE NUEVO PRODUCCION",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Solicitud crear cliente Prueba negocio",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/xml",
+						"type": "text"
+					},
+					{
+						"key": "Tokenconectat",
+						"value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpZCI6IjEifQ.JdQhR7q2ArgT_o52JyIzdqzgjkJaIWNIg1Q0q8hbhX0",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<ClienteNuevo>\n  <Documento>112255</Documento>\n  <TipoDocumento>3</TipoDocumento>\n  <PrimerNombre>LINA</PrimerNombre>\n  <SegundoNombre>MARCELA</SegundoNombre>\n  <PrimerApellido>GARCIA</PrimerApellido>\n  <SegundoApellido>ESCOBAR</SegundoApellido>\n  <NombreNegocio>TIENDA EL PROGRESO</NombreNegocio>\n  <IdClasificacionCliente>11</IdClasificacionCliente>\n  <Departamento>ANTIOQUIA</Departamento>\n  <Ciudad>ABEJORRAL</Ciudad>\n  <Telefono>3617840</Telefono>\n  <Movil>3137207683</Movil>\n  <Whatsapp>3137207683</Whatsapp>\n  <Correo>tienda@example.com</Correo>\n  <Direccion>CL 5 # 10-20</Direccion>\n  <Barrio>EL CENTRO</Barrio>\n  <Zona>115</Zona>\n  <RutaZonaVentas>1338</RutaZonaVentas>\n  <DiaRecorrido>MIERCOLES</DiaRecorrido>\n  <Posicion>15</Posicion>\n  <Pep>SI</Pep>\n</ClienteNuevo>",
+					"options": {
+						"raw": {
+							"language": "xml"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://tronex.amovil.net/clienteConectat/AuthClienteNuevo/clienteNuevo",
+					"protocol": "http",
+					"host": [
+						"tronex",
+						"amovil",
+						"net"
+					],
+					"path": [
+						"clienteConectat",
+						"AuthClienteNuevo",
+						"clienteNuevo"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "fotos",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Tokenconectat",
+						"value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpZCI6IjEifQ.JdQhR7q2ArgT_o52JyIzdqzgjkJaIWNIg1Q0q8hbhX0",
+						"type": "text"
+					},
+					{
+						"key": "Content-Type",
+						"value": "multipart/form-data",
+						"type": "text",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "id",
+							"value": "83034",
+							"type": "text"
+						},
+						{
+							"key": "imagenes[]",
+							"type": "file",
+							"src": [],
+							"disabled": true
+						},
+						{
+							"key": "pdf",
+							"type": "file",
+							"src": "/C:/Users/linam/OneDrive/Documents/Datos/Tronex/Requerimiento API ClienteNuevo/DocumentacionConsumoAPI_ClienteNuevo.pdf"
+						}
+					]
+				},
+				"url": {
+					"raw": "http://tronex.amovil.net/clienteConectat/AuthMediaClienteNuevo/cargaArchivos",
+					"protocol": "http",
+					"host": [
+						"tronex",
+						"amovil",
+						"net"
+					],
+					"path": [
+						"clienteConectat",
+						"AuthMediaClienteNuevo",
+						"cargaArchivos"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}

@@ -109,6 +109,7 @@
                             'admin.email-templates.index'=>'Plantillas de Correo',
                             'settings.inventory-logs'=>'Logs de Inventario',
                             'settings.fv-integration'=>'Integración FV',
+                            'package-types.index'=>'Tamaños de Empaque',
                             'settings.ventas'=>'Ventas',
                             'holidays.index'=>'Festivos y Sabados',
                             'delivery-calendars.index'=>'Calendario de Entrega',

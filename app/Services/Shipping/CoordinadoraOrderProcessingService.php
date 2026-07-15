@@ -34,6 +34,7 @@ class CoordinadoraOrderProcessingService
             'coordinadora_status_at' => now(),
             'coordinadora_request_payload' => isset($guideResult['request_payload']) ? json_encode($guideResult['request_payload']) : null,
             'coordinadora_response_payload' => isset($guideResult['response_payload']) ? json_encode($guideResult['response_payload']) : null,
+            'coordinadora_packages' => $guideResult['packages'] ?? null,
             'status_id' => Order::STATUS_PROCESSED,
         ]);
 
