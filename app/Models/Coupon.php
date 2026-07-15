@@ -36,6 +36,7 @@ class Coupon extends Model
         'allowed_zones',
         'allowed_routes',
         'minimum_amount',
+        'apply_on_brand_vendor_discounts',
         'parent_coupon_id',
         'is_mass_created',
         'active',
@@ -55,6 +56,7 @@ class Coupon extends Model
         'allowed_zones' => 'array',
         'allowed_routes' => 'array',
         'active' => 'boolean',
+        'apply_on_brand_vendor_discounts' => 'boolean',
         'is_mass_created' => 'boolean',
         'value' => 'decimal:2',
         'minimum_amount' => 'decimal:2',
@@ -70,6 +72,16 @@ class Coupon extends Model
     const APPLIES_TO_VENDOR = 'vendor';
     const APPLIES_TO_CUSTOMER = 'customer';
     const APPLIES_TO_CUSTOMER_TYPE = 'customer_type';
+
+    /**
+     * Whether the coupon may be applied to products that already carry a
+     * brand or vendor discount. Defaults to true (historical behavior) for
+     * rows created before the column existed.
+     */
+    public function appliesOverBrandVendorDiscounts(): bool
+    {
+        return $this->apply_on_brand_vendor_discounts ?? true;
+    }
 
     /**
      * Get the coupon usages

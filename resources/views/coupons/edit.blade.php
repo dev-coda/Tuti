@@ -228,6 +228,19 @@
             </label>
         </div>
 
+        <!-- Brand/vendor discount stacking -->
+        <div>
+            <input type="hidden" name="apply_on_brand_vendor_discounts" value="0">
+            <label class="flex items-center">
+                <input type="checkbox" name="apply_on_brand_vendor_discounts" value="1" {{ old('apply_on_brand_vendor_discounts', $coupon->appliesOverBrandVendorDiscounts()) ? 'checked' : '' }}
+                    class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50">
+                <span class="ml-2 text-sm text-gray-700">Permitir sobre descuentos de marca/proveedor</span>
+            </label>
+            <p class="mt-1 ml-6 text-xs text-gray-500">
+                Si se desactiva, el cupón quedará exento de los productos que ya tienen descuento de marca o proveedor: esos productos conservan su descuento y no reciben el del cupón.
+            </p>
+        </div>
+
         <!-- Submit Buttons -->
         <div class="flex justify-end space-x-3">
             <a href="{{ route('coupons.index') }}"
