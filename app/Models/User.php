@@ -162,6 +162,15 @@ class User extends Authenticatable
         return (string) config('auth.default_user_password', 'Tendero2026');
     }
 
+    /**
+     * Match an email regardless of how it was capitalized when stored or typed,
+     * so logins are not case sensitive on any database driver.
+     */
+    public function scopeWhereEmailCaseInsensitive($query, ?string $email)
+    {
+        return $query->whereRaw('LOWER(email) = ?', [mb_strtolower(trim((string) $email), 'UTF-8')]);
+    }
+
     public static function isInvalidClientEmail(?string $email): bool
     {
         if (!is_string($email) || trim($email) === '') {
