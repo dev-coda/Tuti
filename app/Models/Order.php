@@ -91,6 +91,12 @@ class Order extends Model
     const SHIPPING_PROVIDER_COORDINADORA = 'coordinadora';
     const SHIPPING_PROVIDER_TRONEX = 'tronex';
 
+    // Order origin: RUTA = placed by a seller on behalf of the client,
+    // AUTONOMO = placed by the client on their own. Derived from seller_id,
+    // which checkout only fills when a seller/supervisor processes the cart.
+    const ORIGIN_RUTA = 'ruta';
+    const ORIGIN_AUTONOMO = 'autonomo';
+
     /**
      * Get status slug from status ID
      */
@@ -137,6 +143,19 @@ class Order extends Model
     public function seller()
     {
         return $this->belongsTo(User::class, 'seller_id');
+    }
+
+    /**
+     * Whether the order was created by a seller (RUTA) or by the client (Autónomo).
+     */
+    public function getOriginAttribute(): string
+    {
+        return $this->seller_id !== null ? self::ORIGIN_RUTA : self::ORIGIN_AUTONOMO;
+    }
+
+    public function getOriginLabelAttribute(): string
+    {
+        return $this->origin === self::ORIGIN_RUTA ? 'RUTA' : 'Autónomo';
     }
 
     public function coupon()
