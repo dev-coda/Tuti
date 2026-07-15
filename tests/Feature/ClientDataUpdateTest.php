@@ -166,6 +166,74 @@ it('shows the seller edit form prefilled with client data and rutero zone route'
         ->assertDontSee('name="zone_code"', false);
 });
 
+it('includes only changed fields in the update notification email', function () {
+    $client = User::factory()->create(['document' => '901234567']);
+    $seller = User::factory()->create(['name' => 'Vendedor Uno', 'email' => 'vendedor@example.com']);
+
+    $updateRequest = ClientDataUpdateRequest::create([
+        'user_id' => $client->id,
+        'submitted_by' => $seller->id,
+        'document' => '901234567',
+        'name' => 'Cliente Original',
+        'business_name' => 'Tienda Original',
+        'email' => 'nuevo@example.com',
+        'phone' => '6011111111',
+        'mobile_phone' => '3002222222',
+        'address' => 'Calle 10 # 20-30',
+        'previous_data' => [
+            'name' => 'Cliente Original',
+            'business_name' => 'Tienda Original',
+            'document' => '901234567',
+            'email' => 'viejo@example.com',
+            'phone' => '6011111111',
+            'mobile_phone' => '3001111111',
+            'whatsapp' => null,
+            'address' => 'Calle 10 # 20-30',
+        ],
+    ]);
+
+    $changes = $updateRequest->changedFields();
+
+    expect(array_keys($changes))->toBe(['email', 'mobile_phone'])
+        ->and($changes['email']['old'])->toBe('viejo@example.com')
+        ->and($changes['email']['new'])->toBe('nuevo@example.com')
+        ->and($changes['mobile_phone']['old'])->toBe('3001111111')
+        ->and($changes['mobile_phone']['new'])->toBe('3002222222');
+
+    $html = view('emails.client-data-update', ['updateRequest' => $updateRequest])->render();
+
+    expect($html)->toContain('Datos actualizados')
+        ->toContain('nuevo@example.com')
+        ->toContain('viejo@example.com')
+        ->toContain('3002222222')
+        ->not->toContain('Tienda Original</strong>')
+        ->not->toContain('<td style="border-bottom: 1px solid #E5E7EB;"><strong>Dirección</strong></td>');
+});
+
+it('reports when an update request has no changes', function () {
+    $client = User::factory()->create(['document' => '901234567']);
+    $seller = User::factory()->create();
+
+    $updateRequest = ClientDataUpdateRequest::create([
+        'user_id' => $client->id,
+        'submitted_by' => $seller->id,
+        'document' => '901234567',
+        'name' => 'Cliente Igual',
+        'address' => 'Calle 10',
+        'previous_data' => [
+            'name' => 'Cliente Igual',
+            'document' => '901234567',
+            'address' => 'Calle 10',
+        ],
+    ]);
+
+    expect($updateRequest->changedFields())->toBe([]);
+
+    $html = view('emails.client-data-update', ['updateRequest' => $updateRequest])->render();
+
+    expect($html)->toContain('no contiene cambios');
+});
+
 it('lists client data update requests in admin', function () {
     Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
 
