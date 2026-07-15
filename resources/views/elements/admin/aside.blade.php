@@ -108,6 +108,7 @@
                             'settings.mailer'=>'Configuración de Correo',
                             'admin.email-templates.index'=>'Plantillas de Correo',
                             'settings.inventory-logs'=>'Logs de Inventario',
+                            'settings.fv-integration'=>'Integración FV',
                             'settings.ventas'=>'Ventas',
                             'holidays.index'=>'Festivos y Sabados',
                             'delivery-calendars.index'=>'Calendario de Entrega',

@@ -104,7 +104,7 @@ class FvDynamicsService
         ];
     }
 
-    private function resolveEndpoint(): string
+    public function resolveEndpoint(): string
     {
         $endpoint = trim((string) config('services.fv.endpoint'));
         if ($endpoint !== '') {

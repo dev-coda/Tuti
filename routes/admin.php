@@ -16,6 +16,7 @@ use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\ProductHighlightController;
 use App\Http\Controllers\Admin\PromocionesController;
 use App\Http\Controllers\Admin\PromocionController;
+use App\Http\Controllers\Admin\FvIntegrationController;
 use App\Http\Controllers\Admin\SettingController;
 use App\Http\Controllers\Admin\TaxController;
 use App\Http\Controllers\Admin\UserController;
@@ -187,6 +188,8 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::post('settings/mailer-config', [SettingController::class, 'updateMailer'])->name('settings.mailer.update');
     Route::get('settings/ventas', [SettingController::class, 'ventas'])->name('settings.ventas');
     Route::post('settings/ventas', [SettingController::class, 'updateVentas'])->name('settings.ventas.update');
+    Route::get('settings/fv-integration', [FvIntegrationController::class, 'index'])->name('settings.fv-integration');
+    Route::post('settings/fv-integration/test', [FvIntegrationController::class, 'testConnection'])->name('settings.fv-integration.test');
 
     // Shipping Methods
     Route::get('shipping-methods', [ShippingMethodController::class, 'index'])->name('shipping-methods.index');
