@@ -8,6 +8,10 @@ export default {
         "./vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php",
         "./storage/framework/views/*.php",
         "./resources/views/**/*.blade.php",
+        // Vue/JS components use Tailwind too; without scanning them, utilities
+        // used only in .vue files get purged from the build (this broke the
+        // featured-products images when bg-contain left the last Blade file).
+        "./resources/js/**/*.{js,vue}",
         "./node_modules/flowbite/**/*.js",
     ],
     safelist: ["resize-none", "owl-nav"],
