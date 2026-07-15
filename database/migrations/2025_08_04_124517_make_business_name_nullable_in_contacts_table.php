@@ -25,6 +25,9 @@ return new class extends Migration
         if ($driver === 'mysql') {
             DB::statement('ALTER TABLE contacts MODIFY business_name VARCHAR(255) NULL');
         }
+
+        // sqlite (tests): nothing to do, the create migration declares the
+        // column nullable to match the state production reached here.
     }
 
     /**
