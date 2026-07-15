@@ -8,7 +8,8 @@ use RuntimeException;
 class CoordinadoraGuideService
 {
     public function __construct(
-        private readonly CoordinadoraAuthService $authService
+        private readonly CoordinadoraAuthService $authService,
+        private readonly PackageAssignmentService $packageAssignmentService
     ) {
     }
 
@@ -18,6 +19,8 @@ class CoordinadoraGuideService
         if (!$order->zone) {
             throw new RuntimeException('Order has no zone for Coordinadora guide creation.');
         }
+
+        $packages = $this->packageAssignmentService->assignForOrder($order);
 
         $payload = [
             'idProceso' => config('services.coordinadora.id_proceso'),
@@ -36,6 +39,13 @@ class CoordinadoraGuideService
                     'alto' => (float) ($orderProduct->product?->coordinadora_height_cm ?? 0),
                     'ancho' => (float) ($orderProduct->product?->coordinadora_width_cm ?? 0),
                     'largo' => (float) ($orderProduct->product?->coordinadora_length_cm ?? 0),
+                ];
+            })->values()->all(),
+            'empaques' => collect($packages)->map(function (array $package) {
+                return [
+                    'codigo' => $package['code'],
+                    'nombre' => $package['name'],
+                    'cantidad' => $package['count'],
                 ];
             })->values()->all(),
         ];
@@ -64,6 +74,7 @@ class CoordinadoraGuideService
             'guide_number' => $guideNumber,
             'status_code' => (string) (data_get($response, 'status_code') ?? 'CREATED'),
             'status_text' => (string) (data_get($response, 'status_text') ?? 'Guia creada'),
+            'packages' => $packages,
             'request_payload' => $payload,
             'response_payload' => is_array($response) ? $response : [],
         ];

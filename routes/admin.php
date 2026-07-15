@@ -188,6 +188,10 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('settings/ventas', [SettingController::class, 'ventas'])->name('settings.ventas');
     Route::post('settings/ventas', [SettingController::class, 'updateVentas'])->name('settings.ventas.update');
 
+    // Package types (tamaños de empaque) + product dimension sync
+    Route::post('package-types/sync-dimensions', [\App\Http\Controllers\Admin\PackageTypeController::class, 'syncDimensions'])->name('package-types.sync-dimensions');
+    Route::resource('package-types', \App\Http\Controllers\Admin\PackageTypeController::class)->except(['show']);
+
     // Shipping Methods
     Route::get('shipping-methods', [ShippingMethodController::class, 'index'])->name('shipping-methods.index');
     Route::get('shipping-methods/{shippingMethod}/edit', [ShippingMethodController::class, 'edit'])->name('shipping-methods.edit');
