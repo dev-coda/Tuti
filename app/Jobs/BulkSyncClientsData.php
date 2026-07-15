@@ -93,31 +93,17 @@ class BulkSyncClientsData implements ShouldQueue
                     continue;
                 }
 
-                // Store original data to detect changes
-                $originalData = $user->only([
-                    'name',
-                    'email',
-                    'phone',
-                    'mobile_phone',
-                    'whatsapp',
-                    'business_name',
-                    'account_num',
-                    'city_code',
-                    'county_id',
-                    'customer_type',
-                    'price_group',
-                    'tax_group',
-                    'line_discount',
-                    'balance',
-                    'quota_value',
-                    'customer_status',
-                    'is_locked',
-                    'order_sequence',
-                ]);
+                // Store original data to detect changes. The periodic bulk sync
+                // only refreshes contact data (email + phones); every other
+                // profile field and the zone rows are left untouched.
+                $originalData = $user->only(array_merge(
+                    ['email'],
+                    UserRepository::CONTACT_SYNC_FIELDS
+                ));
                 $originalZonesCount = $user->zones()->count();
 
-                // Perform the sync
-                $syncSuccess = UserRepository::syncUserRuteroData($user);
+                // Perform the contact-only sync
+                $syncSuccess = UserRepository::syncUserContactData($user);
 
                 if ($syncSuccess) {
                     $user->refresh();

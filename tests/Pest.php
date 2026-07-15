@@ -50,12 +50,34 @@ function something()
 /**
  * Build a getRuteros SOAP response in the exact shape UserRepository::fetchRuteroData parses.
  *
- * @param  array<int, array{code:string, zone:string, route:string, day:string, address:string, name:string}>  $sucursales
+ * Each sucursal requires code/zone/route/day/address/name; optional keys map to
+ * extra Dynamics detail fields (phone, mobile_phone, whatsapp, email, balance,
+ * quota_value, business_name, price_group).
+ *
+ * @param  array<int, array<string, string>>  $sucursales
  */
 function fakeGetRuterosSoap(array $sucursales): string
 {
+    $optionalDetailTags = [
+        'phone' => 'aPhone',
+        'mobile_phone' => 'aPhoneMobile',
+        'whatsapp' => 'aWhatsapp',
+        'email' => 'aEmail',
+        'balance' => 'aBalance',
+        'quota_value' => 'aQuotaValue',
+        'business_name' => 'aRazonSocial',
+        'price_group' => 'aPriceGroup',
+    ];
+
     $ruteros = '';
     foreach ($sucursales as $s) {
+        $extraXml = '';
+        foreach ($optionalDetailTags as $key => $tag) {
+            if (isset($s[$key]) && $s[$key] !== '') {
+                $extraXml .= '<'.$tag.'>'.$s[$key].'</'.$tag.'>';
+            }
+        }
+
         $ruteros .= '<aListRuteros>'
             .'<aDiaRecorrido>'.$s['day'].'</aDiaRecorrido>'
             .'<aRoute>'.$s['route'].'</aRoute>'
@@ -64,6 +86,7 @@ function fakeGetRuterosSoap(array $sucursales): string
                 .'<aCustRuteroID>'.$s['code'].'</aCustRuteroID>'
                 .'<aAddress>'.$s['address'].'</aAddress>'
                 .'<aName>'.$s['name'].'</aName>'
+                .$extraXml
             .'</aListDetailsRuteros></aDetail>'
         .'</aListRuteros>';
     }
