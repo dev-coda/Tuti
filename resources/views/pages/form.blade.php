@@ -22,7 +22,7 @@
                 </svg>
             </div>
             <h2 class="text-2xl font-bold">Ingreso</h2>
-            <p>Ingresa aquí solo si ya estás registrado</p>
+            <p>Ingresa AQUÍ solo si eres cliente TRONEX</p>
 
             <div class="mt-5 p-5 w-full">
                 <form method="POST" action="{{ route('login') }}" class="space-y-5" id="login-form">
@@ -92,24 +92,24 @@
         </div>
 
         <div id="register-section" class="border border-2 border-blue-900 p-5 rounded-lg flex flex-col items-center">
-            <p class="text-center text-sm text-gray-600">Diligencia el formulario e inicia el proceso de activación como cliente TUTI</p>
             <div class="w-20 h-20 bg-blue-900 rounded-full flex items-center justify-center my-6">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4m4-5h8a2 2 0 012 2v10H6V9a2 2 0 012-2z" />
                 </svg>
             </div>
             <h2 class="text-2xl font-bold text-center">Cliente nuevo</h2>
-            <h3 class="text-2xl text-center mb-4">Crea tu cuenta</h3>
+            <h3 class="text-2xl text-center mb-4">Ingresa AQUÍ para crear tu cuenta</h3>
             <ul class="text-base text-gray-800 space-y-1">
-                <li>- Promociones y descuentos exclusivos</li>
-                <li>- Pago contra-entrega</li>
-                <li>- Programa tu pedido 24/48 horas</li>
-                <li>- Respaldo TRONEX</li>
+                <li>- Tendero, surte tu tienda en línea</li>
+                <li>- Accede a promociones y descuentos exclusivos</li>
+                <li>- Recibe tu pedido en 24 horas (Cobertura ruta TRONEX)</li>
+                <li>- Cuenta con el respaldo y acompañamiento de TRONEX</li>
             </ul>
 
-            <a href="{{ route('new-client.create') }}" class="mt-8 w-full max-w-sm inline-flex items-center justify-center bg-blue-700 hover:bg-blue-800 text-white font-semibold py-3 px-4 rounded-lg transition duration-300">
-                Crear cuenta
+            <a href="{{ route('new-client.create') }}" class="mt-8 w-full max-w-sm inline-flex items-center justify-center bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 px-4 rounded-lg transition duration-300">
+                Solicitar cuenta
             </a>
+            <p class="mt-3 text-center text-sm text-gray-600 max-w-sm">Diligencia el formulario e inicia el proceso de activación como cliente TUTI. Activaremos tu cuenta en 24 horas</p>
         </div>
     </div>
 </div>
