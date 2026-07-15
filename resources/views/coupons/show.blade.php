@@ -138,6 +138,18 @@
                     </span>
                 </p>
             </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-500">Descuentos de marca/proveedor</label>
+                <p class="mt-1">
+                    <span @class([
+                        'inline-flex px-2 py-1 text-xs font-medium rounded-full',
+                        'bg-green-100 text-green-800' => $coupon->appliesOverBrandVendorDiscounts(),
+                        'bg-yellow-100 text-yellow-800' => !$coupon->appliesOverBrandVendorDiscounts()
+                    ])>
+                        {{ $coupon->appliesOverBrandVendorDiscounts() ? 'Se permite combinar' : 'Exento (no combina)' }}
+                    </span>
+                </p>
+            </div>
         </div>
     </div>
 
