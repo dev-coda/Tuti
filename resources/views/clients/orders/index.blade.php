@@ -132,6 +132,7 @@
                     'tabKey' => 'orders-today',
                     'pageParam' => 'today_page',
                     'showFilters' => false,
+                    'showOrigin' => true,
                     'orders' => $dailyOrders,
                     'statuses' => $statuses,
                     'sellerDashToday' => $sellerDashToday,
@@ -156,6 +157,7 @@
                 @include('clients.orders.partials.orders-tab-panel', [
                     'tabKey' => 'orders',
                     'pageParam' => 'page',
+                    'showOrigin' => !empty($isSeller),
                     'orders' => $orders,
                     'statuses' => $statuses,
                     'sellerDashToday' => $sellerDashToday,
