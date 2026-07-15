@@ -16,7 +16,9 @@ return new class extends Migration
             $table->string('name');
             $table->string('email');
             $table->string('phone');
-            $table->string('business_name');
+            // Nullable since 2025_08_04 (interesado form has no business name field);
+            // declared nullable here so fresh installs/tests match production.
+            $table->string('business_name')->nullable();
             $table->boolean('read')->default(false);
             $table->timestamps();
         });

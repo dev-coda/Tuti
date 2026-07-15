@@ -279,7 +279,10 @@ class MailingService
     }
 
     /**
-     * Send contact form notification to admin
+     * Send contact form (interesado) notification to admin.
+     *
+     * Falls back to a built-in plain notification when the contact_form
+     * template is missing, so interesado alerts are never silently dropped.
      */
     public function sendContactFormNotification(Contact $contact)
     {
@@ -311,14 +314,101 @@ class MailingService
             }
         }
 
+        $template = EmailTemplate::where('slug', 'contact_form')->first();
+
+        if ($template && !$template->is_active) {
+            Log::warning('Interesado notification skipped: the contact_form email template is deactivated. Activate it in Admin > Plantillas de correo to receive these alerts.', [
+                'contact_id' => $contact->id,
+            ]);
+
+            return false;
+        }
+
+        if (!$template) {
+            Log::error('Interesado notification: contact_form email template is missing; sending built-in fallback notification. Run the EmailTemplatesSeeder or create the template in Admin > Plantillas de correo.', [
+                'contact_id' => $contact->id,
+            ]);
+        }
+
         $sent = false;
         foreach ($adminEmails as $adminEmail) {
-            if ($this->sendTemplateEmailWithAttachments('contact_form', $data, $adminEmail, $attachmentPaths, true)) {
+            $ok = $template
+                ? $this->sendTemplateEmailWithAttachments('contact_form', $data, $adminEmail, $attachmentPaths, true)
+                : $this->sendFallbackContactNotification($data, $adminEmail, $attachmentPaths);
+
+            if ($ok) {
                 $sent = true;
             }
         }
 
+        if (!$sent) {
+            Log::error('Interesado notification could not be delivered to any recipient.', [
+                'contact_id' => $contact->id,
+                'recipients' => $adminEmails,
+            ]);
+        }
+
         return $sent;
+    }
+
+    /**
+     * Built-in interesado notification used when the contact_form template
+     * does not exist in the database.
+     */
+    private function sendFallbackContactNotification(array $data, string $recipient, array $attachmentPaths = []): bool
+    {
+        try {
+            $this->updateMailConfiguration();
+
+            $rows = [
+                'Nombre' => $data['contact_name'] ?? '',
+                'Email' => $data['contact_email'] ?? '',
+                'Teléfono' => $data['contact_phone'] ?? '',
+                'Empresa' => $data['business_name'] ?? '',
+                'Tipo de persona' => $data['person_type'] ?? '',
+                'NIT' => $data['nit'] ?? '',
+                'Ciudad' => $data['city'] ?? '',
+                'Departamento' => $data['department'] ?? '',
+                'Dirección' => $data['address'] ?? '',
+                'Fecha de registro' => $data['contact_date'] ?? '',
+            ];
+
+            $body = '<h2>Nuevo interesado registrado</h2><p>Se ha registrado un nuevo interesado en el sitio web.</p><table>';
+            foreach ($rows as $label => $value) {
+                $body .= '<tr><td><strong>' . e($label) . '</strong></td><td>' . e((string) $value) . '</td></tr>';
+            }
+            $body .= '</table><p style="color:#6b7280;font-size:13px;">Este es un mensaje automático del sistema de Tuti.</p>';
+
+            $html = view('emails.database-template', [
+                'body' => $body,
+                'headerImage' => null,
+                'footerImage' => null,
+                'preheader' => 'Nuevo interesado registrado - ' . ($data['contact_name'] ?? ''),
+            ])->render();
+
+            $subject = 'Nuevo interesado registrado - ' . ($data['contact_name'] ?? '');
+
+            Mail::html($html, function ($message) use ($recipient, $subject, $attachmentPaths) {
+                $message->to($recipient)
+                    ->subject($subject)
+                    ->from(config('mail.from.address'), config('mail.from.name'));
+
+                foreach ($attachmentPaths as $path) {
+                    $message->attach($path);
+                }
+            });
+
+            Log::info("Fallback interesado notification sent to {$recipient}");
+
+            return true;
+        } catch (\Exception $e) {
+            Log::error('Failed to send fallback interesado notification', [
+                'recipient' => $recipient,
+                'error' => $e->getMessage(),
+            ]);
+
+            return false;
+        }
     }
 
     /**
@@ -479,25 +569,39 @@ class MailingService
     }
 
     /**
-     * Get admin email addresses for interesados/contact form notifications
+     * Get admin email addresses for interesados/contact form notifications.
+     *
+     * Configured in Admin > Configuraciones > Mailer (setting
+     * interesados_admin_email, comma-separated). When not configured, falls
+     * back to the mail from-address so notifications still reach a mailbox
+     * the business controls, and logs loudly so it gets configured.
      */
     private function getAdminEmails()
     {
-        // Get admin email from settings, or use default
         $adminEmail = Setting::getByKey('interesados_admin_email');
-        
-        if (empty($adminEmail)) {
-            // Fallback to default if not configured
-            return ['admin@tuti.com'];
+
+        if (!empty($adminEmail)) {
+            // Support multiple emails (comma-separated) or single email
+            $emails = array_map('trim', explode(',', $adminEmail));
+            $emails = array_values(array_filter($emails, function ($email) {
+                return filter_var($email, FILTER_VALIDATE_EMAIL);
+            }));
+
+            if (!empty($emails)) {
+                return $emails;
+            }
+
+            Log::error("Setting interesados_admin_email contains no valid email addresses: '{$adminEmail}'. Fix it in Configuraciones > Mailer.");
+        } else {
+            Log::warning('Setting interesados_admin_email is not configured; interesado notifications will use the fallback recipient. Set it in Configuraciones > Mailer.');
         }
-        
-        // Support multiple emails (comma-separated) or single email
-        $emails = array_map('trim', explode(',', $adminEmail));
-        $emails = array_filter($emails, function($email) {
-            return filter_var($email, FILTER_VALIDATE_EMAIL);
-        });
-        
-        return !empty($emails) ? array_values($emails) : ['admin@tuti.com'];
+
+        $fallback = Setting::getByKey('mail_from_address');
+        if (!empty($fallback) && filter_var($fallback, FILTER_VALIDATE_EMAIL)) {
+            return [$fallback];
+        }
+
+        return ['admin@tuti.com'];
     }
 
     /**
