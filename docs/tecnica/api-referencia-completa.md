@@ -35,9 +35,6 @@ Definido dentro de `Route::middleware('api')->group(...)` a menos que otra *clos
 | GET | `/api/delivery-date/{method}` | Fecha de entrega según *método* y *zona* (session o `?zone_id=`) vía `OrderRepository::getDeliveryDateByMethod`; texto en español + `raw_date`. |
 | GET | `/api/shipping-quote/{method}` | Cota de envío *express*; puede devolver proveedor *Tronex* con coste 0 o *Coordinadora* con *shipping_cost*; valida *zona*; error 422 si *zona* inexistente o fallo de cotización. |
 
-**Solo en entornos `!app()->isProduction()`:**  
-- `POST /api/internal/fv-mock` — *mock* de facturación/fulfillment; protección por cabecera *token* de configuración.
-
 **Clase `CartApiController`:** implementación alternativa del *cart*; **comprobar** si hoy está enlazada: la ruta activa es *closure* en *api.php*.
 
 ---

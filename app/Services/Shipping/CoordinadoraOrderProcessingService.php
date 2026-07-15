@@ -9,7 +9,7 @@ use RuntimeException;
 class CoordinadoraOrderProcessingService
 {
     public function __construct(
-        private readonly FvMockService $fvMockService,
+        private readonly FvDynamicsService $fvService,
         private readonly CoordinadoraGuideService $guideService
     ) {
     }
@@ -21,7 +21,7 @@ class CoordinadoraOrderProcessingService
             throw new RuntimeException('Order has no zone; cannot process Coordinadora workflow.');
         }
 
-        $fvResult = $this->fvMockService->createFv($order);
+        $fvResult = $this->fvService->createFv($order);
         $guideResult = $this->guideService->createGuide($order);
 
         $order->update([

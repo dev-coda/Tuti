@@ -230,8 +230,9 @@ class OrderRepository
     /**
      * Canonical XML pricing resolver for both diagnostic and send paths.
      * Percentage discounts map to dyn:discount; fixed discounts reduce dyn:unitPrice with discount=0.
+     * Also reused by FvDynamicsService so FV lines carry identical pricing.
      */
-    private static function resolveXmlPricing($orderProduct, $productData, int $bonification, int $orderId = 0, bool $logToSoapChannel = true): array
+    public static function resolveXmlPricing($orderProduct, $productData, int $bonification, int $orderId = 0, bool $logToSoapChannel = true): array
     {
         if ($bonification) {
             return [

@@ -81,10 +81,6 @@ Route::middleware('api')->group(function () {
     });
 });
 
-if (! app()->isProduction()) {
-    Route::post('/internal/fv-mock', [\App\Http\Controllers\Api\InternalFvMockController::class, 'store']);
-}
-
 Route::get('/shipping-quote/{method}', function (Request $request, string $method) {
     $zone = null;
     if ($request->filled('zone_id')) {

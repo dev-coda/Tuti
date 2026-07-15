@@ -11,7 +11,7 @@ Capa de *transporte* y *jobs* que conecta el *checkout* web a **Microsoft Dynami
 | **Pedido / presales (XML)** | `OrderRepository` + `ProcessOrder` / `ProcessOrderAsync` | Reintento, almacenamiento de *request*/*response*; en admin, `orders.retry-xml-transmission`. |
 | **Coordinadora (envío)** | `CoordinadoraOrderProcessingService`, `CoordinadoraQuoteService`, *guides* | Express 48h; cotización en `GET /api/shipping-quote/{method}`. |
 | **Correo** | `MailingService` + Mailgun (Symfony) | Ajustes vía *settings*; prueba con ruta *admin* `test.email`. |
-| **Mock factura FV** | `InternalFvMockController`, `FvMockService` | Solo si no es *production*; pruebas sin ERP. |
+| **Factura FV (Dynamics 365 F&O)** | `FvDynamicsService` | SOAP `CreateSalesOrder` en `DYNPRODWSSalesForceGroup` (ver `docs/fv.pdf`); usado en el flujo Coordinadora 48h. |
 
 ## 2. Colas y Horizon
 
