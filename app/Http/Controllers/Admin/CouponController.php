@@ -92,6 +92,7 @@ class CouponController extends Controller
             'allowed_routes' => 'nullable|array',
             'allowed_routes.*' => 'nullable|string',
             'minimum_amount' => 'nullable|numeric|min:0',
+            'apply_on_brand_vendor_discounts' => 'nullable|boolean',
             'active' => 'boolean',
         ]);
 
@@ -123,6 +124,8 @@ class CouponController extends Controller
         $validated['usage_limit_per_customer'] = !empty($validated['usage_limit_per_customer']) ? (int) $validated['usage_limit_per_customer'] : null;
         $validated['usage_limit_per_vendor'] = !empty($validated['usage_limit_per_vendor']) ? (int) $validated['usage_limit_per_vendor'] : null;
         $validated['total_usage_limit'] = !empty($validated['total_usage_limit']) ? (int) $validated['total_usage_limit'] : null;
+
+        $validated['apply_on_brand_vendor_discounts'] = $request->boolean('apply_on_brand_vendor_discounts', true);
 
         Coupon::create($validated);
 
@@ -221,6 +224,7 @@ class CouponController extends Controller
             'allowed_routes' => 'nullable|array',
             'allowed_routes.*' => 'nullable|string',
             'minimum_amount' => 'nullable|numeric|min:0',
+            'apply_on_brand_vendor_discounts' => 'nullable|boolean',
             'active' => 'boolean',
         ]);
 
@@ -252,6 +256,8 @@ class CouponController extends Controller
         $validated['usage_limit_per_customer'] = !empty($validated['usage_limit_per_customer']) ? (int) $validated['usage_limit_per_customer'] : null;
         $validated['usage_limit_per_vendor'] = !empty($validated['usage_limit_per_vendor']) ? (int) $validated['usage_limit_per_vendor'] : null;
         $validated['total_usage_limit'] = !empty($validated['total_usage_limit']) ? (int) $validated['total_usage_limit'] : null;
+
+        $validated['apply_on_brand_vendor_discounts'] = $request->boolean('apply_on_brand_vendor_discounts', true);
 
         $coupon->update($validated);
 
