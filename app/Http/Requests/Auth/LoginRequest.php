@@ -41,7 +41,7 @@ class LoginRequest extends FormRequest
     {
         $this->ensureIsNotRateLimited();
 
-        if (! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
+        if (! Auth::attempt($this->credentials(), $this->boolean('remember'))) {
             RateLimiter::hit($this->throttleKey());
 
             throw ValidationException::withMessages([
@@ -50,6 +50,26 @@ class LoginRequest extends FormRequest
         }
 
         RateLimiter::clear($this->throttleKey());
+    }
+
+    /**
+     * Credentials for the login attempt. The email is matched case-insensitively
+     * against the stored value so usernames are not case sensitive.
+     *
+     * @return array{email: string, password: string}
+     */
+    protected function credentials(): array
+    {
+        $email = trim((string) $this->input('email'));
+
+        $storedEmail = \App\Models\User::query()
+            ->whereEmailCaseInsensitive($email)
+            ->value('email');
+
+        return [
+            'email' => $storedEmail ?? $email,
+            'password' => (string) $this->input('password'),
+        ];
     }
 
     /**

@@ -38,8 +38,8 @@ class MagicLinkController extends Controller
             ], 429);
         }
 
-        // Check if user exists
-        $user = User::where('email', $email)->first();
+        // Check if user exists (emails are matched case-insensitively).
+        $user = User::whereEmailCaseInsensitive($email)->first();
         if (!$user) {
             // Return success even if user doesn't exist to prevent email enumeration
             return response()->json([
@@ -117,8 +117,8 @@ class MagicLinkController extends Controller
             ], 422);
         }
 
-        // Find the user
-        $user = User::where('email', $email)->first();
+        // Find the user (emails are matched case-insensitively).
+        $user = User::whereEmailCaseInsensitive($email)->first();
         if (!$user) {
             return response()->json([
                 'success' => false,
