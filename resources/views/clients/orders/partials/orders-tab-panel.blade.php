@@ -11,6 +11,7 @@
     $filters = $filters ?? [];
     $emptyMessage = $emptyMessage ?? 'No tienes pedidos.';
     $showFilters = $showFilters ?? true;
+    $showOrigin = $showOrigin ?? false;
     $exportParams = request()->query();
     unset($exportParams['page'], $exportParams['today_page'], $exportParams[$pageParam]);
     $exportParams['tab'] = $tabKey;
@@ -104,6 +105,9 @@
                 </div>
                 <div class="mt-2 flex items-center gap-3">
                     <x-order-status :status="$order->status_id" />
+                    @if($showOrigin)
+                        <x-order-origin :order="$order" />
+                    @endif
                 </div>
                 @if($order->shipping_provider === \App\Models\Order::SHIPPING_PROVIDER_COORDINADORA)
                     <div class="mt-2 text-xs text-gray-600">

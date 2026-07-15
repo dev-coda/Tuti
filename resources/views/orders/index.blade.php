@@ -130,6 +130,9 @@
                                     Cliente
                                 </th>
                                 <th scope="col" class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
+                                    Origen
+                                </th>
+                                <th scope="col" class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
                                     Estado
                                 </th>
                                 <th scope="col" class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
@@ -178,6 +181,10 @@
                                                 @endif
 
                                             </div>
+                                        </td>
+
+                                        <td class="p-4 text-gray-900 whitespace-nowrap">
+                                            <x-order-origin :order="$order" />
                                         </td>
 
                                         <td class="p-4   text-gray-900 whitespace-nowra">
