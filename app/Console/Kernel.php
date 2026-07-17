@@ -44,6 +44,19 @@ class Kernel extends ConsoleKernel
             }
         })->dailyAt('02:30');
 
+        // Nightly product dimension sync from Dynamics ObtenerArticulos
+        // (guarded inside the job by setting dimension_sync_enabled)
+        $schedule->call(function () {
+            $queueConnection = config('queue.default');
+            if ($queueConnection === 'sync') {
+                $queueConnection = 'redis';
+            }
+
+            \App\Jobs\SyncProductDimensions::dispatch()
+                ->onConnection($queueConnection)
+                ->onQueue('inventory');
+        })->dailyAt('03:00');
+
         // Retry stuck pending orders every hour
         // This catches orders that failed to process and ensures they get retried
         $schedule->command('orders:retry-pending --hours=2 --max=20')

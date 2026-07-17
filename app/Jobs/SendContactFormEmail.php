@@ -61,7 +61,7 @@ class SendContactFormEmail implements ShouldQueue
             if ($result) {
                 Log::info("Contact form email sent successfully for contact {$this->contact->id}");
             } else {
-                Log::warning("Contact form email sending returned false for contact {$this->contact->id}");
+                Log::error("Contact form email was NOT sent for contact {$this->contact->id} (template inactive, recipient invalid or mailer misconfigured). Check Configuraciones > Mailer and the contact_form email template.");
             }
         } catch (\Exception $e) {
             Log::error("Failed to send contact form email for contact {$this->contact->id}: " . $e->getMessage(), [

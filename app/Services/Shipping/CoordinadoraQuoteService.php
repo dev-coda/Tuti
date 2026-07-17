@@ -9,6 +9,11 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
+/**
+ * Client for Coordinadora's national quote API (docs/COORDINADORA/API Cotizador
+ * Nacional). Colombian quotes are located by DANE codes: `origen` is the
+ * configured dispatch city and `destino` is resolved from the delivery zone.
+ */
 class CoordinadoraQuoteService
 {
     public function __construct(
@@ -36,6 +41,7 @@ class CoordinadoraQuoteService
                 'height_cm' => (float) ($product->coordinadora_height_cm ?? 0),
                 'width_cm' => (float) ($product->coordinadora_width_cm ?? 0),
                 'length_cm' => (float) ($product->coordinadora_length_cm ?? 0),
+                'declared_value' => (float) $product->price * $quantity,
             ];
         })->filter()->values();
 
@@ -62,49 +68,77 @@ class CoordinadoraQuoteService
                 'height_cm' => (float) ($product->coordinadora_height_cm ?? 0),
                 'width_cm' => (float) ($product->coordinadora_width_cm ?? 0),
                 'length_cm' => (float) ($product->coordinadora_length_cm ?? 0),
+                'declared_value' => (float) $orderProduct->price * (int) $orderProduct->quantity,
             ];
         })->filter()->values();
 
-        return $this->quoteFromItems($items, $order->zone);
+        return $this->quoteFromItems($items, $order->zone, (float) $order->total);
     }
 
-    public function quoteFromItems(Collection $items, Zone $zone): array
+    public function quoteFromItems(Collection $items, Zone $zone, ?float $declaredValue = null): array
     {
-        $zipCode = trim((string) $zone->zip_code);
-        if ($zipCode === '') {
-            throw new RuntimeException('Zone zip code is required for Coordinadora quote.');
+        $destino = $zone->coordinadoraDaneCode();
+        if ($destino === null) {
+            throw new RuntimeException(
+                'Zone ' . $zone->id . ' has no DANE destination code for Coordinadora quote.'
+            );
         }
 
+        $config = config('services.coordinadora');
+
+        $origen = DaneCodeService::normalize($config['origin_dane'] ?? null);
+        if ($origen === null) {
+            throw new RuntimeException('Coordinadora origin DANE code is not configured.');
+        }
+
+        $valoracion = $declaredValue ?? (float) $items->sum(fn (array $item) => (float) ($item['declared_value'] ?? 0));
+
         $payload = [
-            'idProceso' => config('services.coordinadora.id_proceso'),
-            'zipCode' => $zipCode,
-            'nivelServicio' => '48H',
+            'nit' => (string) ($config['nit'] ?? ''),
+            'div' => (string) ($config['div'] ?? '01'),
+            'cuenta' => (string) ($config['cuenta'] ?? '1'),
+            'producto' => (string) ($config['producto'] ?? '0'),
+            // Postal code fields are for Mexico; Colombia quotes use DANE codes.
+            'codigo_postal_origen' => '',
+            'codigo_postal_destino' => '',
+            'origen' => $origen,
+            'destino' => $destino,
+            'valoracion' => round($valoracion, 2),
+            'nivel_servicio' => (string) ($config['nivel_servicio'] ?? ''),
             'detalle' => $items->map(function (array $item) {
                 return [
-                    'sku' => $item['sku'] ?? null,
-                    'cantidad' => (int) ($item['quantity'] ?? 0),
-                    'peso' => (float) ($item['weight_kg'] ?? 0),
-                    'alto' => (float) ($item['height_cm'] ?? 0),
-                    'ancho' => (float) ($item['width_cm'] ?? 0),
-                    'largo' => (float) ($item['length_cm'] ?? 0),
+                    'ubl' => '0',
+                    'alto' => (string) (float) ($item['height_cm'] ?? 0),
+                    'ancho' => (string) (float) ($item['width_cm'] ?? 0),
+                    'largo' => (string) (float) ($item['length_cm'] ?? 0),
+                    'peso' => (string) (float) ($item['weight_kg'] ?? 0),
+                    'unidades' => (string) (int) ($item['quantity'] ?? 0),
                 ];
             })->values()->all(),
         ];
 
-        $response = $this->request('/quote', $payload);
+        $response = $this->request('/cotizador/nacional', $payload);
+
+        if ((bool) data_get($response, 'isError', false)) {
+            throw new RuntimeException(
+                'Coordinadora quote returned an error: '
+                . json_encode(data_get($response, 'error') ?? $response)
+            );
+        }
 
         $price = (float) (
-            data_get($response, 'shipping_cost')
-            ?? data_get($response, 'valor_flete')
-            ?? data_get($response, 'data.shipping_cost')
+            data_get($response, 'data.valor_envio')
+            ?? data_get($response, 'data.flete_total')
             ?? 0
         );
 
+        $deliveryDays = data_get($response, 'data.dias_entrega');
+
         return [
-            'success' => $price >= 0,
+            'success' => $price > 0,
             'shipping_cost' => round($price, 2),
-            'currency' => (string) (data_get($response, 'currency') ?? 'COP'),
-            'delivery_estimate' => data_get($response, 'delivery_estimate'),
+            'currency' => 'COP',
+            'delivery_estimate' => $deliveryDays !== null ? (int) $deliveryDays : null,
             'request_payload' => $payload,
             'response_payload' => $response,
         ];

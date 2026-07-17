@@ -73,7 +73,7 @@ class OrderController extends Controller
      * Data for the seller "Mi Ruta" tab: routes available in the seller's zone and,
      * once a route is selected, the clients whose visit day matches today (Colombia).
      *
-     * @return array{sellerZone:string,routeOptions:\Illuminate\Support\Collection,selectedRoute:string,clients:\Illuminate\Support\Collection|null,todayLabel:string}
+     * @return array{sellerZone:string,routeOptions:\Illuminate\Support\Collection,selectedRoute:string,searchTerm:string,clients:\Illuminate\Support\Collection|null,todayLabel:string}
      */
     private function buildMyRouteData(User $user, Request $request): array
     {
@@ -94,6 +94,8 @@ class OrderController extends Controller
         if ($selectedRoute === '' || !$routeOptions->contains($selectedRoute)) {
             $selectedRoute = '';
         }
+
+        $searchTerm = trim((string) $request->input('ruta_q', ''));
 
         $clients = null;
         if ($selectedRoute !== '') {
@@ -117,12 +119,26 @@ class OrderController extends Controller
                     return $sequenceKey . '|' . mb_strtolower((string) $zone->user->name, 'UTF-8');
                 })
                 ->values();
+
+            if ($searchTerm !== '') {
+                $needle = mb_strtolower($searchTerm, 'UTF-8');
+                $clients = $clients
+                    ->filter(function (Zone $zone) use ($needle) {
+                        $client = $zone->user;
+
+                        return str_contains(mb_strtolower((string) $client->name, 'UTF-8'), $needle)
+                            || str_contains(mb_strtolower((string) $client->business_name, 'UTF-8'), $needle)
+                            || str_contains(mb_strtolower((string) $client->document, 'UTF-8'), $needle);
+                    })
+                    ->values();
+            }
         }
 
         return [
             'sellerZone' => $sellerZone,
             'routeOptions' => $routeOptions,
             'selectedRoute' => $selectedRoute,
+            'searchTerm' => $searchTerm,
             'clients' => $clients,
             'todayLabel' => $today->locale('es')->isoFormat('dddd D [de] MMMM'),
         ];

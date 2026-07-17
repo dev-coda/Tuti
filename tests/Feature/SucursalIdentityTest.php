@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Http;
 
 uses(RefreshDatabase::class);
 
-// fakeGetRuterosSoap() is shared from tests/Pest.php.
+// The fakeGetRuterosSoap() helper lives in tests/Pest.php.
 
 it('derives sucursal identity from CustRuteroID when present', function () {
     expect(Zone::makeSucursalUid('SUC1', 'Calle 1'))->toBe('cust:SUC1');

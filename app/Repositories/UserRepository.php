@@ -418,13 +418,30 @@ class UserRepository
     }
 
     /**
+     * Profile fields the periodic (bulk) sync is allowed to touch: contact data only.
+     */
+    public const CONTACT_SYNC_FIELDS = ['phone', 'mobile_phone', 'whatsapp'];
+
+    /**
+     * Refresh only the user's contact data (email + phones) from Dynamics.
+     * Used by the periodic bulk sync, which must never overwrite the rest of
+     * the local profile (name, balances, groups) nor the zone rows.
+     */
+    public static function syncUserContactData($user): bool
+    {
+        return self::syncUserRuteroData($user, contactOnly: true);
+    }
+
+    /**
      * Sync rutero data for a user and update their zones
      * This ensures we have current rutero data before processing orders
      * 
      * @param \App\Models\User $user
+     * @param bool $contactOnly When true, only email and phone fields are updated
+     *                          and zone rows are left untouched.
      * @return bool True if sync was successful, false otherwise
      */
-    public static function syncUserRuteroData($user)
+    public static function syncUserRuteroData($user, bool $contactOnly = false)
     {
         if (!$user || !$user->document) {
             return false;
@@ -448,7 +465,8 @@ class UserRepository
                 $newRoutes = $data['routes'];
 
                 // Reconcile zone rows by stable sucursal identity (no index-based repurposing).
-                $syncedZones = self::applyRoutesToZones($user, $newRoutes);
+                // Contact-only mode must not restructure the user's sucursales.
+                $syncedZones = $contactOnly ? [] : self::applyRoutesToZones($user, $newRoutes);
 
                 $routeCount = is_countable($newRoutes) ? count($newRoutes) : 0;
                 if ($routeCount > 1) {
@@ -476,11 +494,11 @@ class UserRepository
                 $firstRoute = $routes->first();
 
                 if ($firstRoute) {
-                    if (isset($firstRoute['name']) && $firstRoute['name'] !== '' && $firstRoute['name'] !== 'Sin Nombre') {
+                    if (!$contactOnly && isset($firstRoute['name']) && $firstRoute['name'] !== '' && $firstRoute['name'] !== 'Sin Nombre') {
                         $profilePayload['name'] = $firstRoute['name'];
                     }
 
-                    $fieldsToUpdate = [
+                    $fieldsToUpdate = $contactOnly ? self::CONTACT_SYNC_FIELDS : [
                         'phone',
                         'mobile_phone',
                         'whatsapp',

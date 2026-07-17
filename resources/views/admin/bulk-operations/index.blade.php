@@ -59,7 +59,7 @@
                     </div>
                     <div class="ml-3">
                         <h3 class="text-lg font-medium text-gray-900">Sincronización Masiva de Datos de Clientes</h3>
-                        <p class="text-sm text-gray-500">Actualiza la información de todos los clientes desde el sistema SOAP</p>
+                        <p class="text-sm text-gray-500">Actualiza los datos de contacto (correo y teléfonos) de todos los clientes desde el sistema SOAP</p>
                     </div>
                 </div>
             </div>
@@ -75,7 +75,8 @@
                             <div class="mt-1 text-xs text-blue-700">
                                 <ul class="list-disc list-inside space-y-1">
                                     <li>Sincroniza datos de todos los clientes desde el backend SOAP</li>
-                                    <li>Actualiza: nombre, teléfonos, dirección, zonas, tipo de cliente, grupo de precios, saldo, cupo, etc.</li>
+                                    <li>Actualiza únicamente: correo electrónico, teléfono fijo, celular y WhatsApp</li>
+                                    <li>No modifica nombre, saldo, cupo, zonas ni otros datos del perfil</li>
                                     <li>Proceso asíncrono: puede tomar varios minutos dependiendo del número de clientes</li>
                                     <li>Genera un reporte CSV con los resultados de la sincronización</li>
                                 </ul>
