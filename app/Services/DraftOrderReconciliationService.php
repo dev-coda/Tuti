@@ -46,6 +46,27 @@ class DraftOrderReconciliationService
             }
         }
 
+        // Self-registered users get client_status 'cliente' (column default) but
+        // stay status_id PENDING. Their rutero (including CustRuteroID) was stored
+        // as zone rows at registration, so activation only needs local data.
+        User::query()
+            ->whereDoesntHave('roles')
+            ->where('client_status', User::CLIENT_STATUS_CLIENTE)
+            ->where('status_id', '!=', User::ACTIVE)
+            ->whereNotNull('document')
+            ->where('document', '!=', '')
+            ->whereHas('zones', function ($query) {
+                $query->whereNotNull('code')->where('code', '!=', '');
+            })
+            ->chunkById(200, function ($users) use (&$stats) {
+                foreach ($users as $user) {
+                    $stats['users_checked']++;
+                    if ($this->promoteUserIfReady($user)) {
+                        $stats['users_promoted']++;
+                    }
+                }
+            });
+
         Order::query()
             ->where('status_id', Order::STATUS_DRAFT)
             ->with(['user.zones', 'zone'])

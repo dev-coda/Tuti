@@ -111,7 +111,9 @@ class BulkSyncClientsData implements ShouldQueue
                     $user->refresh();
 
                     // Activate clients (e.g. self-registered ones stuck in PENDING) whose
-                    // just-synced rutero has a valid CustRuteroID.
+                    // locally stored rutero has a valid CustRuteroID. The contact-only
+                    // sync above does not restructure zones, so this relies on the codes
+                    // captured at registration or by the event-driven full syncs.
                     $result['activated'] = app(DraftOrderReconciliationService::class)
                         ->promoteUserIfReady($user->load('zones'));
                     if ($result['activated']) {

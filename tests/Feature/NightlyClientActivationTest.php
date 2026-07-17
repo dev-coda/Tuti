@@ -108,6 +108,24 @@ it('never activates rejected clients', function () {
         ->and($client->refresh()->status_id)->toBe(User::PENDING);
 });
 
+it('activates stuck self-registered clientes during nightly reconciliation', function () {
+    $client = makeStuckSelfRegisteredClient('1003237229');
+
+    Zone::create([
+        'user_id' => $client->id,
+        'route' => '1918',
+        'zone' => '706',
+        'day' => '1',
+        'address' => 'MZ 5 CS 8',
+        'code' => 'CUST-RECONCILE-1',
+    ]);
+
+    $stats = app(DraftOrderReconciliationService::class)->reconcileAll();
+
+    expect($stats['users_promoted'])->toBeGreaterThanOrEqual(1)
+        ->and($client->refresh()->status_id)->toBe(User::ACTIVE);
+});
+
 it('activates stuck self-registered clientes during the nightly bulk rutero sync', function () {
     Storage::fake('local');
     config(['microsoft.resource' => 'https://dynamics.test']);
@@ -132,13 +150,24 @@ it('activates stuck self-registered clientes during the nightly bulk rutero sync
 
     $client = makeStuckSelfRegisteredClient('1003237224');
 
+    // Self-registration stores the rutero (including CustRuteroID) as zone rows;
+    // the nightly contact-only sync does not restructure zones, so activation
+    // relies on this locally stored code.
+    Zone::create([
+        'user_id' => $client->id,
+        'route' => '1918',
+        'zone' => '706',
+        'day' => '1',
+        'address' => 'MZ 5 CS 8 EL ROCIO',
+        'code' => 'CUST-NIGHTLY-1',
+    ]);
+
     (new BulkSyncClientsData([$client->id], 'test-session'))->handle();
 
     $client->refresh();
 
     expect($client->status_id)->toBe(User::ACTIVE)
-        ->and($client->client_status)->toBe(User::CLIENT_STATUS_CLIENTE)
-        ->and($client->zones()->where('code', 'CUST-NIGHTLY-1')->exists())->toBeTrue();
+        ->and($client->client_status)->toBe(User::CLIENT_STATUS_CLIENTE);
 });
 
 it('leaves clients pending when the nightly sync finds no rutero', function () {
