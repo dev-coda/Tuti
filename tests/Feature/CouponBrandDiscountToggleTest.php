@@ -16,12 +16,13 @@ use function Pest\Laravel\actingAs;
 
 /*
 |--------------------------------------------------------------------------
-| Coupon toggle: allow / exempt from brand & vendor discounts
+| Coupon toggle: stack on top of brand & vendor discounts
 |--------------------------------------------------------------------------
-| When apply_on_brand_vendor_discounts is FALSE the coupon must not touch
-| cart lines that already carry a brand or vendor (descuento directo)
-| discount; those lines keep their existing discount. Product-level
-| discounts are unaffected by the toggle.
+| By default (apply_on_brand_vendor_discounts = FALSE) coupons do NOT stack
+| with brand/vendor (descuento directo) discounts: the best discount wins
+| per cart line. When the toggle is explicitly enabled the coupon is applied
+| ON TOP of the existing brand/vendor discount. Product-level discounts
+| always use best-of regardless of the toggle.
 */
 
 function bvToggleScaffold(array $brandOverrides = [], array $vendorOverrides = []): array
@@ -93,82 +94,80 @@ function bvToggleCoupon(array $attrs = []): Coupon
     ], $attrs));
 }
 
-it('keeps applying coupons over brand discounts by default (toggle on)', function () {
+it('does not stack by default: the better coupon replaces the brand discount', function () {
     ['tax' => $tax, 'brand' => $brand, 'user' => $user] = bvToggleScaffold(['discount' => 12]);
     $p = bvToggleProduct($brand, $tax);
 
     $coupon = bvToggleCoupon(['value' => 20]);
-    expect($coupon->appliesOverBrandVendorDiscounts())->toBeTrue();
+    expect($coupon->appliesOverBrandVendorDiscounts())->toBeFalse();
 
     $result = app(CouponDiscountService::class)->applyCouponDiscountToProducts(
         $coupon, $user, collect([['product_id' => $p->id, 'quantity' => 1, 'variation_id' => null]]), false
     );
 
     $mod = $result['modified_products'][0];
-    // Historical behavior: coupon (20%) beats brand (12%)
+    // Best discount wins: coupon (20%) beats brand (12%) — no 32% stacking.
     expect($mod['applied_discount_percentage'])->toBe(20.0)
-        ->and($mod['discount_source'])->toBe('coupon');
+        ->and($mod['discount_source'])->toBe('coupon')
+        ->and((float) $result['total_coupon_discount'])->toBe(80.0); // incremental part over the brand 12%
 });
 
-it('exempt coupon does not apply on a brand-discounted product, which keeps its brand discount', function () {
-    ['tax' => $tax, 'brand' => $brand, 'user' => $user] = bvToggleScaffold(['discount' => 12]);
+it('does not stack by default: a better brand discount is kept over the coupon', function () {
+    ['tax' => $tax, 'brand' => $brand, 'user' => $user] = bvToggleScaffold(['discount' => 25]);
     $p = bvToggleProduct($brand, $tax);
 
-    $coupon = bvToggleCoupon(['value' => 20, 'apply_on_brand_vendor_discounts' => false]);
+    $coupon = bvToggleCoupon(['value' => 10]);
 
     $result = app(CouponDiscountService::class)->applyCouponDiscountToProducts(
         $coupon, $user, collect([['product_id' => $p->id, 'quantity' => 1, 'variation_id' => null]]), false
     );
 
-    // The whole cart is brand-discounted, so the coupon cannot be applied at all.
-    expect($result['success'])->toBeFalse()
-        ->and($result['message'])->toContain('descuento de marca o proveedor');
+    $mod = $result['modified_products'][0];
+    expect($result['success'])->toBeTrue()
+        ->and($mod['applied_discount_percentage'])->toBe(25.0)
+        ->and($mod['discount_source'])->toBe('existing')
+        ->and((float) $mod['coupon_contribution'])->toBe(0.0);
 });
 
-it('exempt coupon applies only to lines without brand/vendor discounts in a mixed cart', function () {
-    ['tax' => $tax, 'vendor' => $vendor, 'brand' => $discountedBrand, 'user' => $user] = bvToggleScaffold(['discount' => 12]);
-    $plainBrand = Brand::create([
-        'name' => 'Plain ' . uniqid(),
-        'slug' => 'plain-' . uniqid(),
-        'vendor_id' => $vendor->id,
-    ]);
+it('stacks a percentage coupon on top of a brand discount when the toggle is enabled', function () {
+    ['tax' => $tax, 'brand' => $brand, 'user' => $user] = bvToggleScaffold(['discount' => 12]);
+    $p = bvToggleProduct($brand, $tax, ['price' => 1000]);
 
-    $brandDiscounted = bvToggleProduct($discountedBrand, $tax, ['price' => 1000]);
-    $plain = bvToggleProduct($plainBrand, $tax, ['price' => 1000]);
+    $coupon = bvToggleCoupon(['value' => 20, 'apply_on_brand_vendor_discounts' => true]);
 
-    $coupon = bvToggleCoupon(['value' => 20, 'apply_on_brand_vendor_discounts' => false]);
-    $cart = collect([
-        ['product_id' => $brandDiscounted->id, 'quantity' => 1, 'variation_id' => null],
-        ['product_id' => $plain->id, 'quantity' => 1, 'variation_id' => null],
-    ]);
+    $result = app(CouponDiscountService::class)->applyCouponDiscountToProducts(
+        $coupon, $user, collect([['product_id' => $p->id, 'quantity' => 1, 'variation_id' => null]]), false
+    );
 
-    $result = app(CouponDiscountService::class)->applyCouponDiscountToProducts($coupon, $user, $cart, false);
-
-    expect($result['success'])->toBeTrue();
-
-    $mods = collect($result['modified_products']);
-    $discountedLine = $mods->firstWhere('product_id', $brandDiscounted->id);
-    $plainLine = $mods->firstWhere('product_id', $plain->id);
-
-    // Brand-discounted line keeps its 12% brand discount, no coupon contribution.
-    expect($discountedLine['applied_discount_percentage'])->toBe(12.0)
-        ->and($discountedLine['discount_source'])->toBe('existing')
-        ->and((float) $discountedLine['coupon_contribution'])->toBe(0.0);
-
-    // Plain line receives the coupon.
-    expect($plainLine['applied_discount_percentage'])->toBe(20.0)
-        ->and($plainLine['discount_source'])->toBe('coupon');
-
-    // Total coupon discount comes only from the plain line: 20% of 1000.
-    expect((float) $result['total_coupon_discount'])->toBe(200.0);
+    $mod = $result['modified_products'][0];
+    // 12% brand + 20% coupon = 32% total; the coupon contributed 200 of it.
+    expect($mod['applied_discount_percentage'])->toBe(32.0)
+        ->and($mod['discount_source'])->toBe('coupon')
+        ->and((float) $mod['coupon_contribution'])->toBe(200.0)
+        ->and((float) $mod['line_savings'])->toBe(320.0);
 });
 
-it('exempt coupon still competes with product-level discounts (toggle only covers brand/vendor)', function () {
+it('stacks on top of vendor discounts too and clamps the combined percentage at 100', function () {
+    ['tax' => $tax, 'brand' => $brand, 'user' => $user] = bvToggleScaffold([], ['discount' => 90]);
+    $p = bvToggleProduct($brand, $tax, ['price' => 1000]);
+
+    $coupon = bvToggleCoupon(['value' => 20, 'apply_on_brand_vendor_discounts' => true]);
+
+    $result = app(CouponDiscountService::class)->applyCouponDiscountToProducts(
+        $coupon, $user, collect([['product_id' => $p->id, 'quantity' => 1, 'variation_id' => null]]), false
+    );
+
+    $mod = $result['modified_products'][0];
+    expect($mod['applied_discount_percentage'])->toBe(100.0)
+        ->and((float) $mod['coupon_contribution'])->toBe(100.0); // only the 10% left of room
+});
+
+it('never stacks over product-level discounts even with the toggle enabled', function () {
     ['tax' => $tax, 'brand' => $brand, 'user' => $user] = bvToggleScaffold();
     // Discount lives on the product itself, not the brand or vendor.
     $p = bvToggleProduct($brand, $tax, ['price' => 1000, 'discount' => 12]);
 
-    $coupon = bvToggleCoupon(['value' => 20, 'apply_on_brand_vendor_discounts' => false]);
+    $coupon = bvToggleCoupon(['value' => 20, 'apply_on_brand_vendor_discounts' => true]);
 
     $result = app(CouponDiscountService::class)->applyCouponDiscountToProducts(
         $coupon, $user, collect([['product_id' => $p->id, 'quantity' => 1, 'variation_id' => null]]), false
@@ -180,52 +179,98 @@ it('exempt coupon still competes with product-level discounts (toggle only cover
         ->and($mod['discount_source'])->toBe('coupon');
 });
 
-it('exempt coupon skips vendor-discounted products too', function () {
-    ['tax' => $tax, 'brand' => $brand, 'user' => $user] = bvToggleScaffold([], ['discount' => 15]);
+it('stacks a fixed-amount coupon on top of a brand discount when the toggle is enabled', function () {
+    ['tax' => $tax, 'brand' => $brand, 'user' => $user] = bvToggleScaffold(['discount' => 10]);
     $p = bvToggleProduct($brand, $tax, ['price' => 1000]);
 
-    $coupon = bvToggleCoupon(['value' => 20, 'apply_on_brand_vendor_discounts' => false]);
+    $coupon = bvToggleCoupon(['type' => 'fixed_amount', 'value' => 200, 'apply_on_brand_vendor_discounts' => true]);
+
+    $result = app(CouponDiscountService::class)->applyCouponDiscountToProducts(
+        $coupon, $user, collect([['product_id' => $p->id, 'quantity' => 1, 'variation_id' => null]]), false
+    );
+
+    $mod = $result['modified_products'][0];
+    // Brand saves 100/unit, coupon reduces another 200 → final price 700.
+    expect($mod['applied_discount_type'])->toBe('fixed_amount')
+        ->and((float) $mod['new_unit_price'])->toBe(700.0)
+        ->and((float) $mod['coupon_contribution'])->toBe(200.0)
+        ->and((float) $mod['line_savings'])->toBe(300.0)
+        ->and((float) $mod['fixed_discount_per_unit'])->toBe(300.0);
+});
+
+it('fixed-amount coupon uses best-of against brand discounts by default', function () {
+    ['tax' => $tax, 'brand' => $brand, 'user' => $user] = bvToggleScaffold(['discount' => 10]);
+    $p = bvToggleProduct($brand, $tax, ['price' => 1000]);
+
+    // Coupon reduction (200) beats brand savings (100) → coupon wins, not 300 combined.
+    $coupon = bvToggleCoupon(['type' => 'fixed_amount', 'value' => 200]);
+    $result = app(CouponDiscountService::class)->applyCouponDiscountToProducts(
+        $coupon, $user, collect([['product_id' => $p->id, 'quantity' => 1, 'variation_id' => null]]), false
+    );
+
+    $mod = $result['modified_products'][0];
+    expect($mod['applied_discount_type'])->toBe('fixed_amount')
+        ->and((float) $mod['new_unit_price'])->toBe(800.0)
+        ->and((float) $mod['coupon_contribution'])->toBe(200.0);
+
+    // Coupon reduction (50) is worse than brand savings (100) → brand discount kept.
+    $small = bvToggleCoupon(['type' => 'fixed_amount', 'value' => 50]);
+    $result = app(CouponDiscountService::class)->applyCouponDiscountToProducts(
+        $small, $user, collect([['product_id' => $p->id, 'quantity' => 1, 'variation_id' => null]]), false
+    );
+
+    $mod = $result['modified_products'][0];
+    expect($mod['applied_discount_type'])->toBe('percentage')
+        ->and($mod['applied_discount_percentage'])->toBe(10.0)
+        ->and((float) $mod['coupon_contribution'])->toBe(0.0);
+});
+
+it('applies a default coupon on a fully brand-discounted cart without errors', function () {
+    ['tax' => $tax, 'brand' => $brand, 'user' => $user] = bvToggleScaffold(['discount' => 12]);
+    $p = bvToggleProduct($brand, $tax);
+
+    $coupon = bvToggleCoupon(['value' => 20]);
 
     $result = app(CouponService::class)->applyCouponToCart(
         $coupon, $user, collect([['product_id' => $p->id, 'quantity' => 1, 'variation_id' => null]]), false
     );
 
-    expect($result['success'])->toBeFalse()
-        ->and($result['discount_amount'])->toBe(0);
+    expect($result['success'])->toBeTrue()
+        ->and((float) $result['discount_amount'])->toBe(200.0);
 });
 
-it('cart-wide fixed coupon base excludes brand-discounted lines when exempt', function () {
-    ['tax' => $tax, 'vendor' => $vendor, 'brand' => $discountedBrand, 'user' => $user] = bvToggleScaffold(['discount' => 10]);
-    $plainBrand = Brand::create([
-        'name' => 'Plain ' . uniqid(),
-        'slug' => 'plain-' . uniqid(),
-        'vendor_id' => $vendor->id,
-    ]);
+it('applies a coupon to a brand-discounted cart through the web endpoint without the generic error', function () {
+    ['tax' => $tax, 'brand' => $brand, 'user' => $user] = bvToggleScaffold(['discount' => 12]);
+    $p = bvToggleProduct($brand, $tax, ['price' => 1000]);
 
-    $brandDiscounted = bvToggleProduct($discountedBrand, $tax, ['price' => 1000]);
-    $plain = bvToggleProduct($plainBrand, $tax, ['price' => 1000]);
+    $coupon = bvToggleCoupon(['value' => 20]);
 
-    // Fixed 1500 gets capped to the eligible base (1000, only the plain line).
-    $coupon = bvToggleCoupon(['type' => 'fixed_amount', 'value' => 1500, 'apply_on_brand_vendor_discounts' => false]);
-    $cart = collect([
-        ['product_id' => $brandDiscounted->id, 'quantity' => 1, 'variation_id' => null],
-        ['product_id' => $plain->id, 'quantity' => 1, 'variation_id' => null],
-    ]);
+    $response = actingAs($user)
+        ->withSession(['cart' => [['product_id' => $p->id, 'quantity' => 1, 'variation_id' => null]]])
+        ->post(route('cart.coupon.apply'), ['coupon_code' => $coupon->code]);
 
-    $result = app(CouponService::class)->applyCouponToCart($coupon, $user, $cart, false);
-
-    expect($result['success'])->toBeTrue()
-        ->and((float) $result['discount_amount'])->toBe(1000.0);
-
-    // With the toggle on, the full cart (2000) is eligible so the whole 1500 applies.
-    $stackable = bvToggleCoupon(['type' => 'fixed_amount', 'value' => 1500]);
-    $result = app(CouponService::class)->applyCouponToCart($stackable, $user, $cart, false);
-
-    expect($result['success'])->toBeTrue()
-        ->and((float) $result['discount_amount'])->toBe(1500.0);
+    $response->assertRedirect(route('cart'))
+        ->assertSessionMissing('error')
+        ->assertSessionHas('success');
 });
 
-it('admin can create and update the brand/vendor discount toggle from the coupon form', function () {
+it('applies a coupon even when the cart line has no variation_id key', function () {
+    ['tax' => $tax, 'brand' => $brand, 'user' => $user] = bvToggleScaffold(['discount' => 12]);
+    $p = bvToggleProduct($brand, $tax, ['price' => 1000]);
+
+    $coupon = bvToggleCoupon(['value' => 20]);
+
+    // Legacy/malformed cart line without the variation_id key must not blow up.
+    $response = actingAs($user)
+        ->withSession(['cart' => [['product_id' => $p->id, 'quantity' => 1]]])
+        ->post(route('cart.coupon.apply'), ['coupon_code' => $coupon->code]);
+
+    $response->assertRedirect(route('cart'))
+        ->assertSessionMissing('error')
+        ->assertSessionHas('success');
+});
+
+it('admin can enable and disable stacking from the coupon form', function () {
     Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
     $admin = User::factory()->create();
     $admin->assignRole('admin');
@@ -239,23 +284,23 @@ it('admin can create and update the brand/vendor discount toggle from the coupon
         'valid_to' => now()->addMonth()->format('Y-m-d H:i:s'),
         'applies_to' => 'cart',
         'active' => 1,
-        'apply_on_brand_vendor_discounts' => '0',
+        'apply_on_brand_vendor_discounts' => '1',
     ];
 
     actingAs($admin)->post(route('coupons.store'), $payload)->assertRedirect(route('coupons.index'));
 
     $coupon = Coupon::where('code', 'TOGGLE1')->firstOrFail();
-    expect($coupon->apply_on_brand_vendor_discounts)->toBeFalse();
+    expect($coupon->apply_on_brand_vendor_discounts)->toBeTrue();
 
-    // Re-enable via update.
+    // Disable via update.
     actingAs($admin)->put(route('coupons.update', $coupon), array_merge($payload, [
-        'apply_on_brand_vendor_discounts' => '1',
+        'apply_on_brand_vendor_discounts' => '0',
     ]))->assertRedirect(route('coupons.index'));
 
-    expect($coupon->fresh()->apply_on_brand_vendor_discounts)->toBeTrue();
+    expect($coupon->fresh()->apply_on_brand_vendor_discounts)->toBeFalse();
 });
 
-it('defaults the toggle to allowed when the field is not sent', function () {
+it('defaults to no stacking when the field is not sent', function () {
     Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
     $admin = User::factory()->create();
     $admin->assignRole('admin');
@@ -271,5 +316,5 @@ it('defaults the toggle to allowed when the field is not sent', function () {
         'active' => 1,
     ])->assertRedirect(route('coupons.index'));
 
-    expect(Coupon::where('code', 'TOGGLE2')->firstOrFail()->apply_on_brand_vendor_discounts)->toBeTrue();
+    expect(Coupon::where('code', 'TOGGLE2')->firstOrFail()->apply_on_brand_vendor_discounts)->toBeFalse();
 });

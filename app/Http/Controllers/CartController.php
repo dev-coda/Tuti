@@ -247,7 +247,7 @@ class CartController extends Controller
                 continue;
             }
 
-            $product->item = $product->items->where('id', $item['variation_id'])->first();
+            $product->item = $product->items->where('id', $item['variation_id'] ?? null)->first();
             $product->quantity = $item['quantity'];
             $product->vendor_id = $product->brand->vendor->id;
 
@@ -1931,7 +1931,7 @@ class CartController extends Controller
             $product = Product::with('brand.vendor')->find($item['product_id']);
             if ($product) {
                 $basePrice = $product->price;
-                $variation = $product->items->where('id', $item['variation_id'])->first();
+                $variation = $product->items->where('id', $item['variation_id'] ?? null)->first();
                 if ($variation) {
                     $basePrice = $variation->pivot->price;
                 }
@@ -1948,12 +1948,16 @@ class CartController extends Controller
 
         $coupon = $validation['coupon'];
 
+        // Use the same has_orders flag the cart page uses so the discount math
+        // at apply time matches what the customer will see on the cart.
+        $has_orders = Order::whereBelongsTo($targetUser)->exists();
+
         // Recalculate all coupons including the new one (use targetUser for APPLIES_TO_CUSTOMER)
         $allCouponCodes = array_merge($appliedCouponCodes, [$couponCode]);
-        $discountCalculation = $couponService->calculateMultipleCouponDiscounts($allCouponCodes, $targetUser, $cartProducts);
+        $discountCalculation = $couponService->calculateMultipleCouponDiscounts($allCouponCodes, $targetUser, $cartProducts, $has_orders);
 
         if (! $discountCalculation['success']) {
-            return redirect()->route('cart')->with('error', 'Error al aplicar el cupón.');
+            return redirect()->route('cart')->with('error', $discountCalculation['message'] ?? 'Error al aplicar el cupón.');
         }
 
         // Store all applied coupons in session
@@ -1994,7 +1998,8 @@ class CartController extends Controller
 
             if (! empty($remainingCodes)) {
                 $couponService = app(\App\Services\CouponService::class);
-                $discountCalculation = $couponService->calculateMultipleCouponDiscounts($remainingCodes, $targetUser, $cartProducts);
+                $has_orders = Order::whereBelongsTo($targetUser)->exists();
+                $discountCalculation = $couponService->calculateMultipleCouponDiscounts($remainingCodes, $targetUser, $cartProducts, $has_orders);
 
                 if ($discountCalculation['success']) {
                     session()->put('applied_coupons', $discountCalculation['applied_coupons']);

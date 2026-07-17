@@ -128,14 +128,6 @@ class CouponService
         $applicableTotal = 0;
         $applicableProducts = [];
         $totalCartValue = 0;
-        $brandVendorExemptTotal = 0;
-        $brandVendorExemptCount = 0;
-
-        // Vendor cart totals are needed to evaluate vendor minimum_discount_amount
-        // when deciding whether a line already carries a brand/vendor discount.
-        $vendorTotals = $coupon->appliesOverBrandVendorDiscounts()
-            ? []
-            : $this->calculateVendorTotals($cartProducts);
 
         // Calculate the applicable total based on coupon rules
         foreach ($cartProducts as $cartItem) {
@@ -146,7 +138,7 @@ class CouponService
 
             // Calculate product price without existing promotions (as per requirement: coupons can't be combined)
             $basePrice = $product->price;
-            $variation = $product->items->where('id', $cartItem['variation_id'])->first();
+            $variation = $product->items->where('id', $cartItem['variation_id'] ?? null)->first();
             if ($variation) {
                 $basePrice = $variation->pivot->price;
             }
@@ -155,15 +147,6 @@ class CouponService
             $preTaxPrice = $basePrice;
             $totalProductValue = $preTaxPrice * $quantity * ($product->package_quantity ?? 1);
             $totalCartValue += $totalProductValue;
-
-            // Coupons exempt from brand/vendor discounts skip lines already
-            // discounted by a brand or vendor (they keep that discount instead).
-            if (!$coupon->appliesOverBrandVendorDiscounts()
-                && $this->hasBrandOrVendorDiscount($product, $hasOrders, $vendorTotals)) {
-                $brandVendorExemptTotal += $totalProductValue;
-                $brandVendorExemptCount++;
-                continue;
-            }
 
             // Check if coupon applies to this product
             if ($coupon->applies_to === Coupon::APPLIES_TO_CART || $coupon->appliesToProduct($product, $user)) {
@@ -176,23 +159,11 @@ class CouponService
             }
         }
 
-        if ($brandVendorExemptCount > 0 && $applicableTotal <= 0) {
-            return [
-                'success' => false,
-                'message' => 'Este cupón no se puede combinar con productos que ya tienen descuento de marca o proveedor.',
-                'discount_amount' => 0,
-                'applicable_total' => 0,
-                'total_cart_value' => $totalCartValue,
-                'applicable_products' => []
-            ];
-        }
-
         // Calculate discount
         $discountAmount = 0;
 
         if ($coupon->applies_to === Coupon::APPLIES_TO_CART) {
-            // Cart-wide coupons exclude brand/vendor-discounted lines when the coupon is exempt from them.
-            $discountAmount = $coupon->calculateDiscount($totalCartValue - $brandVendorExemptTotal);
+            $discountAmount = $coupon->calculateDiscount($totalCartValue);
         } else {
             // Apply only to applicable products
             $discountAmount = $coupon->calculateDiscount($applicableTotal);
@@ -201,7 +172,7 @@ class CouponService
         // For fixed amount coupons, ensure full amount is used in a single purchase
         if ($coupon->type === Coupon::TYPE_FIXED_AMOUNT) {
             $maxApplicable = $coupon->applies_to === Coupon::APPLIES_TO_CART
-                ? ($totalCartValue - $brandVendorExemptTotal)
+                ? $totalCartValue
                 : $applicableTotal;
             if ($discountAmount > $maxApplicable) {
                 return [
@@ -222,47 +193,6 @@ class CouponService
             'total_cart_value' => $totalCartValue,
             'applicable_products' => $applicableProducts
         ];
-    }
-
-    /**
-     * Whether the product line currently carries a brand or vendor discount
-     * (descuento directo). Product-level discounts do not count.
-     */
-    private function hasBrandOrVendorDiscount(Product $product, bool $hasOrders, array $vendorTotals): bool
-    {
-        $vendorId = $product->brand?->vendor?->id;
-        $vendorTotal = $vendorId ? ($vendorTotals[$vendorId] ?? null) : null;
-
-        $priceInfo = $product->getFinalPriceForUser($hasOrders, $vendorTotal);
-
-        return ((float) ($priceInfo['discount'] ?? 0)) > 0
-            && in_array($priceInfo['discount_on'] ?? null, ['Marca', 'Vendor'], true);
-    }
-
-    /**
-     * Per-vendor cart totals (base prices) used for vendor minimum_discount_amount checks.
-     */
-    private function calculateVendorTotals(Collection $cartProducts): array
-    {
-        $vendorTotals = [];
-        foreach ($cartProducts as $cartItem) {
-            $product = Product::with(['brand.vendor', 'items'])->find($cartItem['product_id']);
-            if (!$product || !$product->brand || !$product->brand->vendor) {
-                continue;
-            }
-
-            $basePrice = (float) $product->price;
-            $variation = $product->items->where('id', $cartItem['variation_id'] ?? null)->first();
-            if ($variation && $variation->pivot) {
-                $basePrice = (float) $variation->pivot->price;
-            }
-
-            $lineTotal = $basePrice * (int) ($cartItem['quantity'] ?? 1) * (int) ($product->package_quantity ?? 1);
-            $vendorId = $product->brand->vendor->id;
-            $vendorTotals[$vendorId] = ($vendorTotals[$vendorId] ?? 0) + $lineTotal;
-        }
-
-        return $vendorTotals;
     }
 
     /**
@@ -411,7 +341,7 @@ class CouponService
      * Calculate discounts for multiple coupons, applying best discount per product
      * Returns array with product-level discounts and total discount
      */
-    public function calculateMultipleCouponDiscounts(array $couponCodes, User $user, Collection $cartProducts): array
+    public function calculateMultipleCouponDiscounts(array $couponCodes, User $user, Collection $cartProducts, bool $hasOrders = false): array
     {
         $codes = collect($couponCodes)
             ->map(fn ($code) => trim((string) $code))
@@ -421,6 +351,7 @@ class CouponService
         if ($codes->isEmpty()) {
             return [
                 'success' => false,
+                'message' => 'Cupón no encontrado.',
                 'product_discounts' => [],
                 'total_discount' => 0,
                 'applied_coupons' => [],
@@ -431,6 +362,7 @@ class CouponService
         if ($coupons->isEmpty()) {
             return [
                 'success' => false,
+                'message' => 'Cupón no encontrado.',
                 'product_discounts' => [],
                 'total_discount' => 0,
                 'applied_coupons' => [],
@@ -440,12 +372,14 @@ class CouponService
         $couponResult = app(CouponDiscountService::class)->applyMultipleCouponsToProducts(
             $coupons->all(),
             $user,
-            $cartProducts
+            $cartProducts,
+            $hasOrders
         );
 
         if (!$couponResult['success']) {
             return [
                 'success' => false,
+                'message' => $couponResult['message'] ?? null,
                 'product_discounts' => [],
                 'total_discount' => 0,
                 'applied_coupons' => [],

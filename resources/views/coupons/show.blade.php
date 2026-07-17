@@ -143,10 +143,10 @@
                 <p class="mt-1">
                     <span @class([
                         'inline-flex px-2 py-1 text-xs font-medium rounded-full',
-                        'bg-green-100 text-green-800' => $coupon->appliesOverBrandVendorDiscounts(),
-                        'bg-yellow-100 text-yellow-800' => !$coupon->appliesOverBrandVendorDiscounts()
+                        'bg-yellow-100 text-yellow-800' => $coupon->appliesOverBrandVendorDiscounts(),
+                        'bg-green-100 text-green-800' => !$coupon->appliesOverBrandVendorDiscounts()
                     ])>
-                        {{ $coupon->appliesOverBrandVendorDiscounts() ? 'Se permite combinar' : 'Exento (no combina)' }}
+                        {{ $coupon->appliesOverBrandVendorDiscounts() ? 'Se acumula con marca/proveedor' : 'Mejor descuento (no acumula)' }}
                     </span>
                 </p>
             </div>

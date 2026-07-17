@@ -74,13 +74,13 @@ class Coupon extends Model
     const APPLIES_TO_CUSTOMER_TYPE = 'customer_type';
 
     /**
-     * Whether the coupon may be applied to products that already carry a
-     * brand or vendor discount. Defaults to true (historical behavior) for
-     * rows created before the column existed.
+     * Whether the coupon STACKS on top of existing brand/vendor discounts
+     * (descuento directo). By default coupons do not stack: the best discount
+     * (brand/vendor or coupon) wins per cart line.
      */
     public function appliesOverBrandVendorDiscounts(): bool
     {
-        return $this->apply_on_brand_vendor_discounts ?? true;
+        return $this->apply_on_brand_vendor_discounts ?? false;
     }
 
     /**

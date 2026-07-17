@@ -233,12 +233,12 @@
         <div>
             <input type="hidden" name="apply_on_brand_vendor_discounts" value="0">
             <label class="flex items-center">
-                <input type="checkbox" name="apply_on_brand_vendor_discounts" value="1" {{ old('apply_on_brand_vendor_discounts', true) ? 'checked' : '' }}
+                <input type="checkbox" name="apply_on_brand_vendor_discounts" value="1" {{ old('apply_on_brand_vendor_discounts', false) ? 'checked' : '' }}
                     class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50">
-                <span class="ml-2 text-sm text-gray-700">Permitir sobre descuentos de marca/proveedor</span>
+                <span class="ml-2 text-sm text-gray-700">Acumular con descuentos de marca/proveedor</span>
             </label>
             <p class="mt-1 ml-6 text-xs text-gray-500">
-                Si se desactiva, el cupón quedará exento de los productos que ya tienen descuento de marca o proveedor: esos productos conservan su descuento y no reciben el del cupón.
+                Por defecto el cupón NO se acumula: en productos con descuento de marca o proveedor se aplica el mejor descuento (el de marca/proveedor o el del cupón). Si se activa, el cupón se aplica ADEMÁS del descuento de marca/proveedor.
             </p>
         </div>
 

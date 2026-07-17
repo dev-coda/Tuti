@@ -125,7 +125,7 @@ class CouponController extends Controller
         $validated['usage_limit_per_vendor'] = !empty($validated['usage_limit_per_vendor']) ? (int) $validated['usage_limit_per_vendor'] : null;
         $validated['total_usage_limit'] = !empty($validated['total_usage_limit']) ? (int) $validated['total_usage_limit'] : null;
 
-        $validated['apply_on_brand_vendor_discounts'] = $request->boolean('apply_on_brand_vendor_discounts', true);
+        $validated['apply_on_brand_vendor_discounts'] = $request->boolean('apply_on_brand_vendor_discounts', false);
 
         Coupon::create($validated);
 
@@ -257,7 +257,7 @@ class CouponController extends Controller
         $validated['usage_limit_per_vendor'] = !empty($validated['usage_limit_per_vendor']) ? (int) $validated['usage_limit_per_vendor'] : null;
         $validated['total_usage_limit'] = !empty($validated['total_usage_limit']) ? (int) $validated['total_usage_limit'] : null;
 
-        $validated['apply_on_brand_vendor_discounts'] = $request->boolean('apply_on_brand_vendor_discounts', true);
+        $validated['apply_on_brand_vendor_discounts'] = $request->boolean('apply_on_brand_vendor_discounts', false);
 
         $coupon->update($validated);
 

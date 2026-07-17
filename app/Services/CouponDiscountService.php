@@ -81,9 +81,10 @@ class CouponDiscountService
                 'trace' => $e->getTraceAsString(),
             ]);
 
+            // Keep the technical detail in the logs only; this message can reach the storefront.
             return [
                 'success' => false,
-                'message' => 'Error al aplicar el cupón: ' . $e->getMessage(),
+                'message' => 'Error al aplicar el cupón.',
                 'total_coupon_discount' => 0,
                 'modified_products' => [],
             ];
@@ -92,7 +93,12 @@ class CouponDiscountService
 
     /**
      * Apply percentage coupon discount to product discount fields
-     * Rule: Apply percentage to each product's discount field, using larger value if competing discounts exist
+     *
+     * Default rule (no stacking): the coupon competes with the line's existing
+     * discount and the best percentage wins.
+     * When the coupon is explicitly configured to stack on brand/vendor
+     * discounts, its percentage is ADDED on top of an existing brand or vendor
+     * discount (product-level discounts always use best-of).
      */
     private function applyPercentageCouponDiscount(Coupon $coupon, Collection $cartProducts, array $applicableProducts, bool $hasOrders, array $vendorTotals = []): array
     {
@@ -116,7 +122,13 @@ class CouponDiscountService
             $isApplicable = $this->isProductApplicableForCoupon($product, $applicableProducts);
             $couponPercentage = $isApplicable ? $this->clampPercentage((float) $coupon->value) : 0.0;
 
-            $finalDiscountPercentage = max($existingDiscountPercentage, $couponPercentage);
+            $stacksOnThisLine = $couponPercentage > 0
+                && $coupon->appliesOverBrandVendorDiscounts()
+                && $this->isBrandOrVendorDiscount($existingPriceInfo);
+
+            $finalDiscountPercentage = $stacksOnThisLine
+                ? $this->clampPercentage($existingDiscountPercentage + $couponPercentage)
+                : max($existingDiscountPercentage, $couponPercentage);
             $totalUnits = max(1, $quantity * $packageQuantity);
             $lineSubtotal = $basePrice * $totalUnits;
             $newUnitPrice = max(0, $basePrice - ($basePrice * $finalDiscountPercentage / 100));
@@ -219,13 +231,14 @@ class CouponDiscountService
                 'line_total' => $lineTotal,
                 'existing_discount_percentage' => $existingDiscountPercentage,
                 'existing_discount_amount' => $existingDiscountAmount,
+                'existing_is_brand_vendor' => $this->isBrandOrVendorDiscount($existingPriceInfo),
             ];
         }
 
         if ($applicableProductsTotal == 0) {
             return [
                 'success' => false,
-                'message' => 'No applicable products found for fixed amount coupon',
+                'message' => 'Este cupón no se aplica a los productos en tu carrito.',
                 'total_coupon_discount' => 0,
                 'modified_products' => []
             ];
@@ -277,8 +290,26 @@ class CouponDiscountService
             $existingSavingsPerUnit = $soapUnitPrice * $existingDiscountPercentage / 100;
             $shouldUseFixedDiscount = $actualUnitPriceReduction > $existingSavingsPerUnit;
 
+            $stacksOnThisLine = $existingDiscountPercentage > 0
+                && $coupon->appliesOverBrandVendorDiscounts()
+                && ($productData['existing_is_brand_vendor'] ?? false);
+
             $lineSubtotal = $lineTotal;
-            if ($shouldUseFixedDiscount) {
+            if ($stacksOnThisLine) {
+                // Coupon explicitly stacks on brand/vendor discounts: reduce the
+                // already-discounted price further. The line is transmitted as a
+                // single flat per-unit reduction so the ERP reproduces the price.
+                $couponReductionPerUnit = min($unitPriceReduction, max(0, $maxAllowedReduction - $existingSavingsPerUnit));
+                $actualUnitPriceReduction = $existingSavingsPerUnit + $couponReductionPerUnit;
+                $actualLineDiscount = $actualUnitPriceReduction * $totalUnits;
+
+                $newUnitPrice = max(0, $basePrice - $actualUnitPriceReduction);
+                $appliedDiscountType = 'fixed_amount';
+                $appliedDiscountPercentage = 0;
+                $finalDiscountAmount = $actualLineDiscount;
+                $couponContribution = $couponReductionPerUnit * $totalUnits;
+                $actualTotalDiscount += $couponContribution;
+            } elseif ($shouldUseFixedDiscount) {
                 // Use the fixed amount approach - modify unit price
                 $newUnitPrice = max(0, $basePrice - $actualUnitPriceReduction);
                 $appliedDiscountType = 'fixed_amount';
@@ -345,6 +376,16 @@ class CouponDiscountService
     }
 
     /**
+     * Whether a getFinalPriceForUser() result carries a brand or vendor discount
+     * (descuento directo). Product-level discounts do not count.
+     */
+    private function isBrandOrVendorDiscount(array $priceInfo): bool
+    {
+        return ((float) ($priceInfo['discount'] ?? 0)) > 0
+            && in_array($priceInfo['discount_on'] ?? null, ['Marca', 'Vendor'], true);
+    }
+
+    /**
      * Check if a product is applicable for the coupon based on the applicable products array
      */
     private function isProductApplicableForCoupon(Product $product, array $applicableProducts): bool
@@ -381,6 +422,7 @@ class CouponDiscountService
 
         // Run each coupon individually through the full discount calculation
         $allCouponResults = [];
+        $failureMessages = [];
         foreach ($coupons as $coupon) {
             try {
                 $result = $this->applyCouponDiscountToProducts($coupon, $user, $cartProducts, $hasOrders);
@@ -389,6 +431,8 @@ class CouponDiscountService
                         'coupon' => $coupon,
                         'result' => $result,
                     ];
+                } elseif (!empty($result['message'])) {
+                    $failureMessages[] = $result['message'];
                 }
             } catch (\Exception $e) {
                 Log::warning('Multi-coupon: failed to apply coupon', [
@@ -400,9 +444,11 @@ class CouponDiscountService
         }
 
         if (empty($allCouponResults)) {
+            // Surface the first per-coupon failure reason so the storefront can
+            // show something more actionable than a generic error.
             return [
                 'success' => false,
-                'message' => 'No coupons could be applied',
+                'message' => $failureMessages[0] ?? 'Error al aplicar el cupón.',
                 'total_coupon_discount' => 0,
                 'modified_products' => [],
                 'winning_coupons' => [],
