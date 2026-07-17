@@ -91,7 +91,13 @@ class DraftOrderReconciliationService
 
     public function promoteUserIfReady(User $user): bool
     {
-        if ($user->isCliente() || $user->isRejectedClient()) {
+        if ($user->isRejectedClient()) {
+            return false;
+        }
+
+        // Self-registered users get client_status 'cliente' (column default) but stay
+        // status_id PENDING, so activation must also run for clientes not yet ACTIVE.
+        if ($user->isCliente() && (int) $user->status_id === User::ACTIVE) {
             return false;
         }
 

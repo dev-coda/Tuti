@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\Setting;
 use App\Models\User;
 use App\Repositories\UserRepository;
+use App\Services\DraftOrderReconciliationService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -72,6 +73,7 @@ class BulkSyncClientsData implements ShouldQueue
                 'error' => null,
                 'updated_fields' => [],
                 'zones_synced' => 0,
+                'activated' => false,
             ];
 
             try {
@@ -121,6 +123,14 @@ class BulkSyncClientsData implements ShouldQueue
 
                 if ($syncSuccess) {
                     $user->refresh();
+
+                    // Activate clients (e.g. self-registered ones stuck in PENDING) whose
+                    // just-synced rutero has a valid CustRuteroID.
+                    $result['activated'] = app(DraftOrderReconciliationService::class)
+                        ->promoteUserIfReady($user->load('zones'));
+                    if ($result['activated']) {
+                        $user->refresh();
+                    }
 
                     // Detect which fields were updated
                     $updatedFields = [];
@@ -196,6 +206,7 @@ class BulkSyncClientsData implements ShouldQueue
             'session_id' => $this->sessionId,
             'total_users' => $totalUsers,
             'processed' => $processed,
+            'activated' => count(array_filter(array_column($results, 'activated'))),
             'report' => $reportFilename,
         ]);
     }
@@ -217,6 +228,7 @@ class BulkSyncClientsData implements ShouldQueue
             'Updated Fields',
             'Zones Synced',
             'Zones Changed',
+            'Activated',
             'Error',
             'Processed At',
         ];
@@ -232,6 +244,7 @@ class BulkSyncClientsData implements ShouldQueue
                 implode(', ', $result['updated_fields']),
                 $result['zones_synced'] ?? 0,
                 isset($result['zones_changed']) ? ($result['zones_changed'] ? 'Yes' : 'No') : 'N/A',
+                ($result['activated'] ?? false) ? 'Yes' : 'No',
                 $result['error'] ?? '',
                 $result['processed_at'],
             ];
