@@ -172,6 +172,52 @@ class OrderController extends Controller
     }
 
     /**
+     * Visibility scope for the Mi Cuenta order lists: a user always sees their own
+     * orders and the ones they created as seller. Sellers/supervisors additionally see
+     * every order delivered in their zona (any ruta), so autonomous client orders show
+     * up next to RUTA ones. Zone matching prefers the live zone row and falls back to
+     * the immutable zone_snapshot for orders whose zone row was pruned by rutero sync.
+     */
+    private function applyOrderVisibilityScope($query, User $user): void
+    {
+        $sellerZone = $user->hasAnyRole(['seller', 'supervisor']) ? trim((string) $user->zone) : '';
+
+        $query->where(function ($sub) use ($user, $sellerZone) {
+            $sub->whereBelongsTo($user)
+                ->orWhere('seller_id', $user->id);
+
+            if ($sellerZone !== '') {
+                $sub->orWhereHas('zone', function ($zoneQuery) use ($sellerZone) {
+                    $zoneQuery->where('zone', $sellerZone);
+                })
+                ->orWhere('zone_snapshot->zone', $sellerZone);
+            }
+        });
+    }
+
+    /**
+     * Whether a seller/supervisor may act on an order because it was delivered in their zona.
+     */
+    private function orderInSellerZone(Order $order, User $user): bool
+    {
+        if (!$user->hasAnyRole(['seller', 'supervisor'])) {
+            return false;
+        }
+
+        $sellerZone = trim((string) $user->zone);
+        if ($sellerZone === '') {
+            return false;
+        }
+
+        $orderZone = trim((string) ($order->zone?->zone ?? ''));
+        if ($orderZone === '') {
+            $orderZone = trim((string) ($order->zone_snapshot['zone'] ?? ''));
+        }
+
+        return $orderZone !== '' && $orderZone === $sellerZone;
+    }
+
+    /**
      * @param  array{q:string,order_id:string,from_date:string,to_date:string,status_id:string}  $filters
      */
     private function buildOrdersQuery(User $user, array $filters, Request $request)
@@ -180,10 +226,7 @@ class OrderController extends Controller
             ->with(['user', 'products.product.images'])
             ->withCount('products')
             ->withSum('products', 'quantity')
-            ->where(function ($query) use ($user) {
-                $query->whereBelongsTo($user)
-                    ->orWhere('seller_id', $user->id);
-            })
+            ->tap(fn ($query) => $this->applyOrderVisibilityScope($query, $user))
             ->whereNot('total', '0')
             ->when($filters['q'] !== '', function ($query) use ($filters) {
                 $query->whereHas('user', function ($sub) use ($filters) {
@@ -219,10 +262,7 @@ class OrderController extends Controller
     {
         return Order::query()
             ->with(['user:id,name'])
-            ->where(function ($query) use ($user) {
-                $query->whereBelongsTo($user)
-                    ->orWhere('seller_id', $user->id);
-            })
+            ->tap(fn ($query) => $this->applyOrderVisibilityScope($query, $user))
             ->whereNot('total', '0')
             ->when($filters['q'] !== '', function ($query) use ($filters) {
                 $query->whereHas('user', function ($sub) use ($filters) {
@@ -520,18 +560,9 @@ class OrderController extends Controller
         $order = Order::query()
             ->with('user')
             ->withCount('products')
-            ->whereBelongsTo($user)
+            ->tap(fn ($query) => $this->applyOrderVisibilityScope($query, $user))
             ->where('id', $id)
             ->first();
-
-        if (!$order) {
-            $order = Order::query()
-                ->with('user')
-                ->withCount('products')
-                ->where('seller_id', $user->id)
-                ->where('id', $id)
-                ->first();
-        }
 
         if (!$order) {
             $order = Order::query()
@@ -560,7 +591,9 @@ class OrderController extends Controller
     public function reorder(Request $request, Order $order)
     {
         $user = auth()->user();
-        if (!($order->user_id === $user->id || $order->seller_id === $user->id)) {
+        if (!($order->user_id === $user->id
+            || $order->seller_id === $user->id
+            || $this->orderInSellerZone($order, $user))) {
             abort(403);
         }
 
