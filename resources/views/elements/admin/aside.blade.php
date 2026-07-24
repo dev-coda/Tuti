@@ -4,33 +4,6 @@
             <div
                 class="flex-1 px-3 space-y-1 bg-white divide-y divide-gray-200">
                 <ul class="pb-2 space-y-2 mainmenu">
-                    @if(auth()->user()->hasRole('supervisor'))
-                    <li>
-                        <a href="{{ route('dashboard') }}">
-                            @svg('heroicon-o-home', 'w-6 h-6 text-gray-500')
-                            <span class="ml-3" sidebar-toggle-item>Dashboard</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="{{ route('contacts.index') }}">
-                            @svg('heroicon-o-inbox-arrow-down', 'w-6 h-6 text-gray-500')
-                            <span class="ml-3" sidebar-toggle-item>Interesados</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="{{ route('admin.customer-service-requests.index') }}">
-                            @svg('heroicon-o-chat-bubble-left-right', 'w-6 h-6 text-gray-500')
-                            <span class="ml-3" sidebar-toggle-item>PQRS</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="{{ route('admin.client-data-update-requests.index') }}">
-                            @svg('heroicon-o-pencil-square', 'w-6 h-6 text-gray-500')
-                            <span class="ml-3" sidebar-toggle-item>Actualización de datos</span>
-                        </a>
-                    </li>
-                    @else
-
                     <li>
                         <a href="{{ route('dashboard') }}">
                             @svg('heroicon-o-home', 'w-6 h-6 text-gray-500')
@@ -184,11 +157,6 @@
                             </a>
                         </li>
 
-
-                
-                    @endif
-
-               
                 </ul>
             
             </div>

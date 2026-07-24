@@ -116,37 +116,105 @@ class OrderController extends Controller
         return view('orders.edit', $context);
     }
 
+    /**
+     * Queue an async export of orders filtered by date range.
+     *
+     * Multi-month ranges are too large to export synchronously (the request
+     * times out), so the file is generated in the background and made
+     * available via "Mis Exportaciones".
+     */
     public function export(Request $request)
     {
         $from_date = $request->input('from_date');
-        $to_date = $request->input('to_date');
-        $brand_id = $request->input('brand_id');
-        $vendor_id = $request->input('vendor_id');
-        $q = $request->input('q');
-        $seller_id = $request->input('seller_id');
-        $zone = $request->input('zone');
+        $to_date = $request->input('to_date') ?: Carbon::now()->toDateString();
 
-        if (!$to_date) {
-            $to_date = Carbon::now();
+        if (!$from_date) {
+            $message = 'Por favor ingresa un rango de fechas.';
+
+            if ($request->expectsJson()) {
+                return response()->json(['success' => false, 'message' => $message], 422);
+            }
+
+            return redirect()->back()->withErrors(['error' => $message]);
         }
 
-        if ($from_date && $to_date) {
-            $from_date = Carbon::parse($from_date)->startOfDay();
-            $to_date = Carbon::parse($to_date)->endOfDay();
-            return Excel::download(
-                new OrdersExport(
-                    $from_date->toDateTimeString(),
-                    $to_date->toDateTimeString(),
-                    $brand_id,
-                    $vendor_id,
-                    $q,
-                    $seller_id,
-                    $zone
-                ),
-                'orders.xlsx'
-            );
-        } else {
-            return redirect()->back()->withErrors(['error' => 'Por favor ingresa un rango de fechas.']);
+        $from = Carbon::parse($from_date)->startOfDay();
+        $to = Carbon::parse($to_date)->endOfDay();
+
+        $params = [
+            'label' => 'Pedidos ' . $from->format('d/m/Y') . ' a ' . $to->format('d/m/Y'),
+            'from_date' => $from->toDateTimeString(),
+            'to_date' => $to->toDateTimeString(),
+            'brand_id' => $request->input('brand_id'),
+            'vendor_id' => $request->input('vendor_id'),
+            'q' => $request->input('q'),
+            'seller_id' => $request->input('seller_id'),
+            'zone' => $request->input('zone'),
+        ];
+
+        $filename = 'pedidos_' . $from->format('Ymd') . '_' . $to->format('Ymd') . '_' . time() . '.xlsx';
+
+        $exportFile = ExportFile::create([
+            'user_id' => auth()->id(),
+            'type' => 'orders_custom',
+            'filename' => $filename,
+            'file_path' => "exports/orders/custom/{$filename}",
+            'status' => ExportFile::STATUS_PENDING,
+            'params' => $params,
+        ]);
+
+        try {
+            (new OrdersExport(
+                $params['from_date'],
+                $params['to_date'],
+                $params['brand_id'],
+                $params['vendor_id'],
+                $params['q'],
+                $params['seller_id'],
+                $params['zone']
+            ))
+                ->queue($exportFile->file_path, 'local')
+                ->chain([
+                    function () use ($exportFile) {
+                        $p = $exportFile->params;
+
+                        $totalRecords = (new OrdersExport(
+                            $p['from_date'],
+                            $p['to_date'],
+                            $p['brand_id'] ?? null,
+                            $p['vendor_id'] ?? null,
+                            $p['q'] ?? null,
+                            $p['seller_id'] ?? null,
+                            $p['zone'] ?? null
+                        ))->query()->count();
+
+                        $exportFile->markAsCompleted($totalRecords);
+                    },
+                ]);
+
+            $exportFile->markAsProcessing();
+
+            $message = 'La exportación de pedidos se está generando en segundo plano. Descárgala desde "Mis Exportaciones" cuando esté lista.';
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => $message,
+                    'export_id' => $exportFile->id,
+                ]);
+            }
+
+            return redirect()->back()->with('success', $message);
+        } catch (\Throwable $e) {
+            $exportFile->markAsFailed($e->getMessage());
+
+            $message = 'No se pudo iniciar la exportación: ' . $e->getMessage();
+
+            if ($request->expectsJson()) {
+                return response()->json(['success' => false, 'message' => $message], 500);
+            }
+
+            return redirect()->back()->withErrors(['error' => $message]);
         }
     }
 
@@ -310,7 +378,7 @@ class OrderController extends Controller
     public function getExports(Request $request)
     {
         $exports = ExportFile::forUser(auth()->id())
-            ->where('type', 'orders_monthly')
+            ->whereIn('type', ['orders_monthly', 'orders_custom'])
             ->recent(90) // Last 90 days
             ->orderBy('created_at', 'desc')
             ->get()
@@ -319,6 +387,7 @@ class OrderController extends Controller
                     'id' => $export->id,
                     'filename' => $export->filename,
                     'status' => $export->status,
+                    'label' => $export->params['label'] ?? $export->params['month_name'] ?? $export->filename,
                     'month_name' => $export->params['month_name'] ?? '',
                     'total_records' => $export->total_records,
                     'file_size' => $export->file_size,

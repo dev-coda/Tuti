@@ -51,7 +51,9 @@ class ForcedPasswordChangeController extends Controller
         ]);
 
         if ($user->hasRole('supervisor')) {
-            return to_route('dashboard')->with('success', 'Contraseña actualizada correctamente.');
+            return redirect()
+                ->route('clients.orders.index', ['tab' => 'mis-rutas'])
+                ->with('success', 'Contraseña actualizada correctamente.');
         }
 
         return redirect()->intended(RouteServiceProvider::HOME)

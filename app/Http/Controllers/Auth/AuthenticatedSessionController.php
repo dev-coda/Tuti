@@ -46,7 +46,7 @@ class AuthenticatedSessionController extends Controller
         }
 
         if ($user->hasRole('supervisor')) {
-            return to_route('dashboard');
+            return redirect()->route('clients.orders.index', ['tab' => 'mis-rutas']);
         }
 
 

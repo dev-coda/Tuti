@@ -53,12 +53,8 @@ Route::middleware(['auth', 'role:seller|supervisor'])->group(function () {
     Route::post('/actualizacion-datos/{zone}', [\App\Http\Controllers\ClientDataUpdateController::class, 'store'])->name('client-data-updates.store');
 });
 
-Route::middleware(['auth', 'role:admin|supervisor'])->group(function () {
+Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('/dashboard', function () {
-        if (auth()->user()->hasRole('supervisor')) {
-            return to_route('contacts.index');
-        }
-
         return to_route('products.index');
     })->name('dashboard');
 
@@ -69,10 +65,6 @@ Route::middleware(['auth', 'role:admin|supervisor'])->group(function () {
     Route::get('customer-service-requests/{customerServiceRequest}', [CustomerServiceRequestController::class, 'show'])->name('admin.customer-service-requests.show');
     Route::get('client-data-update-requests', [ClientDataUpdateRequestController::class, 'index'])->name('admin.client-data-update-requests.index');
     Route::get('client-data-update-requests/{clientDataUpdateRequest}', [ClientDataUpdateRequestController::class, 'show'])->name('admin.client-data-update-requests.show');
-});
-
-Route::middleware(['auth', 'role:admin'])->group(function () {
-
 
     Route::get('/documentacion', [DocumentationController::class, 'index'])->name('admin.documentation.index');
     Route::get('/documentacion/ver', [DocumentationController::class, 'show'])->name('admin.documentation.show');

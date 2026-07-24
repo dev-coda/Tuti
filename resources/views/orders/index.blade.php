@@ -20,21 +20,13 @@
             <div class="mb-4 flex justify-between">
                 <h1 class="text-xl font-semibold text-gray-900 sm:text-2xl ">Pedidos</h1>
                 <div class="flex items-center gap-3">
-                    <!-- Current export (date range) -->
-                    <a href="{{ route('admin.export.orders', [
-                        'q' => request()->query('q', ''),
-                        'zone' => request()->query('zone', ''),
-                        'seller_id' => request()->query('seller_id', ''),
-                        'brand_id' => request()->query('brand_id', ''),
-                        'vendor_id' => request()->query('vendor_id', ''),
-                        'from_date' => request()->query('from_date', ''),
-                        'to_date' => request()->query('to_date', ''),
-                    ]) }}"
-                       class="inline-flex items-center px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
-                       title="Exportar filtro actual">
+                    <!-- Current export (date range, processed in background) -->
+                    <button id="filteredExportButton" onclick="startFilteredExport(this)"
+                            class="inline-flex items-center px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Exportar filtro actual">
                         @svg('heroicon-o-arrow-down-on-square', 'w-5 h-5 mr-1')
                         <span class="hidden sm:inline">Exportar Filtro</span>
-                    </a>
+                    </button>
                     
                     <!-- Monthly export button -->
                     <button onclick="openMonthlyExportModal()"
@@ -342,7 +334,7 @@
 <div id="exportsListModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
     <div class="relative top-10 mx-auto p-5 border w-11/12 max-w-4xl shadow-lg rounded-md bg-white">
         <div class="flex justify-between items-center mb-4">
-            <h3 class="text-lg font-medium text-gray-900">Mis Exportaciones Mensuales</h3>
+            <h3 class="text-lg font-medium text-gray-900">Mis Exportaciones de Pedidos</h3>
             <button onclick="closeExportsListModal()" class="text-gray-400 hover:text-gray-600">
                 <span class="text-2xl">&times;</span>
             </button>
@@ -383,6 +375,44 @@ function openExportsListModal() {
 
 function closeExportsListModal() {
     document.getElementById('exportsListModal').classList.add('hidden');
+}
+
+// Queue an async export with the current filters (avoids request timeouts on large ranges)
+async function startFilteredExport(button) {
+    const params = new URLSearchParams(window.location.search);
+
+    if (!params.get('from_date')) {
+        showNotification('Por favor ingresa un rango de fechas antes de exportar.', 'error');
+        return;
+    }
+
+    button.disabled = true;
+
+    try {
+        const response = await fetch('{{ route('admin.export.orders') }}?' + params.toString(), {
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showNotification(data.message, 'success');
+
+            if (data.export_id) {
+                pollExportStatus(data.export_id);
+            }
+        } else {
+            showNotification(data.message || 'Error al iniciar exportación', 'error');
+        }
+    } catch (error) {
+        console.error('Export error:', error);
+        showNotification('Error al procesar la solicitud', 'error');
+    } finally {
+        button.disabled = false;
+    }
 }
 
 // Handle monthly export form submission
@@ -449,8 +479,8 @@ async function loadExportsList() {
                     <svg class="w-12 h-12 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                     </svg>
-                    <p>No tienes exportaciones mensuales aún</p>
-                    <p class="text-sm mt-2">Usa el botón "Exportar Mes" para crear una</p>
+                    <p>No tienes exportaciones aún</p>
+                    <p class="text-sm mt-2">Usa "Exportar Filtro" o "Exportar Mes" para crear una</p>
                 </div>
             `;
             return;
@@ -492,7 +522,7 @@ function createExportCard(exp) {
             <div class="flex justify-between items-start">
                 <div class="flex-1">
                     <div class="flex items-center gap-2 mb-2">
-                        <h4 class="text-sm font-semibold text-gray-900">${exp.month_name}</h4>
+                        <h4 class="text-sm font-semibold text-gray-900">${exp.label || exp.month_name}</h4>
                         ${statusBadge}
                     </div>
                     <div class="text-xs text-gray-600 space-y-1">

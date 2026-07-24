@@ -54,7 +54,7 @@ class ReportController extends Controller
             ],
             'orders_export' => [
                 'name' => 'Exportar Pedidos',
-                'description' => 'Exporta pedidos filtrados por rango de fechas, marca y/o proveedor en formato Excel',
+                'description' => 'Genera en segundo plano la exportación de pedidos filtrados por rango de fechas, marca y/o proveedor (Excel). Descárgala desde "Mis Exportaciones" en la sección Pedidos cuando esté lista.',
                 'has_filters' => true,
                 'type' => 'direct',
                 'url' => '/orderexport',

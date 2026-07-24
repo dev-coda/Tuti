@@ -123,6 +123,31 @@ class User extends Authenticatable
         return $this->hasMany(Zone::class);
     }
 
+    /**
+     * Zone/route pairs assigned to this user when they are a supervisor.
+     */
+    public function supervisorRoutes()
+    {
+        return $this->hasMany(SupervisorRoute::class)->orderBy('zone')->orderBy('route');
+    }
+
+    /**
+     * Every zona this staff user covers: the legacy single users.zone value
+     * plus the zones of their supervisor route assignments.
+     *
+     * @return array<int, string>
+     */
+    public function supervisedZones(): array
+    {
+        $zones = collect([trim((string) $this->zone)])
+            ->merge($this->supervisorRoutes->pluck('zone')->map(fn ($zone) => trim((string) $zone)))
+            ->filter(fn ($zone) => $zone !== '')
+            ->unique()
+            ->values();
+
+        return $zones->all();
+    }
+
     public function favoriteProducts()
     {
         return $this->belongsToMany(Product::class, 'user_favorite_products')

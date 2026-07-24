@@ -4,6 +4,7 @@ namespace App\Exports;
 
 use App\Models\Order;
 use Carbon\Carbon;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Maatwebsite\Excel\Concerns\FromQuery;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
@@ -11,7 +12,7 @@ use Maatwebsite\Excel\Concerns\WithChunkReading;
 use Maatwebsite\Excel\Concerns\WithBatchInserts;
 use Maatwebsite\Excel\Concerns\Exportable;
 
-class OrdersExport implements FromQuery, WithMapping, WithHeadings, withChunkReading, withBatchInserts
+class OrdersExport implements FromQuery, WithMapping, WithHeadings, WithChunkReading, WithBatchInserts, ShouldQueue
 {
     use Exportable;
 
@@ -44,7 +45,9 @@ class OrdersExport implements FromQuery, WithMapping, WithHeadings, withChunkRea
 
     public function query()
     {
-        $query = Order::query();
+        // Eager-load everything map() touches; lazy loading here causes 4 extra
+        // queries per order, which is what made large date ranges time out.
+        $query = Order::query()->with(['user', 'seller', 'zone', 'products']);
         if ($this->from_date == null || $this->to_date == null) {
             $query->whereBetween('created_at', [now()->subDays(2)->startOfDay(), now()->endOfDay()]);
         } else {
@@ -149,11 +152,11 @@ class OrdersExport implements FromQuery, WithMapping, WithHeadings, withChunkRea
 
     public function chunkSize(): int
     {
-        return 100;
+        return 500;
     }
 
     public function batchSize(): int
     {
-        return 100;
+        return 500;
     }
 }

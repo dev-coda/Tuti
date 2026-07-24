@@ -18,12 +18,14 @@
                     {{ Aire::input('name', 'Nombre')->groupClass('mb-0') }}
                     {{ Aire::email('email', 'Correo electrónico')->groupClass('mb-0') }}
 
-                    {{ Aire::number('zone', 'Zona')->groupClass('mb-0') }}
+                    {{ Aire::number('zone', 'Zona principal (opcional)')->groupClass('mb-0') }}
                     <div></div>
 
                     {{ Aire::password('password', 'Contraseña')->groupClass('mb-5')->value('') }}
                     {{ Aire::password('password_confirmation', 'Confirme Contraseña')->groupClass('mb-5') }}
-                    
+
+                    @include('supervisors.partials.route-assignments', ['assignments' => $user->supervisorRoutes])
+
                 </div>
 
                 <div class="col-span-6 justify-between  items-center mt-5 space-x-2 flex">

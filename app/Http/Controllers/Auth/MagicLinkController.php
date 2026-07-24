@@ -145,7 +145,7 @@ class MagicLinkController extends Controller
         } elseif ($user->hasRole('admin')) {
             $redirectUrl = route('dashboard');
         } elseif ($user->hasRole('supervisor')) {
-            $redirectUrl = route('dashboard');
+            $redirectUrl = route('clients.orders.index', ['tab' => 'mis-rutas']);
         } else {
             $redirectUrl = RouteServiceProvider::HOME;
         }

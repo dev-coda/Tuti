@@ -23,6 +23,7 @@ class OrderController extends Controller
     {
         $user = auth()->user();
         $isSeller = $user->hasAnyRole(['seller', 'supervisor']);
+        $isSupervisor = $user->hasRole('supervisor');
         $sellerDashToday = Carbon::now($this->sellerReportTimezone())->format('Y-m-d');
 
         $recentFilters = $this->extractOrderFilters($request);
@@ -45,6 +46,7 @@ class OrderController extends Controller
             : null;
 
         $myRoute = $isSeller ? $this->buildMyRouteData($user, $request) : null;
+        $myRoutes = $isSupervisor ? $this->buildMyRoutesData($user, $request) : null;
 
         $statuses = [
             '' => 'Todos',
@@ -62,11 +64,71 @@ class OrderController extends Controller
             'statuses',
             'accountUser',
             'isSeller',
+            'isSupervisor',
             'sellerDashToday',
             'recentFilters',
             'todayFilters',
-            'myRoute'
+            'myRoute',
+            'myRoutes'
         ));
+    }
+
+    /**
+     * Data for the supervisor "Mis Rutas" tab: the zone/route pairs assigned to
+     * the supervisor and, once one is selected, every order placed on that route
+     * within the requested timeframe (defaults to today, Colombia time).
+     *
+     * @return array{assignments:\Illuminate\Support\Collection,selected:\App\Models\SupervisorRoute|null,filters:array,orders:\Illuminate\Contracts\Pagination\LengthAwarePaginator|null}
+     */
+    private function buildMyRoutesData(User $user, Request $request): array
+    {
+        $assignments = $user->supervisorRoutes()->get();
+        $today = Carbon::now($this->sellerReportTimezone())->format('Y-m-d');
+
+        $requestedId = (int) $request->input('sr', 0);
+        $selected = $requestedId > 0
+            ? $assignments->firstWhere('id', $requestedId)
+            : $assignments->first();
+
+        $filters = $this->normalizeDailyFilters($this->extractOrderFilters($request, 'sr_'), $today);
+
+        $orders = null;
+        if ($selected) {
+            $orders = $this->buildOrdersQuery(
+                $user,
+                $filters,
+                $request,
+                fn ($query) => $this->applyRouteScope($query, (string) $selected->zone, (string) $selected->route)
+            )
+                ->orderByDesc('id')
+                ->paginate(15, ['*'], 'sr_page')
+                ->withQueryString();
+        }
+
+        return [
+            'assignments' => $assignments,
+            'selected' => $selected,
+            'filters' => $filters,
+            'orders' => $orders,
+        ];
+    }
+
+    /**
+     * Restrict an orders query to a specific zona + ruta, matching the live zone
+     * row first and falling back to the immutable zone_snapshot for orders whose
+     * zone row was pruned by rutero sync.
+     */
+    private function applyRouteScope($query, string $zone, string $route): void
+    {
+        $query->where(function ($sub) use ($zone, $route) {
+            $sub->whereHas('zone', function ($zoneQuery) use ($zone, $route) {
+                $zoneQuery->where('zone', $zone)->where('route', $route);
+            })
+            ->orWhere(function ($snapshot) use ($zone, $route) {
+                $snapshot->where('zone_snapshot->zone', $zone)
+                    ->where('zone_snapshot->route', $route);
+            });
+        });
     }
 
     /**
@@ -150,22 +212,31 @@ class OrderController extends Controller
         $isSeller = $user->hasAnyRole(['seller', 'supervisor']);
         $tab = (string) $request->input('tab', 'orders');
         $isTodayTab = $tab === 'orders-today' && $isSeller;
+        $isMisRutasTab = $tab === 'mis-rutas' && $user->hasRole('supervisor');
+        $today = Carbon::now($this->sellerReportTimezone())->format('Y-m-d');
 
-        $filters = $isTodayTab
-            ? $this->extractOrderFilters($request, 'today_')
-            : $this->extractOrderFilters($request);
+        $scope = null;
+        $filePrefix = 'pedidos-recientes';
 
-        if ($isTodayTab) {
-            $today = Carbon::now($this->sellerReportTimezone())->format('Y-m-d');
-            $filters = $this->normalizeDailyFilters($filters, $today);
+        if ($isMisRutasTab) {
+            $assignment = $user->supervisorRoutes()->find((int) $request->input('sr', 0));
+            abort_unless($assignment, 404);
+
+            $filters = $this->normalizeDailyFilters($this->extractOrderFilters($request, 'sr_'), $today);
+            $scope = fn ($query) => $this->applyRouteScope($query, (string) $assignment->zone, (string) $assignment->route);
+            $filePrefix = 'pedidos-ruta-' . $assignment->route;
+        } elseif ($isTodayTab) {
+            $filters = $this->normalizeDailyFilters($this->extractOrderFilters($request, 'today_'), $today);
+            $filePrefix = 'pedidos-del-dia';
+        } else {
+            $filters = $this->extractOrderFilters($request);
         }
 
-        $orders = $this->buildOrdersExportQuery($user, $filters, $request)
+        $orders = $this->buildOrdersExportQuery($user, $filters, $request, $scope)
             ->orderByDesc('id')
             ->withCount('products')
             ->withSum('products', 'quantity');
 
-        $filePrefix = $isTodayTab ? 'pedidos-del-dia' : 'pedidos-recientes';
         $fileName = $filePrefix . '-' . now()->format('Ymd-His') . '.xlsx';
 
         return Excel::download(new ClientOrdersExport($orders), $fileName);
@@ -180,17 +251,17 @@ class OrderController extends Controller
      */
     private function applyOrderVisibilityScope($query, User $user): void
     {
-        $sellerZone = $user->hasAnyRole(['seller', 'supervisor']) ? trim((string) $user->zone) : '';
+        $staffZones = $user->hasAnyRole(['seller', 'supervisor']) ? $user->supervisedZones() : [];
 
-        $query->where(function ($sub) use ($user, $sellerZone) {
+        $query->where(function ($sub) use ($user, $staffZones) {
             $sub->whereBelongsTo($user)
                 ->orWhere('seller_id', $user->id);
 
-            if ($sellerZone !== '') {
-                $sub->orWhereHas('zone', function ($zoneQuery) use ($sellerZone) {
-                    $zoneQuery->where('zone', $sellerZone);
+            if ($staffZones !== []) {
+                $sub->orWhereHas('zone', function ($zoneQuery) use ($staffZones) {
+                    $zoneQuery->whereIn('zone', $staffZones);
                 })
-                ->orWhere('zone_snapshot->zone', $sellerZone);
+                ->orWhereIn('zone_snapshot->zone', $staffZones);
             }
         });
     }
@@ -204,8 +275,8 @@ class OrderController extends Controller
             return false;
         }
 
-        $sellerZone = trim((string) $user->zone);
-        if ($sellerZone === '') {
+        $staffZones = $user->supervisedZones();
+        if ($staffZones === []) {
             return false;
         }
 
@@ -214,19 +285,20 @@ class OrderController extends Controller
             $orderZone = trim((string) ($order->zone_snapshot['zone'] ?? ''));
         }
 
-        return $orderZone !== '' && $orderZone === $sellerZone;
+        return $orderZone !== '' && in_array($orderZone, $staffZones, true);
     }
 
     /**
      * @param  array{q:string,order_id:string,from_date:string,to_date:string,status_id:string}  $filters
+     * @param  callable|null  $scope  Custom base scope; defaults to the user's visibility scope.
      */
-    private function buildOrdersQuery(User $user, array $filters, Request $request)
+    private function buildOrdersQuery(User $user, array $filters, Request $request, ?callable $scope = null)
     {
         return Order::query()
             ->with(['user', 'products.product.images'])
             ->withCount('products')
             ->withSum('products', 'quantity')
-            ->tap(fn ($query) => $this->applyOrderVisibilityScope($query, $user))
+            ->tap(fn ($query) => $scope ? $scope($query) : $this->applyOrderVisibilityScope($query, $user))
             ->whereNot('total', '0')
             ->when($filters['q'] !== '', function ($query) use ($filters) {
                 $query->whereHas('user', function ($sub) use ($filters) {
@@ -257,12 +329,13 @@ class OrderController extends Controller
      * Lightweight export query to avoid loading heavy relations in memory.
      *
      * @param  array{q:string,order_id:string,from_date:string,to_date:string,status_id:string}  $filters
+     * @param  callable|null  $scope  Custom base scope; defaults to the user's visibility scope.
      */
-    private function buildOrdersExportQuery(User $user, array $filters, Request $request)
+    private function buildOrdersExportQuery(User $user, array $filters, Request $request, ?callable $scope = null)
     {
         return Order::query()
             ->with(['user:id,name'])
-            ->tap(fn ($query) => $this->applyOrderVisibilityScope($query, $user))
+            ->tap(fn ($query) => $scope ? $scope($query) : $this->applyOrderVisibilityScope($query, $user))
             ->whereNot('total', '0')
             ->when($filters['q'] !== '', function ($query) use ($filters) {
                 $query->whereHas('user', function ($sub) use ($filters) {
