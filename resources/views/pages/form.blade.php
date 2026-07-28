@@ -11,47 +11,50 @@
 
 
 @section('content')
-<div class="max-w-6xl container mx-auto mt-5 mb-20">
+<div class="max-w-6xl container mx-auto mt-5 mb-20 px-4">
     <h1 class="xl:text-4xl text-2xl font-bold text-center mb-8">Bienvenido Tendero</h1>
 
-    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <div id="login-section" class="border border-2 border-blue-900 p-5 rounded-lg flex flex-col items-center">
-            <div class="w-20 h-20 bg-blue-900 rounded-full flex items-center justify-center mb-5">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-white" viewBox="0 0 24 24" fill="currentColor">
-                    <path fill-rule="evenodd" d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 01-.437-.695z" clip-rule="evenodd" />
-                </svg>
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 xl:items-stretch">
+        {{-- Login --}}
+        <div id="login-section" class="border-2 border-blue-900 p-6 sm:p-8 rounded-lg bg-white flex flex-col h-full">
+            <div class="flex flex-col items-center text-center mb-6">
+                <div class="w-20 h-20 bg-blue-900 rounded-full flex items-center justify-center mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-white" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path fill-rule="evenodd" d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 01-.437-.695z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                <h2 class="text-2xl font-bold text-gray-900">Ingreso</h2>
+                <p class="mt-1 text-sm sm:text-base font-medium text-orange-600">Ingresa AQUÍ solo si eres cliente TRONEX</p>
             </div>
-            <h2 class="text-2xl font-bold">Ingreso</h2>
-            <p>Ingresa AQUÍ solo si eres cliente TRONEX</p>
 
-            <div class="mt-5 p-5 w-full">
-                <form method="POST" action="{{ route('login') }}" class="space-y-5" id="login-form">
+            <div class="flex flex-col flex-1 w-full">
+                <form method="POST" action="{{ route('login') }}" class="space-y-4" id="login-form">
                     @csrf
                     <div>
                         <label for="login-email" class="block text-sm font-medium text-gray-700 mb-1">Correo electrónico</label>
-                        <input type="email" id="login-email" name="email" placeholder="Correo electrónico" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500" required value="{{ old('email') }}">
+                        <input type="email" id="login-email" name="email" placeholder="Correo electrónico" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500" required value="{{ old('email') }}">
                         @error('email')
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                         @enderror
                     </div>
                     <div>
                         <label for="login-password" class="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
-                        <input type="password" id="login-password" name="password" placeholder="Ingresa tu contraseña" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500" required>
+                        <input type="password" id="login-password" name="password" placeholder="Ingresa tu contraseña" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500" required>
                     </div>
 
-                    <div class="flex justify-between">
+                    <div class="flex justify-end">
                         <a href="{{ route('password.request') }}" class="text-sm text-orange-600 hover:underline">¿Olvidó su contraseña?</a>
                     </div>
 
                     <button type="submit" class="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-4 rounded-lg transition duration-300 flex items-center justify-center space-x-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                             <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd" />
                         </svg>
                         <span>Ingresar</span>
                     </button>
                 </form>
 
-                <div class="relative my-6">
+                <div class="relative my-5">
                     <div class="absolute inset-0 flex items-center">
                         <div class="w-full border-t border-gray-300"></div>
                     </div>
@@ -61,10 +64,10 @@
                 </div>
 
                 <button type="button" id="magic-link-btn" class="w-full border-2 border-gray-300 hover:border-orange-400 text-gray-700 hover:text-orange-600 font-semibold py-3 px-4 rounded-lg transition duration-300 flex items-center justify-center space-x-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 magic-link-icon" viewBox="0 0 20 20" fill="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 magic-link-icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                         <path d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" />
                     </svg>
-                    <svg class="animate-spin h-5 w-5 magic-link-spinner hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <svg class="animate-spin h-5 w-5 magic-link-spinner hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
@@ -73,7 +76,7 @@
                 <p class="text-center text-xs text-gray-500 mt-2" id="magic-link-hint">Te enviaremos un código de verificación a tu correo.</p>
                 <p class="text-center text-xs text-red-600 mt-2 hidden" id="magic-link-error"></p>
 
-                <div class="relative my-6">
+                <div class="relative my-5">
                     <div class="absolute inset-0 flex items-center">
                         <div class="w-full border-t border-gray-300"></div>
                     </div>
@@ -81,8 +84,9 @@
                         <span class="px-4 bg-white text-gray-500 uppercase tracking-wider text-xs font-semibold">O bien</span>
                     </div>
                 </div>
+
                 <button type="button" id="tronex-btn" class="w-full border-2 border-blue-200 hover:border-blue-400 text-blue-700 hover:text-blue-900 font-semibold py-3 px-4 rounded-lg transition duration-300 flex items-center justify-center space-x-2 bg-blue-50 hover:bg-blue-100">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                     </svg>
                     <span>¿Ya eres cliente Tronex?</span>
@@ -91,25 +95,53 @@
             </div>
         </div>
 
-        <div id="register-section" class="border border-2 border-blue-900 p-5 rounded-lg flex flex-col items-center">
-            <div class="w-20 h-20 bg-blue-900 rounded-full flex items-center justify-center my-6">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4m4-5h8a2 2 0 012 2v10H6V9a2 2 0 012-2z" />
-                </svg>
+        {{-- Register --}}
+        <div id="register-section" class="border-2 border-blue-900 p-6 sm:p-8 rounded-lg bg-white flex flex-col h-full">
+            <div class="flex flex-col items-center text-center mb-6">
+                <div class="w-20 h-20 bg-blue-900 rounded-full flex items-center justify-center mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
+                </div>
+                <h2 class="text-2xl font-bold text-gray-900">Cliente nuevo</h2>
+                <p class="mt-1 text-sm sm:text-base font-medium text-orange-600">Ingresa AQUÍ para crear tu cuenta</p>
             </div>
-            <h2 class="text-2xl font-bold text-center">Cliente nuevo</h2>
-            <h3 class="text-2xl text-center mb-4">Ingresa AQUÍ para crear tu cuenta</h3>
-            <ul class="text-base text-gray-800 space-y-1">
-                <li>- Tendero, surte tu tienda en línea</li>
-                <li>- Accede a promociones y descuentos exclusivos</li>
-                <li>- Recibe tu pedido en 24 horas (Cobertura ruta TRONEX)</li>
-                <li>- Cuenta con el respaldo y acompañamiento de TRONEX</li>
-            </ul>
 
-            <a href="{{ route('new-client.create') }}" class="mt-8 w-full max-w-sm inline-flex items-center justify-center bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 px-4 rounded-lg transition duration-300">
-                Solicitar cuenta
-            </a>
-            <p class="mt-3 text-center text-sm text-gray-600 max-w-sm">Diligencia el formulario e inicia el proceso de activación como cliente TUTI. Activaremos tu cuenta en 24 horas</p>
+            <div class="flex flex-col flex-1 w-full">
+                <ul class="space-y-3 text-sm sm:text-base text-gray-700 flex-1">
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-5 h-5 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center" aria-hidden="true">
+                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+                        </span>
+                        <span>Tendero, surte tu tienda en línea</span>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-5 h-5 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center" aria-hidden="true">
+                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+                        </span>
+                        <span>Accede a promociones y descuentos exclusivos</span>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-5 h-5 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center" aria-hidden="true">
+                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+                        </span>
+                        <span>Recibe tu pedido en 24 horas (Cobertura ruta TRONEX)</span>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="mt-0.5 flex-shrink-0 w-5 h-5 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center" aria-hidden="true">
+                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+                        </span>
+                        <span>Cuenta con el respaldo y acompañamiento de TRONEX</span>
+                    </li>
+                </ul>
+
+                <div class="mt-auto pt-8">
+                    <a href="{{ route('new-client.create') }}" class="w-full inline-flex items-center justify-center bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-4 rounded-lg transition duration-300">
+                        Solicitar cuenta
+                    </a>
+                    <p class="mt-3 text-center text-sm text-gray-600">Diligencia el formulario e inicia el proceso de activación como cliente TUTI. Activaremos tu cuenta en 24 horas.</p>
+                </div>
+            </div>
         </div>
     </div>
 </div>
