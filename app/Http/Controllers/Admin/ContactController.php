@@ -7,10 +7,12 @@ use App\Http\Controllers\Controller;
 use App\Models\Contact;
 use App\Models\User;
 use App\Models\ZoneRoute;
+use App\Services\DraftOrderReconciliationService;
 use App\Services\NewClientService;
 use Illuminate\Http\Request;
 use App\Exports\ContactsExport;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
@@ -23,6 +25,8 @@ class ContactController extends Controller
      */
     public function index(Request $request)
     {
+        $zoneFilter = trim((string) $request->input('zone', ''));
+
         $contacts = Contact::query()
             ->with(['city', 'clientUser.zones'])
             ->when($request->date_from, function ($query, $dateFrom) {
@@ -34,10 +38,27 @@ class ContactController extends Controller
             ->when($request->status, function ($query, $status) {
                 $query->where('status', $status);
             })
+            ->when($zoneFilter !== '', function ($query) use ($zoneFilter) {
+                $query->where(function ($sub) use ($zoneFilter) {
+                    $sub->where('new_client_payload->Zona', $zoneFilter)
+                        ->orWhereHas('clientUser.zones', function ($zones) use ($zoneFilter) {
+                            $zones->where('zone', $zoneFilter);
+                        });
+                });
+            })
             ->orderByDesc('id')
-            ->paginate();
+            ->paginate()
+            ->withQueryString();
 
-        return view('contacts.index', compact('contacts'));
+        $zoneOptions = ZoneRoute::query()
+            ->distinct()
+            ->orderBy('zone')
+            ->pluck('zone')
+            ->values();
+
+        $layout = $this->resolveLayout();
+
+        return view('contacts.index', compact('contacts', 'zoneOptions', 'layout', 'zoneFilter'));
     }
 
     /**
@@ -77,7 +98,9 @@ class ContactController extends Controller
             ->map(fn ($items) => $items->pluck('route')->values())
             ->toArray();
 
-        return view('contacts.show', compact('contact', 'zoneOptions', 'routesByZone'));
+        $layout = $this->resolveLayout();
+
+        return view('contacts.show', compact('contact', 'zoneOptions', 'routesByZone', 'layout'));
     }
 
     /**
@@ -252,7 +275,39 @@ class ContactController extends Controller
             'external_submitted_at' => now(),
         ]);
 
+        $this->syncClientZoneData($linkedClient, $payload);
+        $this->attemptPostCreateRuteroSync($linkedClient->fresh(['zones']));
+
         return back()->with('success', "Cliente enviado correctamente a la API externa. Código: {$result['codigo_cliente']}");
+    }
+
+    /**
+     * Best-effort rutero sync after admin completes ClienteNuevo transmission.
+     * Dynamics may not have the rutero yet — failures are expected and non-blocking.
+     */
+    private function attemptPostCreateRuteroSync(User $user): void
+    {
+        try {
+            $result = app(DraftOrderReconciliationService::class)->syncUserFromRutero(
+                $user,
+                promoteIfPossible: true,
+                transmitDrafts: false,
+            );
+
+            Log::info('Contact NewClient: post-create rutero sync attempted', [
+                'user_id' => $user->id,
+                'document' => $user->document,
+                'synced' => $result['synced'],
+                'promoted' => $result['promoted'],
+                'message' => $result['message'],
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('Contact NewClient: post-create rutero sync failed', [
+                'user_id' => $user->id,
+                'document' => $user->document,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**
@@ -365,5 +420,15 @@ class ContactController extends Controller
             'address' => $address !== '' ? $address : 'Dirección por asignar',
             'code' => null,
         ]);
+    }
+
+    private function resolveLayout(): string
+    {
+        $user = auth()->user();
+        if ($user && $user->hasRole('admin')) {
+            return 'layouts.admin';
+        }
+
+        return 'layouts.page';
     }
 }

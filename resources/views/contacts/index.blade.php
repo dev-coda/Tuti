@@ -1,11 +1,11 @@
-@extends('layouts.admin')
+@extends($layout ?? 'layouts.admin')
 
 
 @section('content')
 
 
 
-<div class="p-4 bg-white block border-b border-gray-200">
+<div class="p-4 bg-white block border-b border-gray-200 {{ ($layout ?? '') === 'layouts.page' ? 'max-w-6xl mx-auto mt-6 rounded-xl border border-gray-200' : '' }}">
     <div class="w-full mb-1">
         <div class="mb-4 flex justify-between items-center">
             <h1 class="text-xl font-semibold text-gray-900 sm:text-2xl ">Interesados</h1>
@@ -46,6 +46,17 @@
                         @endforeach
                     </select>
                 </div>
+
+                <div class="flex-1 min-w-[140px]">
+                    <label for="zone_filter" class="block text-sm font-medium text-gray-700 mb-1">Zona</label>
+                    <select name="zone" id="zone_filter"
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500">
+                        <option value="">Todas</option>
+                        @foreach(($zoneOptions ?? []) as $zoneOption)
+                            <option value="{{ $zoneOption }}" @selected(($zoneFilter ?? request('zone')) === (string) $zoneOption)>{{ $zoneOption }}</option>
+                        @endforeach
+                    </select>
+                </div>
                 
                 <div class="flex gap-2">
                     <button 
@@ -63,7 +74,7 @@
                     </a>
                     
                     <a 
-                        href="{{ route('admin.export.contacts', ['date_from' => request('date_from'), 'date_to' => request('date_to')]) }}"
+                        href="{{ route('admin.export.contacts', ['date_from' => request('date_from'), 'date_to' => request('date_to'), 'zone' => request('zone'), 'status' => request('status')]) }}"
                         class="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 focus:ring-4 focus:ring-green-300 flex items-center gap-2"
                         title="Descargar CSV"
                     >

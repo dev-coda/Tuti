@@ -20,8 +20,7 @@ class SupervisorController extends Controller
                         ->orWhere('email', 'ilike', "%{$q}%")
                         ->orWhere('zone', 'ilike', "%{$q}%")
                         ->orWhereHas('supervisorRoutes', function ($routes) use ($q) {
-                            $routes->where('zone', 'ilike', "%{$q}%")
-                                ->orWhere('route', 'ilike', "%{$q}%");
+                            $routes->where('zone', 'ilike', "%{$q}%");
                         });
                 });
             })
@@ -125,40 +124,35 @@ class SupervisorController extends Controller
     }
 
     /**
-     * Normalize the repeatable zone/route rows: drop empty rows, trim values,
-     * reject half-filled or non-numeric rows and de-duplicate pairs.
+     * Normalize the repeatable zone rows: drop empties, reject non-numeric
+     * values and de-duplicate zones.
      *
-     * @return array<int, array{zone: string, route: string}>
+     * @return array<int, array{zone: string, route: null}>
      */
     private function validatedAssignments(Request $request): array
     {
         $rows = collect($request->input('assignments', []))
-            ->map(fn ($row) => [
-                'zone' => trim((string) ($row['zone'] ?? '')),
-                'route' => trim((string) ($row['route'] ?? '')),
-            ])
-            ->reject(fn ($row) => $row['zone'] === '' && $row['route'] === '')
+            ->map(fn ($row) => trim((string) ($row['zone'] ?? '')))
+            ->reject(fn ($zone) => $zone === '')
             ->values();
 
-        $invalid = $rows->first(fn ($row) => $row['zone'] === ''
-            || $row['route'] === ''
-            || !preg_match('/^\d{1,10}$/', $row['zone'])
-            || !preg_match('/^\d{1,10}$/', $row['route']));
+        $invalid = $rows->first(fn ($zone) => ! preg_match('/^\d{1,10}$/', $zone));
 
         if ($invalid !== null) {
             throw ValidationException::withMessages([
-                'assignments' => 'Cada ruta asignada debe tener zona y ruta numéricas.',
+                'assignments' => 'Cada zona asignada debe ser numérica.',
             ]);
         }
 
         return $rows
-            ->unique(fn ($row) => $row['zone'] . '|' . $row['route'])
+            ->unique()
+            ->map(fn ($zone) => ['zone' => $zone, 'route' => null])
             ->values()
             ->all();
     }
 
     /**
-     * @param  array<int, array{zone: string, route: string}>  $assignments
+     * @param  array<int, array{zone: string, route: null}>  $assignments
      */
     private function syncAssignments(User $user, array $assignments): void
     {

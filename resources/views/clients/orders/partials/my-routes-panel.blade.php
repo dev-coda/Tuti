@@ -2,6 +2,8 @@
     $myRoutes = $myRoutes ?? [];
     $assignments = $myRoutes['assignments'] ?? collect();
     $selected = $myRoutes['selected'] ?? null;
+    $routeOptions = $myRoutes['routeOptions'] ?? collect();
+    $selectedRoute = $myRoutes['selectedRoute'] ?? '';
     $routeFilters = $myRoutes['filters'] ?? [];
     $routeOrders = $myRoutes['orders'] ?? null;
 @endphp
@@ -9,23 +11,34 @@
 <div class="space-y-6">
     @if($assignments->isEmpty())
         <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-6 text-center text-gray-500">
-            No tienes rutas asignadas. Contacta al administrador para configurar tus rutas.
+            No tienes zonas asignadas. Contacta al administrador para configurar tus zonas.
         </div>
     @else
         <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-4 sm:p-6">
             <form method="GET" action="{{ route('clients.orders.index') }}"
                   data-orders-form data-tab="mis-rutas" data-page-param="sr_page">
                 <input type="hidden" name="tab" value="mis-rutas">
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 items-end">
-                    <div class="lg:col-span-2">
-                        <label for="mis-rutas-select" class="block text-xs font-medium text-gray-500 mb-1">Ruta</label>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-4 items-end">
+                    <div class="lg:col-span-1">
+                        <label for="mis-rutas-select" class="block text-xs font-medium text-gray-500 mb-1">Zona</label>
                         <select id="mis-rutas-select" name="sr" data-orders-autosubmit
                                 class="w-full border-gray-300 rounded-lg text-sm px-3 py-2 focus:ring-orange-500 focus:border-orange-500">
-                            <option value="">Selecciona una ruta</option>
+                            <option value="">Selecciona una zona</option>
                             @foreach($assignments as $assignment)
                                 <option value="{{ $assignment->id }}" @selected($selected && $selected->id === $assignment->id)>
                                     {{ $assignment->label() }}
                                 </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="lg:col-span-1">
+                        <label for="mis-rutas-ruta" class="block text-xs font-medium text-gray-500 mb-1">Ruta</label>
+                        <select id="mis-rutas-ruta" name="sr_ruta" data-orders-autosubmit
+                                class="w-full border-gray-300 rounded-lg text-sm px-3 py-2 focus:ring-orange-500 focus:border-orange-500"
+                                @disabled(!$selected)>
+                            <option value="">Todas las rutas</option>
+                            @foreach($routeOptions as $route)
+                                <option value="{{ $route }}" @selected($selectedRoute === (string) $route)>{{ $route }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -51,7 +64,7 @@
                             @endforeach
                         </select>
                     </div>
-                    <div>
+                    <div class="lg:col-span-2">
                         <label class="block text-xs font-medium text-gray-500 mb-1">Buscar cliente</label>
                         <input type="text" name="sr_q" data-orders-filter="q"
                                value="{{ $routeFilters['q'] ?? '' }}"
@@ -64,7 +77,9 @@
 
         @if($selected && $routeOrders)
             <div class="flex items-center justify-between px-1">
-                <h2 class="text-sm font-semibold text-gray-900">Pedidos de la {{ $selected->label() }}</h2>
+                <h2 class="text-sm font-semibold text-gray-900">
+                    Pedidos de la {{ $selected->label() }}{{ $selectedRoute !== '' ? ' — Ruta '.$selectedRoute : '' }}
+                </h2>
                 <span class="text-xs font-medium text-gray-500">
                     {{ $routeOrders->total() }} {{ $routeOrders->total() === 1 ? 'pedido' : 'pedidos' }}
                 </span>
@@ -79,7 +94,9 @@
                 'statuses' => $statuses,
                 'sellerDashToday' => $sellerDashToday,
                 'filters' => $routeFilters,
-                'emptyMessage' => 'No hay pedidos en esta ruta para el rango seleccionado.',
+                'emptyMessage' => $selectedRoute !== ''
+                    ? 'No hay pedidos en esta zona/ruta para el rango seleccionado.'
+                    : 'No hay pedidos en esta zona para el rango seleccionado.',
             ])
         @endif
     @endif

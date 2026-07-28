@@ -16,7 +16,7 @@ beforeEach(function () {
     Role::firstOrCreate(['name' => 'supervisor', 'guard_name' => 'web']);
 });
 
-it('allows admin to create a supervisor with multiple route assignments', function () {
+it('allows admin to create a supervisor with multiple zone assignments', function () {
     $admin = User::factory()->create();
     $admin->assignRole('admin');
 
@@ -29,9 +29,9 @@ it('allows admin to create a supervisor with multiple route assignments', functi
         'password' => 'Password123!',
         'password_confirmation' => 'Password123!',
         'assignments' => [
-            ['zone' => '101', 'route' => '0001'],
-            ['zone' => '102', 'route' => '0002'],
-            ['zone' => '', 'route' => ''], // ignored empty row
+            ['zone' => '101'],
+            ['zone' => '102'],
+            ['zone' => ''], // ignored empty row
         ],
     ])->assertRedirect(route('supervisors.index'));
 
@@ -41,11 +41,11 @@ it('allows admin to create a supervisor with multiple route assignments', functi
     expect($user->hasRole('supervisor'))->toBeTrue();
     expect((int) $user->zone)->toBe(101);
     expect($user->supervisorRoutes)->toHaveCount(2);
-    expect($user->supervisorRoutes->pluck('route')->sort()->values()->all())->toBe(['0001', '0002']);
+    expect($user->supervisorRoutes->pluck('zone')->sort()->values()->all())->toBe(['101', '102']);
     expect($user->supervisedZones())->toEqualCanonicalizing(['101', '102']);
 });
 
-it('allows admin to sync supervisor route assignments on update', function () {
+it('allows admin to sync supervisor zone assignments on update', function () {
     $admin = User::factory()->create();
     $admin->assignRole('admin');
 
@@ -58,7 +58,7 @@ it('allows admin to sync supervisor route assignments on update', function () {
     SupervisorRoute::create([
         'user_id' => $supervisor->id,
         'zone' => '50',
-        'route' => '0001',
+        'route' => null,
     ]);
 
     actingAs($admin);
@@ -68,8 +68,8 @@ it('allows admin to sync supervisor route assignments on update', function () {
         'email' => 'supervisor.edit@example.com',
         'zone' => 50,
         'assignments' => [
-            ['zone' => '60', 'route' => '0011'],
-            ['zone' => '70', 'route' => '0022'],
+            ['zone' => '60'],
+            ['zone' => '70'],
         ],
     ])->assertRedirect(route('supervisors.index'));
 
@@ -78,14 +78,14 @@ it('allows admin to sync supervisor route assignments on update', function () {
     expect($supervisor->supervisorRoutes)->toHaveCount(2);
     expect(
         $supervisor->supervisorRoutes
-            ->map(fn ($row) => $row->zone . '|' . $row->route)
+            ->pluck('zone')
             ->sort()
             ->values()
             ->all()
-    )->toBe(['60|0011', '70|0022']);
+    )->toBe(['60', '70']);
 });
 
-it('rejects half-filled supervisor route assignments', function () {
+it('rejects non-numeric supervisor zone assignments', function () {
     $admin = User::factory()->create();
     $admin->assignRole('admin');
 
@@ -97,7 +97,7 @@ it('rejects half-filled supervisor route assignments', function () {
         'password' => 'Password123!',
         'password_confirmation' => 'Password123!',
         'assignments' => [
-            ['zone' => '101', 'route' => ''],
+            ['zone' => 'ABC'],
         ],
     ])->assertSessionHasErrors(['assignments']);
 

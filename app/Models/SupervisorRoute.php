@@ -6,8 +6,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Zone/route pair assigned to a supervisor so they can monitor every order
- * placed on that route from the "Mis Rutas" tab in Mi Cuenta.
+ * Zone assigned to a supervisor so they can monitor every order placed in that
+ * zona (any ruta) from the "Mis Zonas" tab in Mi Cuenta.
  */
 class SupervisorRoute extends Model
 {
@@ -26,6 +26,6 @@ class SupervisorRoute extends Model
 
     public function label(): string
     {
-        return 'Zona ' . $this->zone . ' — Ruta ' . $this->route;
+        return 'Zona '.$this->zone;
     }
 }

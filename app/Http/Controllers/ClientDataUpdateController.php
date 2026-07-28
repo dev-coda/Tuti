@@ -283,8 +283,16 @@ class ClientDataUpdateController extends Controller
             abort(404);
         }
 
-        $sellerZone = trim((string) $seller->zone);
-        if ($sellerZone !== '' && trim((string) $zone->zone) !== $sellerZone) {
+        if ($seller->hasRole('admin')) {
+            return;
+        }
+
+        $allowedZones = $seller->supervisedZones();
+        if ($allowedZones === []) {
+            abort(403);
+        }
+
+        if (! in_array(trim((string) $zone->zone), $allowedZones, true)) {
             abort(403);
         }
     }

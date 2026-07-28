@@ -2,6 +2,7 @@
 
 use App\Models\User;
 use App\Models\ZoneRoute;
+use App\Services\DraftOrderReconciliationService;
 use App\Services\NewClientService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -69,10 +70,12 @@ it('validates required fields on store', function () {
             'Documento', 'TipoDocumento', 'NombreNegocio',
             'RazonSocial',
             'IdClasificacionCliente', 'Departamento', 'Ciudad',
-            'Direccion', 'Barrio', 'Zona', 'RutaZonaVentas',
+            'Direccion', 'Barrio', 'RutaZonaVentas',
             'DiaRecorrido', 'Posicion', 'Pep', 'signature', 'terms_accepted',
             'privacy_accepted', 'documents',
-        ]);
+        ])
+        // Zona is forced from the authenticated seller, so it is not a missing field.
+        ->assertSessionDoesntHaveErrors('Zona');
 });
 
 it('validates document format', function () {
@@ -590,4 +593,101 @@ it('escapes XML special characters in service', function () {
 
     expect($xml)->toContain('Tienda &lt;El &amp; Sol&gt;')
         ->toContain('Calle "5" &amp; 10');
+});
+
+it('forces the authenticated seller zone into the cliente nuevo API payload', function () {
+    \Illuminate\Support\Facades\Storage::fake('public');
+
+    $captured = null;
+    $this->mock(NewClientService::class, function ($mock) use (&$captured) {
+        $mock->shouldReceive('registerClient')->once()->andReturnUsing(function (array $data) use (&$captured) {
+            $captured = $data;
+
+            return ['success' => true, 'id' => 20, 'codigo_cliente' => 'C-0020', 'message' => 'ok'];
+        });
+        $mock->shouldReceive('uploadMedia')->once()->andReturn(['success' => true, 'message' => 'ok']);
+    });
+
+    $this->mock(DraftOrderReconciliationService::class, function ($mock) {
+        $mock->shouldReceive('syncUserFromRutero')->once()->andReturn([
+            'success' => false,
+            'synced' => false,
+            'promoted' => false,
+            'drafts' => [
+                'drafts_attempted' => 0,
+                'drafts_queued' => 0,
+                'drafts_waiting' => 0,
+                'drafts_failed' => 0,
+            ],
+            'message' => 'No se encontró rutero en Dynamics para este documento.',
+            'user' => null,
+        ]);
+    });
+
+    actingAs($this->seller)
+        ->post(route('new-client.store'), validNewClientPayload([
+            // Attempt to register into a different zone than the seller's.
+            'Zona' => '999',
+        ]))
+        ->assertRedirect(route('new-client.create'))
+        ->assertSessionHas('success');
+
+    expect($captured)->not->toBeNull()
+        ->and($captured['Zona'])->toBe('001');
+
+    $client = User::query()->where('document', '900123456')->first();
+    expect($client)->not->toBeNull()
+        ->and($client->zones()->where('zone', '001')->exists())->toBeTrue()
+        ->and($client->zones()->where('zone', '999')->exists())->toBeFalse();
+});
+
+it('attempts a non-blocking rutero sync after seller client creation', function () {
+    \Illuminate\Support\Facades\Storage::fake('public');
+
+    $this->mock(NewClientService::class, function ($mock) {
+        $mock->shouldReceive('registerClient')->once()->andReturn([
+            'success' => true, 'id' => 21, 'codigo_cliente' => 'C-0021', 'message' => 'ok',
+        ]);
+        $mock->shouldReceive('uploadMedia')->once()->andReturn(['success' => true, 'message' => 'ok']);
+    });
+
+    $this->mock(DraftOrderReconciliationService::class, function ($mock) {
+        $mock->shouldReceive('syncUserFromRutero')
+            ->once()
+            ->withArgs(function (User $user, bool $promoteIfPossible, bool $transmitDrafts) {
+                return $user->document === '900123456'
+                    && $promoteIfPossible === true
+                    && $transmitDrafts === false;
+            })
+            ->andReturn([
+                'success' => false,
+                'synced' => false,
+                'promoted' => false,
+                'drafts' => [
+                    'drafts_attempted' => 0,
+                    'drafts_queued' => 0,
+                    'drafts_waiting' => 0,
+                    'drafts_failed' => 0,
+                ],
+                'message' => 'No se encontró rutero en Dynamics para este documento.',
+                'user' => null,
+            ]);
+    });
+
+    actingAs($this->seller)
+        ->post(route('new-client.store'), validNewClientPayload())
+        ->assertRedirect(route('new-client.create'))
+        ->assertSessionHas('success');
+});
+
+it('rejects seller registration when the seller has no assigned zone', function () {
+    $this->seller->update(['zone' => null]);
+
+    $this->mock(NewClientService::class, function ($mock) {
+        $mock->shouldNotReceive('registerClient');
+    });
+
+    actingAs($this->seller)
+        ->post(route('new-client.store'), validNewClientPayload(['Zona' => '001']))
+        ->assertSessionHasErrors('Zona');
 });

@@ -7,6 +7,7 @@ use App\Models\State;
 use App\Models\User;
 use App\Models\ZoneRoute;
 use App\Rules\ValidClientEmail;
+use App\Services\DraftOrderReconciliationService;
 use App\Services\NewClientService;
 use App\Services\PendingClientProvisioningService;
 use Illuminate\Http\Request;
@@ -147,10 +148,23 @@ class NewClientController extends Controller
     public function store(Request $request, NewClientService $service)
     {
         $isSellerFlow = $this->isSellerFlow();
+        $sellerZone = $isSellerFlow ? $this->resolveSellerZone() : null;
+
+        // Sellers/supervisors must always register into their assigned zone.
+        // Force it server-side so the API payload cannot omit or override it.
+        if ($isSellerFlow) {
+            if ($sellerZone === null) {
+                return back()->withInput()->withErrors([
+                    'Zona' => 'Tu usuario no tiene una zona asignada. Contacta a un administrador.',
+                ]);
+            }
+            $request->merge(['Zona' => $sellerZone]);
+        }
+
         $rutaRules = [$isSellerFlow ? 'required' : 'nullable', 'string', 'regex:/^\d{4}$/'];
         if ($isSellerFlow) {
             $rutaRules[] = Rule::exists('zone_routes', 'route')
-                ->where(fn ($q) => $q->where('zone', strtoupper((string) $request->input('Zona'))));
+                ->where(fn ($q) => $q->where('zone', $sellerZone));
         }
 
         $validated = $request->validate([
@@ -191,8 +205,11 @@ class NewClientController extends Controller
             'privacy_accepted.required' => 'Debes aceptar la política de privacidad y tratamiento de datos personales.',
             'privacy_accepted.accepted' => 'Debes aceptar la política de privacidad y tratamiento de datos personales.',
         ]);
-        if (!empty($validated['Zona'])) {
-            $validated['Zona'] = strtoupper((string) $validated['Zona']);
+
+        if ($isSellerFlow) {
+            $validated['Zona'] = $sellerZone;
+        } elseif (! empty($validated['Zona'])) {
+            $validated['Zona'] = strtoupper(trim((string) $validated['Zona']));
         }
 
         // Register everything in uppercase.
@@ -276,11 +293,12 @@ class NewClientController extends Controller
                 'error' => $mediaResult['message'],
             ]);
 
-            app(PendingClientProvisioningService::class)->provisionFromNewClient(
+            $localClient = app(PendingClientProvisioningService::class)->provisionFromNewClient(
                 $validated,
                 $result['codigo_cliente'] ?? null,
                 preserveExistingStatus: $isSucursal
             );
+            $this->attemptPostCreateRuteroSync($localClient);
 
             return back()->with('warning',
                 "Cliente registrado (Código: {$result['codigo_cliente']}), pero hubo un error al subir los archivos: {$mediaResult['message']}"
@@ -292,6 +310,7 @@ class NewClientController extends Controller
             $result['codigo_cliente'] ?? null,
             preserveExistingStatus: $isSucursal
         );
+        $this->attemptPostCreateRuteroSync($localClient);
 
         $successMessage = $isSucursal
             ? "Sucursal registrada exitosamente. Código: {$result['codigo_cliente']}. Documento del cliente: {$localClient->document}"
@@ -299,6 +318,35 @@ class NewClientController extends Controller
 
         return redirect()->route('new-client.create')
             ->with('success', $successMessage);
+    }
+
+    /**
+     * Best-effort rutero sync after ClienteNuevo registration.
+     * Fresh clients often are not in Dynamics yet — failures are expected and non-blocking.
+     */
+    private function attemptPostCreateRuteroSync(User $user): void
+    {
+        try {
+            $result = app(DraftOrderReconciliationService::class)->syncUserFromRutero(
+                $user,
+                promoteIfPossible: true,
+                transmitDrafts: false,
+            );
+
+            Log::info('NewClient: post-create rutero sync attempted', [
+                'user_id' => $user->id,
+                'document' => $user->document,
+                'synced' => $result['synced'],
+                'promoted' => $result['promoted'],
+                'message' => $result['message'],
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('NewClient: post-create rutero sync failed', [
+                'user_id' => $user->id,
+                'document' => $user->document,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     private function storeAsInteresado(array $validated, UploadedFile $signaturePdf, array $storedDocumentPaths)
@@ -606,6 +654,19 @@ class NewClientController extends Controller
             return null;
         }
 
-        return $user->zone ?: $user->zones()->orderBy('id')->value('zone');
+        $candidates = [
+            $user->zone,
+            $user->supervisorRoutes()->orderBy('id')->value('zone'),
+            $user->zones()->orderBy('id')->value('zone'),
+        ];
+
+        foreach ($candidates as $candidate) {
+            $zone = strtoupper(trim((string) ($candidate ?? '')));
+            if ($zone !== '') {
+                return substr($zone, 0, 3);
+            }
+        }
+
+        return null;
     }
 }

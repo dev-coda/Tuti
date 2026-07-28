@@ -4,6 +4,7 @@ use App\Models\Contact;
 use App\Models\Order;
 use App\Models\SupervisorRoute;
 use App\Models\User;
+use App\Models\ZoneRoute;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Spatie\Permission\Models\Role;
@@ -23,21 +24,85 @@ it('blocks supervisor from the admin zone', function () {
     $user = User::factory()->create();
     $user->assignRole('supervisor');
 
+    actingAs($user);
+
+    get(route('dashboard'))->assertStatus(302);
+    get(route('orders.index'))->assertStatus(302);
+    get(route('users.index'))->assertStatus(302);
+});
+
+it('allows supervisor to access interesados and edit them', function () {
+    $user = User::factory()->create();
+    $user->assignRole('supervisor');
+
     $contact = Contact::create([
         'name' => 'Contacto Supervisor',
         'email' => 'contacto.supervisor@example.com',
         'phone' => '3001112233',
         'business_name' => 'Negocio Supervisor',
         'status' => 'interesado',
+        'nit' => '900111222',
+        'address' => 'Calle 1',
+        'new_client_payload' => ['Zona' => '101'],
     ]);
 
     actingAs($user);
 
-    get(route('dashboard'))->assertStatus(302);
-    get(route('contacts.index'))->assertStatus(302);
-    get(route('contacts.show', $contact))->assertStatus(302);
-    get(route('orders.index'))->assertStatus(302);
-    get(route('users.index'))->assertStatus(302);
+    get(route('contacts.index'))
+        ->assertOk()
+        ->assertSee('Interesados')
+        ->assertSee('Contacto Supervisor');
+
+    get(route('contacts.show', $contact))
+        ->assertOk()
+        ->assertSee('Contacto #'.$contact->id);
+
+    $this->put(route('contacts.update', $contact), [
+        'quick_status_update' => 1,
+        'status' => 'contactado',
+    ])->assertRedirect();
+
+    expect($contact->fresh()->status)->toBe('contactado');
+});
+
+it('allows supervisor to filter interesados by zone', function () {
+    ZoneRoute::create(['zone' => '101', 'route' => '1001']);
+    ZoneRoute::create(['zone' => '202', 'route' => '2002']);
+
+    $supervisor = User::factory()->create();
+    $supervisor->assignRole('supervisor');
+
+    Contact::create([
+        'name' => 'Interesado Zona 101',
+        'email' => 'z101@example.com',
+        'phone' => '3001112233',
+        'business_name' => 'Negocio 101',
+        'status' => 'interesado',
+        'nit' => '900101101',
+        'new_client_payload' => ['Zona' => '101'],
+    ]);
+
+    Contact::create([
+        'name' => 'Interesado Zona 202',
+        'email' => 'z202@example.com',
+        'phone' => '3002223344',
+        'business_name' => 'Negocio 202',
+        'status' => 'interesado',
+        'nit' => '900202202',
+        'new_client_payload' => ['Zona' => '202'],
+    ]);
+
+    actingAs($supervisor);
+
+    get(route('contacts.index'))
+        ->assertOk()
+        ->assertSee('Interesado Zona 101')
+        ->assertSee('Interesado Zona 202');
+
+    get(route('contacts.index', ['zone' => '101']))
+        ->assertOk()
+        ->assertSee('Interesado Zona 101')
+        ->assertDontSee('Interesado Zona 202');
 });
 
 it('allows supervisor to use seller setclient route', function () {
@@ -51,19 +116,19 @@ it('allows supervisor to use seller setclient route', function () {
     $response->assertSessionHasErrors(['document']);
 });
 
-it('shows mis rutas tab with orders for the selected assigned route', function () {
+it('shows mis zonas tab with all orders for the selected assigned zone', function () {
     $supervisor = User::factory()->create();
     $supervisor->assignRole('supervisor');
 
     $assignmentA = SupervisorRoute::create([
         'user_id' => $supervisor->id,
         'zone' => '101',
-        'route' => '0001',
+        'route' => null,
     ]);
     SupervisorRoute::create([
         'user_id' => $supervisor->id,
         'zone' => '102',
-        'route' => '0002',
+        'route' => null,
     ]);
 
     $clientOnRoute = User::factory()->create(['name' => 'Cliente Ruta Asignada']);
@@ -116,19 +181,13 @@ it('shows mis rutas tab with orders for the selected assigned route', function (
 
     $response = get(route('clients.orders.index', ['tab' => 'mis-rutas', 'sr' => $assignmentA->id]))
         ->assertOk()
-        ->assertSee('Mis Rutas')
-        ->assertSee('Zona 101 — Ruta 0001')
-        ->assertSee('Zona 102 — Ruta 0002')
-        ->assertSee('Pedidos de la Zona 101 — Ruta 0001')
-        ->assertSee('1 pedido')
+        ->assertSee('Mis Zonas')
+        ->assertSee('Zona 101')
+        ->assertSee('Zona 102')
+        ->assertSee('Pedidos de la Zona 101')
+        ->assertSee('2 pedidos')
         ->assertSee('Cliente Ruta Asignada')
         ->assertDontSee('data-tab-trigger="mi-ruta"', false);
-
-    // Mis Rutas scopes by zone+route; the other-route client must not appear
-    // inside that panel even if Pedidos del día lists zona-level orders.
-    expect($response->getContent())
-        ->toContain('data-tab-panel="mis-rutas"')
-        ->and(substr_count($response->getContent(), 'Cliente Ruta Asignada'))->toBeGreaterThan(0);
 
     $misRutasPanel = Str::between(
         $response->getContent(),
@@ -138,17 +197,95 @@ it('shows mis rutas tab with orders for the selected assigned route', function (
 
     expect($misRutasPanel)
         ->toContain('Cliente Ruta Asignada')
-        ->not->toContain('Cliente Otra Ruta');
+        ->toContain('Cliente Otra Ruta');
 });
 
-it('does not show mis rutas orders from unassigned routes', function () {
+it('filters mis zonas orders by ruta within the selected zone', function () {
+    $supervisor = User::factory()->create();
+    $supervisor->assignRole('supervisor');
+
+    $assignment = SupervisorRoute::create([
+        'user_id' => $supervisor->id,
+        'zone' => '101',
+        'route' => null,
+    ]);
+
+    $clientOnRoute = User::factory()->create(['name' => 'Cliente Ruta 0001']);
+    $zoneOnRoute = $clientOnRoute->zones()->create([
+        'zone' => '101',
+        'route' => '0001',
+        'day' => 'Lunes',
+        'address' => 'Calle 1',
+        'code' => 'C101',
+    ]);
+
+    $clientOtherRoute = User::factory()->create(['name' => 'Cliente Ruta 0099']);
+    $zoneOther = $clientOtherRoute->zones()->create([
+        'zone' => '101',
+        'route' => '0099',
+        'day' => 'Martes',
+        'address' => 'Calle 2',
+        'code' => 'C199',
+    ]);
+
+    Order::create([
+        'user_id' => $clientOnRoute->id,
+        'status_id' => Order::STATUS_PENDING,
+        'total' => 1500,
+        'discount' => 0,
+        'delivery_method' => Order::DELIVERY_METHOD_TRONEX,
+        'zone_id' => $zoneOnRoute->id,
+        'zone_snapshot' => [
+            'zone' => '101',
+            'route' => '0001',
+            'code' => 'C101',
+        ],
+    ]);
+
+    Order::create([
+        'user_id' => $clientOtherRoute->id,
+        'status_id' => Order::STATUS_PENDING,
+        'total' => 2200,
+        'discount' => 0,
+        'delivery_method' => Order::DELIVERY_METHOD_TRONEX,
+        'zone_id' => $zoneOther->id,
+        'zone_snapshot' => [
+            'zone' => '101',
+            'route' => '0099',
+            'code' => 'C199',
+        ],
+    ]);
+
+    actingAs($supervisor);
+
+    $response = get(route('clients.orders.index', [
+        'tab' => 'mis-rutas',
+        'sr' => $assignment->id,
+        'sr_ruta' => '0001',
+    ]))
+        ->assertOk()
+        ->assertSee('Pedidos de la Zona 101 — Ruta 0001')
+        ->assertSee('1 pedido');
+
+    $misRutasPanel = Str::between(
+        $response->getContent(),
+        'data-tab-panel="mis-rutas"',
+        'data-tab-panel="orders"'
+    );
+
+    expect($misRutasPanel)
+        ->toContain('Cliente Ruta 0001')
+        ->not->toContain('Cliente Ruta 0099');
+});
+
+it('does not show mis zonas orders from unassigned zones', function () {
     $supervisor = User::factory()->create();
     $supervisor->assignRole('supervisor');
 
     $assignment = SupervisorRoute::create([
         'user_id' => $supervisor->id,
         'zone' => '200',
-        'route' => '0010',
+        'route' => null,
     ]);
 
     $client = User::factory()->create(['name' => 'Cliente Fuera']);
@@ -179,5 +316,5 @@ it('does not show mis rutas orders from unassigned routes', function () {
     get(route('clients.orders.index', ['tab' => 'mis-rutas', 'sr' => $assignment->id]))
         ->assertOk()
         ->assertDontSee('Cliente Fuera')
-        ->assertSee('No hay pedidos en esta ruta para el rango seleccionado.');
+        ->assertSee('No hay pedidos en esta zona para el rango seleccionado.');
 });

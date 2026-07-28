@@ -1,7 +1,7 @@
-@extends('layouts.admin')
+@extends($layout ?? 'layouts.admin')
 
 @section('content')
-<div class="p-4 bg-white">
+<div class="p-4 bg-white {{ ($layout ?? '') === 'layouts.page' ? 'max-w-6xl mx-auto mt-6 mb-10 rounded-xl border border-gray-200' : '' }}">
     <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
             <a href="{{ route('contacts.index') }}" class="text-sm text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1 mb-2">

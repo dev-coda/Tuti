@@ -124,16 +124,16 @@ class User extends Authenticatable
     }
 
     /**
-     * Zone/route pairs assigned to this user when they are a supervisor.
+     * Zones assigned to this user when they are a supervisor.
      */
     public function supervisorRoutes()
     {
-        return $this->hasMany(SupervisorRoute::class)->orderBy('zone')->orderBy('route');
+        return $this->hasMany(SupervisorRoute::class)->orderBy('zone');
     }
 
     /**
      * Every zona this staff user covers: the legacy single users.zone value
-     * plus the zones of their supervisor route assignments.
+     * plus the zones of their supervisor assignments.
      *
      * @return array<int, string>
      */

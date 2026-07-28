@@ -10,6 +10,7 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Models\Zone;
+use App\Models\ZoneRoute;
 use App\Models\ZoneWarehouse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -74,11 +75,18 @@ class OrderController extends Controller
     }
 
     /**
-     * Data for the supervisor "Mis Rutas" tab: the zone/route pairs assigned to
-     * the supervisor and, once one is selected, every order placed on that route
-     * within the requested timeframe (defaults to today, Colombia time).
+     * Data for the supervisor "Mis Zonas" tab: the zones assigned to the
+     * supervisor and, once one is selected, every order placed in that zona
+     * (optionally filtered by ruta) within the requested timeframe.
      *
-     * @return array{assignments:\Illuminate\Support\Collection,selected:\App\Models\SupervisorRoute|null,filters:array,orders:\Illuminate\Contracts\Pagination\LengthAwarePaginator|null}
+     * @return array{
+     *     assignments:\Illuminate\Support\Collection,
+     *     selected:\App\Models\SupervisorRoute|null,
+     *     routeOptions:\Illuminate\Support\Collection,
+     *     selectedRoute:string,
+     *     filters:array,
+     *     orders:\Illuminate\Contracts\Pagination\LengthAwarePaginator|null
+     * }
      */
     private function buildMyRoutesData(User $user, Request $request): array
     {
@@ -91,6 +99,14 @@ class OrderController extends Controller
             : $assignments->first();
 
         $filters = $this->normalizeDailyFilters($this->extractOrderFilters($request, 'sr_'), $today);
+        $routeOptions = $selected
+            ? $this->routeOptionsForZone((string) $selected->zone)
+            : collect();
+
+        $selectedRoute = trim((string) $request->input('sr_ruta', ''));
+        if ($selectedRoute !== '' && ! $routeOptions->contains($selectedRoute)) {
+            $selectedRoute = '';
+        }
 
         $orders = null;
         if ($selected) {
@@ -98,7 +114,7 @@ class OrderController extends Controller
                 $user,
                 $filters,
                 $request,
-                fn ($query) => $this->applyRouteScope($query, (string) $selected->zone, (string) $selected->route)
+                fn ($query) => $this->applyZoneScope($query, (string) $selected->zone, $selectedRoute !== '' ? $selectedRoute : null)
             )
                 ->orderByDesc('id')
                 ->paginate(15, ['*'], 'sr_page')
@@ -108,25 +124,58 @@ class OrderController extends Controller
         return [
             'assignments' => $assignments,
             'selected' => $selected,
+            'routeOptions' => $routeOptions,
+            'selectedRoute' => $selectedRoute,
             'filters' => $filters,
             'orders' => $orders,
         ];
     }
 
     /**
-     * Restrict an orders query to a specific zona + ruta, matching the live zone
-     * row first and falling back to the immutable zone_snapshot for orders whose
-     * zone row was pruned by rutero sync.
+     * Routes available for a logistics zona (catalog + live client zone rows).
+     *
+     * @return \Illuminate\Support\Collection<int, string>
      */
-    private function applyRouteScope($query, string $zone, string $route): void
+    private function routeOptionsForZone(string $zone): \Illuminate\Support\Collection
+    {
+        return ZoneRoute::query()
+            ->where('zone', $zone)
+            ->whereNotNull('route')
+            ->where('route', '!=', '')
+            ->pluck('route')
+            ->merge(
+                Zone::query()
+                    ->where('zone', $zone)
+                    ->whereNotNull('route')
+                    ->where('route', '!=', '')
+                    ->pluck('route')
+            )
+            ->map(fn ($route) => trim((string) $route))
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values();
+    }
+
+    /**
+     * Restrict an orders query to a specific zona (and optionally a ruta),
+     * matching the live zone row first and falling back to the immutable
+     * zone_snapshot for orders whose zone row was pruned by rutero sync.
+     */
+    private function applyZoneScope($query, string $zone, ?string $route = null): void
     {
         $query->where(function ($sub) use ($zone, $route) {
             $sub->whereHas('zone', function ($zoneQuery) use ($zone, $route) {
-                $zoneQuery->where('zone', $zone)->where('route', $route);
+                $zoneQuery->where('zone', $zone);
+                if ($route !== null && $route !== '') {
+                    $zoneQuery->where('route', $route);
+                }
             })
             ->orWhere(function ($snapshot) use ($zone, $route) {
-                $snapshot->where('zone_snapshot->zone', $zone)
-                    ->where('zone_snapshot->route', $route);
+                $snapshot->where('zone_snapshot->zone', $zone);
+                if ($route !== null && $route !== '') {
+                    $snapshot->where('zone_snapshot->route', $route);
+                }
             });
         });
     }
@@ -223,8 +272,20 @@ class OrderController extends Controller
             abort_unless($assignment, 404);
 
             $filters = $this->normalizeDailyFilters($this->extractOrderFilters($request, 'sr_'), $today);
-            $scope = fn ($query) => $this->applyRouteScope($query, (string) $assignment->zone, (string) $assignment->route);
-            $filePrefix = 'pedidos-ruta-' . $assignment->route;
+            $routeOptions = $this->routeOptionsForZone((string) $assignment->zone);
+            $selectedRoute = trim((string) $request->input('sr_ruta', ''));
+            if ($selectedRoute !== '' && ! $routeOptions->contains($selectedRoute)) {
+                $selectedRoute = '';
+            }
+
+            $scope = fn ($query) => $this->applyZoneScope(
+                $query,
+                (string) $assignment->zone,
+                $selectedRoute !== '' ? $selectedRoute : null
+            );
+            $filePrefix = $selectedRoute !== ''
+                ? 'pedidos-zona-'.$assignment->zone.'-ruta-'.$selectedRoute
+                : 'pedidos-zona-'.$assignment->zone;
         } elseif ($isTodayTab) {
             $filters = $this->normalizeDailyFilters($this->extractOrderFilters($request, 'today_'), $today);
             $filePrefix = 'pedidos-del-dia';

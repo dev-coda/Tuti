@@ -53,14 +53,17 @@ Route::middleware(['auth', 'role:seller|supervisor'])->group(function () {
     Route::post('/actualizacion-datos/{zone}', [\App\Http\Controllers\ClientDataUpdateController::class, 'store'])->name('client-data-updates.store');
 });
 
+// Interesados: admins and supervisors (supervisors can view/edit all, with optional zone filter).
+Route::middleware(['auth', 'role:admin|supervisor'])->group(function () {
+    Route::get('/contactexport', [ContactController::class, 'export'])->name('admin.export.contacts');
+    Route::post('contacts/{contact}/submit-new-client', [ContactController::class, 'submitNewClient'])->name('contacts.submit-new-client');
+    Route::resource('contacts', ContactController::class);
+});
+
 Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('/dashboard', function () {
         return to_route('products.index');
     })->name('dashboard');
-
-    Route::get('/contactexport', [ContactController::class, 'export'])->name('admin.export.contacts');
-    Route::post('contacts/{contact}/submit-new-client', [ContactController::class, 'submitNewClient'])->name('contacts.submit-new-client');
-    Route::resource('contacts', ContactController::class);
     Route::get('customer-service-requests', [CustomerServiceRequestController::class, 'index'])->name('admin.customer-service-requests.index');
     Route::get('customer-service-requests/{customerServiceRequest}', [CustomerServiceRequestController::class, 'show'])->name('admin.customer-service-requests.show');
     Route::get('client-data-update-requests', [ClientDataUpdateRequestController::class, 'index'])->name('admin.client-data-update-requests.index');
