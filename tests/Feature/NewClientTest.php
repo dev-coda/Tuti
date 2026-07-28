@@ -276,7 +276,7 @@ function validSignatureDataUrl(): string
 }
 
 it('returns prefill data for an existing client in sucursal lookup', function () {
-    User::factory()->create([
+    $client = User::factory()->create([
         'name' => 'Juan Carlos Perez Gomez',
         'document' => '900123456',
         'business_name' => 'Tienda El Sol',
@@ -284,6 +284,13 @@ it('returns prefill data for an existing client in sucursal lookup', function ()
         'mobile_phone' => '3101234567',
         'whatsapp' => '3107654321',
         'email' => 'cliente@example.com',
+    ]);
+    $client->zones()->create([
+        'zone' => '001',
+        'route' => '1111',
+        'day' => '1-Lunes',
+        'address' => 'Sucursal principal',
+        'code' => 'SUC-1',
     ]);
 
     actingAs($this->seller)
@@ -690,4 +697,137 @@ it('rejects seller registration when the seller has no assigned zone', function 
     actingAs($this->seller)
         ->post(route('new-client.store'), validNewClientPayload(['Zona' => '001']))
         ->assertSessionHasErrors('Zona');
+});
+
+it('prefills agregar sucursal from mi ruta deep link', function () {
+    $client = User::factory()->create([
+        'name' => 'Juan Carlos Perez Gomez',
+        'document' => '900123456',
+        'business_name' => 'Tienda El Sol',
+        'phone' => '8871234',
+        'mobile_phone' => '3101234567',
+        'email' => 'cliente@example.com',
+    ]);
+    $client->zones()->create([
+        'zone' => '001',
+        'route' => '1111',
+        'day' => '1-Lunes',
+        'address' => 'Sucursal principal',
+        'code' => 'SUC-1',
+    ]);
+
+    actingAs($this->seller)
+        ->get(route('new-client.create', [
+            'mode' => 'sucursal',
+            'document' => '900123456',
+            'return' => 'mi-ruta',
+        ]))
+        ->assertOk()
+        ->assertSee('name="return"', false)
+        ->assertSee('value="mi-ruta"', false)
+        ->assertSee('value="1"', false) // is_sucursal
+        ->assertSee('Agregar sucursal')
+        ->assertSee('value="900123456"', false)
+        ->assertSee('Tienda El Sol')
+        ->assertSee('Cliente encontrado');
+});
+
+it('shows an error on deep link when seller does not cover the client zone', function () {
+    $client = User::factory()->create([
+        'name' => 'Cliente Otra Zona',
+        'document' => '800800800',
+        'business_name' => 'Otra Zona SAS',
+    ]);
+    $client->zones()->create([
+        'zone' => '999',
+        'route' => '9999',
+        'day' => '1-Lunes',
+        'address' => 'Otra ciudad',
+        'code' => 'OUT-1',
+    ]);
+
+    actingAs($this->seller)
+        ->get(route('new-client.create', [
+            'mode' => 'sucursal',
+            'document' => '800800800',
+            'return' => 'mi-ruta',
+        ]))
+        ->assertOk()
+        ->assertSeeText('No tienes cobertura sobre este cliente para agregar una sucursal.');
+});
+
+it('rejects sucursal registration when seller does not cover the client', function () {
+    $client = User::factory()->create([
+        'document' => '800800800',
+        'business_name' => 'Otra Zona SAS',
+        'status_id' => User::ACTIVE,
+        'client_status' => User::CLIENT_STATUS_CLIENTE,
+    ]);
+    $client->zones()->create([
+        'zone' => '999',
+        'route' => '9999',
+        'day' => '1-Lunes',
+        'address' => 'Otra ciudad',
+        'code' => 'OUT-1',
+    ]);
+
+    $this->mock(NewClientService::class, function ($mock) {
+        $mock->shouldNotReceive('registerClient');
+    });
+
+    actingAs($this->seller)
+        ->post(route('new-client.store'), validNewClientPayload([
+            'is_sucursal' => '1',
+            'Documento' => '800800800',
+            'RazonSocial' => 'Otra Zona SAS',
+            'NombreNegocio' => 'Otra Zona',
+        ]))
+        ->assertSessionHasErrors('Documento');
+});
+
+it('redirects to mi cuenta mi ruta after sucursal registration when return is mi-ruta', function () {
+    \Illuminate\Support\Facades\Storage::fake('public');
+
+    $client = User::factory()->create([
+        'name' => 'Tienda El Sol SAS',
+        'document' => '900123456',
+        'business_name' => 'Tienda El Sol',
+        'status_id' => User::ACTIVE,
+        'client_status' => User::CLIENT_STATUS_CLIENTE,
+    ]);
+    $client->zones()->create([
+        'zone' => '001',
+        'route' => '1111',
+        'day' => '1-Lunes',
+        'address' => 'Sucursal principal',
+        'code' => 'SUC-1',
+    ]);
+
+    $this->mock(NewClientService::class, function ($mock) {
+        $mock->shouldReceive('registerClient')->once()->andReturn([
+            'success' => true,
+            'id' => 55,
+            'codigo_cliente' => 'C-0055',
+            'message' => 'ok',
+        ]);
+        $mock->shouldReceive('uploadMedia')->once()->andReturn([
+            'success' => true,
+            'message' => 'ok',
+        ]);
+    });
+
+    actingAs($this->seller)
+        ->post(route('new-client.store'), validNewClientPayload([
+            'is_sucursal' => '1',
+            'Documento' => '900123456',
+            'return' => 'mi-ruta',
+            'Direccion' => 'Calle Nueva Sucursal 2',
+            'Barrio' => 'Laureles',
+            'DiaRecorrido' => 'MARTES',
+            'Posicion' => 3,
+        ]))
+        ->assertRedirect(route('clients.orders.index', ['tab' => 'mi-ruta']))
+        ->assertSessionHas('success');
+
+    expect(session('success'))->toContain('Sucursal registrada');
 });

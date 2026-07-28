@@ -5,6 +5,13 @@
 @endsection
 
 @section('content')
+@php
+    $isSucursalMode = $isSucursalMode ?? false;
+    $prefillClient = $prefillClient ?? null;
+    $prefillError = $prefillError ?? null;
+    $returnTo = $returnTo ?? null;
+    $pref = fn (string $field, $default = '') => old($field, $prefillClient[$field] ?? $default);
+@endphp
 <style>
     /* All the information entered in the form is registered in uppercase. */
     #new-client-form input[type="text"]:not(#sucursal-document) {
@@ -34,8 +41,17 @@
     </div>
     @endif
 
+    @if($prefillError)
+    <div class="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+        <p class="text-red-800 font-medium">{{ $prefillError }}</p>
+    </div>
+    @endif
+
     <form method="POST" action="{{ route('new-client.store') }}" enctype="multipart/form-data" id="new-client-form">
         @csrf
+        @if($returnTo)
+            <input type="hidden" name="return" value="{{ $returnTo }}">
+        @endif
 
         @if($isSellerFlow)
         {{-- Registration mode (seller flow only) --}}
@@ -44,24 +60,24 @@
                 <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
                 Tipo de registro
             </h2>
-            <input type="hidden" name="is_sucursal" id="is_sucursal" value="{{ old('is_sucursal', '0') }}">
+            <input type="hidden" name="is_sucursal" id="is_sucursal" value="{{ old('is_sucursal', $isSucursalMode ? '1' : '0') }}">
             <div class="flex flex-col sm:flex-row gap-3">
                 <label class="flex-1 flex items-center gap-3 border rounded-lg px-4 py-3 cursor-pointer transition-colors" data-mode-option="cliente">
-                    <input type="radio" name="registration_mode" value="cliente" class="text-orange-600 focus:ring-orange-500" {{ old('is_sucursal') === '1' ? '' : 'checked' }}>
+                    <input type="radio" name="registration_mode" value="cliente" class="text-orange-600 focus:ring-orange-500" {{ old('is_sucursal', $isSucursalMode ? '1' : '0') === '1' ? '' : 'checked' }}>
                     <span class="text-sm font-medium text-gray-800">Cliente nuevo</span>
                 </label>
                 <label class="flex-1 flex items-center gap-3 border rounded-lg px-4 py-3 cursor-pointer transition-colors" data-mode-option="sucursal">
-                    <input type="radio" name="registration_mode" value="sucursal" class="text-orange-600 focus:ring-orange-500" {{ old('is_sucursal') === '1' ? 'checked' : '' }}>
+                    <input type="radio" name="registration_mode" value="sucursal" class="text-orange-600 focus:ring-orange-500" {{ old('is_sucursal', $isSucursalMode ? '1' : '0') === '1' ? 'checked' : '' }}>
                     <span class="text-sm font-medium text-gray-800">Agregar sucursal</span>
                 </label>
             </div>
 
-            <div id="sucursal-lookup" class="mt-4 {{ old('is_sucursal') === '1' ? '' : 'hidden' }}">
+            <div id="sucursal-lookup" class="mt-4 {{ old('is_sucursal', $isSucursalMode ? '1' : '0') === '1' ? '' : 'hidden' }}">
                 <p class="text-sm text-gray-500 mb-3">Ingresa el documento del cliente existente. Los datos del cliente se completarán automáticamente; solo debes diligenciar la información de la nueva sucursal (ubicación y ruta).</p>
                 <div class="flex flex-col sm:flex-row gap-3">
                     <div class="flex-1">
                         <label for="sucursal-document" class="block text-sm font-medium text-gray-700 mb-1">Documento del cliente existente</label>
-                        <input type="text" id="sucursal-document" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" maxlength="20" placeholder="NIT o Cédula">
+                        <input type="text" id="sucursal-document" value="{{ $pref('Documento') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" maxlength="20" placeholder="NIT o Cédula">
                     </div>
                     <div class="sm:self-end">
                         <button type="button" id="sucursal-search" class="w-full sm:w-auto px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium rounded-lg transition-colors">
@@ -69,7 +85,11 @@
                         </button>
                     </div>
                 </div>
-                <p id="sucursal-feedback" class="text-sm mt-2 hidden"></p>
+                <p id="sucursal-feedback" class="text-sm mt-2 {{ $prefillClient ? '' : 'hidden' }} {{ $prefillClient ? 'text-green-600' : '' }}">
+                    @if($prefillClient)
+                        Cliente encontrado: {{ $prefillClient['RazonSocial'] ?: $prefillClient['NombreNegocio'] }}. Completa la ubicación y la ruta de la nueva sucursal.
+                    @endif
+                </p>
             </div>
         </div>
         @endif
@@ -83,12 +103,12 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label for="RazonSocial" class="block text-sm font-medium text-gray-700 mb-1">Razón social *</label>
-                    <input type="text" name="RazonSocial" id="RazonSocial" value="{{ old('RazonSocial') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" maxlength="100" required>
+                    <input type="text" name="RazonSocial" id="RazonSocial" value="{{ $pref('RazonSocial') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" maxlength="100" required>
                     @error('RazonSocial') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                 </div>
                 <div>
                     <label for="NombreNegocio" class="block text-sm font-medium text-gray-700 mb-1">Nombre del negocio *</label>
-                    <input type="text" name="NombreNegocio" id="NombreNegocio" value="{{ old('NombreNegocio') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" maxlength="100" required>
+                    <input type="text" name="NombreNegocio" id="NombreNegocio" value="{{ $pref('NombreNegocio') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" maxlength="100" required>
                     @error('NombreNegocio') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                 </div>
                 <div>
@@ -132,7 +152,7 @@
                 </div>
                 <div>
                     <label for="Documento" class="block text-sm font-medium text-gray-700 mb-1">Documento *</label>
-                    <input type="text" name="Documento" id="Documento" value="{{ old('Documento') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" maxlength="20" placeholder="NIT o Cédula" required>
+                    <input type="text" name="Documento" id="Documento" value="{{ $pref('Documento') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 {{ $isSucursalMode && $prefillClient ? 'bg-gray-50' : '' }}" maxlength="20" placeholder="NIT o Cédula" {{ $isSucursalMode && $prefillClient ? 'readonly' : '' }} required>
                     <p id="documento-nit-hint" class="text-xs text-amber-700 mt-1 hidden">Registra el NIT <strong>sin el dígito de verificación</strong>.</p>
                     @error('Documento') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                 </div>
@@ -148,22 +168,22 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label for="PrimerNombre" class="block text-sm font-medium text-gray-700 mb-1">Primer nombre <span id="nombre-req" class="text-red-500 hidden">*</span></label>
-                    <input type="text" name="PrimerNombre" id="PrimerNombre" value="{{ old('PrimerNombre') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" maxlength="50">
+                    <input type="text" name="PrimerNombre" id="PrimerNombre" value="{{ $pref('PrimerNombre') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" maxlength="50">
                     @error('PrimerNombre') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                 </div>
                 <div>
                     <label for="SegundoNombre" class="block text-sm font-medium text-gray-700 mb-1">Segundo nombre</label>
-                    <input type="text" name="SegundoNombre" id="SegundoNombre" value="{{ old('SegundoNombre') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" maxlength="50">
+                    <input type="text" name="SegundoNombre" id="SegundoNombre" value="{{ $pref('SegundoNombre') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" maxlength="50">
                     @error('SegundoNombre') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                 </div>
                 <div>
                     <label for="PrimerApellido" class="block text-sm font-medium text-gray-700 mb-1">Primer apellido <span id="apellido-req" class="text-red-500 hidden">*</span></label>
-                    <input type="text" name="PrimerApellido" id="PrimerApellido" value="{{ old('PrimerApellido') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" maxlength="50">
+                    <input type="text" name="PrimerApellido" id="PrimerApellido" value="{{ $pref('PrimerApellido') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" maxlength="50">
                     @error('PrimerApellido') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                 </div>
                 <div>
                     <label for="SegundoApellido" class="block text-sm font-medium text-gray-700 mb-1">Segundo apellido</label>
-                    <input type="text" name="SegundoApellido" id="SegundoApellido" value="{{ old('SegundoApellido') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" maxlength="50">
+                    <input type="text" name="SegundoApellido" id="SegundoApellido" value="{{ $pref('SegundoApellido') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" maxlength="50">
                     @error('SegundoApellido') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                 </div>
             </div>
@@ -216,23 +236,23 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                     <label for="Telefono" class="block text-sm font-medium text-gray-700 mb-1">Teléfono (7 dígitos)</label>
-                    <input type="text" name="Telefono" id="Telefono" value="{{ old('Telefono') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" maxlength="7" pattern="\d{7}" placeholder="8871234">
+                    <input type="text" name="Telefono" id="Telefono" value="{{ $pref('Telefono') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" maxlength="7" pattern="\d{7}" placeholder="8871234">
                     @error('Telefono') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                 </div>
                 <div>
                     <label for="Movil" class="block text-sm font-medium text-gray-700 mb-1">Móvil (10 dígitos)</label>
-                    <input type="text" name="Movil" id="Movil" value="{{ old('Movil') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" maxlength="10" pattern="\d{10}" placeholder="3101234567">
+                    <input type="text" name="Movil" id="Movil" value="{{ $pref('Movil') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" maxlength="10" pattern="\d{10}" placeholder="3101234567">
                     @error('Movil') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                 </div>
                 <div>
                     <label for="Whatsapp" class="block text-sm font-medium text-gray-700 mb-1">WhatsApp (10 dígitos)</label>
-                    <input type="text" name="Whatsapp" id="Whatsapp" value="{{ old('Whatsapp') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" maxlength="10" pattern="\d{10}" placeholder="3101234567">
+                    <input type="text" name="Whatsapp" id="Whatsapp" value="{{ $pref('Whatsapp') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" maxlength="10" pattern="\d{10}" placeholder="3101234567">
                     @error('Whatsapp') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                 </div>
             </div>
             <div class="mt-4">
                 <label for="Correo" class="block text-sm font-medium text-gray-700 mb-1">Correo electrónico</label>
-                <input type="email" name="Correo" id="Correo" value="{{ old('Correo') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" maxlength="100" placeholder="cliente@email.com">
+                <input type="email" name="Correo" id="Correo" value="{{ $pref('Correo') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" maxlength="100" placeholder="cliente@email.com">
                 @error('Correo') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
             </div>
         </div>

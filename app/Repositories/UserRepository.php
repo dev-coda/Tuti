@@ -38,8 +38,15 @@ class UserRepository
         return null;
     }
 
-    private static function normalizeDynamicsEmail(string $raw): ?string
+    /**
+     * Normalize and validate an email string from Dynamics.
+     */
+    public static function normalizeDynamicsEmail(?string $raw): ?string
     {
+        if ($raw === null) {
+            return null;
+        }
+
         $email = strtolower(trim($raw));
         if ($email === '') {
             return null;
@@ -105,6 +112,11 @@ class UserRepository
             ]);
         }
 
+        $rawDocument = $aListDetailsRuteros['aIdentificationNum'] ?? null;
+        $document = is_string($rawDocument) || is_numeric($rawDocument)
+            ? (preg_replace('/\D+/', '', (string) $rawDocument) ?: null)
+            : null;
+
         return [
             'zone' => $aZona,
             'route' => $aRoute,
@@ -112,6 +124,8 @@ class UserRepository
             'day' => $day,
             'address' => $aAddress,
             'name' => $aName,
+            // NIT/CC — required to create missing Tuti clients during zone-walk sync.
+            'document' => $document,
             // Additional customer data from getRuteros API
             'phone' => $aListDetailsRuteros['aPhone'] ?? null,
             'mobile_phone' => !empty($aListDetailsRuteros['aPhoneMobile']) ? $aListDetailsRuteros['aPhoneMobile'] : null,

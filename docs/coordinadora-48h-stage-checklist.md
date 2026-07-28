@@ -12,6 +12,8 @@
   - `COORDINADORA_NIT` (falls back to `COORDINADORA_TRACKING_NIT`), `COORDINADORA_DIV`, `COORDINADORA_CUENTA`, `COORDINADORA_PRODUCTO`.
   - `COORDINADORA_ORIGIN_DANE` (8-digit DANE of the dispatch city, e.g. `05001000` for Medellín) plus `COORDINADORA_ORIGIN_NAME`, `COORDINADORA_ORIGIN_ADDRESS`, `COORDINADORA_ORIGIN_PHONE` for guide creation.
   - `COORDINADORA_ID_PROCESO`, `COORDINADORA_USUARIO`, `COORDINADORA_GUIDES_PATH`.
+- If admin **Tamaños de Empaque** is empty, seed package types: `php artisan db:seed --class=PackageTypeSeeder`.
+- Confirm delivery-date communication is active: `force_delivery_date_enabled` is **off** in admin settings, and order confirmation / status email templates that use `{delivery_date}` are active.
 
 ## DANE Destination Sourcing
 
@@ -52,6 +54,14 @@
 - In admin order list/detail, verify provider, FV and guía fields render correctly.
 - In `mi-cuenta` order list/detail, verify Coordinadora status block and guide number are visible.
 - Verify zone ZIP/provider can be updated from admin user edit view.
+
+## Seller Mi Ruta → Agregar sucursal
+
+- As a seller with an assigned zone and today's Mi Ruta clients, open **Mi Cuenta → Mi Ruta**.
+- On a client card, click **Agregar sucursal**.
+- Confirm the Cliente Nuevo form opens in **Agregar sucursal** mode with the client document/contact prefilled and a hidden return to Mi Ruta.
+- Complete branch logistics (address, barrio, city/dept, route, day, position), signature, and documents; submit.
+- Confirm redirect back to **Mi Cuenta → Mi Ruta** with a success flash, and that the client now has an additional zone/sucursal.
 
 ## Rollback Triggers
 

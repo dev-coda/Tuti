@@ -12,7 +12,7 @@ class SyncZoneRuterosWeekly extends Command
 {
     protected $signature = 'clients:sync-zone-ruteros';
 
-    protected $description = 'Queue Dynamics (getRuteros) sync per zone to refresh clients zona/ruta/día (weekly job)';
+    protected $description = 'Queue Dynamics (getRuteros) sync per zone to refresh clients and create missing Dynamics clients/sucursales';
 
     public function handle(RuteroZoneSyncService $syncService): int
     {

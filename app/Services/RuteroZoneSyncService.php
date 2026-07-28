@@ -7,6 +7,8 @@ use App\Models\Zone;
 use App\Models\ZoneRoute;
 use App\Models\ZoneWarehouse;
 use App\Repositories\UserRepository;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class RuteroZoneSyncService
 {
@@ -61,6 +63,8 @@ class RuteroZoneSyncService
 
     /**
      * Import zone/route catalog rows and optionally refresh client zone relationships.
+     * Missing CustRuteroID rows are provisioned as Tuti users + zones when
+     * Dynamics provides an identification number (NIT/CC).
      *
      * @param  array<int, string>|null  $onlyZones
      * @return array<string, int>
@@ -79,6 +83,9 @@ class RuteroZoneSyncService
             'ruteros_without_code' => 0,
             'ruteros_unmatched' => 0,
             'client_zone_rows_updated' => 0,
+            'clients_created' => 0,
+            'zones_created' => 0,
+            'ruteros_skipped_rejected' => 0,
         ];
 
         foreach ($zoneCodes as $zoneCode) {
@@ -86,7 +93,7 @@ class RuteroZoneSyncService
                 $ruteros = UserRepository::getRuterosForZone($zoneCode);
             } catch (\Throwable $e) {
                 $summary['zones_failed']++;
-                \Log::error('Rutero zone sync: fetch failed for zone', [
+                Log::error('Rutero zone sync: fetch failed for zone', [
                     'zone' => $zoneCode,
                     'error' => $e->getMessage(),
                 ]);
@@ -144,6 +151,12 @@ class RuteroZoneSyncService
     }
 
     /**
+     * Update an existing zone row matched by CustRuteroID, or provision a missing
+     * client + sucursal when Dynamics returns a document (aIdentificationNum).
+     *
+     * Idempotent key: CustRuteroID → zones.code / sucursal_uid cust:{code}.
+     * Same NIT/CC can own many sucursales (one User, many Zone rows).
+     *
      * @param  array<string, int>  $summary
      * @param  array<string, mixed>  $rutero
      */
@@ -152,22 +165,38 @@ class RuteroZoneSyncService
         $code = trim((string) ($rutero['code'] ?? ''));
         if ($code === '') {
             $summary['ruteros_without_code']++;
+
             return;
         }
 
-        $zoneRows = Zone::query()->where('code', $code)->get();
+        $sucursalUid = Zone::makeSucursalUid($code, null);
+        $zoneRows = Zone::query()
+            ->where(function ($query) use ($code, $sucursalUid) {
+                $query->where('code', $code);
+                if ($sucursalUid !== null && $sucursalUid !== '') {
+                    $query->orWhere('sucursal_uid', $sucursalUid);
+                }
+            })
+            ->get();
+
         if ($zoneRows->isEmpty()) {
-            $summary['ruteros_unmatched']++;
+            $this->provisionMissingFromRutero($rutero, $summary, $dryRun);
+
             return;
         }
 
         foreach ($zoneRows as $zoneRow) {
             $changes = [];
-            foreach (['zone', 'route', 'day'] as $field) {
+            foreach (['zone', 'route', 'day', 'address'] as $field) {
                 $incoming = trim((string) ($rutero[$field] ?? ''));
                 if ($incoming !== '' && $incoming !== trim((string) $zoneRow->{$field})) {
                     $changes[$field] = $incoming;
                 }
+            }
+
+            // Backfill code when the row was matched only by sucursal_uid.
+            if (trim((string) $zoneRow->code) === '' && $code !== '') {
+                $changes['code'] = $code;
             }
 
             if ($changes === []) {
@@ -179,6 +208,170 @@ class RuteroZoneSyncService
             }
 
             $summary['client_zone_rows_updated']++;
+        }
+    }
+
+    /**
+     * Create (or attach to) a Tuti client for a Dynamics rutero not yet present locally.
+     *
+     * @param  array<string, int>  $summary
+     * @param  array<string, mixed>  $rutero
+     */
+    private function provisionMissingFromRutero(array $rutero, array &$summary, bool $dryRun): void
+    {
+        $document = preg_replace('/\D+/', '', (string) ($rutero['document'] ?? ''));
+        if ($document === '') {
+            $summary['ruteros_unmatched']++;
+
+            return;
+        }
+
+        if ($dryRun) {
+            $summary['zones_created']++;
+            $existing = User::query()
+                ->whereDoesntHave('roles')
+                ->where('document', $document)
+                ->exists();
+            if (! $existing) {
+                $summary['clients_created']++;
+            }
+
+            return;
+        }
+
+        $user = User::query()
+            ->whereDoesntHave('roles')
+            ->where('document', $document)
+            ->first();
+
+        if ($user && $user->isRejectedClient()) {
+            $summary['ruteros_skipped_rejected']++;
+
+            return;
+        }
+
+        if (! $user) {
+            $staffWithDocument = User::query()
+                ->whereHas('roles')
+                ->where('document', $document)
+                ->exists();
+
+            if ($staffWithDocument) {
+                $summary['ruteros_unmatched']++;
+                Log::warning('Rutero zone sync: document belongs to a staff user; skipping client create', [
+                    'document' => $document,
+                    'cust_rutero_id' => $rutero['code'] ?? null,
+                ]);
+
+                return;
+            }
+
+            $user = $this->createClientFromRutero($document, $rutero);
+            $summary['clients_created']++;
+        }
+
+        $beforeIds = $user->zones()->pluck('id')->all();
+        UserRepository::applyRoutesToZones($user, [$rutero], pruneMissing: false);
+        $this->applyLightProfileFromRutero($user, $rutero);
+
+        $code = trim((string) ($rutero['code'] ?? ''));
+        $sucursalUid = Zone::makeSucursalUid($code, null);
+        $zone = $user->zones()->where('code', $code)->first()
+            ?? $user->zones()->where('sucursal_uid', $sucursalUid)->first();
+
+        if ($zone && ! in_array($zone->id, $beforeIds, true)) {
+            $summary['zones_created']++;
+        } elseif ($zone) {
+            $summary['client_zone_rows_updated']++;
+        } else {
+            $summary['ruteros_unmatched']++;
+            Log::warning('Rutero zone sync: provisioned client but zone row was not created', [
+                'user_id' => $user->id,
+                'document' => $document,
+                'cust_rutero_id' => $code,
+            ]);
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $rutero
+     */
+    private function createClientFromRutero(string $document, array $rutero): User
+    {
+        $name = trim((string) ($rutero['name'] ?? ''));
+        if ($name === '' || $name === 'Sin Nombre') {
+            $name = 'Cliente '.$document;
+        }
+
+        $email = UserRepository::normalizeDynamicsEmail($rutero['dynamics_contact_email'] ?? null);
+        if ($email === null || User::query()->where('email', $email)->exists()) {
+            $email = Str::lower(Str::random(12)).'@tuti.com';
+        }
+
+        $user = User::create([
+            'name' => $name,
+            'email' => $email,
+            'document' => $document,
+            'password' => Str::random(32),
+            'status_id' => User::ACTIVE,
+            'client_status' => User::CLIENT_STATUS_CLIENTE,
+            'business_name' => $rutero['business_name'] ?? null,
+            'phone' => $rutero['phone'] ?? null,
+            'mobile_phone' => $rutero['mobile_phone'] ?? null,
+            'whatsapp' => $rutero['whatsapp'] ?? null,
+            'account_num' => $rutero['account_num'] ?? null,
+        ]);
+
+        Log::info('Rutero zone sync: created missing Dynamics client', [
+            'user_id' => $user->id,
+            'document' => $document,
+            'cust_rutero_id' => $rutero['code'] ?? null,
+        ]);
+
+        return $user;
+    }
+
+    /**
+     * Refresh a subset of profile fields from the zone-walk row without a second SOAP call.
+     *
+     * @param  array<string, mixed>  $rutero
+     */
+    private function applyLightProfileFromRutero(User $user, array $rutero): void
+    {
+        $payload = [];
+
+        $name = trim((string) ($rutero['name'] ?? ''));
+        if ($name !== '' && $name !== 'Sin Nombre' && $name !== (string) $user->name) {
+            $payload['name'] = $name;
+        }
+
+        foreach (['phone', 'mobile_phone', 'whatsapp', 'business_name', 'account_num', 'city_code', 'county_id', 'price_group', 'tax_group', 'line_discount', 'customer_status'] as $field) {
+            $value = $rutero[$field] ?? null;
+            if ($value === null || $value === '') {
+                continue;
+            }
+            if ((string) $user->{$field} !== (string) $value) {
+                $payload[$field] = $value;
+            }
+        }
+
+        if (array_key_exists('balance', $rutero) && $rutero['balance'] !== null && $rutero['balance'] !== '') {
+            $payload['balance'] = $rutero['balance'];
+        }
+        if (array_key_exists('quota_value', $rutero) && $rutero['quota_value'] !== null && $rutero['quota_value'] !== '') {
+            $payload['quota_value'] = $rutero['quota_value'];
+        }
+        if (array_key_exists('is_locked', $rutero)) {
+            $payload['is_locked'] = (bool) $rutero['is_locked'];
+        }
+
+        $email = UserRepository::normalizeDynamicsEmail($rutero['dynamics_contact_email'] ?? null);
+        if ($email !== null && ! User::query()->where('email', $email)->where('id', '!=', $user->id)->exists()) {
+            $payload['email'] = $email;
+        }
+
+        if ($payload !== []) {
+            $user->update($payload);
         }
     }
 

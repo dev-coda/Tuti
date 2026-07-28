@@ -87,9 +87,10 @@ class Kernel extends ConsoleKernel
             ->withoutOverlapping()
             ->runInBackground();
 
-        // Weekly per-zone rutero sync (getRuteros by zone): refreshes clients zona/ruta/día — guarded by setting
+        // Periodic per-zone rutero sync (getRuteros by zone): refreshes zona/ruta/día and
+        // provisions missing Dynamics clients/sucursales by CustRuteroID — guarded by setting
         $schedule->command('clients:sync-zone-ruteros')
-            ->weeklyOn(0, '04:15')
+            ->dailyAt('04:15')
             ->withoutOverlapping()
             ->runInBackground();
     }

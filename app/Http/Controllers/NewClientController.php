@@ -53,7 +53,7 @@ class NewClientController extends Controller
         'LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES',
     ];
 
-    public function create()
+    public function create(Request $request)
     {
         $states = State::orderBy('name')->pluck('name', 'id');
         $tipoDocumentoOptions = self::TIPO_DOCUMENTO_OPTIONS;
@@ -71,6 +71,26 @@ class NewClientController extends Controller
         }
 
         $layout = $this->resolveLayout();
+        $returnTo = $request->query('return') === 'mi-ruta' ? 'mi-ruta' : null;
+        $isSucursalMode = $isSellerFlow && (
+            $request->query('mode') === 'sucursal'
+            || old('is_sucursal') === '1'
+        );
+        $prefillClient = null;
+        $prefillError = null;
+
+        if ($isSellerFlow && $isSucursalMode && $request->filled('document')) {
+            $document = preg_replace('/\D+/', '', (string) $request->query('document'));
+            $client = User::query()->where('document', $document)->first();
+
+            if (! $client) {
+                $prefillError = 'No encontramos un cliente con ese documento.';
+            } elseif (! $this->sellerCoversClient($client)) {
+                $prefillError = 'No tienes cobertura sobre este cliente para agregar una sucursal.';
+            } else {
+                $prefillClient = $this->clientPrefillPayload($client);
+            }
+        }
 
         return view('new-client.create', compact(
             'states',
@@ -80,7 +100,11 @@ class NewClientController extends Controller
             'layout',
             'isSellerFlow',
             'sellerZone',
-            'zoneRoutes'
+            'zoneRoutes',
+            'returnTo',
+            'isSucursalMode',
+            'prefillClient',
+            'prefillError'
         ));
     }
 
@@ -105,24 +129,66 @@ class NewClientController extends Controller
             ], 404);
         }
 
-        [$primerNombre, $segundoNombre, $primerApellido, $segundoApellido] = $this->splitFullName((string) $client->name);
+        if (! $this->sellerCoversClient($client)) {
+            return response()->json([
+                'found' => false,
+                'message' => 'No tienes cobertura sobre este cliente para agregar una sucursal.',
+            ], 403);
+        }
 
         return response()->json([
             'found' => true,
-            'client' => [
-                'Documento' => $client->document,
-                'RazonSocial' => $client->name,
-                'NombreNegocio' => $client->business_name ?: $client->name,
-                'PrimerNombre' => $primerNombre,
-                'SegundoNombre' => $segundoNombre,
-                'PrimerApellido' => $primerApellido,
-                'SegundoApellido' => $segundoApellido,
-                'Telefono' => $client->phone,
-                'Movil' => $client->mobile_phone,
-                'Whatsapp' => $client->whatsapp,
-                'Correo' => str_ends_with((string) $client->email, '@tuti.com') ? null : $client->email,
-            ],
+            'client' => $this->clientPrefillPayload($client),
         ]);
+    }
+
+    /**
+     * Identity/contact fields reused for "Agregar sucursal" prefill (JSON + deep-link).
+     *
+     * @return array<string, mixed>
+     */
+    private function clientPrefillPayload(User $client): array
+    {
+        [$primerNombre, $segundoNombre, $primerApellido, $segundoApellido] = $this->splitFullName((string) $client->name);
+
+        return [
+            'Documento' => $client->document,
+            'RazonSocial' => $client->name,
+            'NombreNegocio' => $client->business_name ?: $client->name,
+            'PrimerNombre' => $primerNombre,
+            'SegundoNombre' => $segundoNombre,
+            'PrimerApellido' => $primerApellido,
+            'SegundoApellido' => $segundoApellido,
+            'Telefono' => $client->phone,
+            'Movil' => $client->mobile_phone,
+            'Whatsapp' => $client->whatsapp,
+            'Correo' => str_ends_with((string) $client->email, '@tuti.com') ? null : $client->email,
+        ];
+    }
+
+    /**
+     * Sellers/supervisors may only add sucursales for clients that already have a zone
+     * in one of their supervised zonas.
+     */
+    private function sellerCoversClient(User $client): bool
+    {
+        $seller = auth()->user();
+        if (! $seller) {
+            return false;
+        }
+
+        if ($seller->hasRole('admin')) {
+            return true;
+        }
+
+        $allowedZones = $seller->supervisedZones();
+        if ($allowedZones === []) {
+            return false;
+        }
+
+        return $client->zones()
+            ->whereIn('zone', $allowedZones)
+            ->exists();
     }
 
     /**
@@ -224,16 +290,23 @@ class NewClientController extends Controller
             $validated['Documento'] = preg_replace('/-.*$/', '', $validated['Documento']);
         }
 
-        // "Agregar sucursal": the document must belong to an already registered client.
+        // "Agregar sucursal": the document must belong to an already registered client
+        // that the seller covers (zone overlap with supervisedZones).
         $isSucursal = $isSellerFlow && $request->boolean('is_sucursal');
         if ($isSucursal) {
-            $documentExists = User::query()
+            $existingClient = User::query()
                 ->where('document', preg_replace('/\D+/', '', $validated['Documento']))
-                ->exists();
+                ->first();
 
-            if (! $documentExists) {
+            if (! $existingClient) {
                 return back()->withInput()->withErrors([
                     'Documento' => 'Para agregar una sucursal el documento debe pertenecer a un cliente existente.',
+                ]);
+            }
+
+            if (! $this->sellerCoversClient($existingClient)) {
+                return back()->withInput()->withErrors([
+                    'Documento' => 'No tienes cobertura sobre este cliente para agregar una sucursal.',
                 ]);
             }
         }
@@ -300,8 +373,10 @@ class NewClientController extends Controller
             );
             $this->attemptPostCreateRuteroSync($localClient);
 
-            return back()->with('warning',
-                "Cliente registrado (Código: {$result['codigo_cliente']}), pero hubo un error al subir los archivos: {$mediaResult['message']}"
+            return $this->redirectAfterSellerRegistration(
+                $request,
+                "Cliente registrado (Código: {$result['codigo_cliente']}), pero hubo un error al subir los archivos: {$mediaResult['message']}",
+                flashKey: 'warning'
             );
         }
 
@@ -316,8 +391,22 @@ class NewClientController extends Controller
             ? "Sucursal registrada exitosamente. Código: {$result['codigo_cliente']}. Documento del cliente: {$localClient->document}"
             : "Cliente registrado exitosamente. Código: {$result['codigo_cliente']}. Documento para pedidos: {$localClient->document}";
 
-        return redirect()->route('new-client.create')
-            ->with('success', $successMessage);
+        return $this->redirectAfterSellerRegistration($request, $successMessage);
+    }
+
+    /**
+     * After seller registration, optionally return to Mi Cuenta → Mi Ruta
+     * when the form was opened from that surface.
+     */
+    private function redirectAfterSellerRegistration(Request $request, string $message, string $flashKey = 'success')
+    {
+        if ($request->input('return') === 'mi-ruta') {
+            return redirect()
+                ->route('clients.orders.index', ['tab' => 'mi-ruta'])
+                ->with($flashKey, $message);
+        }
+
+        return redirect()->route('new-client.create')->with($flashKey, $message);
     }
 
     /**

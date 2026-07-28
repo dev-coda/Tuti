@@ -12,9 +12,10 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Weekly sync: pulls every rutero per zone from Dynamics (getRuteros without
- * document filter) and refreshes zone_routes plus clients' zona/ruta/día on
- * their zone rows, matched by CustRuteroID (zones.code).
+ * Periodic sync: pulls every rutero per zone from Dynamics (getRuteros without
+ * document filter), refreshes zone_routes plus clients' zona/ruta/día, and
+ * provisions missing clients/sucursales matched by CustRuteroID (zones.code /
+ * sucursal_uid).
  */
 class SyncZoneRuteros implements ShouldQueue
 {

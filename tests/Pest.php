@@ -67,6 +67,7 @@ function fakeGetRuterosSoap(array $sucursales): string
         'quota_value' => 'aQuotaValue',
         'business_name' => 'aRazonSocial',
         'price_group' => 'aPriceGroup',
+        'document' => 'aIdentificationNum',
     ];
 
     $ruteros = '';
