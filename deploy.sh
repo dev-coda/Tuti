@@ -7,10 +7,12 @@
 # - Pulls latest code from git
 # - Installs dependencies
 # - Runs migrations
+# - Seeds idempotent defaults (e.g. Coordinadora package types)
 # - Fixes storage symlinks
 # - Sets permissions
 # - Clears caches
-# - Restarts services
+# - Signals queue workers to reload code
+# - Optionally restarts services (--full)
 #######################################
 
 set -e  # Exit on any error
@@ -109,12 +111,18 @@ print_step "Running database migrations..."
 php artisan migrate --force
 print_success "Migrations completed"
 
-# 5. Fix Storage Symlink (CRITICAL for images)
+# 5. Seed idempotent defaults required by Última Milla / Coordinadora
+# PackageTypeSeeder uses firstOrCreate — safe to re-run; does not overwrite admin edits.
+print_step "Seeding Coordinadora package types (idempotent)..."
+php artisan db:seed --class=PackageTypeSeeder --force
+print_success "Package types seeded (existing rows left unchanged)"
+
+# 6. Fix Storage Symlink (CRITICAL for images)
 print_step "Fixing storage symlink..."
 php artisan storage:link --force
 print_success "Storage symlink created"
 
-# 6. Ensure Laravel Storage Structure Exists
+# 7. Ensure Laravel Storage Structure Exists
 print_step "Ensuring Laravel storage structure..."
 # Create all required Laravel storage directories
 mkdir -p storage/app/public
@@ -126,13 +134,13 @@ mkdir -p storage/logs
 mkdir -p bootstrap/cache
 print_success "Storage structure verified"
 
-# 7. Set Proper Permissions
+# 8. Set Proper Permissions
 print_step "Setting file permissions..."
 chmod -R 775 storage bootstrap/cache
 chown -R $WEB_USER:$WEB_USER storage bootstrap/cache public/storage 2>/dev/null || print_warning "Could not change ownership (may need sudo)"
 print_success "Permissions set"
 
-# 8. Clear All Caches
+# 9. Clear All Caches
 print_step "Clearing application caches..."
 php artisan config:clear
 php artisan cache:clear
@@ -146,7 +154,7 @@ rm -rf storage/framework/views/* 2>/dev/null || true
 rm -rf bootstrap/cache/*.php 2>/dev/null || true
 print_success "Caches cleared completely"
 
-# 9. Rebuild Caches
+# 10. Rebuild Caches
 print_step "Rebuilding application caches..."
 php artisan config:cache
 php artisan route:cache
@@ -154,21 +162,26 @@ php artisan view:cache
 php artisan optimize
 print_success "Caches rebuilt"
 
-# 10. Restart Queue Workers (optional with --full flag)
+# 11. Signal queue workers to pick up new job/schedule code
+# Always run: SyncZoneRuteros / BulkSync / Coordinadora processing jobs must reload after deploy.
+print_step "Signaling queue workers to restart..."
+php artisan queue:restart || print_warning "queue:restart failed (workers may still be on old code)"
+print_success "Queue restart signal sent"
+
+# 12. Restart Queue Workers (optional with --full flag)
 if [ "$RESTART_SERVICES" = true ]; then
-    print_step "Restarting queue workers..."
+    print_step "Restarting queue workers via Supervisor..."
     if command -v supervisorctl &> /dev/null; then
         sudo supervisorctl restart all || print_warning "Could not restart supervisor (may need proper sudo permissions)"
         print_success "Supervisor workers restarted"
     else
-        php artisan queue:restart || print_warning "Queue restart command executed (workers will restart on next job)"
-        print_success "Queue restart signal sent"
+        print_warning "supervisorctl not available (queue:restart signal already sent)"
     fi
 else
-    print_step "Skipping queue worker restart (use --full flag to restart services)"
+    print_step "Skipping Supervisor restart (use --full to force supervisorctl restart)"
 fi
 
-# 11. Restart Web Services (optional with --full flag)
+# 13. Restart Web Services (optional with --full flag)
 if [ "$RESTART_SERVICES" = true ]; then
     print_step "Restarting web services..."
     if [ -x "$(command -v systemctl)" ]; then
@@ -184,7 +197,7 @@ else
     print_step "Skipping web service restart (use --full flag to restart services)"
 fi
 
-# 12. Verify Storage Structure
+# 14. Verify Storage Structure
 print_step "Verifying storage structure..."
 if [ -L "public/storage" ] && [ -d "storage/app/public" ]; then
     print_success "Storage symlink verified"
@@ -193,7 +206,7 @@ else
     ls -la public/storage
 fi
 
-# 13. Disable Maintenance Mode
+# 15. Disable Maintenance Mode
 print_step "Disabling maintenance mode..."
 php artisan up
 print_success "Application is now live!"
@@ -210,14 +223,21 @@ echo "  - Storage symlink: $(readlink public/storage)"
 echo "  - Git HEAD: $(git rev-parse --short HEAD)"
 echo "  - Last commit: $(git log -1 --pretty=format:'%s')"
 echo ""
+echo -e "${YELLOW}Post-deploy checks (Última Milla / Coordinadora):${NC}"
+echo "  - Confirm Coordinadora + FV env vars in .env (see docs/coordinadora-48h-stage-checklist.md)"
+echo "  - Confirm express 48H enabled and force_delivery_date_enabled is OFF in admin settings"
+echo "  - Confirm scheduler cron is active (daily zone rutero sync at 04:15)"
+echo "  - Smoke: quote → express order → FV + guía; Mi Ruta → Agregar sucursal"
+echo ""
 echo -e "${YELLOW}Important:${NC}"
 echo "  - Test the application in your browser"
 echo "  - Check that images are displaying correctly"
 echo "  - Monitor logs: tail -f storage/logs/laravel.log"
 if [ "$RESTART_SERVICES" = false ]; then
     echo ""
-    echo -e "${YELLOW}Note: Services were NOT restarted.${NC}"
-    echo "  - If you need to restart services, run: bash deploy.sh --full"
-    echo "  - Or manually restart: sudo systemctl restart php${PHP_VERSION}-fpm nginx"
+    echo -e "${YELLOW}Note: Web/Supervisor services were NOT hard-restarted.${NC}"
+    echo "  - Queue workers received queue:restart (they reload after current job)"
+    echo "  - If you need a hard restart, run: bash deploy.sh --full"
+    echo "  - Or manually: sudo systemctl restart php${PHP_VERSION}-fpm nginx"
 fi
 echo ""

@@ -36,14 +36,16 @@ bash deploy.sh
 2. ✅ **Pulls latest code** - Updates from specified git branch
 3. ✅ **Installs dependencies** - Runs `composer install`
 4. ✅ **Runs migrations** - Updates database schema
-5. ✅ **Fixes storage symlink** - Critical for images and file uploads
-6. ✅ **Sets permissions** - Ensures proper file/directory permissions
-7. ✅ **Clears caches** - Removes old cached data
-8. ✅ **Rebuilds caches** - Generates fresh optimized caches
-9. ⏭️ **Skips queue workers restart** - Avoids touching supervisor/horizon
-10. ⏭️ **Skips web services restart** - Doesn't restart PHP-FPM/Nginx
-11. ✅ **Verifies storage** - Checks symlink and directory structure
-12. ✅ **Disables maintenance mode** - Brings application back online
+5. ✅ **Seeds package types** - Idempotent `PackageTypeSeeder` for Coordinadora empaques
+6. ✅ **Fixes storage symlink** - Critical for images and file uploads
+7. ✅ **Sets permissions** - Ensures proper file/directory permissions
+8. ✅ **Clears caches** - Removes old cached data
+9. ✅ **Rebuilds caches** - Generates fresh optimized caches
+10. ✅ **Signals queue restart** - `php artisan queue:restart` so workers reload job code
+11. ⏭️ **Skips Supervisor hard restart** - Avoids `supervisorctl restart all` unless `--full`
+12. ⏭️ **Skips web services restart** - Doesn't restart PHP-FPM/Nginx unless `--full`
+13. ✅ **Verifies storage** - Checks symlink and directory structure
+14. ✅ **Disables maintenance mode** - Brings application back online
 
 ### Full Mode (With Service Restarts)
 Complete deployment including service restarts (use when needed):
@@ -53,8 +55,10 @@ bash deploy.sh --full
 ```
 
 Includes everything above PLUS:
-- ✅ **Restarts queue workers** - Restarts supervisor/horizon
+- ✅ **Hard-restarts queue workers** - `supervisorctl restart all`
 - ✅ **Restarts web services** - Reloads PHP-FPM and Nginx
+
+After deploy, confirm Coordinadora/FV `.env` values and admin flags from `docs/coordinadora-48h-stage-checklist.md` (env and settings are not auto-written by the script).
 
 ## Initial Setup
 
@@ -155,6 +159,9 @@ composer install --no-dev --optimize-autoloader
 # 4. Run migrations
 php artisan migrate --force
 
+# 4b. Seed Coordinadora package types (idempotent)
+php artisan db:seed --class=PackageTypeSeeder --force
+
 # 5. Fix storage symlink (CRITICAL!)
 php artisan storage:link --force
 
@@ -174,7 +181,8 @@ php artisan route:cache
 php artisan view:cache
 php artisan optimize
 
-# 9. Restart services
+# 9. Signal queue workers (always) + hard restart services when needed
+php artisan queue:restart
 sudo supervisorctl restart all
 sudo systemctl restart php8.1-fpm
 sudo systemctl restart nginx

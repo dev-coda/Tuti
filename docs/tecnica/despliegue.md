@@ -29,19 +29,23 @@ bash deploy.sh stage --full
 - Hace `git pull` de la rama indicada
 - Ejecuta `composer install`
 - Ejecuta **migraciones** (`php artisan migrate`)
+- Siembra **tamaños de empaque** Coordinadora (`PackageTypeSeeder`, idempotente)
 - Asegura el **enlace simbólico** de almacenamiento (`storage:link`)
 - Ajusta **permisos** de `storage` y caché
 - **Limpia y regenera caché** (config, rutas, vistas, `optimize`)
-- **No** reinicia workers de cola ni servicios web (Nginx, PHP-FPM) para acelerar y evitar interrupciones
+- Señala reinicio de colas (`php artisan queue:restart`) para recargar jobs
+- **No** hace reinicio duro de Supervisor ni de Nginx/PHP-FPM (usar `--full`)
 
 ### Modo completo (`--full` o `--services`)
 
 Añade:
 
-- Reinicio de workers de cola (Supervisor / Horizon)
+- Reinicio duro de workers de cola (`supervisorctl restart all`)
 - Reinicio de servicios web (p. ej. `php8.1-fpm`, `nginx`)
 
 Usar tras cambios en clases de jobs, proveedores, middleware, o problemas de caché; no hace falta en cada publicación de vistas o lógica menor.
+
+Tras el despliegue, validar variables Coordinadora/FV y flags de admin según [coordinadora-48h-stage-checklist.md](../coordinadora-48h-stage-checklist.md) (el script no escribe `.env` ni settings de negocio).
 
 ## Configuración previa
 
@@ -75,12 +79,13 @@ deploy-user ALL=(ALL) NOPASSWD: /usr/bin/supervisorctl restart all
 2. `git pull origin <rama>`
 3. `composer install --no-dev --optimize-autoloader`
 4. `php artisan migrate --force`
-5. `php artisan storage:link --force`
-6. `chmod` / `chown` sobre `storage` y `bootstrap/cache` según el servidor
-7. Limpiar: `config:clear`, `cache:clear`, `view:clear`, `route:clear`
-8. Regenerar: `config:cache`, `route:cache`, `view:cache`, `optimize`
-9. Reiniciar: `supervisor`, PHP-FPM, Nginx
-10. `php artisan up`
+5. `php artisan db:seed --class=PackageTypeSeeder --force`
+6. `php artisan storage:link --force`
+7. `chmod` / `chown` sobre `storage` y `bootstrap/cache` según el servidor
+8. Limpiar: `config:clear`, `cache:clear`, `view:clear`, `route:clear`
+9. Regenerar: `config:cache`, `route:cache`, `view:cache`, `optimize`
+10. `php artisan queue:restart` (+ `supervisorctl` / PHP-FPM / Nginx si aplica)
+11. `php artisan up`
 
 ## Incidencias frecuentes
 

@@ -3,6 +3,7 @@
 ## Pre-flight
 
 - Run migrations in stage (includes `zones.dane_code`).
+- Deploy with `bash deploy.sh` (or `bash deploy.sh stage --full`): migrations, idempotent `PackageTypeSeeder`, cache rebuild, and `queue:restart` are included.
 - Confirm each target zone resolves a destination DANE code (`fulfillment_provider_48h` + one of: explicit `dane_code`, DANE stored in `zip_code`, or the owner user's city). The admin user-edit view shows the resolved code as the field placeholder.
 - Confirm 48H shipping method (`express`) is enabled.
 - Verify Coordinadora credentials and FV mock token are present in stage environment.
@@ -12,8 +13,9 @@
   - `COORDINADORA_NIT` (falls back to `COORDINADORA_TRACKING_NIT`), `COORDINADORA_DIV`, `COORDINADORA_CUENTA`, `COORDINADORA_PRODUCTO`.
   - `COORDINADORA_ORIGIN_DANE` (8-digit DANE of the dispatch city, e.g. `05001000` for Medellín) plus `COORDINADORA_ORIGIN_NAME`, `COORDINADORA_ORIGIN_ADDRESS`, `COORDINADORA_ORIGIN_PHONE` for guide creation.
   - `COORDINADORA_ID_PROCESO`, `COORDINADORA_USUARIO`, `COORDINADORA_GUIDES_PATH`.
-- If admin **Tamaños de Empaque** is empty, seed package types: `php artisan db:seed --class=PackageTypeSeeder`.
+- Package types are seeded by `deploy.sh`; if admin **Tamaños de Empaque** is still empty, run `php artisan db:seed --class=PackageTypeSeeder` manually.
 - Confirm delivery-date communication is active: `force_delivery_date_enabled` is **off** in admin settings, and order confirmation / status email templates that use `{delivery_date}` are active.
+- Confirm Laravel scheduler cron is installed so daily zone rutero sync (`clients:sync-zone-ruteros` at 04:15) runs.
 
 ## DANE Destination Sourcing
 
