@@ -142,7 +142,7 @@ it('full sync still updates the whole profile and zones', function () {
 
     fakeRuteroWithContact();
 
-    expect(UserRepository::syncUserRuteroData($user))->toBeTrue();
+    expect(UserRepository::syncUserRuteroData($user)['synced'])->toBeTrue();
 
     $user->refresh();
     expect($user->name)->toBe('Nombre Dynamics');

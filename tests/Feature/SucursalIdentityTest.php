@@ -132,7 +132,7 @@ it('syncs zones end-to-end through getRuteros without cross-assigning zonas', fu
 
     $result = UserRepository::syncUserRuteroData($user);
 
-    expect($result)->toBeTrue();
+    expect($result['synced'])->toBeTrue();
     expect(Zone::where('user_id', $user->id)->count())->toBe(2);
     // Each sucursal identity kept its own zona — no swap.
     expect($a->fresh()->zone)->toBe('900');

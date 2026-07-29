@@ -220,3 +220,105 @@ it('transmits draft orders after manual rutero sync promotes client', function (
 
     Bus::assertDispatched(ProcessOrderAsync::class);
 });
+
+it('returns not-found when Dynamics has no rutero list', function () {
+    Http::fake([
+        'https://dynamics.test*' => Http::response(fakeEmptyGetRuterosSoap()),
+    ]);
+
+    $admin = User::factory()->create();
+    $admin->assignRole('admin');
+
+    $client = User::factory()->create([
+        'document' => '80222731',
+        'client_status' => User::CLIENT_STATUS_PENDIENTE,
+        'status_id' => User::PENDING,
+    ]);
+
+    $this->actingAs($admin)
+        ->post(route('users.sync-rutero', $client))
+        ->assertRedirect()
+        ->assertSessionHas('error', 'No se encontró rutero en Dynamics para este documento.');
+});
+
+it('returns query-failed when Dynamics HTTP request fails', function () {
+    Http::fake([
+        'https://dynamics.test*' => Http::response('Unauthorized', 401),
+    ]);
+
+    $admin = User::factory()->create();
+    $admin->assignRole('admin');
+
+    $client = User::factory()->create([
+        'document' => '80222731',
+        'client_status' => User::CLIENT_STATUS_PENDIENTE,
+        'status_id' => User::PENDING,
+    ]);
+
+    $this->actingAs($admin)
+        ->post(route('users.sync-rutero', $client))
+        ->assertRedirect()
+        ->assertSessionHas('error', 'Falló la consulta de rutero a Dynamics. Revise logs o intente de nuevo.');
+});
+
+it('syncs successfully when Dynamics returns empty phone nodes as arrays', function () {
+    Http::fake([
+        'https://dynamics.test*' => Http::response(fakeGetRuterosSoap([
+            [
+                'code' => '906181122007175',
+                'zone' => '964',
+                'route' => '2254',
+                'day' => '2- Martes',
+                'address' => 'CR 13 36 138 Villavicencio',
+                'name' => 'RAUL TIQUE CRUZ',
+                'phone' => '',
+                'mobile_phone' => '',
+                'whatsapp' => '',
+                'document' => '80222731',
+            ],
+        ])),
+    ]);
+
+    $admin = User::factory()->create();
+    $admin->assignRole('admin');
+
+    $client = User::factory()->create([
+        'document' => '80222731',
+        'name' => 'Prospecto',
+        'phone' => '[]', // corrupt value previously written from empty SOAP arrays
+        'client_status' => User::CLIENT_STATUS_PENDIENTE,
+        'status_id' => User::PENDING,
+    ]);
+
+    $this->actingAs($admin)
+        ->post(route('users.sync-rutero', $client))
+        ->assertRedirect()
+        ->assertSessionHas('success');
+
+    $client->refresh();
+
+    expect($client->client_status)->toBe(User::CLIENT_STATUS_CLIENTE)
+        ->and($client->name)->toBe('RAUL TIQUE CRUZ')
+        ->and($client->phone)->toBeNull()
+        ->and($client->zones()->where('code', '906181122007175')->exists())->toBeTrue();
+});
+
+it('treats nil ListRuteros as not-found without crashing', function () {
+    Http::fake([
+        'https://dynamics.test*' => Http::response(fakeNilGetRuterosSoap()),
+    ]);
+
+    $admin = User::factory()->create();
+    $admin->assignRole('admin');
+
+    $client = User::factory()->create([
+        'document' => '79831870',
+        'client_status' => User::CLIENT_STATUS_PENDIENTE,
+        'status_id' => User::PENDING,
+    ]);
+
+    $this->actingAs($admin)
+        ->post(route('users.sync-rutero', $client))
+        ->assertRedirect()
+        ->assertSessionHas('error', 'No se encontró rutero en Dynamics para este documento.');
+});

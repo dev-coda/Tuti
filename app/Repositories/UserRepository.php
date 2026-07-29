@@ -60,6 +60,10 @@ class UserRepository
      */
     private static function ruteroScalarUnchanged(User $user, string $field, $incoming): bool
     {
+        if (is_array($incoming)) {
+            return false;
+        }
+
         $current = $user->getAttribute($field);
 
         if ($field === 'is_locked') {
@@ -74,7 +78,7 @@ class UserRepository
             return (int) $current === (int) $incoming;
         }
 
-        $c = $current === null ? '' : trim((string) $current);
+        $c = $current === null || is_array($current) ? '' : trim((string) $current);
         $i = $incoming === null ? '' : trim((string) $incoming);
         if ($field === 'email') {
             return strtolower($c) === strtolower($i);
@@ -83,13 +87,38 @@ class UserRepository
         return $c === $i;
     }
 
+    /**
+     * Coerce Dynamics SOAP scalars: empty XML nodes become [] via json_encode(SimpleXML),
+     * which must not be written into string columns (phone, name, etc.).
+     */
+    private static function soapScalar($value): ?string
+    {
+        if ($value === null || is_array($value)) {
+            return null;
+        }
+
+        if (is_bool($value) || is_object($value)) {
+            return null;
+        }
+
+        $string = trim((string) $value);
+
+        return $string === '' ? null : $string;
+    }
+
+    /**
+     * @param  array<string, mixed>  $aListDetailsRuteros
+     * @param  array{aZona?: mixed, aRoute?: mixed, aDiaRecorrido?: mixed}  $data
+     * @return array<string, mixed>|null Null when the detail row lacks usable identity fields.
+     */
     private static function processData($aListDetailsRuteros, $data)
     {
+        if (! is_array($aListDetailsRuteros)) {
+            return null;
+        }
 
-
-
-        $aZona = $data['aZona'];
-        $aRoute = $data['aRoute'];
+        $aZona = $data['aZona'] ?? null;
+        $aRoute = $data['aRoute'] ?? null;
         $aDiaRecorrido = (string) ($data['aDiaRecorrido'] ?? '');
 
         $day = '0';
@@ -97,13 +126,18 @@ class UserRepository
             $day = $matches[0];
         }
 
+        $aCustRuteroID = self::soapScalar($aListDetailsRuteros['aCustRuteroID'] ?? null);
+        $aAddress = self::soapScalar($aListDetailsRuteros['aAddress'] ?? null);
+        $aName = self::soapScalar($aListDetailsRuteros['aName'] ?? null);
 
-        $aCustRuteroID = $aListDetailsRuteros['aCustRuteroID'];
+        // Need at least an address or CustRuteroID to form a stable sucursal identity.
+        if ($aCustRuteroID === null && $aAddress === null) {
+            \Log::warning('Rutero SOAP detail row skipped: missing CustRuteroID and address', [
+                'keys' => array_keys($aListDetailsRuteros),
+            ]);
 
-        $aAddress = $aListDetailsRuteros['aAddress'];
-        $aName = $aListDetailsRuteros['aName'];
-
-
+            return null;
+        }
 
         if (config('microsoft.log_rutero_soap_payload')) {
             \Log::debug('Rutero SOAP detail row (full payload)', [
@@ -113,36 +147,37 @@ class UserRepository
         }
 
         $rawDocument = $aListDetailsRuteros['aIdentificationNum'] ?? null;
-        $document = is_string($rawDocument) || is_numeric($rawDocument)
-            ? (preg_replace('/\D+/', '', (string) $rawDocument) ?: null)
-            : null;
+        $document = self::soapScalar($rawDocument);
+        if ($document !== null) {
+            $document = preg_replace('/\D+/', '', $document) ?: null;
+        }
 
         return [
-            'zone' => $aZona,
-            'route' => $aRoute,
+            'zone' => self::soapScalar($aZona),
+            'route' => self::soapScalar($aRoute),
             'code' => $aCustRuteroID,
             'day' => $day,
             'address' => $aAddress,
-            'name' => $aName,
+            'name' => $aName ?? 'Sin Nombre',
             // NIT/CC — required to create missing Tuti clients during zone-walk sync.
             'document' => $document,
             // Additional customer data from getRuteros API
-            'phone' => $aListDetailsRuteros['aPhone'] ?? null,
-            'mobile_phone' => !empty($aListDetailsRuteros['aPhoneMobile']) ? $aListDetailsRuteros['aPhoneMobile'] : null,
-            'whatsapp' => !empty($aListDetailsRuteros['aWhatsapp']) ? $aListDetailsRuteros['aWhatsapp'] : null,
-            'business_name' => $aListDetailsRuteros['aRazonSocial'] ?? null,
-            'account_num' => $aListDetailsRuteros['aAccountNum'] ?? null,
-            'city_code' => $aListDetailsRuteros['aCity'] ?? null,
-            'county_id' => $aListDetailsRuteros['aCountyId'] ?? null,
-            'customer_type' => $aListDetailsRuteros['aTypeCustomer'] ?? null,
-            'price_group' => $aListDetailsRuteros['aPriceGroup'] ?? null,
-            'tax_group' => $aListDetailsRuteros['aTaxGroup'] ?? null,
-            'line_discount' => $aListDetailsRuteros['aLineDisc'] ?? null,
-            'balance' => $aListDetailsRuteros['aBalance'] ?? 0,
-            'quota_value' => $aListDetailsRuteros['aQuotaValue'] ?? 0,
-            'customer_status' => $aListDetailsRuteros['aCustStatus'] ?? null,
-            'is_locked' => ($aListDetailsRuteros['aLocked'] ?? 'No') === 'Yes',
-            'order_sequence' => $aListDetailsRuteros['aOrden'] ?? null,
+            'phone' => self::soapScalar($aListDetailsRuteros['aPhone'] ?? null),
+            'mobile_phone' => self::soapScalar($aListDetailsRuteros['aPhoneMobile'] ?? null),
+            'whatsapp' => self::soapScalar($aListDetailsRuteros['aWhatsapp'] ?? null),
+            'business_name' => self::soapScalar($aListDetailsRuteros['aRazonSocial'] ?? null),
+            'account_num' => self::soapScalar($aListDetailsRuteros['aAccountNum'] ?? null),
+            'city_code' => self::soapScalar($aListDetailsRuteros['aCity'] ?? null),
+            'county_id' => self::soapScalar($aListDetailsRuteros['aCountyId'] ?? null),
+            'customer_type' => self::soapScalar($aListDetailsRuteros['aTypeCustomer'] ?? null),
+            'price_group' => self::soapScalar($aListDetailsRuteros['aPriceGroup'] ?? null),
+            'tax_group' => self::soapScalar($aListDetailsRuteros['aTaxGroup'] ?? null),
+            'line_discount' => self::soapScalar($aListDetailsRuteros['aLineDisc'] ?? null),
+            'balance' => self::soapScalar($aListDetailsRuteros['aBalance'] ?? null) ?? 0,
+            'quota_value' => self::soapScalar($aListDetailsRuteros['aQuotaValue'] ?? null) ?? 0,
+            'customer_status' => self::soapScalar($aListDetailsRuteros['aCustStatus'] ?? null),
+            'is_locked' => (self::soapScalar($aListDetailsRuteros['aLocked'] ?? null) ?? 'No') === 'Yes',
+            'order_sequence' => self::soapScalar($aListDetailsRuteros['aOrden'] ?? null),
             'dynamics_contact_email' => self::extractDynamicsEmailFromDetail($aListDetailsRuteros),
         ];
     }
@@ -239,13 +274,11 @@ class UserRepository
             </soapenv:Body>
             </soapenv:Envelope>';
 
-        info($body);
-
         $resourceUrl = config('microsoft.resource');
 
         if (empty($resourceUrl)) {
             \Log::error('CRITICAL: Microsoft resource URL is not configured in UserRepository::fetchRuteroData');
-            return null;
+            throw new \RuntimeException('Microsoft resource URL is not configured.');
         }
 
         $response = Http::withHeaders([
@@ -255,102 +288,139 @@ class UserRepository
         ])->send('POST', $resourceUrl . '/soap/services/DIITDWSSalesForceGroup', [
             'body' => $body
         ]);
-        info($response);
+
+        if (! $response->successful()) {
+            \Log::error('getRuteros HTTP failure', [
+                'document' => $document,
+                'zone' => $zone,
+                'status' => $response->status(),
+                'body_preview' => substr(trim((string) $response->body()), 0, 300),
+            ]);
+
+            throw new \RuntimeException(
+                'Dynamics getRuteros respondió HTTP '.$response->status().'.'
+            );
+        }
+
         $data = $response->body();
 
         $xmlString = preg_replace('/<(\/)?(s|a):/', '<$1$2', $data);
-        $xml = simplexml_load_string($xmlString);
-
-        //convert $data into an object
         $xml = simplexml_load_string($xmlString, 'SimpleXMLElement', LIBXML_NOCDATA);
 
+        if ($xml === false) {
+            \Log::warning('getRuteros returned non-XML body', [
+                'document' => $document,
+                'zone' => $zone,
+                'body_preview' => substr(trim((string) $data), 0, 300),
+            ]);
+
+            throw new \RuntimeException('Dynamics getRuteros devolvió una respuesta no parseable.');
+        }
+
         try {
-            info('try');
             $addresses = $xml->sBody->getRuterosResponse->result->agetRuterosResult;
 
             $json = json_encode($addresses);
-            $array = json_decode($json, TRUE);
+            $array = json_decode($json, true);
 
-            $aListRuteros = $array['aListRuteros'];
-            info('aListRuteros');
-            info($aListRuteros);
+            if (! is_array($array)) {
+                \Log::warning('getRuteros result could not be decoded to array', [
+                    'document' => $document,
+                    'zone' => $zone,
+                ]);
+
+                return null;
+            }
+
+            $aListRuteros = $array['aListRuteros'] ?? null;
         } catch (\Throwable $th) {
-            info('catch' . $th->getMessage());
+            \Log::warning('getRuteros XML parse failed', [
+                'document' => $document,
+                'zone' => $zone,
+                'error' => $th->getMessage(),
+            ]);
+
+            return null;
+        }
+
+        // Empty / nil ListRuteros (i:nil="true" → null) means no rutero for this filter.
+        if ($aListRuteros === null || $aListRuteros === '' || $aListRuteros === []) {
+            return null;
+        }
+
+        if (! is_array($aListRuteros)) {
+            \Log::warning('getRuteros aListRuteros has unexpected type', [
+                'document' => $document,
+                'zone' => $zone,
+                'type' => gettype($aListRuteros),
+            ]);
+
             return null;
         }
 
         $items = [];
-        $name = '';
-        
+
         // Detect if we have multiple routes (indexed array) or single route (associative array)
         $hasMultipleRoutes = array_key_exists(0, $aListRuteros);
-        
-        info('AlistRuteros structure', [
-            'count' => count($aListRuteros),
-            'has_multiple_routes' => $hasMultipleRoutes
-        ]);
 
         if ($hasMultipleRoutes) {
-            // Multiple routes: iterate through each route
             foreach ($aListRuteros as $rutero) {
-                if (!isset($rutero['aDetail'])) {
+                if (! is_array($rutero)) {
                     continue;
                 }
-
-                $aListDetailsRuteros = $rutero['aDetail']['aListDetailsRuteros'];
-                
-                $data = [
-                    'aDiaRecorrido' => $rutero['aDiaRecorrido'] ?? null,
-                    'aRoute' => $rutero['aRoute'] ?? null,
-                    'aZona' => $rutero['aZona'] ?? null,
-                ];
-
-                // Check if aListDetailsRuteros is an array of details or a single detail
-                if (array_key_exists(0, $aListDetailsRuteros)) {
-                    foreach ($aListDetailsRuteros as $detail) {
-                        $items[] = self::processData($detail, $data);
-                    }
-                } else {
-                    $items[] = self::processData($aListDetailsRuteros, $data);
-                }
+                self::appendProcessedRouteDetails($items, $rutero);
             }
         } else {
-            // Single route: use old logic
-            if (!array_key_exists('aDetail', $aListRuteros)) {
-                return null;
-            }
-
-            $aListDetailsRuteros = $aListRuteros['aDetail']['aListDetailsRuteros'];
-
-            $data = [
-                'aDiaRecorrido' => $aListRuteros['aDiaRecorrido'] ?? null,
-                'aRoute' => $aListRuteros['aRoute'] ?? null,
-                'aZona' => $aListRuteros['aZona'] ?? null,
-            ];
-
-            // Check if aListDetailsRuteros is an array of details or a single detail
-            if (array_key_exists(0, $aListDetailsRuteros)) {
-                foreach ($aListDetailsRuteros as $detail) {
-                    $items[] = self::processData($detail, $data);
-                }
-            } else {
-                $items[] = self::processData($aListDetailsRuteros, $data);
-            }
+            self::appendProcessedRouteDetails($items, $aListRuteros);
         }
 
-        $items = collect($items);
+        $items = collect($items)->filter()->values();
 
         if ($items->count()) {
-            $name = $items->first()['name'] ?? 'Sin Nombre';
-
-            $data = [
+            return [
                 'routes' => $items,
-                'name' => $name
+                'name' => $items->first()['name'] ?? 'Sin Nombre',
             ];
+        }
 
-            return $data;
-        } else {
-            return null;
+        return null;
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $items
+     * @param  array<string, mixed>  $rutero
+     */
+    private static function appendProcessedRouteDetails(array &$items, array $rutero): void
+    {
+        if (! array_key_exists('aDetail', $rutero) || ! is_array($rutero['aDetail'] ?? null)) {
+            return;
+        }
+
+        $aListDetailsRuteros = $rutero['aDetail']['aListDetailsRuteros'] ?? null;
+        if ($aListDetailsRuteros === null || $aListDetailsRuteros === [] || ! is_array($aListDetailsRuteros)) {
+            return;
+        }
+
+        $routeMeta = [
+            'aDiaRecorrido' => $rutero['aDiaRecorrido'] ?? null,
+            'aRoute' => $rutero['aRoute'] ?? null,
+            'aZona' => $rutero['aZona'] ?? null,
+        ];
+
+        if (array_key_exists(0, $aListDetailsRuteros)) {
+            foreach ($aListDetailsRuteros as $detail) {
+                $processed = self::processData(is_array($detail) ? $detail : [], $routeMeta);
+                if ($processed !== null) {
+                    $items[] = $processed;
+                }
+            }
+
+            return;
+        }
+
+        $processed = self::processData($aListDetailsRuteros, $routeMeta);
+        if ($processed !== null) {
+            $items[] = $processed;
         }
     }
 
@@ -443,22 +513,22 @@ class UserRepository
      */
     public static function syncUserContactData($user): bool
     {
-        return self::syncUserRuteroData($user, contactOnly: true);
+        return self::syncUserRuteroData($user, contactOnly: true)['synced'];
     }
 
     /**
      * Sync rutero data for a user and update their zones
      * This ensures we have current rutero data before processing orders
-     * 
-     * @param \App\Models\User $user
-     * @param bool $contactOnly When true, only email and phone fields are updated
-     *                          and zone rows are left untouched.
-     * @return bool True if sync was successful, false otherwise
+     *
+     * @param  \App\Models\User  $user
+     * @param  bool  $contactOnly  When true, only email and phone fields are updated
+     *                             and zone rows are left untouched.
+     * @return array{synced: bool, failure: null|string} failure is 'not_found' or 'query_failed'
      */
-    public static function syncUserRuteroData($user, bool $contactOnly = false)
+    public static function syncUserRuteroData($user, bool $contactOnly = false): array
     {
         if (!$user || !$user->document) {
-            return false;
+            return ['synced' => false, 'failure' => 'not_found'];
         }
 
         try {
@@ -536,7 +606,8 @@ class UserRepository
                             continue;
                         }
                         $value = $firstRoute[$field];
-                        if ($value === null || $value === '') {
+                        // Skip empty / non-scalar Dynamics payloads (empty XML → []).
+                        if ($value === null || $value === '' || is_array($value)) {
                             continue;
                         }
                         $profilePayload[$field] = $value;
@@ -580,6 +651,14 @@ class UserRepository
                     }
                 }
 
+                // Clear corrupt phone placeholders written from empty SOAP arrays (literal "[]").
+                foreach (['phone', 'mobile_phone', 'whatsapp'] as $contactField) {
+                    $current = $user->getAttribute($contactField);
+                    if (is_string($current) && trim($current) === '[]' && ! array_key_exists($contactField, $toApply)) {
+                        $toApply[$contactField] = null;
+                    }
+                }
+
                 $syncedAt = now();
 
                 if ($toApply === []) {
@@ -611,21 +690,23 @@ class UserRepository
                     'synced_zones' => $syncedZones,
                 ]);
 
-                return true;
-            } else {
-                \Log::warning('Rutero data sync returned no routes', [
-                    'user_id' => $user->id,
-                    'document' => $user->document,
-                ]);
-                return false;
+                return ['synced' => true, 'failure' => null];
             }
+
+            \Log::warning('Rutero data sync returned no routes', [
+                'user_id' => $user->id,
+                'document' => $user->document,
+            ]);
+
+            return ['synced' => false, 'failure' => 'not_found'];
         } catch (\Throwable $th) {
             \Log::error('Failed to sync rutero data', [
                 'user_id' => $user->id,
                 'document' => $user->document,
                 'error' => $th->getMessage(),
             ]);
-            return false;
+
+            return ['synced' => false, 'failure' => 'query_failed'];
         }
     }
 }

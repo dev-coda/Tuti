@@ -183,7 +183,8 @@ class DraftOrderReconciliationService
         }
 
         $wasCliente = $user->isCliente();
-        $synced = UserRepository::syncUserRuteroData($user);
+        $syncResult = UserRepository::syncUserRuteroData($user);
+        $synced = $syncResult['synced'];
         $user->refresh();
         $user->load('zones');
 
@@ -230,12 +231,16 @@ class DraftOrderReconciliationService
             ];
         }
 
+        $failureMessage = ($syncResult['failure'] ?? null) === 'query_failed'
+            ? 'Falló la consulta de rutero a Dynamics. Revise logs o intente de nuevo.'
+            : 'No se encontró rutero en Dynamics para este documento.';
+
         return [
             'success' => false,
             'synced' => false,
             'promoted' => false,
             'drafts' => $drafts,
-            'message' => 'No se encontró rutero en Dynamics para este documento.',
+            'message' => $failureMessage,
             'user' => $user->fresh(['zones']),
         ];
     }

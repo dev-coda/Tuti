@@ -54,6 +54,9 @@ function something()
  * extra Dynamics detail fields (phone, mobile_phone, whatsapp, email, balance,
  * quota_value, business_name, price_group).
  *
+ * Pass phone/mobile_phone/whatsapp as empty string to emit self-closing tags that
+ * json_encode(SimpleXML) turns into [] — the real Dynamics empty-field shape.
+ *
  * @param  array<int, array<string, string>>  $sucursales
  */
 function fakeGetRuterosSoap(array $sucursales): string
@@ -74,9 +77,15 @@ function fakeGetRuterosSoap(array $sucursales): string
     foreach ($sucursales as $s) {
         $extraXml = '';
         foreach ($optionalDetailTags as $key => $tag) {
-            if (isset($s[$key]) && $s[$key] !== '') {
-                $extraXml .= '<'.$tag.'>'.$s[$key].'</'.$tag.'>';
+            if (! array_key_exists($key, $s)) {
+                continue;
             }
+            // Empty string → self-closing tag (Dynamics empty node → [] after json_encode).
+            if ($s[$key] === '') {
+                $extraXml .= '<'.$tag.'/>';
+                continue;
+            }
+            $extraXml .= '<'.$tag.'>'.$s[$key].'</'.$tag.'>';
         }
 
         $ruteros .= '<aListRuteros>'
@@ -94,5 +103,20 @@ function fakeGetRuterosSoap(array $sucursales): string
 
     return '<sEnvelope><sBody><getRuterosResponse><result><agetRuterosResult>'
         .$ruteros
+        .'</agetRuterosResult></result></getRuterosResponse></sBody></sEnvelope>';
+}
+
+/** Empty getRuteros payload (no ListRuteros children). */
+function fakeEmptyGetRuterosSoap(): string
+{
+    return '<sEnvelope><sBody><getRuterosResponse><result><agetRuterosResult>'
+        .'</agetRuterosResult></result></getRuterosResponse></sBody></sEnvelope>';
+}
+
+/** Nil ListRuteros — historically crashed array_key_exists(0, null). */
+function fakeNilGetRuterosSoap(): string
+{
+    return '<sEnvelope><sBody><getRuterosResponse><result><agetRuterosResult>'
+        .'<aListRuteros/>'
         .'</agetRuterosResult></result></getRuterosResponse></sBody></sEnvelope>';
 }
