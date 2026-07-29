@@ -453,6 +453,155 @@ it('creates separate bonification rows when different trigger products share the
     expect($rows->where('bonification_id', $bonificationB->id)->first()->quantity)->toBe(1);
     expect($rows->pluck('product_id')->unique()->count())->toBe(1);
     expect($rows->first()->product_id)->toBe($sharedGift->id);
+
+    // Gift XML must emit one line per SKU with the summed qty (not one line per DB row).
+    $order->load(['zone', 'user', 'products', 'bonifications']);
+    $xml = \App\Repositories\OrderRepository::buildOrderXmlForDiagnostic($order, true);
+    expect(substr_count($xml, '<dyn:itemId>GIFT-SHARED</dyn:itemId>'))->toBe(1)
+        ->and($xml)->toContain('<dyn:qty>2</dyn:qty>');
+});
+
+it('consolidates duplicate gift SKUs into a single PreSales XML line with total qty', function () {
+    $user = User::factory()->create();
+    $zone = \App\Models\Zone::create([
+        'route' => '1',
+        'zone' => '933',
+        'day' => '2',
+        'address' => 'Addr',
+        'code' => 'Z-GIFT-MERGE',
+        'user_id' => $user->id,
+    ]);
+
+    $tax = Tax::create(['name' => 'IVA gift merge', 'tax' => 0]);
+    $vendor = Vendor::create([
+        'name' => 'Vendor gift merge',
+        'slug' => 'vendor-gift-merge',
+        'minimum_purchase' => 0,
+        'active' => 1,
+        'vendor_type' => 'TAT',
+    ]);
+    $brand = Brand::create([
+        'name' => 'Brand gift merge',
+        'slug' => 'brand-gift-merge',
+        'vendor_id' => $vendor->id,
+    ]);
+
+    $gift = Product::create([
+        'name' => 'Shared Gift SKU',
+        'description' => 'g',
+        'short_description' => 'g',
+        'sku' => 'TRDR20RJBLK180',
+        'slug' => 'gift-merge-sku',
+        'active' => 1,
+        'price' => 0,
+        'delivery_days' => 1,
+        'discount' => 0,
+        'quantity_min' => 1,
+        'quantity_max' => 100,
+        'step' => 1,
+        'tax_id' => $tax->id,
+        'brand_id' => $brand->id,
+        'package_quantity' => 1,
+    ]);
+
+    $triggerA = Product::create([
+        'name' => 'Trigger merge A',
+        'description' => 'a',
+        'short_description' => 'a',
+        'sku' => 'TRIG-MERGE-A',
+        'slug' => 'trig-merge-a',
+        'active' => 1,
+        'price' => 100,
+        'delivery_days' => 1,
+        'discount' => 0,
+        'quantity_min' => 1,
+        'quantity_max' => 100,
+        'step' => 1,
+        'tax_id' => $tax->id,
+        'brand_id' => $brand->id,
+        'package_quantity' => 1,
+    ]);
+    $triggerB = Product::create([
+        'name' => 'Trigger merge B',
+        'description' => 'b',
+        'short_description' => 'b',
+        'sku' => 'TRIG-MERGE-B',
+        'slug' => 'trig-merge-b',
+        'active' => 1,
+        'price' => 100,
+        'delivery_days' => 1,
+        'discount' => 0,
+        'quantity_min' => 1,
+        'quantity_max' => 100,
+        'step' => 1,
+        'tax_id' => $tax->id,
+        'brand_id' => $brand->id,
+        'package_quantity' => 1,
+    ]);
+
+    $order = \App\Models\Order::create([
+        'user_id' => $user->id,
+        'zone_id' => $zone->id,
+        'status_id' => \App\Models\Order::STATUS_PENDING,
+        'total' => 200,
+        'discount' => 0,
+        'zone_snapshot' => [
+            'code' => $zone->code,
+            'route' => $zone->route,
+            'zone' => $zone->zone,
+            'day' => $zone->day,
+            'address' => $zone->address,
+        ],
+    ]);
+
+    $opA = \App\Models\OrderProduct::create([
+        'order_id' => $order->id,
+        'product_id' => $triggerA->id,
+        'quantity' => 1,
+        'price' => 100,
+        'discount' => 0,
+        'package_quantity' => 1,
+    ]);
+    $opB = \App\Models\OrderProduct::create([
+        'order_id' => $order->id,
+        'product_id' => $triggerB->id,
+        'quantity' => 1,
+        'price' => 100,
+        'discount' => 0,
+        'package_quantity' => 1,
+    ]);
+
+    $bonif = Bonification::create([
+        'name' => 'Shared gift rule',
+        'buy' => 1,
+        'get' => 1,
+        'product_id' => $gift->id,
+        'max' => 100,
+    ]);
+
+    \App\Models\OrderProductBonification::create([
+        'order_id' => $order->id,
+        'order_product_id' => $opA->id,
+        'bonification_id' => $bonif->id,
+        'product_id' => $gift->id,
+        'quantity' => 36,
+    ]);
+    \App\Models\OrderProductBonification::create([
+        'order_id' => $order->id,
+        'order_product_id' => $opB->id,
+        'bonification_id' => $bonif->id,
+        'product_id' => $gift->id,
+        'quantity' => 4,
+    ]);
+
+    $order->load(['zone', 'user', 'products', 'bonifications']);
+    $xml = \App\Repositories\OrderRepository::buildOrderXmlForDiagnostic($order, true);
+
+    expect($order->bonifications()->count())->toBe(2)
+        ->and(substr_count($xml, '<dyn:itemId>TRDR20RJBLK180</dyn:itemId>'))->toBe(1)
+        ->and($xml)->toContain('<dyn:qty>40</dyn:qty>')
+        ->and($xml)->not->toContain('<dyn:qty>36</dyn:qty>')
+        ->and($xml)->not->toContain('<dyn:qty>4</dyn:qty>');
 });
 
 it('blocks the order when stock cannot cover all gifted items involved', function () {

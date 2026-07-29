@@ -55,6 +55,65 @@ class OrderRepository
     }
 
     /**
+     * Gift (obsequio) XML must not repeat the same itemId: Dynamics expects one line per SKU
+     * with the total qty. Checkout may still store multiple OrderProductBonification rows when
+     * different triggers earn the same gift — consolidate only at XML emission.
+     *
+     * @param  array<int, array{sku: string, qty: float|int|string, discount: float|int|string, unit_price: float|int|string, vendor_type: string}>  $lines
+     * @return array<int, array{sku: string, qty: float|int|string, discount: float|int|string, unit_price: float|int|string, vendor_type: string}>
+     */
+    private static function consolidateGiftXmlLinesBySku(array $lines, bool $isGiftOrder): array
+    {
+        if (! $isGiftOrder || $lines === []) {
+            return $lines;
+        }
+
+        $bySku = [];
+        foreach ($lines as $line) {
+            $sku = (string) $line['sku'];
+            if ($sku === '') {
+                continue;
+            }
+
+            if (! isset($bySku[$sku])) {
+                $bySku[$sku] = $line;
+                continue;
+            }
+
+            $bySku[$sku]['qty'] = (float) $bySku[$sku]['qty'] + (float) $line['qty'];
+        }
+
+        return array_values($bySku);
+    }
+
+    /**
+     * @param  array<int, array{sku: string, qty: float|int|string, discount: float|int|string, unit_price: float|int|string, vendor_type: string}>  $lines
+     */
+    private static function renderListDetailsXml(array $lines): string
+    {
+        $productList = '';
+
+        foreach ($lines as $line) {
+            $escapedSku = htmlspecialchars((string) $line['sku'], ENT_XML1 | ENT_QUOTES, 'UTF-8');
+            $escapedVendorType = htmlspecialchars((string) ($line['vendor_type'] ?? ''), ENT_XML1 | ENT_QUOTES, 'UTF-8');
+            $qty = $line['qty'];
+
+            $productList .= '<dyn:listDetails>
+                            <dyn:discount>' . $line['discount'] . '</dyn:discount>
+                            <dyn:itemId>' . $escapedSku . '</dyn:itemId>
+                            <dyn:qty>' . $qty . '</dyn:qty>
+                            <dyn:qtyCust>' . $qty . '</dyn:qtyCust>
+                            <dyn:um>Unidad</dyn:um>
+                            <dyn:umCust>None</dyn:umCust>
+                            <dyn:unitPrice>' . $line['unit_price'] . '</dyn:unitPrice>
+                            <dyn:vendorType>' . $escapedVendorType . '</dyn:vendorType>
+                        </dyn:listDetails>';
+        }
+
+        return $productList;
+    }
+
+    /**
      * Build SOAP envelope body for given order and products (shared with sendData).
      */
     private static function buildSoapXmlBody($order, $products, int $bonification = 0): string
@@ -93,7 +152,7 @@ class OrderRepository
             }
         }
 
-        $productList = '';
+        $lines = [];
         $vendor_type = '';
 
         foreach ($products as $product) {
@@ -114,21 +173,17 @@ class OrderRepository
             $packageQty = $product->package_quantity ?? 1;
             $qty = $bonification ? $product->quantity : ($productData->calculate_package_price ? $product->quantity * $packageQty : $product->quantity);
 
-            $escapedSku = htmlspecialchars($sku, ENT_XML1 | ENT_QUOTES, 'UTF-8');
-            $escapedVendorType = htmlspecialchars($vendor_type ?? '', ENT_XML1 | ENT_QUOTES, 'UTF-8');
-
-            $productList .= '<dyn:listDetails>
-                            <dyn:discount>' . $discountPercentage . '</dyn:discount>
-                            <dyn:itemId>' . $escapedSku . '</dyn:itemId>
-                            <dyn:qty>' . $qty . '</dyn:qty>
-                            <dyn:qtyCust>' . $qty . '</dyn:qtyCust>
-                            <dyn:um>Unidad</dyn:um>
-                            <dyn:umCust>None</dyn:umCust>
-                            <dyn:unitPrice>' . $unitPrice . '</dyn:unitPrice>
-                            <dyn:vendorType>' . $escapedVendorType . '</dyn:vendorType>
-                        </dyn:listDetails>';
+            $lines[] = [
+                'sku' => (string) $sku,
+                'qty' => $qty,
+                'discount' => $discountPercentage,
+                'unit_price' => $unitPrice,
+                'vendor_type' => (string) ($vendor_type ?? ''),
+            ];
         }
 
+        $lines = self::consolidateGiftXmlLinesBySku($lines, (bool) $bonification);
+        $productList = self::renderListDetailsXml($lines);
         $productList .= self::buildShippingServiceXmlLine($order, $bonification);
 
         return '<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:dat="http://schemas.microsoft.com/dynamics/2013/01/datacontracts" xmlns:tem="http://tempuri.org" xmlns:dyn="http://schemas.datacontract.org/2004/07/Dynamics.AX.Application">
@@ -395,8 +450,6 @@ class OrderRepository
         $code = $zonePayload['code'] ?? ($zone->code ?? '');
         $zoneNum = $zonePayload['zone'] ?? ($zone->zone ?? '');
 
-        $productList = '';
-
         // Optimize product loading - load all necessary data in one query
         $productIds = $products->pluck('product_id')->toArray();
         $variationIds = $products->pluck('variation_item_id')->filter()->toArray();
@@ -443,6 +496,9 @@ class OrderRepository
                 'count' => count($variationSkus)
             ]);
         }
+
+        $lines = [];
+        $vendor_type = '';
 
         foreach ($products as $product) {
             $productData = $productsData[$product->product_id] ?? null;
@@ -523,15 +579,11 @@ class OrderRepository
                 continue;
             }
 
-            // Escape SKU for XML to prevent encoding issues
-            $escapedSku = htmlspecialchars($sku, ENT_XML1 | ENT_QUOTES, 'UTF-8');
-            $escapedVendorType = htmlspecialchars($vendor_type ?? '', ENT_XML1 | ENT_QUOTES, 'UTF-8');
-
             // Log product being added to SOAP with coupon details
             Log::channel('soap')->debug('Adding product to SOAP', [
                 'order_id' => $order->id,
                 'product_id' => $product->product_id,
-                'sku' => $escapedSku,
+                'sku' => $sku,
                 'qty' => $qty,
                 'unit_price' => $unitPrice,
                 'discount_percentage' => $discountPercentage,
@@ -539,18 +591,27 @@ class OrderRepository
                 'flat_discount_amount' => $flatDiscountAmount,
             ]);
 
-            $productList .= '<dyn:listDetails>
-                            <dyn:discount>' . $discountPercentage . '</dyn:discount>
-                            <dyn:itemId>' . $escapedSku . '</dyn:itemId>
-                            <dyn:qty>' . $qty . '</dyn:qty>
-                            <dyn:qtyCust>' . $qty . '</dyn:qtyCust>
-                            <dyn:um>Unidad</dyn:um>
-                            <dyn:umCust>None</dyn:umCust>
-                            <dyn:unitPrice>' . $unitPrice . '</dyn:unitPrice>
-                            <dyn:vendorType>' . $escapedVendorType . '</dyn:vendorType>
-                        </dyn:listDetails>';
+            $lines[] = [
+                'sku' => (string) $sku,
+                'qty' => $qty,
+                'discount' => $discountPercentage,
+                'unit_price' => $unitPrice,
+                'vendor_type' => (string) ($vendor_type ?? ''),
+            ];
         }
 
+        $rawLineCount = count($lines);
+        $lines = self::consolidateGiftXmlLinesBySku($lines, (bool) $bonification);
+        if ($bonification && $rawLineCount !== count($lines)) {
+            Log::channel('soap')->info('Consolidated gift XML lines by SKU', [
+                'order_id' => $order->id,
+                'raw_lines' => $rawLineCount,
+                'consolidated_lines' => count($lines),
+                'lines' => $lines,
+            ]);
+        }
+
+        $productList = self::renderListDetailsXml($lines);
         $productList .= self::buildShippingServiceXmlLine($order, (int) $bonification);
 
         $order_id = $order->id;
