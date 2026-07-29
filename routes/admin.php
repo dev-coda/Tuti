@@ -71,6 +71,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
 
     Route::get('/documentacion', [DocumentationController::class, 'index'])->name('admin.documentation.index');
     Route::get('/documentacion/ver', [DocumentationController::class, 'show'])->name('admin.documentation.show');
+    Route::get('/documentacion/pdf', [DocumentationController::class, 'pdf'])->name('admin.documentation.pdf');
 
     // KPI Dashboard routes
     Route::prefix('kpi')->name('admin.kpi.')->group(function () {

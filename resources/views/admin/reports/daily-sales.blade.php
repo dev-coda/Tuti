@@ -180,7 +180,7 @@
                                 </div>
                             </td>
                             <td class="px-4 py-3 whitespace-nowrap text-right text-sm font-medium text-gray-900">
-                                ${{ number_format($order->total, 0, ',', '.') }}
+                                ${{ number_format($order->totalWithTax(), 0, ',', '.') }}
                             </td>
                             <td class="px-4 py-3 whitespace-nowrap text-center">
                                 <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">

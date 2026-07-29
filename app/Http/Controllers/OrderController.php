@@ -356,7 +356,7 @@ class OrderController extends Controller
     private function buildOrdersQuery(User $user, array $filters, Request $request, ?callable $scope = null)
     {
         return Order::query()
-            ->with(['user', 'products.product.images'])
+            ->with(['user', 'products.product.images', 'products.product.tax'])
             ->withCount('products')
             ->withSum('products', 'quantity')
             ->tap(fn ($query) => $scope ? $scope($query) : $this->applyOrderVisibilityScope($query, $user))
@@ -395,7 +395,7 @@ class OrderController extends Controller
     private function buildOrdersExportQuery(User $user, array $filters, Request $request, ?callable $scope = null)
     {
         return Order::query()
-            ->with(['user:id,name'])
+            ->with(['user:id,name', 'products.product.tax'])
             ->tap(fn ($query) => $scope ? $scope($query) : $this->applyOrderVisibilityScope($query, $user))
             ->whereNot('total', '0')
             ->when($filters['q'] !== '', function ($query) use ($filters) {
@@ -479,23 +479,42 @@ class OrderController extends Controller
             ->whereNot('total', '0')
             ->whereBetween('created_at', [$fromUtc, $toUtc]);
 
-        $totalPedidos   = (clone $ordersQuery)->count();
-        $ventasTotales  = (clone $ordersQuery)->sum('total');
+        $totalPedidos = (clone $ordersQuery)->count();
+        // Chunked sum — never hydrate the full date range at once (wide ranges OOM).
+        $ventasTotales = Order::sumTotalWithTaxForQuery($ordersQuery);
         $ticketPromedio = $totalPedidos > 0 ? round($ventasTotales / $totalPedidos, 2) : 0;
 
-        // ── Row 2: six fixed sales buckets ───────────────────────
+        // ── Row 2: fixed sales buckets ───────────────────────────
         $baseConditions = fn ($q) => $q
             ->where('orders.seller_id', $user->id)
             ->where('orders.total', '!=', 0)
             ->whereBetween('orders.created_at', [$fromUtc, $toUtc]);
 
+        // Line sales with IVA (lista/SOAP basis). Approximate package + % discount in SQL;
+        // fixed_amount discounts are rare and still handled exactly by totalWithTax() KPIs.
+        // CASE clamps (not LEAST/GREATEST) so SQLite tests and Postgres prod both work.
+        $lineSalesSelect = 'COALESCE(SUM(
+            order_products.price * order_products.quantity
+            * CASE WHEN products.calculate_package_price THEN 1 ELSE COALESCE(NULLIF(order_products.package_quantity, 0), 1) END
+            * (1 - (
+                CASE
+                    WHEN COALESCE(order_products.percentage, 0) < 0 THEN 0
+                    WHEN COALESCE(order_products.percentage, 0) > 100 THEN 100
+                    ELSE COALESCE(order_products.percentage, 0)
+                END
+            ) / 100.0)
+            * (1 + COALESCE(taxes.tax, 0) / 100.0)
+        ), 0) as total, COALESCE(SUM(order_products.quantity), 0) as quantity';
+
         // Helper: sales total + unit quantity for products in given category IDs.
         // product_id IN (subquery on category_product) counts each order line once; the id list includes
         // descendant categories so pivot rows on child categories match without duplicating lines.
-        $salesByCategories = function (array $categoryIds) use ($baseConditions) {
+        $salesByCategories = function (array $categoryIds) use ($baseConditions, $lineSalesSelect) {
             if (empty($categoryIds)) return ['total' => 0, 'quantity' => 0];
             $row = DB::table('orders')
                 ->join('order_products', 'orders.id', '=', 'order_products.order_id')
+                ->join('products', 'order_products.product_id', '=', 'products.id')
+                ->leftJoin('taxes', 'products.tax_id', '=', 'taxes.id')
                 ->where(fn ($q) => $baseConditions($q))
                 ->whereIn('order_products.product_id', function ($sub) use ($categoryIds) {
                     $sub->select('product_id')
@@ -503,34 +522,36 @@ class OrderController extends Controller
                         ->whereIn('category_id', $categoryIds)
                         ->distinct();
                 })
-                ->selectRaw('COALESCE(SUM(order_products.price * order_products.quantity), 0) as total, COALESCE(SUM(order_products.quantity), 0) as quantity')
+                ->selectRaw($lineSalesSelect)
                 ->first();
             return ['total' => (float) $row->total, 'quantity' => (int) $row->quantity];
         };
 
         // Helper: sales total + unit quantity for products with given brand IDs
-        $salesByBrands = function (array $brandIds) use ($baseConditions) {
+        $salesByBrands = function (array $brandIds) use ($baseConditions, $lineSalesSelect) {
             if (empty($brandIds)) return ['total' => 0, 'quantity' => 0];
             $row = DB::table('orders')
                 ->join('order_products', 'orders.id', '=', 'order_products.order_id')
                 ->join('products', 'order_products.product_id', '=', 'products.id')
+                ->leftJoin('taxes', 'products.tax_id', '=', 'taxes.id')
                 ->where(fn ($q) => $baseConditions($q))
                 ->whereIn('products.brand_id', $brandIds)
-                ->selectRaw('COALESCE(SUM(order_products.price * order_products.quantity), 0) as total, COALESCE(SUM(order_products.quantity), 0) as quantity')
+                ->selectRaw($lineSalesSelect)
                 ->first();
             return ['total' => (float) $row->total, 'quantity' => (int) $row->quantity];
         };
 
         // Helper: sales total + unit quantity for products whose brand belongs to given vendor IDs
-        $salesByVendors = function (array $vendorIds) use ($baseConditions) {
+        $salesByVendors = function (array $vendorIds) use ($baseConditions, $lineSalesSelect) {
             if (empty($vendorIds)) return ['total' => 0, 'quantity' => 0];
             $row = DB::table('orders')
                 ->join('order_products', 'orders.id', '=', 'order_products.order_id')
                 ->join('products', 'order_products.product_id', '=', 'products.id')
+                ->leftJoin('taxes', 'products.tax_id', '=', 'taxes.id')
                 ->join('brands', 'products.brand_id', '=', 'brands.id')
                 ->where(fn ($q) => $baseConditions($q))
                 ->whereIn('brands.vendor_id', $vendorIds)
-                ->selectRaw('COALESCE(SUM(order_products.price * order_products.quantity), 0) as total, COALESCE(SUM(order_products.quantity), 0) as quantity')
+                ->selectRaw($lineSalesSelect)
                 ->first();
             return ['total' => (float) $row->total, 'quantity' => (int) $row->quantity];
         };
@@ -558,10 +579,13 @@ class OrderController extends Controller
         $encendedoresIds = $this->categoryIdsWithDescendants($catIdsByName(['Encendedores']));
         $bombillosIds = $this->categoryIdsWithDescendants($catIdsByName(['Bombillos']));
 
-        // 5. Otros — brands GP, Mtek, General Electric (+ GE alias), ROCKET
+        // 5. Tronex — brand Tronex (Pilas Moneda, Linternas, and other Tronex-brand lines)
+        $tronexBrandIds = $brandIdsByName(['Tronex']);
+
+        // 6. Otros — brands GP, Mtek, General Electric (+ GE alias), ROCKET
         $otrosBrandIds = $brandIdsByName(['GP', 'Gp', 'Mtek', 'General Electric', 'GE', 'ROCKET']);
 
-        // 6. Terceros — vendors Eterna, Prebel, Yass, Produsa, Dromatic, Sense, Knight
+        // 7. Terceros — vendors Eterna, Prebel, Yass, Produsa, Dromatic, Sense, Knight
         $tercerosVendorIds = $vendorIdsByName([
             'Eterna', 'Prebel', 'Yass', 'Produsa', 'Dromatic', 'Sense', 'Knight',
         ]);
@@ -570,6 +594,7 @@ class OrderController extends Controller
         $manganesoSales     = $salesByCategories($manganesoIds);
         $encendedoresSales  = $salesByCategories($encendedoresIds);
         $bombillosSales     = $salesByCategories($bombillosIds);
+        $tronexSales        = $salesByBrands($tronexBrandIds);
         $otrosSales         = $salesByBrands($otrosBrandIds);
         $tercerosSales      = $salesByVendors($tercerosVendorIds);
 
@@ -578,6 +603,7 @@ class OrderController extends Controller
             ['label' => 'Manganeso',     'total' => round($manganesoSales['total'], 2),     'quantity' => $manganesoSales['quantity']],
             ['label' => 'Encendedores',  'total' => round($encendedoresSales['total'], 2),  'quantity' => $encendedoresSales['quantity']],
             ['label' => 'Bombillos',     'total' => round($bombillosSales['total'], 2),     'quantity' => $bombillosSales['quantity']],
+            ['label' => 'Tronex',        'total' => round($tronexSales['total'], 2),        'quantity' => $tronexSales['quantity']],
             ['label' => 'Otros',         'total' => round($otrosSales['total'], 2),         'quantity' => $otrosSales['quantity']],
             ['label' => 'Terceros',      'total' => round($tercerosSales['total'], 2),      'quantity' => $tercerosSales['quantity']],
         ];

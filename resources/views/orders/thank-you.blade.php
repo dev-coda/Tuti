@@ -82,7 +82,7 @@
 
                 <div class="flex justify-between items-center pt-4">
                     <span class="text-base font-medium text-gray-900">Total</span>
-                    <span class="text-2xl font-bold text-orange-600">${{ number_format($order->total, 0, ',', '.') }}</span>
+                    <span class="text-2xl font-bold text-orange-600">${{ number_format($order->totalWithTax(), 0, ',', '.') }}</span>
                 </div>
             </div>
         </div>

@@ -192,6 +192,31 @@ class UserRepository
      */
     public static function getCustomRuteroId($document, $zone = null)
     {
+        try {
+            return self::getCustomRuteroIdOrFail($document, $zone);
+        } catch (\RuntimeException $e) {
+            // Callers (registration, seller setclient, etc.) historically treated Dynamics
+            // outages as "not found". Keep that UX; syncUserRuteroData uses OrFail for
+            // query_failed messaging.
+            \Log::error('getCustomRuteroId Dynamics query failed', [
+                'document' => $document,
+                'zone' => $zone,
+                'error' => $e->getMessage(),
+            ]);
+
+            return null;
+        }
+    }
+
+    /**
+     * Same as getCustomRuteroId but propagates Dynamics transport/parse failures.
+     *
+     * @return array{routes: mixed, name: string}|null
+     *
+     * @throws \RuntimeException When Dynamics HTTP/XML transport fails.
+     */
+    private static function getCustomRuteroIdOrFail($document, $zone = null)
+    {
         $token = self::freshMicrosoftToken();
         $originalZone = $zone;
         $zone = $zone ?? '';
@@ -221,6 +246,8 @@ class UserRepository
      */
     public static function getRuterosForZone(string $zone): ?\Illuminate\Support\Collection
     {
+        // Let RuntimeException propagate so RuteroZoneSyncService can count zones_failed
+        // (returning null would be miscounted as an empty zone).
         $result = self::fetchRuteroData('', $zone, self::freshMicrosoftToken());
 
         return $result ? collect($result['routes']) : null;
@@ -532,7 +559,9 @@ class UserRepository
         }
 
         try {
-            $data = self::getCustomRuteroId($user->document);
+            // Use OrFail so HTTP/XML Dynamics failures map to failure=query_failed
+            // (getCustomRuteroId swallows those for UX on registration/setclient).
+            $data = self::getCustomRuteroIdOrFail($user->document);
 
             \Log::info('Rutero sync - data received', [
                 'user_id' => $user->id,

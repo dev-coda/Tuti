@@ -252,15 +252,19 @@
             <div class="bg-white border border-gray-200 rounded-2xl p-5 sm:p-6">
                 <h2 class="text-lg font-semibold text-gray-900 mb-4">Resumen del Pedido</h2>
                 
+                @php
+                    $displayTotal = $order->totalWithTax();
+                    $displayDiscount = $order->discountWithTax();
+                @endphp
                 <div class="space-y-3">
                     <div class="flex justify-between text-sm">
                         <span class="text-gray-600">Subtotal</span>
-                        <span class="text-gray-900 font-medium">${{ number_format($order->total + $order->discount, 0) }}</span>
+                        <span class="text-gray-900 font-medium">${{ number_format($displayTotal + $displayDiscount, 0) }}</span>
                     </div>
-                    @if($order->discount > 0)
+                    @if($displayDiscount > 0)
                     <div class="flex justify-between text-sm">
                         <span class="text-green-600">Descuento</span>
-                        <span class="text-green-600 font-medium">-${{ number_format($order->discount, 0) }}</span>
+                        <span class="text-green-600 font-medium">-${{ number_format($displayDiscount, 0) }}</span>
                     </div>
                     @endif
                     @if(($order->retention_total ?? 0) > 0)
@@ -283,7 +287,7 @@
                     <div class="border-t border-gray-200 pt-3">
                         <div class="flex justify-between">
                             <span class="text-base font-semibold text-gray-900">Total</span>
-                            <span class="text-xl font-bold text-orange-600">${{ number_format($order->total, 0) }}</span>
+                            <span class="text-xl font-bold text-orange-600">${{ number_format($displayTotal, 0) }}</span>
                         </div>
                     </div>
                 </div>

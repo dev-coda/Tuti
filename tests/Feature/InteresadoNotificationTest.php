@@ -160,16 +160,20 @@ it('still notifies with a built-in fallback when the template is missing', funct
     expect($spy->subject)->toBe('Nuevo interesado registrado - Juan Interesado');
 });
 
-it('does not send when the template was deliberately deactivated', function () {
+it('still notifies with the built-in fallback when the template was deactivated', function () {
     seedContactFormTemplate(active: false);
     Setting::updateOrCreate(
         ['key' => 'interesados_admin_email'],
         ['name' => 'Interesados Admin Email', 'value' => 'comercial@tronex.com', 'show' => true]
     );
 
-    Mail::shouldReceive('html')->never();
+    $capture = spyOnMailHtml(1);
 
     makeInteresadoContact();
+
+    $spy = $capture['spies'][0];
+    expect($spy->to)->toBe(['comercial@tronex.com']);
+    expect($spy->subject)->toBe('Nuevo interesado registrado - Juan Interesado');
 });
 
 it('sends the notification when the public interesado form is submitted', function () {
@@ -202,15 +206,40 @@ it('sends the notification when the public interesado form is submitted', functi
     expect($capture['spies'][0]->to)->toBe(['comercial@tronex.com']);
 });
 
-it('dispatches the email job to the emails queue when a queue worker exists', function () {
-    config(['queue.default' => 'redis']);
-    \Illuminate\Support\Facades\Bus::fake();
-
+it('sends when Cliente Nuevo stores a string city that shadows the city relation', function () {
     seedContactFormTemplate();
+    Setting::updateOrCreate(
+        ['key' => 'interesados_admin_email'],
+        ['name' => 'Interesados Admin Email', 'value' => 'comercial@tronex.com', 'show' => true]
+    );
+
+    $capture = spyOnMailHtml(1);
+
+    // Mirrors NewClientController::storeAsInteresado — city is a free-text
+    // column that shadows Contact::city(), which previously crashed the mailer.
+    makeInteresadoContact([
+        'city' => 'MEDELLIN',
+        'department' => 'ANTIOQUIA',
+        'business_name' => 'TIENDA DEMO',
+        'new_client_mode' => 'self_service',
+    ]);
+
+    $spy = $capture['spies'][0];
+    expect($spy->to)->toBe(['comercial@tronex.com']);
+    expect($spy->subject)->toBe('Nuevo contacto registrado - Juan Interesado');
+});
+
+it('still sends immediately when the default queue is redis', function () {
+    config(['queue.default' => 'redis']);
+    seedContactFormTemplate();
+    Setting::updateOrCreate(
+        ['key' => 'interesados_admin_email'],
+        ['name' => 'Interesados Admin Email', 'value' => 'comercial@tronex.com', 'show' => true]
+    );
+
+    $capture = spyOnMailHtml(1);
 
     makeInteresadoContact();
 
-    \Illuminate\Support\Facades\Bus::assertDispatched(\App\Jobs\SendContactFormEmail::class, function ($job) {
-        return $job->queue === 'emails' && $job->connection === 'redis';
-    });
+    expect($capture['spies'][0]->to)->toBe(['comercial@tronex.com']);
 });

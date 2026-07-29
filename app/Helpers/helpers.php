@@ -43,3 +43,20 @@ if (! function_exists('parseCurrency')) {
         return $price;
     }
 }
+
+if (! function_exists('amount_with_tax')) {
+    /**
+     * Apply a tax percentage to a tax-exclusive amount (e.g. lista + IVA).
+     */
+    function amount_with_tax(float|int|string $amount, float|int|string|null $taxPercent): float
+    {
+        $amount = (float) $amount;
+        $taxPercent = (float) ($taxPercent ?? 0);
+
+        if ($taxPercent <= 0) {
+            return $amount;
+        }
+
+        return $amount * (1 + ($taxPercent / 100));
+    }
+}

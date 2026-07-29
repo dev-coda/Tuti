@@ -129,6 +129,52 @@ it('does not stack by default: a better brand discount is kept over the coupon',
         ->and((float) $mod['coupon_contribution'])->toBe(0.0);
 });
 
+it('does not mark a coupon as winning when brand/vendor best-of keeps the existing discount', function () {
+    ['tax' => $tax, 'brand' => $brand, 'user' => $user] = bvToggleScaffold(['discount' => 25]);
+    $p = bvToggleProduct($brand, $tax);
+
+    $coupon = bvToggleCoupon(['code' => 'LOSE10', 'value' => 10]);
+
+    $result = app(CouponDiscountService::class)->applyMultipleCouponsToProducts(
+        [$coupon],
+        $user,
+        collect([['product_id' => $p->id, 'quantity' => 1, 'variation_id' => null]]),
+        false
+    );
+
+    $mod = $result['modified_products'][0];
+    expect($result['success'])->toBeTrue()
+        ->and($mod['applied_discount_percentage'])->toBe(25.0)
+        ->and($mod['discount_source'])->toBe('existing')
+        ->and((float) $result['total_coupon_discount'])->toBe(0.0)
+        ->and($result['winning_coupons'])->toBe([])
+        ->and($mod)->not->toHaveKey('winning_coupon_id')
+        ->and($mod)->not->toHaveKey('winning_coupon_code');
+});
+
+it('marks a coupon as winning only when it beats brand/vendor via best-of (no stacking)', function () {
+    ['tax' => $tax, 'brand' => $brand, 'user' => $user] = bvToggleScaffold(['discount' => 12]);
+    $p = bvToggleProduct($brand, $tax);
+
+    $coupon = bvToggleCoupon(['code' => 'WIN20', 'value' => 20]);
+
+    $result = app(CouponDiscountService::class)->applyMultipleCouponsToProducts(
+        [$coupon],
+        $user,
+        collect([['product_id' => $p->id, 'quantity' => 1, 'variation_id' => null]]),
+        false
+    );
+
+    $mod = $result['modified_products'][0];
+    // Coupon replaces brand (20% not 12%+20%=32%); coupon is attributed because it contributed.
+    expect($result['success'])->toBeTrue()
+        ->and($mod['applied_discount_percentage'])->toBe(20.0)
+        ->and($mod['discount_source'])->toBe('coupon')
+        ->and($mod['winning_coupon_code'])->toBe('WIN20')
+        ->and($result['winning_coupons'])->toBe([$coupon->id => 'WIN20'])
+        ->and((float) $result['total_coupon_discount'])->toBe(80.0);
+});
+
 it('stacks a percentage coupon on top of a brand discount when the toggle is enabled', function () {
     ['tax' => $tax, 'brand' => $brand, 'user' => $user] = bvToggleScaffold(['discount' => 12]);
     $p = bvToggleProduct($brand, $tax, ['price' => 1000]);
@@ -252,6 +298,22 @@ it('applies a coupon to a brand-discounted cart through the web endpoint without
     $response->assertRedirect(route('cart'))
         ->assertSessionMissing('error')
         ->assertSessionHas('success');
+});
+
+it('rejects applying a weaker coupon when brand/vendor best-of keeps the existing discount', function () {
+    ['tax' => $tax, 'brand' => $brand, 'user' => $user] = bvToggleScaffold(['discount' => 25]);
+    $p = bvToggleProduct($brand, $tax, ['price' => 1000]);
+
+    $coupon = bvToggleCoupon(['value' => 10]);
+
+    $response = actingAs($user)
+        ->withSession(['cart' => [['product_id' => $p->id, 'quantity' => 1, 'variation_id' => null]]])
+        ->post(route('cart.coupon.apply'), ['coupon_code' => $coupon->code]);
+
+    $response->assertRedirect(route('cart'))
+        ->assertSessionHas('error')
+        ->assertSessionMissing('success')
+        ->assertSessionMissing('applied_coupons');
 });
 
 it('applies a coupon even when the cart line has no variation_id key', function () {

@@ -491,8 +491,20 @@ class CouponDiscountService
 
                 if (!isset($mergedProducts[$key]) || $thisSaving > $currentBestSaving) {
                     $mergedProducts[$key] = $modProduct;
-                    $mergedProducts[$key]['winning_coupon_id']   = $coupon->id;
-                    $mergedProducts[$key]['winning_coupon_code'] = $coupon->code;
+                    // Only attribute a winning coupon when it actually improved the line.
+                    // Best-of may keep brand/vendor pricing (coupon_contribution = 0); those
+                    // lines must not mark the coupon as applied or it will be stored on the order.
+                    $couponContributed = ((float) ($modProduct['coupon_contribution'] ?? 0)) > 0
+                        || (($modProduct['discount_source'] ?? null) === 'coupon');
+                    if ($couponContributed) {
+                        $mergedProducts[$key]['winning_coupon_id'] = $coupon->id;
+                        $mergedProducts[$key]['winning_coupon_code'] = $coupon->code;
+                    } else {
+                        unset(
+                            $mergedProducts[$key]['winning_coupon_id'],
+                            $mergedProducts[$key]['winning_coupon_code']
+                        );
+                    }
                 }
             }
         }
@@ -504,7 +516,13 @@ class CouponDiscountService
         foreach ($mergedProducts as $product) {
             $totalCouponDiscount += (float) ($product['coupon_contribution'] ?? 0);
 
-            if (isset($product['winning_coupon_id'])) {
+            if (
+                isset($product['winning_coupon_id'])
+                && (
+                    ((float) ($product['coupon_contribution'] ?? 0)) > 0
+                    || (($product['discount_source'] ?? null) === 'coupon')
+                )
+            ) {
                 $winningCoupons[$product['winning_coupon_id']] = $product['winning_coupon_code'];
             }
         }

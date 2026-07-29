@@ -204,10 +204,16 @@ class CartController extends Controller
 
             if ($couponResult['success']) {
                 $couponDiscount = $couponResult['total_coupon_discount'];
-                $codes = collect($validCoupons)->pluck('code')->implode(', ');
-                $couponMessage = count($validCoupons) === 1
-                    ? "Cupón '{$codes}' aplicado"
-                    : "Cupones aplicados: {$codes}";
+                $winningCodes = collect($couponResult['winning_coupons'] ?? [])->values();
+                if ($couponDiscount > 0 && $winningCodes->isNotEmpty()) {
+                    $codes = $winningCodes->implode(', ');
+                    $couponMessage = $winningCodes->count() === 1
+                        ? "Cupón '{$codes}' aplicado"
+                        : "Cupones aplicados: {$codes}";
+                } else {
+                    // Coupons are in session but best-of kept brand/vendor pricing — no coupon benefit.
+                    $couponMessage = null;
+                }
             } else {
                 // All coupons failed
                 $this->clearAllCouponSessions();
@@ -1203,13 +1209,18 @@ class CartController extends Controller
 
         try {
             // Use the zone_id determined after rutero sync (ensures current data)
-            // Determine coupon data for order storage
+            // Determine coupon data for order storage.
+            // Only persist coupons that actually contributed discount (best-of may keep
+            // brand/vendor pricing with coupon_contribution = 0 — those must not appear on the order).
             $orderCouponId = null;
             $orderCouponCode = null;
-            if (! empty($winningCoupons)) {
+            if (! empty($winningCoupons) && $couponDiscount > 0) {
                 $winningIds = array_keys($winningCoupons);
                 $orderCouponId = $winningIds[0]; // FK points to primary winning coupon
                 $orderCouponCode = implode(',', array_values($winningCoupons)); // All winning codes
+            } else {
+                $winningCoupons = [];
+                $couponDiscount = 0;
             }
 
             $order = Order::create([
@@ -1612,20 +1623,32 @@ class CartController extends Controller
                     }
                 }
 
-                // Calculate line totals based on whether coupon modified the product
+                // Calculate line totals based on whether coupon modified the product.
+                // CouponDiscountService amounts are tax-exclusive; getFinalPriceForUser is tax-inclusive.
+                $taxPctRetention = (float) (optional($p->tax)->tax ?? 0);
+
                 if (isset($modifiedProductsLookup[$lookupKey])) {
                     $modProduct = $modifiedProductsLookup[$lookupKey];
                     $discountType = $modProduct['applied_discount_type'] ?? 'percentage';
 
                     if ($discountType === 'fixed_amount') {
-                        $lineTotal = (float) ($modProduct['line_total']
+                        $lineTotalExclusive = (float) ($modProduct['line_total']
                             ?? ($modProduct['new_unit_price'] * $row['quantity'] * ($p->package_quantity ?? 1)));
-                        $lineDiscount = (float) ($modProduct['line_savings'] ?? $modProduct['final_discount_amount']);
+                        $lineDiscountExclusive = (float) ($modProduct['line_savings'] ?? $modProduct['final_discount_amount']);
                     } else {
-                        $lineDiscount = (float) ($modProduct['line_savings'] ?? $modProduct['final_discount_amount']);
-                        $lineTotal = (float) ($modProduct['line_total']
-                            ?? (($modProduct['base_price'] * $row['quantity'] * ($p->package_quantity ?? 1)) - $lineDiscount));
+                        $lineDiscountExclusive = (float) ($modProduct['line_savings'] ?? $modProduct['final_discount_amount']);
+                        $lineTotalExclusive = (float) ($modProduct['line_total']
+                            ?? (($modProduct['base_price'] * $row['quantity'] * ($p->package_quantity ?? 1)) - $lineDiscountExclusive));
                     }
+
+                    $lineTotal = amount_with_tax($lineTotalExclusive, $taxPctRetention);
+                    $lineDiscount = amount_with_tax($lineDiscountExclusive, $taxPctRetention);
+                    [$retentionBaseArticulos, $retentionIvaArticulos] = \App\Services\CartRetentionService::accumulateFromTaxExclusiveLine(
+                        $lineTotalExclusive,
+                        $taxPctRetention,
+                        $retentionBaseArticulos,
+                        $retentionIvaArticulos
+                    );
                 } else {
                     // Use original calculation for non-coupon affected products
                     // Pass vendor total to ensure vendor discount minimum is checked
@@ -1633,19 +1656,18 @@ class CartController extends Controller
                     $vendorTotal = $vendorId && isset($vendorTotals[$vendorId]) ? $vendorTotals[$vendorId] : null;
                     $lineFinal = $p->getFinalPriceForUser($has_orders, $vendorTotal);
                     $lineTotal = $lineFinal['price'] * $row['quantity'];
-                    $lineDiscount = $lineFinal['totalDiscount'] * $row['quantity'];
+                    // Prefer tax-inclusive savings (old - price) over pre-tax totalDiscount
+                    $lineDiscount = max(0, (($lineFinal['old'] ?? $lineFinal['price']) - $lineFinal['price']) * $row['quantity']);
+                    [$retentionBaseArticulos, $retentionIvaArticulos] = \App\Services\CartRetentionService::accumulateFromTaxInclusiveLine(
+                        $lineTotal,
+                        $taxPctRetention,
+                        $retentionBaseArticulos,
+                        $retentionIvaArticulos
+                    );
                 }
 
                 $total += $lineTotal;
                 $discount += $lineDiscount;
-
-                $taxPctRetention = (float) (optional($p->tax)->tax ?? 0);
-                [$retentionBaseArticulos, $retentionIvaArticulos] = \App\Services\CartRetentionService::accumulateFromTaxInclusiveLine(
-                    $lineTotal,
-                    $taxPctRetention,
-                    $retentionBaseArticulos,
-                    $retentionIvaArticulos
-                );
 
                 // Increment sales count for best-selling tracking
                 $p->incrementSalesCount($row['quantity']);
@@ -1653,7 +1675,8 @@ class CartController extends Controller
 
             // For users with orders, reset traditional discounts but keep coupon discounts
             if ($has_orders) {
-                // Recalculate totals to exclude traditional discounts but keep coupon effects
+                // Recalculate totals to exclude traditional discounts but keep coupon effects.
+                // Lista prices are tax-exclusive; convert to tax-inclusive for order.total (matches cart UI).
                 $total = 0;
                 $discount = 0;
                 $retentionBaseArticulos = 0.0;
@@ -1662,24 +1685,25 @@ class CartController extends Controller
                 foreach ($cart as $key => $row) {
                     $p = Product::with('tax', 'items', 'brand.vendor', 'bonifications')->find($row['product_id']);
                     $lookupKey = $row['product_id'].'_'.($row['variation_id'] ?? 'null');
+                    $taxPctRetention = (float) (optional($p->tax)->tax ?? 0);
 
                     if (isset($modifiedProductsLookup[$lookupKey])) {
                         $modProduct = $modifiedProductsLookup[$lookupKey];
                         $discountType = $modProduct['applied_discount_type'] ?? 'percentage';
 
                         if ($discountType === 'fixed_amount') {
-                            $lineTotal = (float) ($modProduct['line_total']
+                            $lineTotalExclusive = (float) ($modProduct['line_total']
                                 ?? ($modProduct['new_unit_price'] * $row['quantity'] * ($p->package_quantity ?? 1)));
-                            $lineDiscount = (float) ($modProduct['line_savings'] ?? $modProduct['final_discount_amount']);
+                            $lineDiscountExclusive = (float) ($modProduct['line_savings'] ?? $modProduct['final_discount_amount']);
                         } elseif (($modProduct['discount_source'] ?? null) === 'coupon') {
                             // Only apply coupon discount, ignore existing discounts
                             $lineSubtotal = $modProduct['base_price'] * $row['quantity'] * ($p->package_quantity ?? 1);
-                            $lineDiscount = (float) ($modProduct['coupon_contribution'] ?? 0);
-                            $lineTotal = $lineSubtotal - $lineDiscount;
+                            $lineDiscountExclusive = (float) ($modProduct['coupon_contribution'] ?? 0);
+                            $lineTotalExclusive = $lineSubtotal - $lineDiscountExclusive;
                         } else {
                             // No discount for users with orders if it's existing discount
-                            $lineTotal = $modProduct['base_price'] * $row['quantity'] * ($p->package_quantity ?? 1);
-                            $lineDiscount = 0;
+                            $lineTotalExclusive = $modProduct['base_price'] * $row['quantity'] * ($p->package_quantity ?? 1);
+                            $lineDiscountExclusive = 0;
                         }
                     } else {
                         // No coupon, no discount for users with orders
@@ -1688,31 +1712,19 @@ class CartController extends Controller
                         if ($variation) {
                             $basePrice = $variation->pivot->price;
                         }
-                        $lineTotal = $basePrice * $row['quantity'] * ($p->package_quantity ?? 1);
-                        $lineDiscount = 0;
+                        $lineTotalExclusive = $basePrice * $row['quantity'] * ($p->package_quantity ?? 1);
+                        $lineDiscountExclusive = 0;
                     }
 
-                    $taxPctRetention = (float) (optional($p->tax)->tax ?? 0);
-                    $useInclusiveRetention = isset($modifiedProductsLookup[$lookupKey])
-                        && (($modifiedProductsLookup[$lookupKey]['applied_discount_type'] ?? '') === 'fixed_amount');
-                    if ($useInclusiveRetention) {
-                        [$retentionBaseArticulos, $retentionIvaArticulos] = \App\Services\CartRetentionService::accumulateFromTaxInclusiveLine(
-                            $lineTotal,
-                            $taxPctRetention,
-                            $retentionBaseArticulos,
-                            $retentionIvaArticulos
-                        );
-                    } else {
-                        [$retentionBaseArticulos, $retentionIvaArticulos] = \App\Services\CartRetentionService::accumulateFromTaxExclusiveLine(
-                            $lineTotal,
-                            $taxPctRetention,
-                            $retentionBaseArticulos,
-                            $retentionIvaArticulos
-                        );
-                    }
+                    [$retentionBaseArticulos, $retentionIvaArticulos] = \App\Services\CartRetentionService::accumulateFromTaxExclusiveLine(
+                        $lineTotalExclusive,
+                        $taxPctRetention,
+                        $retentionBaseArticulos,
+                        $retentionIvaArticulos
+                    );
 
-                    $total += $lineTotal;
-                    $discount += $lineDiscount;
+                    $total += amount_with_tax($lineTotalExclusive, $taxPctRetention);
+                    $discount += amount_with_tax($lineDiscountExclusive, $taxPctRetention);
                 }
             }
 
@@ -1960,7 +1972,27 @@ class CartController extends Controller
             return redirect()->route('cart')->with('error', $discountCalculation['message'] ?? 'Error al aplicar el cupón.');
         }
 
-        // Store all applied coupons in session
+        $appliedAfterCalc = collect($discountCalculation['applied_coupons'] ?? []);
+        $newCouponApplied = $appliedAfterCalc->contains(
+            fn ($entry) => strcasecmp((string) ($entry['coupon_code'] ?? ''), $couponCode) === 0
+        );
+
+        // Best-of vs brand/vendor: if this coupon did not improve any line, do not keep it applied.
+        if (! $newCouponApplied || (float) ($discountCalculation['total_discount'] ?? 0) <= 0) {
+            // Preserve any previously winning coupons already in session.
+            if ($appliedAfterCalc->isNotEmpty() && (float) ($discountCalculation['total_discount'] ?? 0) > 0) {
+                session()->put('applied_coupons', $discountCalculation['applied_coupons']);
+                session()->put('coupon_discounts', $discountCalculation['product_discounts']);
+                session()->put('total_coupon_discount', $discountCalculation['total_discount']);
+            }
+
+            return redirect()->route('cart')->with(
+                'error',
+                "El cupón '{$coupon->code}' no mejora el descuento actual de marca/proveedor en tu carrito."
+            );
+        }
+
+        // Store only coupons that actually contributed discount
         session()->put('applied_coupons', $discountCalculation['applied_coupons']);
         session()->put('coupon_discounts', $discountCalculation['product_discounts']);
         session()->put('total_coupon_discount', $discountCalculation['total_discount']);

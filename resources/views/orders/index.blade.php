@@ -212,12 +212,12 @@
                                         </td>
 
                                         <td class="p-4  text-gray-900 whitespace-nowra">
-                                            {{ number_format($order->total, 2) }}
+                                            {{ number_format($order->totalWithTax(), 2) }}
                                         </td>
 
 
                                         <td class="p-4   text-gray-900 whitespace-nowra">
-                                            {{ number_format($order->discount, 2) }}
+                                            {{ number_format($order->discountWithTax(), 2) }}
                                         </td>
 
 

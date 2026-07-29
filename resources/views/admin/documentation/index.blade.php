@@ -72,9 +72,9 @@
                             @php
                                 preg_match('/^(\d+)[\-_]/', $f['name'], $orderMatch);
                             @endphp
-                            <li>
+                            <li class="relative flex h-full flex-col rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/30 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md dark:hover:border-blue-700">
                                 <a href="{{ route('admin.documentation.show', ['f' => $f['path']]) }}"
-                                   class="group flex h-full gap-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/30 px-4 py-3 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50/60 hover:shadow-md dark:hover:border-blue-700 dark:hover:bg-gray-800">
+                                   class="group flex h-full gap-3 px-4 py-3 pr-12 hover:bg-blue-50/60 dark:hover:bg-gray-800 rounded-xl">
                                     <span class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800 text-xs font-bold text-gray-600 dark:text-gray-300 group-hover:bg-blue-100 group-hover:text-blue-700 dark:group-hover:bg-blue-900/60 dark:group-hover:text-blue-200">
                                         {{ $orderMatch[1] ?? 'MD' }}
                                     </span>
@@ -86,6 +86,12 @@
                                             {{ $f['name'] }}
                                         </span>
                                     </span>
+                                </a>
+                                <a href="{{ route('admin.documentation.pdf', ['f' => $f['path']]) }}"
+                                   class="absolute right-2 top-2 inline-flex items-center justify-center rounded-lg p-2 text-gray-500 hover:bg-blue-100 hover:text-blue-700 dark:text-gray-400 dark:hover:bg-blue-900/50 dark:hover:text-blue-200"
+                                   title="Descargar PDF"
+                                   aria-label="Descargar PDF de {{ $f['title'] }}">
+                                    @svg('heroicon-o-document-arrow-down', 'w-4 h-4')
                                 </a>
                             </li>
                         @endforeach

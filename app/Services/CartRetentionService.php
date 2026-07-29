@@ -140,7 +140,7 @@ class CartRetentionService
     }
 
     /**
-     * Line total excludes IVA (e.g. has_orders reset branch using lista base sin impuesto).
+     * Line total excludes IVA (lista / SOAP basis; IVA is applied separately for display totals).
      */
     public static function accumulateFromTaxExclusiveLine(float $lineTotal, float $taxPct, float $baseAcc, float $ivaAcc): array
     {
