@@ -850,7 +850,7 @@ it('[Interaction] multi-coupon + existing discount: best overall wins per produc
         ->and($mod['winning_coupon_code'])->toBe('MC20');
 });
 
-it('[Interaction] bonification product with allow_discounts=false blocks coupon', function () {
+it('[Interaction] bonification allow_discounts=false still allows coupon when not yet qualified', function () {
     ['tax' => $tax, 'brand' => $brand, 'zone' => $zone, 'user' => $user] = scaffold();
     $p = makeProduct($brand, $tax, ['price' => 1000]);
 
@@ -868,12 +868,38 @@ it('[Interaction] bonification product with allow_discounts=false blocks coupon'
 
     $coupon = makeCoupon(['type' => 'percentage', 'value' => 20, 'applies_to' => 'cart']);
     $svc = app(CouponDiscountService::class);
+    // qty 1 < buy 5 → not qualified → coupon may still apply
     $result = $svc->applyCouponDiscountToProducts($coupon, $user, cart([cartItem($p)]), false);
 
-    // getFinalPriceForUser should return discount=0 because bonification blocks it
-    // The coupon should still be the winner since it competes against 0% existing
     $mod = $result['modified_products'][0];
-    expect($mod['applied_discount_percentage'])->toBe(20.0);
+    expect($mod['applied_discount_percentage'])->toBe(20.0)
+        ->and((float) $mod['coupon_contribution'])->toBeGreaterThan(0);
+});
+
+it('[Interaction] qualified bonification with allow_discounts=false blocks coupon (cart matches checkout)', function () {
+    ['tax' => $tax, 'brand' => $brand, 'zone' => $zone, 'user' => $user] = scaffold();
+    $p = makeProduct($brand, $tax, ['price' => 1000, 'package_quantity' => 1]);
+
+    $giftProduct = makeProduct($brand, $tax, ['price' => 0]);
+    $bonification = Bonification::create([
+        'name' => 'Buy 1 Get 1',
+        'buy' => 1,
+        'get' => 1,
+        'product_id' => $giftProduct->id,
+        'max' => 10,
+        'allow_discounts' => false,
+    ]);
+    $p->bonifications()->attach($bonification->id);
+    $p->load('bonifications');
+
+    $coupon = makeCoupon(['type' => 'percentage', 'value' => 20, 'applies_to' => 'cart']);
+    $svc = app(CouponDiscountService::class);
+    $result = $svc->applyCouponDiscountToProducts($coupon, $user, cart([cartItem($p, 1)]), false);
+
+    $mod = $result['modified_products'][0];
+    expect($mod['applied_discount_percentage'])->toBe(0.0)
+        ->and((float) $mod['coupon_contribution'])->toBe(0.0)
+        ->and($mod['discount_source'])->toBe('existing');
 });
 
 it('[Interaction] bonification product with allow_discounts=true allows coupon', function () {

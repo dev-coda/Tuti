@@ -1107,48 +1107,10 @@ class CartController extends Controller
             }
         }
 
-        // Check which products should block discounts BEFORE processing order.
-        // Rule: only products that qualify for a bonification with allow_discounts=false
-        // must lose discounts; other cart products keep their normal discount flow.
-        $discountBlockedProductIds = [];
-        $productQuantitiesForBonificationCheck = [];
-
-        // First, aggregate quantities by product_id (same as bonification logic)
-        foreach ($cart as $row) {
-            $productId = $row['product_id'];
-            $tempProduct = Product::find($productId);
-            if ($tempProduct) {
-                if (! isset($productQuantitiesForBonificationCheck[$productId])) {
-                    $productQuantitiesForBonificationCheck[$productId] = 0;
-                }
-                $packageQuantity = $tempProduct->package_quantity ?? 1;
-                $productQuantitiesForBonificationCheck[$productId] += $row['quantity'] * $packageQuantity;
-            }
-        }
-
-        // Check each product for bonifications that block discounts
-        foreach ($cart as $row) {
-            $productId = $row['product_id'];
-            $product = Product::with('bonifications')->find($productId);
-
-            if ($product && $product->bonifications->count() > 0) {
-                $aggregatedIndividualItems = $productQuantitiesForBonificationCheck[$productId] ?? 0;
-
-                foreach ($product->bonifications as $bonification) {
-                    // Check if customer qualifies for this bonification
-                    $bonification_quantity = floor($aggregatedIndividualItems / $bonification->buy * $bonification->get);
-
-                    if ($bonification_quantity > 0) {
-                        // Customer qualifies for this bonification
-                        // If this bonification blocks discounts, mark only this product
-                        if (! $bonification->allow_discounts) {
-                            $discountBlockedProductIds[$productId] = true;
-                            break;
-                        }
-                    }
-                }
-            }
-        }
+        // Products that qualify for allow_discounts=false bonifications cannot take
+        // brand/vendor/coupon discounts. CouponDiscountService already enforces this;
+        // keep the same map for order-line persistence below.
+        $discountBlockedProductIds = BonificationCheckoutService::discountBlockedProductIds($cart);
 
         if (! empty($discountBlockedProductIds)) {
             Log::info('Bonifications block discounts for specific products', [
@@ -1156,52 +1118,6 @@ class CartController extends Controller
                 'cart_items' => count($cart),
                 'blocked_product_ids' => array_keys($discountBlockedProductIds),
             ]);
-        }
-
-        // Coupon service can still return modified rows for products that must block discounts
-        // due to bonification rules. Remove those rows so order totals/coupon usage only
-        // reflect truly discount-eligible products.
-        if ($couponResult && ($couponResult['success'] ?? false) && ! empty($discountBlockedProductIds)) {
-            $modifiedProducts = collect($couponResult['modified_products'] ?? []);
-            $filteredModifiedProducts = $modifiedProducts
-                ->reject(function ($modProduct) use ($discountBlockedProductIds) {
-                    $productId = (int) ($modProduct['product_id'] ?? 0);
-
-                    return $productId > 0 && isset($discountBlockedProductIds[$productId]);
-                })
-                ->values();
-
-            if ($filteredModifiedProducts->count() !== $modifiedProducts->count()) {
-                $couponResult['modified_products'] = $filteredModifiedProducts->all();
-
-                $couponDiscount = (float) $filteredModifiedProducts->sum(function ($modProduct) {
-                    return (float) ($modProduct['coupon_contribution'] ?? 0);
-                });
-                $couponResult['total_coupon_discount'] = $couponDiscount;
-
-                $activeWinningCouponIds = $filteredModifiedProducts
-                    ->pluck('winning_coupon_id')
-                    ->filter()
-                    ->map(fn ($id) => (int) $id)
-                    ->unique()
-                    ->values()
-                    ->all();
-
-                $winningCoupons = collect($winningCoupons)
-                    ->filter(function ($code, $couponId) use ($activeWinningCouponIds) {
-                        return in_array((int) $couponId, $activeWinningCouponIds, true);
-                    })
-                    ->all();
-                $couponResult['winning_coupons'] = $winningCoupons;
-
-                Log::info('Filtered coupon result for bonification-blocked products', [
-                    'user_id' => $user_id,
-                    'removed_products' => $modifiedProducts->count() - $filteredModifiedProducts->count(),
-                    'remaining_modified_products' => $filteredModifiedProducts->count(),
-                    'coupon_discount_after_filter' => $couponDiscount,
-                    'winning_coupons_after_filter' => $winningCoupons,
-                ]);
-            }
         }
 
         // Use database transaction to ensure atomicity

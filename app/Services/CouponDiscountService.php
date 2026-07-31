@@ -48,12 +48,28 @@ class CouponDiscountService
             $totalCartValue = $couponResult['total_cart_value'];
 
             $vendorTotals = $this->calculateVendorTotals($cartProducts);
+            $discountBlockedProductIds = BonificationCheckoutService::discountBlockedProductIds($cartProducts);
 
             // Apply discount based on coupon type
             if ($coupon->type === Coupon::TYPE_PERCENTAGE) {
-                $result = $this->applyPercentageCouponDiscount($coupon, $cartProducts, $applicableProducts, $hasOrders, $vendorTotals);
+                $result = $this->applyPercentageCouponDiscount(
+                    $coupon,
+                    $cartProducts,
+                    $applicableProducts,
+                    $hasOrders,
+                    $vendorTotals,
+                    $discountBlockedProductIds
+                );
             } else {
-                $result = $this->applyFixedAmountCouponDiscount($coupon, $cartProducts, $applicableProducts, $totalDiscountAmount, $hasOrders, $vendorTotals);
+                $result = $this->applyFixedAmountCouponDiscount(
+                    $coupon,
+                    $cartProducts,
+                    $applicableProducts,
+                    $totalDiscountAmount,
+                    $hasOrders,
+                    $vendorTotals,
+                    $discountBlockedProductIds
+                );
             }
 
             Log::info('CouponDiscountService: Final result', [
@@ -100,8 +116,14 @@ class CouponDiscountService
      * discounts, its percentage is ADDED on top of an existing brand or vendor
      * discount (product-level discounts always use best-of).
      */
-    private function applyPercentageCouponDiscount(Coupon $coupon, Collection $cartProducts, array $applicableProducts, bool $hasOrders, array $vendorTotals = []): array
-    {
+    private function applyPercentageCouponDiscount(
+        Coupon $coupon,
+        Collection $cartProducts,
+        array $applicableProducts,
+        bool $hasOrders,
+        array $vendorTotals = [],
+        array $discountBlockedProductIds = []
+    ): array {
         $modifiedProducts = [];
         $totalCouponDiscount = 0;
 
@@ -119,7 +141,8 @@ class CouponDiscountService
             $vendorTotal = $vendorId ? ($vendorTotals[$vendorId] ?? null) : null;
             $existingPriceInfo = $product->getFinalPriceForUser($hasOrders, $vendorTotal);
             $existingDiscountPercentage = $this->clampPercentage((float) ($existingPriceInfo['discount'] ?? 0));
-            $isApplicable = $this->isProductApplicableForCoupon($product, $applicableProducts);
+            $isApplicable = $this->isProductApplicableForCoupon($product, $applicableProducts)
+                && ! isset($discountBlockedProductIds[$product->id]);
             $couponPercentage = $isApplicable ? $this->clampPercentage((float) $coupon->value) : 0.0;
 
             $stacksOnThisLine = $couponPercentage > 0
@@ -176,8 +199,15 @@ class CouponDiscountService
      * Apply fixed amount coupon discount proportionally to unit prices
      * Rule: Subtract proportionally from unit prices, never going negative/zero, negate other discounts unless they're larger
      */
-    private function applyFixedAmountCouponDiscount(Coupon $coupon, Collection $cartProducts, array $applicableProducts, float $totalDiscountAmount, bool $hasOrders, array $vendorTotals = []): array
-    {
+    private function applyFixedAmountCouponDiscount(
+        Coupon $coupon,
+        Collection $cartProducts,
+        array $applicableProducts,
+        float $totalDiscountAmount,
+        bool $hasOrders,
+        array $vendorTotals = [],
+        array $discountBlockedProductIds = []
+    ): array {
         $modifiedProducts = [];
         $applicableProductsTotal = 0;
 
@@ -197,7 +227,8 @@ class CouponDiscountService
             if (!$product) continue;
 
             $quantity = (int) ($cartItem['quantity'] ?? 1);
-            $isApplicable = $this->isProductApplicableForCoupon($product, $applicableProducts);
+            $isApplicable = $this->isProductApplicableForCoupon($product, $applicableProducts)
+                && ! isset($discountBlockedProductIds[$product->id]);
 
             Log::debug('applyFixedAmountCouponDiscount: Checking product applicability', [
                 'product_id' => $product->id,
@@ -354,12 +385,13 @@ class CouponDiscountService
             ];
         }
 
-        // Handle non-applicable products (they keep their existing discounts)
+        // Handle non-applicable / discount-blocked products (they keep their existing discounts)
         foreach ($cartProducts as $cartItem) {
             $product = Product::with(['brand.vendor'])->find($cartItem['product_id']);
             if (!$product) continue;
 
-            $isApplicable = $this->isProductApplicableForCoupon($product, $applicableProducts);
+            $isApplicable = $this->isProductApplicableForCoupon($product, $applicableProducts)
+                && ! isset($discountBlockedProductIds[$product->id]);
             if ($isApplicable) continue; // Already handled above
 
             $modifiedProducts[] = $this->buildExistingLineResult($product, $cartItem, $hasOrders, $vendorTotals);
