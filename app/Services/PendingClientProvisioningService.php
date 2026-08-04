@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\User;
 use Illuminate\Support\Str;
+use InvalidArgumentException;
 
 class PendingClientProvisioningService
 {
@@ -26,9 +27,8 @@ class PendingClientProvisioningService
         $legalName = trim((string) ($validated['RazonSocial'] ?? ''));
         $displayName = $legalName !== '' ? $legalName : ($businessName !== '' ? $businessName : 'Cliente '.$document);
 
-        $email = $this->resolveUniqueEmail($validated['Correo'] ?? null, $document);
-
         $user = User::query()->where('document', $document)->first();
+        $email = $this->resolveRegistrationEmail($validated['Correo'] ?? null, $document, $user?->id);
 
         if ($user) {
             $payload = [
@@ -38,6 +38,10 @@ class PendingClientProvisioningService
                 'whatsapp' => $validated['Whatsapp'] ?? $user->whatsapp,
                 'phone' => $validated['Telefono'] ?? $user->phone,
             ];
+
+            if ($this->shouldReplaceUserEmail($user, $email)) {
+                $payload['email'] = $email;
+            }
 
             if (! ($preserveExistingStatus && $user->isCliente())) {
                 $payload['client_status'] = $clientStatus;
@@ -71,6 +75,7 @@ class PendingClientProvisioningService
 
     /**
      * Create a pending prospect client when rutero is not yet available (seller cart lookup).
+     * No email is known yet, so a temporary internal address is used until registration.
      */
     public function provisionProspectByDocument(string|int $document, ?string $zoneNumber = null, ?string $displayName = null): User
     {
@@ -95,7 +100,7 @@ class PendingClientProvisioningService
             return $user->fresh(['zones']);
         }
 
-        $email = $this->resolveUniqueEmail(null, $normalizedDocument);
+        $email = $this->makePlaceholderEmail($normalizedDocument);
         $name = $displayName ?: ('Prospecto '.$normalizedDocument);
 
         $user = User::create([
@@ -125,18 +130,53 @@ class PendingClientProvisioningService
         return preg_replace('/\D+/', '', $document) ?: $document;
     }
 
-    private function resolveUniqueEmail(?string $preferredEmail, string $document): string
+    /**
+     * Resolve the real registration email. Never invents @tuti.com placeholders here —
+     * those are only for document-only prospect stubs.
+     */
+    private function resolveRegistrationEmail(?string $preferredEmail, string $document, ?int $ignoreUserId = null): string
     {
-        if (is_string($preferredEmail) && filter_var($preferredEmail, FILTER_VALIDATE_EMAIL)) {
-            $exists = User::query()->where('email', $preferredEmail)->exists();
-            if (! $exists) {
-                return $preferredEmail;
-            }
+        $email = is_string($preferredEmail) ? trim($preferredEmail) : '';
+        if ($email === '' || ! filter_var($email, FILTER_VALIDATE_EMAIL) || User::isInvalidClientEmail($email)) {
+            throw new InvalidArgumentException(
+                "Correo electrónico válido requerido para aprovisionar el cliente {$document}."
+            );
         }
 
+        $taken = User::query()
+            ->whereEmailCaseInsensitive($email)
+            ->when($ignoreUserId, fn ($q) => $q->where('id', '!=', $ignoreUserId))
+            ->exists();
+
+        if ($taken) {
+            throw new InvalidArgumentException(
+                "El correo {$email} ya está registrado en otra cuenta."
+            );
+        }
+
+        return $email;
+    }
+
+    private function shouldReplaceUserEmail(User $user, string $newEmail): bool
+    {
+        if (strcasecmp((string) $user->email, $newEmail) === 0) {
+            return false;
+        }
+
+        // Always replace internal / placeholder addresses with the real registration email.
+        if (User::isInvalidClientEmail($user->email)) {
+            return true;
+        }
+
+        // Also allow an explicit correction when the submitted email differs.
+        return true;
+    }
+
+    private function makePlaceholderEmail(string $document): string
+    {
         do {
             $candidate = 'cliente_'.$document.'_'.time().'_'.Str::lower(Str::random(4)).'@tuti.com';
-        } while (User::query()->where('email', $candidate)->exists());
+        } while (User::query()->whereEmailCaseInsensitive($candidate)->exists());
 
         return $candidate;
     }

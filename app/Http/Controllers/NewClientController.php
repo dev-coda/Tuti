@@ -248,7 +248,23 @@ class NewClientController extends Controller
             'Telefono' => ['nullable', 'string', 'regex:/^\d{7}$/'],
             'Movil' => ['nullable', 'string', 'regex:/^\d{10}$/'],
             'Whatsapp' => ['nullable', 'string', 'regex:/^\d{10}$/'],
-            'Correo' => [$isSellerFlow ? 'nullable' : 'required', 'email', 'max:100', new ValidClientEmail()],
+            'Correo' => [
+                'required',
+                'email',
+                'max:100',
+                new ValidClientEmail(),
+                function (string $attribute, mixed $value, \Closure $fail) use ($request) {
+                    if (! is_string($value) || trim($value) === '') {
+                        return;
+                    }
+
+                    $document = preg_replace('/\D+/', '', (string) $request->input('Documento'));
+                    $owner = User::query()->whereEmailCaseInsensitive($value)->first();
+                    if ($owner && (string) $owner->document !== (string) $document) {
+                        $fail('Este correo ya está registrado en otra cuenta.');
+                    }
+                },
+            ],
             'Direccion' => ['required', 'string', 'max:100'],
             'Barrio' => ['required', 'string', 'max:100'],
             'Zona' => [$isSellerFlow ? 'required' : 'nullable', 'string', 'max:3'],

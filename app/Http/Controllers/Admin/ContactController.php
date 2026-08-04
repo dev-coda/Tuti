@@ -181,13 +181,25 @@ class ContactController extends Controller
             'new_client_payload' => $payload,
         ]);
 
-        $linkedClient = $this->resolveOrCreateLinkedClient($contact);
+        try {
+            $linkedClient = $this->resolveOrCreateLinkedClient($contact);
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
         if ($linkedClient) {
+            $emailToPersist = $validated['email'] ?: $linkedClient->email;
+            if ($validated['email'] && User::isInvalidClientEmail($validated['email'])) {
+                return back()->withErrors([
+                    'email' => 'Debes ingresar un correo electrónico válido y personal (no se permiten correos @tuti).',
+                ])->withInput();
+            }
+
             $linkedClient->update([
                 'name' => $validated['name'],
                 'business_name' => $validated['business_name'],
                 'document' => $validated['nit'],
-                'email' => $validated['email'] ?: $linkedClient->email,
+                'email' => $emailToPersist,
                 'phone' => $validated['phone'],
                 'client_status' => $validated['client_status'],
                 'status_id' => $validated['client_status'] === User::CLIENT_STATUS_CLIENTE ? User::ACTIVE : User::PENDING,
@@ -365,16 +377,27 @@ class ContactController extends Controller
     {
         $linked = $contact->resolveLinkedClient();
         if ($linked) {
-            return $linked;
+            $this->applyContactEmailToClient($linked, $contact);
+
+            return $linked->fresh();
         }
 
         if (empty($contact->nit)) {
             return null;
         }
 
-        $email = $contact->email;
-        if (! $email || User::where('email', $email)->exists()) {
-            $email = 'contacto_'.$contact->nit.'_'.Str::lower(Str::random(4)).'@tuti.com';
+        $email = is_string($contact->email) ? trim($contact->email) : '';
+        if ($email === '' || User::isInvalidClientEmail($email) || User::query()->whereEmailCaseInsensitive($email)->exists()) {
+            // Prefer payload Correo when contact.email is missing/invalid/taken.
+            $payloadEmail = trim((string) data_get($contact->new_client_payload, 'Correo', ''));
+            if ($payloadEmail !== '' && ! User::isInvalidClientEmail($payloadEmail)
+                && ! User::query()->whereEmailCaseInsensitive($payloadEmail)->exists()) {
+                $email = $payloadEmail;
+            } else {
+                throw new \RuntimeException(
+                    'El interesado no tiene un correo válido único; no se puede crear el cliente local.'
+                );
+            }
         }
 
         return User::create([
@@ -387,6 +410,35 @@ class ContactController extends Controller
             'client_status' => User::CLIENT_STATUS_PROSPECTO,
             'status_id' => User::PENDING,
         ]);
+    }
+
+    private function applyContactEmailToClient(User $user, Contact $contact): void
+    {
+        $candidates = array_filter([
+            is_string($contact->email) ? trim($contact->email) : '',
+            trim((string) data_get($contact->new_client_payload, 'Correo', '')),
+        ]);
+
+        foreach ($candidates as $email) {
+            if (User::isInvalidClientEmail($email)) {
+                continue;
+            }
+
+            $taken = User::query()
+                ->whereEmailCaseInsensitive($email)
+                ->where('id', '!=', $user->id)
+                ->exists();
+
+            if ($taken) {
+                continue;
+            }
+
+            if (User::isInvalidClientEmail($user->email) || strcasecmp((string) $user->email, $email) !== 0) {
+                $user->update(['email' => $email]);
+            }
+
+            return;
+        }
     }
 
     /**
