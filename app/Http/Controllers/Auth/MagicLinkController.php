@@ -52,7 +52,7 @@ class MagicLinkController extends Controller
             return response()->json([
                 'success' => false,
                 'requires_data_update' => true,
-                'message' => 'Es necesario actualizar tus datos de contacto antes de ingresar. Usa la opción "¿Ya eres cliente Tronex?" para validar tu identidad.',
+                'message' => 'Es necesario actualizar tus datos de contacto antes de ingresar. Inicia sesión con tu contraseña o contacta a soporte para actualizar tu correo.',
             ], 422);
         }
 

@@ -311,18 +311,21 @@ class ContactController extends Controller
     }
 
     /**
+     * Build Activity media payload: signature (or first PDF) as `pdf`, every other
+     * registration file (images and PDFs) as `imagenes[]`.
+     *
      * @return array{0:?UploadedFile,1:array<int, UploadedFile>,2:?string}
      */
     private function loadContactFilesForSubmission(Contact $contact): array
     {
         $docs = is_array($contact->documents) ? $contact->documents : [];
-        $pdf = null;
-        $fallbackPdf = null;
-        $images = [];
+        $signaturePdf = null;
+        $otherPdfs = [];
+        $attachments = [];
 
         foreach ($docs as $path) {
             $absolutePath = Storage::disk('public')->path($path);
-            if (!is_file($absolutePath)) {
+            if (! is_file($absolutePath)) {
                 continue;
             }
 
@@ -330,33 +333,32 @@ class ContactController extends Controller
             if ($extension === 'pdf') {
                 $uploadedPdf = new UploadedFile($absolutePath, basename($absolutePath), 'application/pdf', null, true);
                 if (str_starts_with($path, 'contact-documents/signatures/')) {
-                    $pdf = $uploadedPdf;
+                    $signaturePdf = $uploadedPdf;
                     continue;
                 }
 
-                if ($fallbackPdf === null) {
-                    $fallbackPdf = $uploadedPdf;
-                }
-
+                $otherPdfs[] = $uploadedPdf;
                 continue;
             }
 
             if (in_array($extension, ['jpg', 'jpeg', 'png'], true)) {
-                if (count($images) < 3) {
-                    $images[] = new UploadedFile($absolutePath, basename($absolutePath), null, null, true);
-                }
+                $attachments[] = new UploadedFile($absolutePath, basename($absolutePath), null, null, true);
             }
         }
 
-        if (!$pdf && $fallbackPdf) {
-            $pdf = $fallbackPdf;
+        $pdf = $signaturePdf;
+        if (! $pdf && $otherPdfs !== []) {
+            $pdf = array_shift($otherPdfs);
         }
 
-        if (!$pdf) {
+        // Non-signature PDFs travel with images so Activity receives every attachment.
+        $attachments = array_merge($attachments, $otherPdfs);
+
+        if (! $pdf) {
             return [null, [], 'no se encontró el PDF de firma en los documentos adjuntos'];
         }
 
-        return [$pdf, $images, null];
+        return [$pdf, $attachments, null];
     }
 
     private function resolveOrCreateLinkedClient(Contact $contact): ?User

@@ -94,30 +94,34 @@ class NewClientService
     }
 
     /**
-     * Step 2: Upload signature PDF and optional photos.
+     * Step 2: Upload signature PDF and all registration attachments.
      *
-     * @param  UploadedFile[]  $images  Up to 3 images (jpeg/png).
+     * Activity's cargaArchivos accepts one `pdf` (signature / primary) plus
+     * zero or more `imagenes[]` multipart files. Non-signature PDFs and images
+     * from registration are both sent as `imagenes[]` so Activity receives every attachment.
+     *
+     * @param  UploadedFile[]  $attachments  Registration files (jpg/png/pdf), excluding the signature PDF.
      * @return array{success: bool, message: string, raw?: array}
      */
-    public function uploadMedia(int $clientId, UploadedFile $pdf, array $images = []): array
+    public function uploadMedia(int $clientId, UploadedFile $pdf, array $attachments = []): array
     {
         Log::info('NewClientService: uploading media', [
             'client_id' => $clientId,
-            'images_count' => count($images),
+            'attachments_count' => count($attachments),
         ]);
 
         try {
-            $response = $this->sendWithTokenRetry(function (string $token) use ($pdf, $images, $clientId) {
+            $response = $this->sendWithTokenRetry(function (string $token) use ($pdf, $attachments, $clientId) {
                 $request = Http::withHeaders([
                     'Tokenconectat' => $token,
                 ])->timeout(60)
                     ->attach('pdf', $pdf->getContent(), $pdf->getClientOriginalName());
 
-                foreach ($images as $image) {
+                foreach ($attachments as $attachment) {
                     $request = $request->attach(
                         'imagenes[]',
-                        $image->getContent(),
-                        $image->getClientOriginalName()
+                        $attachment->getContent(),
+                        $attachment->getClientOriginalName()
                     );
                 }
 

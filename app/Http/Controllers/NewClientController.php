@@ -339,26 +339,35 @@ class NewClientController extends Controller
             return $this->storeAsInteresado($validated, $signaturePdf, $storedDocumentPaths);
         }
 
-        // Persist signature locally for audit/traceability in seller flow as well.
-        $this->storeSignatureForContact($signaturePdf, $storedDocumentPaths);
+        // Persist signature + uploads so admins can view them on the client details screen.
+        $documentPaths = $this->storeSignatureForContact($signaturePdf, $storedDocumentPaths);
 
         // Step 1: Register client
         $result = $service->registerClient($validated);
 
         if (! $result['success']) {
+            $this->persistSellerRegistrationDocuments($validated, $documentPaths);
+
             return back()->withInput()->with('error', $result['message']);
         }
 
         $clientId = $result['id'];
 
-        // Step 2: Upload signature PDF + optional images
-        $images = array_values(array_filter(
+        // Step 2: Upload signature PDF + all registration attachments (images and PDFs).
+        $attachments = array_values(array_filter(
             $request->file('documents') ?? [],
-            fn ($file) => in_array(strtolower($file->getClientOriginalExtension()), ['jpg', 'jpeg', 'png'], true)
+            fn ($file) => in_array(strtolower($file->getClientOriginalExtension()), ['jpg', 'jpeg', 'png', 'pdf'], true)
         ));
-        $mediaResult = $service->uploadMedia($clientId, $signaturePdf, $images);
+        $mediaResult = $service->uploadMedia($clientId, $signaturePdf, $attachments);
 
         @unlink($signaturePdf->getPathname());
+
+        $this->persistSellerRegistrationDocuments(
+            $validated,
+            $documentPaths,
+            (int) ($result['id'] ?? 0) ?: null,
+            $result['codigo_cliente'] ?? null,
+        );
 
         if (! $mediaResult['success']) {
             Log::warning('NewClient: client registered but media upload failed', [
@@ -487,6 +496,91 @@ class NewClientController extends Controller
             'success',
             'Solicitud recibida. Un administrador validara tus documentos y completara la activacion.'
         );
+    }
+
+    /**
+     * Persist registration files on contacts.documents so admin client screens can resolve them.
+     * Uses withoutEvents to avoid the interesado notification email (seller already submitted to Activity).
+     */
+    private function persistSellerRegistrationDocuments(
+        array $validated,
+        array $documentPaths,
+        ?int $externalClientId = null,
+        ?string $externalClientCode = null,
+    ): void {
+        $nit = trim((string) ($validated['Documento'] ?? ''));
+        if ($nit === '' || $documentPaths === []) {
+            return;
+        }
+
+        $fullName = trim(implode(' ', array_filter([
+            $validated['PrimerNombre'] ?? '',
+            $validated['SegundoNombre'] ?? '',
+            $validated['PrimerApellido'] ?? '',
+            $validated['SegundoApellido'] ?? '',
+        ])));
+        if ($fullName === '') {
+            $fullName = (string) ($validated['NombreNegocio'] ?? $nit);
+        }
+
+        $phone = $validated['Movil'] ?: ($validated['Whatsapp'] ?: ($validated['Telefono'] ?? null));
+        $personType = ((int) ($validated['TipoDocumento'] ?? 0)) === 3 ? 'juridica' : 'natural';
+        $email = trim((string) ($validated['Correo'] ?? ''));
+        if ($email === '') {
+            $email = 'seller_registro_'.$nit.'@tuti.local';
+        }
+
+        Contact::withoutEvents(function () use (
+            $nit,
+            $documentPaths,
+            $validated,
+            $fullName,
+            $phone,
+            $personType,
+            $email,
+            $externalClientId,
+            $externalClientCode,
+        ) {
+            $existing = Contact::query()->where('nit', $nit)->orderByDesc('id')->first();
+            if ($existing) {
+                $merged = array_values(array_unique(array_merge(
+                    is_array($existing->documents) ? $existing->documents : [],
+                    $documentPaths
+                )));
+                $updates = ['documents' => $merged];
+                if ($externalClientId) {
+                    $updates['external_client_id'] = $externalClientId;
+                    $updates['external_submitted_at'] = now();
+                    $updates['status'] = 'creado';
+                }
+                if ($externalClientCode) {
+                    $updates['external_client_code'] = $externalClientCode;
+                }
+                $existing->update($updates);
+
+                return;
+            }
+
+            Contact::create([
+                'person_type' => $personType,
+                'name' => $fullName,
+                'business_name' => $validated['NombreNegocio'] ?? null,
+                'email' => $email,
+                'phone' => $phone,
+                'department' => $validated['Departamento'] ?? null,
+                'city' => $validated['Ciudad'] ?? null,
+                'address' => $validated['Direccion'] ?? null,
+                'nit' => $nit,
+                'terms_accepted' => (bool) ($validated['terms_accepted'] ?? false),
+                'documents' => $documentPaths,
+                'status' => $externalClientCode || $externalClientId ? 'creado' : 'interesado',
+                'new_client_mode' => 'seller',
+                'new_client_payload' => collect($validated)->except(['signature', 'documents'])->toArray(),
+                'external_client_id' => $externalClientId,
+                'external_client_code' => $externalClientCode,
+                'external_submitted_at' => ($externalClientId || $externalClientCode) ? now() : null,
+            ]);
+        });
     }
 
     /**

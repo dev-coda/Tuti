@@ -97,6 +97,44 @@
         </div>
 
         <div class="p-4 mb-4 bg-white border border-gray-200 rounded-lg shadow-sm 2xl:col-span-2 ">
+            <h3 class="mb-4 text-xl font-semibold">Documentos de registro</h3>
+            @if(!empty($registrationDocuments))
+                <div class="space-y-3 mb-4">
+                    @foreach($registrationDocuments as $index => $doc)
+                        @php $filename = basename($doc); @endphp
+                        <div class="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg hover:border-blue-300 transition-colors">
+                            <div class="flex items-center gap-3 min-w-0">
+                                <div class="flex-shrink-0 w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
+                                    @if(str_ends_with(strtolower($filename), '.pdf'))
+                                        @svg('heroicon-o-document-text', 'w-6 h-6 text-blue-600')
+                                    @else
+                                        @svg('heroicon-o-photo', 'w-6 h-6 text-blue-600')
+                                    @endif
+                                </div>
+                                <div class="min-w-0">
+                                    <p class="text-sm font-medium text-gray-900 truncate" title="{{ $filename }}">{{ $filename }}</p>
+                                    <p class="text-xs text-gray-500">Documento {{ $index + 1 }} de {{ count($registrationDocuments) }}</p>
+                                </div>
+                            </div>
+                            <a href="{{ asset('storage/' . $doc) }}" target="_blank" rel="noopener noreferrer"
+                                class="flex-shrink-0 px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 flex items-center gap-2">
+                                @svg('heroicon-o-arrow-down-tray', 'w-4 h-4')
+                                Ver
+                            </a>
+                        </div>
+                    @endforeach
+                </div>
+                <a href="{{ route('users.attachments-zip', $user) }}"
+                   class="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+                    @svg('heroicon-o-arrow-down-tray', 'w-4 h-4 mr-2')
+                    Descargar todo (ZIP)
+                </a>
+            @else
+                <p class="text-sm text-gray-500">No hay documentos de registro asociados a este cliente.</p>
+            @endif
+        </div>
+
+        <div class="p-4 mb-4 bg-white border border-gray-200 rounded-lg shadow-sm 2xl:col-span-2 ">
             <h3 class="mb-4 text-xl font-semibold ">Contraseña</h3>
           
             {{ Aire::open()->route('users.password', $user)}}
