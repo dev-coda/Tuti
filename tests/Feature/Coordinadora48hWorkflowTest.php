@@ -12,6 +12,7 @@ use App\Models\Zone;
 use App\Repositories\OrderRepository;
 use App\Services\Shipping\CoordinadoraOrderProcessingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Hash;
@@ -67,6 +68,11 @@ it('quotes express shipping for coordinadora zones', function () {
         ['name' => 'Express 48h', 'value' => '1', 'show' => false]
     );
     Cache::forget('setting_express_48h_enabled');
+    Setting::updateOrCreate(
+        ['key' => 'express_free_shipping_min'],
+        ['name' => 'Envío 48h gratis desde', 'value' => '0', 'show' => false]
+    );
+    Cache::forget('setting_express_free_shipping_min');
 
     $zone = Zone::create([
         'route' => 'R1',
@@ -108,6 +114,7 @@ it('quotes express shipping for coordinadora zones', function () {
             'success' => true,
             'provider' => Order::SHIPPING_PROVIDER_COORDINADORA,
             'shipping_cost' => 12900.0,
+            'free_shipping_applied' => false,
         ]);
 
     Http::assertSent(function ($request) {
@@ -120,6 +127,73 @@ it('quotes express shipping for coordinadora zones', function () {
             && $request['codigo_postal_origen'] === ''
             && $request['codigo_postal_destino'] === '';
     });
+});
+
+it('applies free express shipping when merchandise meets the configured minimum', function () {
+    Setting::updateOrCreate(
+        ['key' => 'express_48h_enabled'],
+        ['name' => 'Express 48h', 'value' => '1', 'show' => false]
+    );
+    Cache::forget('setting_express_48h_enabled');
+    Setting::updateOrCreate(
+        ['key' => 'express_free_shipping_min'],
+        ['name' => 'Envío 48h gratis desde', 'value' => '100000', 'show' => false]
+    );
+    Cache::forget('setting_express_free_shipping_min');
+
+    $zone = Zone::create([
+        'route' => 'R1',
+        'zone' => 'Z1',
+        'day' => '1',
+        'address' => 'Calle 1',
+        'code' => 'C001',
+        'dane_code' => '11001000',
+        'fulfillment_provider_48h' => 'coordinadora',
+    ]);
+
+    config([
+        'services.coordinadora.oauth_url' => 'https://coordinadora.test/oauth/token',
+        'services.coordinadora.base_url' => 'https://coordinadora.test',
+        'services.coordinadora.key' => 'k',
+        'services.coordinadora.secret' => 's',
+        'services.coordinadora.id_proceso' => '11577',
+        'services.coordinadora.nit' => '811025446',
+        'services.coordinadora.origin_dane' => '05001000',
+    ]);
+
+    Http::fake([
+        'https://coordinadora.test/oauth/token' => Http::response(['access_token' => 'token', 'expires_in' => 3600], 200),
+        'https://coordinadora.test/cotizador/nacional' => Http::response([
+            'isError' => false,
+            'data' => [
+                'flete_total' => 12900,
+                'valor_envio' => 12900,
+                'dias_entrega' => 1,
+            ],
+        ], 200),
+    ]);
+
+    session()->put('cart', []);
+
+    $this->getJson('/api/shipping-quote/express?zone_id=' . $zone->id . '&merchandise_total=150000')
+        ->assertOk()
+        ->assertJson([
+            'success' => true,
+            'provider' => Order::SHIPPING_PROVIDER_COORDINADORA,
+            'shipping_cost' => 0,
+            'quoted_shipping_cost' => 12900.0,
+            'free_shipping_applied' => true,
+            'free_shipping_min' => 100000.0,
+        ]);
+
+    // Below the threshold still charges shipping.
+    $this->getJson('/api/shipping-quote/express?zone_id=' . $zone->id . '&merchandise_total=50000')
+        ->assertOk()
+        ->assertJson([
+            'success' => true,
+            'shipping_cost' => 12900.0,
+            'free_shipping_applied' => false,
+        ]);
 });
 
 it('appends fl0001 line in diagnostic xml when shipping exists', function () {
@@ -258,7 +332,7 @@ function makeCoordinadoraOrder(): Order
     return $order;
 }
 
-it('processes coordinadora fv plus guide workflow', function () {
+it('processes coordinadora fv workflow without creating a guide by default', function () {
     $order = makeCoordinadoraOrder();
 
     Http::fake([
@@ -276,8 +350,8 @@ it('processes coordinadora fv plus guide workflow', function () {
 
     expect($order->status_id)->toBe(Order::STATUS_PROCESSED);
     expect($order->fv_number)->toBe('PV1547062');
-    expect($order->coordinadora_guide_number)->toBe('90012345678');
-    expect($order->coordinadora_status_text)->toBe('Guia creada');
+    expect($order->coordinadora_guide_number)->toBeNull();
+    expect($order->coordinadora_status_code)->toBe('FV_ONLY');
 
     $fvResponse = json_decode($order->fv_response_payload, true);
     expect($fvResponse['document_status'])->toBe('CONFIRMADO');
@@ -312,6 +386,32 @@ it('processes coordinadora fv plus guide workflow', function () {
         return true;
     });
 
+    // Activity owns guides; default path must not call Coordinadora /guias.
+    Http::assertNotSent(fn ($request) => str_contains($request->url(), '/guias'));
+});
+
+it('creates a coordinadora guide when create_guides is enabled', function () {
+    config(['services.coordinadora.create_guides' => true]);
+    $order = makeCoordinadoraOrder();
+
+    Http::fake([
+        'https://coordinadora.test/oauth/token' => Http::response(['access_token' => 'token', 'expires_in' => 3600], 200),
+        'https://coordinadora.test/guias' => Http::response([
+            'data' => ['numero_guia' => '90012345678'],
+            'status_code' => 'CREATED',
+            'status_text' => 'Guia creada',
+        ], 200),
+        'https://dynamics.test/*' => Http::response(fvSoapResponse(), 200),
+    ]);
+
+    app(CoordinadoraOrderProcessingService::class)->process($order);
+    $order->refresh();
+
+    expect($order->status_id)->toBe(Order::STATUS_PROCESSED);
+    expect($order->fv_number)->toBe('PV1547062');
+    expect($order->coordinadora_guide_number)->toBe('90012345678');
+    expect($order->coordinadora_status_text)->toBe('Guia creada');
+
     Http::assertSent(function ($request) {
         if (!str_contains($request->url(), '/guias')) {
             return true;
@@ -327,12 +427,6 @@ it('treats duplicate fv (YA_CREADO) as success', function () {
     $order = makeCoordinadoraOrder();
 
     Http::fake([
-        'https://coordinadora.test/oauth/token' => Http::response(['access_token' => 'token', 'expires_in' => 3600], 200),
-        'https://coordinadora.test/guias' => Http::response([
-            'data' => ['numero_guia' => '90012345678'],
-            'status_code' => 'CREATED',
-            'status_text' => 'Guia creada',
-        ], 200),
         'https://dynamics.test/*' => Http::response(
             fvSoapResponse('PV1547000', 'false', 'YA_CREADO ~ PV1547000'),
             200
@@ -362,6 +456,101 @@ it('throws when fv service rejects the order', function () {
     $order->refresh();
     expect($order->fv_number)->toBeNull();
     expect($order->status_id)->toBe(Order::STATUS_PENDING);
+});
+
+it('keeps the fv number when guide creation fails so a retry can resume', function () {
+    config(['services.coordinadora.create_guides' => true]);
+    $order = makeCoordinadoraOrder();
+
+    Http::fake([
+        'https://coordinadora.test/oauth/token' => Http::response(['access_token' => 'token', 'expires_in' => 3600], 200),
+        'https://coordinadora.test/guias' => Http::response(['message' => 'direccionRemitente requerido'], 422),
+        'https://dynamics.test/*' => Http::response(fvSoapResponse(), 200),
+    ]);
+
+    expect(fn () => app(CoordinadoraOrderProcessingService::class)->process($order))
+        ->toThrow(RequestException::class);
+
+    // The FV exists in Dynamics, so it must exist locally too; otherwise the
+    // operator has no record of the document that was created.
+    $order->refresh();
+    expect($order->fv_number)->toBe('PV1547062');
+    expect($order->coordinadora_guide_number)->toBeNull();
+    expect($order->status_id)->not->toBe(Order::STATUS_PROCESSED);
+});
+
+it('skips CreateSalesOrder on retry when the order already has an fv number', function () {
+    $order = makeCoordinadoraOrder();
+    $order->update(['fv_number' => 'PV1547062']);
+
+    Http::fake([
+        'https://dynamics.test/*' => Http::response(fvSoapResponse(), 200),
+    ]);
+
+    app(CoordinadoraOrderProcessingService::class)->process($order);
+    $order->refresh();
+
+    expect($order->status_id)->toBe(Order::STATUS_PROCESSED);
+    expect($order->fv_number)->toBe('PV1547062');
+    expect($order->coordinadora_guide_number)->toBeNull();
+
+    Http::assertNotSent(fn ($request) => str_contains($request->url(), 'dynamics.test'));
+});
+
+it('routes a manual retry of an express order to fv instead of tronex presales', function () {
+    $order = makeCoordinadoraOrder();
+
+    expect($order->usesFvFulfillment())->toBeTrue();
+
+    // The retry refreshes the Microsoft token before transmitting.
+    config([
+        'microsoft.url_token' => 'https://login.test/oauth2/token',
+        'microsoft.client_id' => 'client-id',
+        'microsoft.client_secret' => 'client-secret',
+        'microsoft.resource' => 'https://dynamics.test/',
+    ]);
+
+    Http::fake([
+        'https://login.test/oauth2/token' => Http::response(['access_token' => 'test-microsoft-token'], 200),
+        'https://dynamics.test/*' => Http::response(fvSoapResponse(), 200),
+    ]);
+
+    $result = OrderRepository::retryXmlTransmission($order);
+    $order->refresh();
+
+    expect($result['success'])->toBeTrue();
+    expect($result['message'])->toContain('PV1547062');
+    expect($order->fv_number)->toBe('PV1547062');
+    expect($order->status_id)->toBe(Order::STATUS_PROCESSED);
+
+    // The legacy presales webservice must not be touched for express orders.
+    Http::assertNotSent(fn ($request) => str_contains($request->url(), 'Presales')
+        || str_contains($request->url(), 'presales'));
+});
+
+it('does not treat a tronex order as fv fulfilled', function () {
+    $order = makeCoordinadoraOrder();
+    $order->update(['shipping_provider' => Order::SHIPPING_PROVIDER_TRONEX]);
+
+    expect($order->usesFvFulfillment())->toBeFalse();
+
+    $order->update([
+        'shipping_provider' => Order::SHIPPING_PROVIDER_COORDINADORA,
+        'delivery_method' => Order::DELIVERY_METHOD_TRONEX,
+    ]);
+
+    expect($order->usesFvFulfillment())->toBeFalse();
+});
+
+it('offers manual transmission for orders that were never attempted', function () {
+    $order = makeCoordinadoraOrder();
+
+    // Never-attempted orders sit in PENDING, which previously hid the retry action.
+    expect($order->status_id)->toBe(Order::STATUS_PENDING);
+    expect($order->awaitingTransmission())->toBeTrue();
+
+    $order->update(['status_id' => Order::STATUS_PROCESSED]);
+    expect($order->awaitingTransmission())->toBeFalse();
 });
 
 it('resolves zone dane codes from explicit values, legacy zip and user city', function () {

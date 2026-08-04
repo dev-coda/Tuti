@@ -255,6 +255,7 @@
                 @php
                     $displayTotal = $order->totalWithTax();
                     $displayDiscount = $order->discountWithTax();
+                    $displayShipping = (float) ($order->shipping_quote_amount ?? 0);
                 @endphp
                 <div class="space-y-3">
                     <div class="flex justify-between text-sm">
@@ -265,6 +266,12 @@
                     <div class="flex justify-between text-sm">
                         <span class="text-green-600">Descuento</span>
                         <span class="text-green-600 font-medium">-${{ number_format($displayDiscount, 0) }}</span>
+                    </div>
+                    @endif
+                    @if($displayShipping > 0)
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-600">Envío 48H (estimado)</span>
+                        <span class="text-gray-900 font-medium">${{ number_format($displayShipping, 0) }}</span>
                     </div>
                     @endif
                     @if(($order->retention_total ?? 0) > 0)
@@ -287,7 +294,7 @@
                     <div class="border-t border-gray-200 pt-3">
                         <div class="flex justify-between">
                             <span class="text-base font-semibold text-gray-900">Total</span>
-                            <span class="text-xl font-bold text-orange-600">${{ number_format($displayTotal, 0) }}</span>
+                            <span class="text-xl font-bold text-orange-600">${{ number_format($displayTotal + $displayShipping, 0) }}</span>
                         </div>
                     </div>
                 </div>

@@ -42,9 +42,7 @@ class FvIntegrationController extends Controller
             'last_check' => $this->lastHealthCheck(),
         ];
 
-        $baseQuery = Order::query()
-            ->where('delivery_method', Order::DELIVERY_METHOD_EXPRESS)
-            ->where('shipping_provider', Order::SHIPPING_PROVIDER_COORDINADORA);
+        $baseQuery = Order::query()->fvFulfilled();
 
         $stats = [
             'total' => (clone $baseQuery)->count(),

@@ -10,15 +10,29 @@
         <div class="flex justify-between items-center">
             <h1 class="text-xl font-semibold text-gray-900 sm:text-2xl ">Compra #{{ $order->id }}</h1>
             <div class="flex items-center space-x-4">
-                <!-- XML Transmission Retry Button (Primary) -->
+                <!-- Transmission Retry Buttons (Primary) -->
                 <div class="flex space-x-2">
                     <form method="POST" action="{{ route('orders.retry-xml-transmission', $order) }}" class="inline">
                         @csrf
-                        <button type="submit" class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+                        <button type="submit" class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                                onclick="return confirm('{{ $order->usesFvFulfillment() ? 'Se creará la FV en Dynamics y la guía de Coordinadora ahora mismo. ¿Continuar?' : '¿Reintentar la transmisión XML ahora?' }}')"
+                                title="{{ $order->usesFvFulfillment() ? 'Crea la FV en Dynamics y la guía Coordinadora de forma sincrónica' : 'Reenvía el XML de preventa a Tronex' }}">
                             @svg('heroicon-o-arrow-path', 'w-4 h-4 mr-2')
-                            Reintentar XML
+                            {{ $order->usesFvFulfillment() ? 'Transmitir a FV ahora' : 'Reintentar XML' }}
                         </button>
                     </form>
+
+                    @if($order->status_id !== \App\Models\Order::STATUS_PROCESSED)
+                        <form method="POST" action="{{ route('orders.redispatch', $order) }}" class="inline">
+                            @csrf
+                            <button type="submit" class="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                                    onclick="return confirm('Se volverá a encolar la orden para procesamiento en segundo plano. ¿Continuar?')"
+                                    title="Vuelve a encolar ProcessOrderAsync (requiere un worker activo)">
+                                @svg('heroicon-o-queue-list', 'w-4 h-4 mr-1')
+                                Re-encolar
+                            </button>
+                        </form>
+                    @endif
                     
                     <!-- Email Retry Buttons (Secondary) -->
                     <form method="POST" action="{{ route('orders.retry-confirmation-email', $order) }}" class="inline">

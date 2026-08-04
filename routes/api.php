@@ -124,10 +124,30 @@ Route::get('/shipping-quote/{method}', function (Request $request, string $metho
         $cart = collect(session()->get('cart', []));
         $quote = app(\App\Services\Shipping\CoordinadoraQuoteService::class)->quoteFromCart($cart, $zone);
 
+        // Prefer the cart UI total when provided so free-shipping matches what the
+        // shopper sees; fall back to a simple list-price estimate from the session.
+        $merchandiseTotal = $request->filled('merchandise_total')
+            ? max(0.0, (float) $request->input('merchandise_total'))
+            : (float) $cart->sum(function ($row) {
+                $product = \App\Models\Product::find($row['product_id'] ?? null);
+                if (!$product) {
+                    return 0;
+                }
+                $qty = (int) ($row['quantity'] ?? 0);
+                $pkg = max(1, (int) ($product->package_quantity ?? 1));
+
+                return (float) $product->price * $qty * $pkg;
+            });
+
+        $quote = \App\Models\Setting::applyExpressFreeShipping($quote, $merchandiseTotal);
+
         return response()->json([
             'success' => true,
             'provider' => Order::SHIPPING_PROVIDER_COORDINADORA,
             'shipping_cost' => $quote['shipping_cost'],
+            'quoted_shipping_cost' => $quote['quoted_shipping_cost'] ?? $quote['shipping_cost'],
+            'free_shipping_applied' => (bool) ($quote['free_shipping_applied'] ?? false),
+            'free_shipping_min' => $quote['free_shipping_min'] ?? 0,
             'delivery_estimate' => $quote['delivery_estimate'] ?? null,
         ]);
     } catch (\Throwable $e) {

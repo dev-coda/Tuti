@@ -100,6 +100,42 @@ class Order extends Model
     const ORIGIN_AUTONOMO = 'autonomo';
 
     /**
+     * Whether this order is fulfilled through the FV (Dynamics CreateSalesOrder)
+     * + Coordinadora guide flow instead of the legacy Tronex presales XML.
+     *
+     * Single source of truth for that branch: every caller that transmits an
+     * order must use this so the queued job and the manual retries agree.
+     */
+    public function usesFvFulfillment(): bool
+    {
+        return $this->delivery_method === self::DELIVERY_METHOD_EXPRESS
+            && $this->shipping_provider === self::SHIPPING_PROVIDER_COORDINADORA;
+    }
+
+    /**
+     * Restrict a query to orders that transmit through the FV flow.
+     */
+    public function scopeFvFulfilled($query)
+    {
+        return $query->where('delivery_method', self::DELIVERY_METHOD_EXPRESS)
+            ->where('shipping_provider', self::SHIPPING_PROVIDER_COORDINADORA);
+    }
+
+    /**
+     * Whether the order still needs to be transmitted. Used to decide if a
+     * manual transmit action should be offered.
+     */
+    public function awaitingTransmission(): bool
+    {
+        return in_array($this->status_id, [
+            self::STATUS_PENDING,
+            self::STATUS_ERROR,
+            self::STATUS_ERROR_WEBSERVICE,
+            self::STATUS_WAITING,
+        ], true);
+    }
+
+    /**
      * Get status slug from status ID
      */
     public static function getStatusSlug($statusId)

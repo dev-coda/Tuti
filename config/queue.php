@@ -17,6 +17,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Async Fallback Connection
+    |--------------------------------------------------------------------------
+    |
+    | Connection used by App\Support\QueueConnection when the default is "sync",
+    | so background jobs are not executed inline in a web request. This must
+    | name a connection a worker actually consumes, otherwise jobs pile up
+    | unprocessed.
+    |
+    */
+
+    'async_fallback' => env('QUEUE_ASYNC_FALLBACK', 'database'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Queue Connections
     |--------------------------------------------------------------------------
     |

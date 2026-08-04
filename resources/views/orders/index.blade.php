@@ -196,13 +196,13 @@
                                             @elseif($order->user && $order->user->isPendingClient())
                                                 <div class="text-xs text-amber-600 mt-1">Cliente pendiente rutero</div>
                                             @endif
-                                            @if($order->status_id === 3)
+                                            @if($order->awaitingTransmission())
                                                 <form action="{{ route('orders.resend', $order) }}" method="POST" class="inline ml-2">
                                                     @csrf
                                                     <button type="submit" 
                                                             class="inline-flex items-center p-1 border border-gray-300 rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500"
-                                                            onclick="return confirm('¿Está seguro que desea reenviar esta orden?')"
-                                                            title="Reenviar orden">
+                                                            onclick="return confirm('{{ $order->usesFvFulfillment() ? 'Se creará la FV en Dynamics y la guía de Coordinadora ahora mismo. ¿Continuar?' : '¿Está seguro que desea reenviar esta orden?' }}')"
+                                                            title="{{ $order->usesFvFulfillment() ? 'Transmitir a FV + Coordinadora' : 'Reenviar orden' }}">
                                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
                                                         </svg>

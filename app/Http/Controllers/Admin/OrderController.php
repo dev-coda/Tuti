@@ -6,13 +6,16 @@ use App\Exports\OrdersExport;
 use App\Exports\OrdersMonthlyExport;
 use App\Exports\OrdersDailyAuditExport;
 use App\Http\Controllers\Controller;
+use App\Jobs\ProcessOrderAsync;
 use App\Models\ExportFile;
 use App\Models\Order;
 use App\Models\User;
 use App\Repositories\OrderRepository;
+use App\Support\QueueConnection;
 use Illuminate\Http\Request;
 use Maatwebsite\Excel\Facades\Excel;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use App\Models\Setting;
@@ -241,8 +244,9 @@ class OrderController extends Controller
 
     public function resend(Order $order)
     {
-        // Check if the order has webservice error status
-        if ($order->status_id !== Order::STATUS_ERROR_WEBSERVICE) {
+        // Orders that were never attempted sit in PENDING, so allow any state
+        // that still needs transmitting rather than only webservice errors.
+        if (! $order->awaitingTransmission()) {
             return redirect()->back()->with('error', 'Esta orden no puede ser reenviada.');
         }
 
@@ -250,12 +254,51 @@ class OrderController extends Controller
             // Forcefully refresh the Microsoft token before resending
             $this->refreshMicrosoftToken();
 
+            // Express/Coordinadora orders go to FV + guía, not the legacy presales XML.
+            if ($order->usesFvFulfillment()) {
+                $result = OrderRepository::retryXmlTransmission($order);
+
+                return $result['success']
+                    ? redirect()->back()->with('success', $result['message'])
+                    : redirect()->back()->with('error', $result['message']);
+            }
+
             // Resend the order using the same method from OrderRepository
             OrderRepository::presalesOrder($order);
 
             return redirect()->back()->with('success', 'Orden reenviada exitosamente.');
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return redirect()->back()->with('error', 'Error al reenviar la orden: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Re-queue an order through the normal ProcessOrderAsync pipeline.
+     *
+     * The unique lock is cleared first, otherwise a job still inside its backoff
+     * window would silently swallow this dispatch.
+     */
+    public function redispatch(Order $order)
+    {
+        if ($order->status_id === Order::STATUS_PROCESSED) {
+            return redirect()->back()->with('error', 'Esta orden ya fue procesada.');
+        }
+
+        try {
+            $connection = QueueConnection::forBackgroundWork();
+
+            Cache::forget('laravel_unique_job:' . ProcessOrderAsync::class . 'order-' . $order->id);
+
+            $order->markAsManuallyRetried();
+
+            ProcessOrderAsync::dispatch($order)->onConnection($connection);
+
+            return redirect()->back()->with(
+                'success',
+                sprintf('Orden #%d re-encolada en la conexión "%s".', $order->id, $connection)
+            );
+        } catch (\Throwable $e) {
+            return redirect()->back()->with('error', 'Error al re-encolar la orden: ' . $e->getMessage());
         }
     }
 

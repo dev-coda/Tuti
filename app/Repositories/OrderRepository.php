@@ -9,6 +9,7 @@ use App\Models\RouteCycle;
 use App\Models\DeliveryCalendar;
 use App\Models\Zone;
 use App\Jobs\SendOrderEmail;
+use App\Services\Shipping\CoordinadoraOrderProcessingService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -1006,11 +1007,7 @@ class OrderRepository
     private static function sendOrderStatusEmail($order, $status)
     {
         try {
-            // Determine queue connection
-            $queueConnection = config('queue.default');
-            if ($queueConnection === 'sync') {
-                $queueConnection = 'database';
-            }
+            $queueConnection = \App\Support\QueueConnection::forBackgroundWork();
 
             // Dispatch email job asynchronously
             \App\Jobs\SendOrderEmail::dispatch($order, 'status', $status)
@@ -1033,20 +1030,42 @@ class OrderRepository
     {
         Log::channel('soap')->info('Retrying XML transmission', [
             'order_id' => $order->id,
-            'current_status' => $order->status_id
+            'current_status' => $order->status_id,
+            'uses_fv' => $order->usesFvFulfillment(),
         ]);
 
         try {
             // Forcefully refresh the Microsoft token before retry
             self::refreshMicrosoftToken();
 
+            // Express/Coordinadora orders are transmitted as an FV sales order
+            // plus a Coordinadora guide; the legacy presales XML does not apply.
+            if ($order->usesFvFulfillment()) {
+                $result = app(CoordinadoraOrderProcessingService::class)->process($order);
+                $order->refresh();
+
+                $message = 'Transmisión FV exitosa. FV: ' . ($order->fv_number ?: '-');
+                if ($order->coordinadora_guide_number) {
+                    $message .= ', Guía: ' . $order->coordinadora_guide_number;
+                }
+
+                return [
+                    'success' => true,
+                    'message' => $message,
+                    'result' => $result,
+                ];
+            }
+
             // Retry the XML transmission
             self::presalesOrder($order);
 
             return ['success' => true, 'message' => 'Transmisión XML exitosa'];
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error("XML transmission retry failed for order {$order->id}: " . $e->getMessage());
-            return ['success' => false, 'message' => 'Error en transmisión XML: ' . $e->getMessage()];
+
+            $label = $order->usesFvFulfillment() ? 'transmisión FV' : 'transmisión XML';
+
+            return ['success' => false, 'message' => 'Error en ' . $label . ': ' . $e->getMessage()];
         }
     }
 

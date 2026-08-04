@@ -407,9 +407,10 @@
                 @endif
 
                 <div class="flex justify-between text-gray-600 hidden" id="cart-shipping-row">
-                    <span>Envío 48H</span>
+                    <span id="cart-shipping-label">Envío 48H</span>
                     <span class="font-medium" id="cart-shipping">$0</span>
                 </div>
+                <p class="text-xs text-red-600 hidden" id="cart-shipping-error"></p>
                 
                 <div class="pt-3 border-t border-gray-200">
                     <div class="flex justify-between items-center">
@@ -546,6 +547,11 @@
                                         @if($method->description)
                                             <div class="text-sm delivery-subtitle mt-1">{{ $method->description }}</div>
                                         @endif
+                                        @if($method->code === 'express' && \App\Models\Setting::expressFreeShippingMinimum() > 0)
+                                            <div class="text-xs text-green-700 mt-1">
+                                                Envío gratis desde ${{ number_format(\App\Models\Setting::expressFreeShippingMinimum(), 0, ',', '.') }}
+                                            </div>
+                                        @endif
                                         @if(!$isForceEnabled)
                                             <div class="text-xs delivery-date mt-2 font-medium" id="delivery-date-{{ $method->code }}">Calculando...</div>
                                         @endif
@@ -606,6 +612,8 @@
 <script>
     $(function() {
         let currentShippingAmount = 0;
+        let shippingQuoteRequestId = 0;
+        let shippingQuoteAbortController = null;
         // Currency formatter
         function formatCurrency(amount) {
             return '$' + new Intl.NumberFormat('es-CO', {
@@ -832,50 +840,130 @@
             updateCartRetentions();
         }
 
-        function setShippingAmount(amount) {
+        function setShippingAmount(amount, options = {}) {
             currentShippingAmount = Number(amount || 0);
             const shippingRow = document.getElementById('cart-shipping-row');
             const shippingAmountEl = document.getElementById('cart-shipping');
+            const shippingLabelEl = document.getElementById('cart-shipping-label');
             const shippingInput = document.getElementById('shipping_quote_amount');
+            const shippingErrorEl = document.getElementById('cart-shipping-error');
+            const showRow = options.forceShow === true || currentShippingAmount > 0 || options.freeShipping === true;
+            const loading = options.loading === true;
+            const freeShipping = options.freeShipping === true;
 
             if (shippingInput) {
                 shippingInput.value = currentShippingAmount.toFixed(2);
             }
 
+            if (shippingLabelEl) {
+                if (loading) {
+                    shippingLabelEl.textContent = 'Envío 48H (cotizando…)';
+                } else if (freeShipping) {
+                    shippingLabelEl.textContent = 'Envío 48H (gratis)';
+                } else {
+                    shippingLabelEl.textContent = 'Envío 48H';
+                }
+            }
+
             if (shippingRow && shippingAmountEl) {
-                if (currentShippingAmount > 0) {
+                if (showRow) {
                     shippingRow.classList.remove('hidden');
-                    shippingAmountEl.textContent = formatCurrency(currentShippingAmount);
+                    if (loading && currentShippingAmount <= 0 && !freeShipping) {
+                        shippingAmountEl.textContent = '…';
+                    } else if (freeShipping) {
+                        const quoted = Number(options.quotedShippingCost || 0);
+                        shippingAmountEl.textContent = quoted > 0
+                            ? ('Gratis (antes ' + formatCurrency(quoted) + ')')
+                            : 'Gratis';
+                    } else {
+                        shippingAmountEl.textContent = formatCurrency(currentShippingAmount);
+                    }
                 } else {
                     shippingRow.classList.add('hidden');
                     shippingAmountEl.textContent = formatCurrency(0);
                 }
             }
 
+            if (shippingErrorEl) {
+                if (options.error) {
+                    shippingErrorEl.textContent = options.error;
+                    shippingErrorEl.classList.remove('hidden');
+                } else {
+                    shippingErrorEl.textContent = '';
+                    shippingErrorEl.classList.add('hidden');
+                }
+            }
+
             recalculateTotals();
+        }
+
+        function getCartMerchandiseTotal() {
+            let totalWithoutShipping = 0;
+            document.querySelectorAll('.cart-item').forEach(item => {
+                const unitPrice = parseFloat(item.dataset.unitPrice);
+                const quantityInput = item.querySelector('.qty-input');
+                const quantity = quantityInput ? parseInt(quantityInput.value) : 0;
+                totalWithoutShipping += unitPrice * quantity;
+            });
+            return Math.max(0, totalWithoutShipping);
         }
 
         function fetchShippingQuote(method) {
             const zoneId = zoneSelect ? zoneSelect.value : null;
-            if (!zoneId) {
+            shippingQuoteRequestId += 1;
+            const requestId = shippingQuoteRequestId;
+
+            if (shippingQuoteAbortController) {
+                shippingQuoteAbortController.abort();
+            }
+            shippingQuoteAbortController = (typeof AbortController !== 'undefined')
+                ? new AbortController()
+                : null;
+
+            if (!zoneId || method !== 'express') {
                 setShippingAmount(0);
                 return;
             }
 
-            const url = `/api/shipping-quote/${method}?zone_id=${zoneId}`;
+            // Keep the shipping row visible while quoting so totals never
+            // silently drop the estimated cost when express is selected.
+            setShippingAmount(currentShippingAmount, { forceShow: true, loading: true });
 
-            fetch(url)
-                .then(response => response.json())
-                .then(data => {
-                    if (!data.success) {
-                        setShippingAmount(0);
+            const merchandiseTotal = getCartMerchandiseTotal();
+            const url = `/api/shipping-quote/${method}?zone_id=${zoneId}&merchandise_total=${encodeURIComponent(merchandiseTotal.toFixed(2))}`;
+
+            fetch(url, shippingQuoteAbortController ? { signal: shippingQuoteAbortController.signal } : undefined)
+                .then(response => response.json().then(data => ({ ok: response.ok, data })))
+                .then(({ ok, data }) => {
+                    if (requestId !== shippingQuoteRequestId) {
                         return;
                     }
 
-                    setShippingAmount(Number(data.shipping_cost || 0));
+                    if (!ok || !data.success) {
+                        setShippingAmount(0, {
+                            forceShow: true,
+                            error: data.message || 'No se pudo cotizar el envío 48H. Revisa la zona o intenta de nuevo.',
+                        });
+                        return;
+                    }
+
+                    setShippingAmount(Number(data.shipping_cost || 0), {
+                        forceShow: true,
+                        freeShipping: !!data.free_shipping_applied,
+                        quotedShippingCost: Number(data.quoted_shipping_cost || data.shipping_cost || 0),
+                    });
                 })
-                .catch(() => {
-                    setShippingAmount(0);
+                .catch((error) => {
+                    if (error && error.name === 'AbortError') {
+                        return;
+                    }
+                    if (requestId !== shippingQuoteRequestId) {
+                        return;
+                    }
+                    setShippingAmount(0, {
+                        forceShow: true,
+                        error: 'No se pudo cotizar el envío 48H. Revisa la zona o intenta de nuevo.',
+                    });
                 });
         }
 
@@ -1124,7 +1212,6 @@
                 fetchDeliveryDate(code);
             });
         }
-        setShippingAmount(0);
     })
 </script>
 

@@ -62,6 +62,18 @@
                 </div>
                 @endif
 
+                @if((float) ($order->shipping_quote_amount ?? 0) > 0)
+                <div class="flex justify-between items-center py-3 border-b border-gray-100">
+                    <span class="text-sm text-gray-600">Envío 48H (estimado)</span>
+                    <span class="text-sm font-semibold text-gray-900">${{ number_format((float) $order->shipping_quote_amount, 0, ',', '.') }}</span>
+                </div>
+                @elseif($order->delivery_method === \App\Models\Order::DELIVERY_METHOD_EXPRESS)
+                <div class="flex justify-between items-center py-3 border-b border-gray-100">
+                    <span class="text-sm text-gray-600">Envío 48H</span>
+                    <span class="text-sm font-semibold text-green-700">Gratis</span>
+                </div>
+                @endif
+
                 @if(($order->retention_total ?? 0) > 0)
                 <div class="rounded-lg bg-amber-50 border border-amber-100 px-3 py-3 space-y-2 text-sm">
                     <p class="text-amber-900 font-medium">Retenciones aplicables ({{ $order->tax_group ?? '—' }})</p>
@@ -82,7 +94,7 @@
 
                 <div class="flex justify-between items-center pt-4">
                     <span class="text-base font-medium text-gray-900">Total</span>
-                    <span class="text-2xl font-bold text-orange-600">${{ number_format($order->totalWithTax(), 0, ',', '.') }}</span>
+                    <span class="text-2xl font-bold text-orange-600">${{ number_format($order->totalWithTax() + (float) ($order->shipping_quote_amount ?? 0), 0, ',', '.') }}</span>
                 </div>
             </div>
         </div>

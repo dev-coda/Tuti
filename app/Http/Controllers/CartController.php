@@ -840,6 +840,7 @@ class CartController extends Controller
         }
         $shippingProvider = Order::SHIPPING_PROVIDER_TRONEX;
         $shippingQuoteAmount = null;
+        $shippingQuoteQuoted = null;
 
         if ($delivery_method === Order::DELIVERY_METHOD_EXPRESS && $zone?->usesCoordinadoraFor48h()) {
             $shippingProvider = Order::SHIPPING_PROVIDER_COORDINADORA;
@@ -847,6 +848,9 @@ class CartController extends Controller
             try {
                 $quote = app(CoordinadoraQuoteService::class)->quoteFromCart(collect($cart), $zone);
                 $shippingQuoteAmount = (float) ($quote['shipping_cost'] ?? 0);
+                // Final free-shipping decision uses order merchandise total once known
+                // (see applyExpressFreeShipping below after $finalTotal is calculated).
+                $shippingQuoteQuoted = $shippingQuoteAmount;
             } catch (\Throwable $e) {
                 Log::warning('Coordinadora quote failed during checkout', [
                     'zone_id' => $zone?->id,
@@ -1646,6 +1650,27 @@ class CartController extends Controller
 
             $finalTotal = $total;
 
+            if (
+                $delivery_method === Order::DELIVERY_METHOD_EXPRESS
+                && $shippingProvider === Order::SHIPPING_PROVIDER_COORDINADORA
+                && $shippingQuoteQuoted !== null
+            ) {
+                $adjusted = Setting::applyExpressFreeShipping(
+                    ['shipping_cost' => $shippingQuoteQuoted],
+                    (float) $finalTotal
+                );
+                $shippingQuoteAmount = (float) ($adjusted['shipping_cost'] ?? 0);
+
+                if (! empty($adjusted['free_shipping_applied'])) {
+                    Log::info('Express free shipping applied at checkout', [
+                        'user_id' => $user_id,
+                        'merchandise_total' => $finalTotal,
+                        'free_shipping_min' => $adjusted['free_shipping_min'] ?? null,
+                        'quoted_shipping_cost' => $shippingQuoteQuoted,
+                    ]);
+                }
+            }
+
             $shippingForRetention = (float) ($shippingQuoteAmount ?? 0);
             $retentionCalc = app(\App\Services\CartRetentionService::class)->calculateFromAggregates(
                 $actingUser->tax_group ?? null,
@@ -1659,6 +1684,7 @@ class CartController extends Controller
                 'total' => $finalTotal,
                 'discount' => $discount,
                 'coupon_discount' => $couponDiscount,
+                'shipping_quote_amount' => $shippingQuoteAmount,
                 'tax_group' => $actingUser->tax_group,
                 'retention_fuente' => $retentionCalc['retention_fuente'],
                 'retention_iva' => $retentionCalc['retention_iva'],
@@ -1713,13 +1739,7 @@ class CartController extends Controller
             // Dispatch async job to handle XML transmission and email sending
             // This allows the user to get an immediate response while processing happens in the background
 
-            // Determine which queue connection to use
-            $queueConnection = config('queue.default');
-
-            // If sync, use database queue to ensure async processing
-            if ($queueConnection === 'sync') {
-                $queueConnection = 'database';
-            }
+            $queueConnection = \App\Support\QueueConnection::forBackgroundWork();
 
             // Check if Redis is available, fallback to database if not
             if ($queueConnection === 'redis') {
