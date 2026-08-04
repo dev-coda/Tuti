@@ -18,16 +18,12 @@ use Exception;
 class MailingService
 {
     /**
-     * Update mail configuration from database settings
-     * Enforces Mailgun-only configuration
+     * Update mail configuration from database settings.
+     * Enforces Mailgun when credentials are present; does not force a broken mailer when they are missing.
      */
     public function updateMailConfiguration(): void
     {
         try {
-            // Force Mailgun - no SMTP fallback
-            $mailDriver = 'mailgun';
-            Config::set('mail.default', $mailDriver);
-
             // Update from address and name
             $fromAddress = Setting::getByKeyWithDefault('mail_from_address', 'noreply@tuti.com');
             $fromName = Setting::getByKeyWithDefault('mail_from_name', 'Tuti');
@@ -49,10 +45,13 @@ class MailingService
 
             if (!$mailgunDomain || !$mailgunSecret) {
                 Log::error("Mailgun credentials missing. Domain: " . ($mailgunDomain ? 'set' : 'missing') . ", Secret: " . ($mailgunSecret ? 'set' : 'missing'));
-                // Don't throw exception during bootstrap - let it fail gracefully when actually sending
-                // This allows the app to boot even if Mailgun isn't configured yet
+                // Don't force mailgun without credentials — that breaks every subsequent send.
+                // Don't throw during bootstrap so the app can still boot.
                 return;
             }
+
+            // Force Mailgun only once credentials are available
+            Config::set('mail.default', 'mailgun');
 
             // Configure mail.mailers.mailgun
             Config::set('mail.mailers.mailgun.transport', 'mailgun');
@@ -67,13 +66,37 @@ class MailingService
             Config::set('services.mailgun.endpoint', $mailgunEndpoint);
             Config::set('services.mailgun.scheme', 'https');
 
-            Log::info("Mailgun configured successfully", [
+            // Drop any previously resolved mailer so the new credentials are used
+            if (app()->bound('mail.manager')) {
+                Mail::purge();
+            }
+
+            Log::debug('Mailgun configured successfully', [
                 'domain' => $mailgunDomain,
-                'endpoint' => $mailgunEndpoint
+                'endpoint' => $mailgunEndpoint,
+                'from' => $fromAddress,
             ]);
         } catch (\Exception $e) {
             Log::error("Failed to update mail configuration: " . $e->getMessage());
             // Don't throw during bootstrap - configuration will be checked when actually sending emails
+        }
+    }
+
+    /**
+     * Ensure Mailgun is ready to send. Call before auth / transactional sends.
+     *
+     * @throws \RuntimeException
+     */
+    public function ensureConfigured(): void
+    {
+        $this->updateMailConfiguration();
+
+        if (config('mail.default') !== 'mailgun') {
+            throw new \RuntimeException('Mailgun is not configured. Set mailgun_domain and mailgun_secret in Admin > Mailer.');
+        }
+
+        if (!config('services.mailgun.domain') || !config('services.mailgun.secret')) {
+            throw new \RuntimeException('Mailgun credentials not configured. Set mailgun_domain and mailgun_secret in Admin > Mailer.');
         }
     }
 
