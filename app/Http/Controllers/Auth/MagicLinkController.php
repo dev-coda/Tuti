@@ -56,19 +56,20 @@ class MagicLinkController extends Controller
             ], 422);
         }
 
-        // Generate the code
+        // Generate the code (normalized email key for lookup)
         $magicCode = MagicLoginCode::generateFor($email);
 
         // Send the email using the MailingService infrastructure
         try {
-            $mailingService = new MailingService();
-            $mailingService->updateMailConfiguration();
+            $mailingService = app(MailingService::class);
+            $mailingService->ensureConfigured();
 
-            Mail::to($email)->send(new MagicLoginCodeMail($magicCode));
+            // Deliver to the stored address; codes are keyed by the normalized email.
+            Mail::to($user->email)->send(new MagicLoginCodeMail($magicCode));
 
-            Log::info("Magic login code sent to: {$email}");
+            Log::info("Magic login code sent to: {$user->email}");
         } catch (\Exception $e) {
-            Log::error("Failed to send magic login code to {$email}: " . $e->getMessage());
+            Log::error("Failed to send magic login code to {$user->email}: " . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Error al enviar el código. Por favor intenta de nuevo.',
