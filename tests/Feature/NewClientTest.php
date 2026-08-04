@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Contact;
 use App\Models\User;
 use App\Models\ZoneRoute;
 use App\Services\DraftOrderReconciliationService;
@@ -584,6 +585,47 @@ it('embeds the habeas data authorization in the signature pdf', function () {
         ->post(route('new-client.store'), validNewClientPayload())
         ->assertRedirect(route('new-client.create'))
         ->assertSessionHas('success');
+});
+
+it('sends pdf and image attachments to activity and persists contact documents', function () {
+    \Illuminate\Support\Facades\Storage::fake('public');
+
+    $this->mock(NewClientService::class, function ($mock) {
+        $mock->shouldReceive('registerClient')->once()->andReturn([
+            'success' => true, 'id' => 42, 'codigo_cliente' => 'C-0042', 'message' => 'ok',
+        ]);
+        $mock->shouldReceive('uploadMedia')->once()->andReturnUsing(function ($clientId, $pdf, $attachments) {
+            expect($clientId)->toBe(42);
+            expect($pdf->getClientOriginalName())->toBe('firma.pdf');
+            expect($attachments)->toHaveCount(2);
+            $names = collect($attachments)->map(fn ($f) => $f->getClientOriginalName())->all();
+            expect($names)->toContain('cedula.jpg')->toContain('rut.pdf');
+
+            return ['success' => true, 'message' => 'ok'];
+        });
+    });
+
+    $this->mock(DraftOrderReconciliationService::class, function ($mock) {
+        $mock->shouldReceive('syncUserFromRutero')->andReturn([
+            'success' => true, 'synced' => false, 'promoted' => false, 'message' => 'ok',
+        ]);
+    });
+
+    actingAs($this->seller)
+        ->post(route('new-client.store'), validNewClientPayload([
+            'documents' => [
+                UploadedFile::fake()->image('cedula.jpg'),
+                UploadedFile::fake()->create('rut.pdf', 100, 'application/pdf'),
+            ],
+        ]))
+        ->assertRedirect(route('new-client.create'))
+        ->assertSessionHas('success');
+
+    $contact = Contact::query()->where('nit', '900123456')->first();
+    expect($contact)->not->toBeNull();
+    expect($contact->documents)->not->toBeEmpty();
+    expect(collect($contact->documents)->filter(fn ($p) => str_contains($p, 'signatures/')))->not->toBeEmpty();
+    expect(collect($contact->documents)->filter(fn ($p) => str_contains($p, 'new-client-documents/')))->not->toBeEmpty();
 });
 
 it('escapes XML special characters in service', function () {

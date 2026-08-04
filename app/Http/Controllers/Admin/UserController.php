@@ -102,7 +102,9 @@ class UserController extends Controller
                 ];
             });
 
-        $context = compact('user', 'states', 'cities', 'orders');
+        $registrationDocuments = \App\Services\ClientRegistrationDocuments::pathsForUser($user);
+
+        $context = compact('user', 'states', 'cities', 'orders', 'registrationDocuments');
 
         return view('users.edit', $context);
     }
@@ -200,6 +202,35 @@ class UserController extends Controller
         $result = $reconciliationService->syncUserFromRutero($user, true, true);
 
         return back()->with($result['success'] ? 'success' : 'error', $result['message']);
+    }
+
+    /**
+     * Download a ZIP with the client's registration attachments plus a text summary.
+     */
+    public function downloadAttachments(User $user)
+    {
+        if ($user->roles()->exists()) {
+            return back()->with('error', 'Solo aplica a clientes.');
+        }
+
+        $files = \App\Services\ClientRegistrationDocuments::absoluteFilesForUser($user);
+        $summary = \App\Services\ClientRegistrationDocuments::summaryText($user);
+
+        $tmpZip = tempnam(sys_get_temp_dir(), 'client_docs_') . '.zip';
+        $zip = new \ZipArchive();
+        if ($zip->open($tmpZip, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
+            return back()->with('error', 'No se pudo generar el archivo ZIP.');
+        }
+
+        $zip->addFromString('resumen_cliente.txt', $summary);
+        foreach ($files as $name => $absolute) {
+            $zip->addFile($absolute, 'documentos/' . $name);
+        }
+        $zip->close();
+
+        $downloadName = 'cliente_' . preg_replace('/[^A-Za-z0-9_-]/', '_', (string) ($user->document ?: $user->id)) . '_documentos.zip';
+
+        return response()->download($tmpZip, $downloadName)->deleteFileAfterSend(true);
     }
 
     /**
