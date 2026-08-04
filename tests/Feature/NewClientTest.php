@@ -492,6 +492,10 @@ it('requires a real correo and stores it on the provisioned client', function ()
         ]);
     });
 
+    $this->mock(\App\Services\MailingService::class, function ($mock) {
+        $mock->shouldReceive('sendClientRegistrationInviteEmail')->once()->andReturn(true);
+    });
+
     actingAs($this->seller)
         ->post(route('new-client.store'), validNewClientPayload([
             'Documento' => '43800986',
@@ -504,6 +508,35 @@ it('requires a real correo and stores it on the provisioned client', function ()
     expect($user)->not->toBeNull()
         ->and($user->email)->toBe('yazmin.munoz@example.com')
         ->and(User::isInvalidClientEmail($user->email))->toBeFalse();
+});
+
+it('sends a password-setup invite email after seller client registration', function () {
+    \Illuminate\Support\Facades\Storage::fake('public');
+
+    $this->mock(NewClientService::class, function ($mock) {
+        $mock->shouldReceive('registerClient')->once()->andReturn([
+            'success' => true, 'id' => 88, 'codigo_cliente' => 'C-0088', 'message' => 'ok',
+        ]);
+        $mock->shouldReceive('uploadMedia')->once()->andReturn(['success' => true, 'message' => 'ok']);
+    });
+
+    $this->mock(DraftOrderReconciliationService::class, function ($mock) {
+        $mock->shouldReceive('syncUserFromRutero')->andReturn([
+            'success' => true, 'synced' => false, 'promoted' => false, 'message' => 'ok',
+        ]);
+    });
+
+    $this->mock(\App\Services\MailingService::class, function ($mock) {
+        $mock->shouldReceive('sendClientRegistrationInviteEmail')
+            ->once()
+            ->withArgs(fn (User $user) => $user->email === 'cliente.nuevo@example.com')
+            ->andReturn(true);
+    });
+
+    actingAs($this->seller)
+        ->post(route('new-client.store'), validNewClientPayload())
+        ->assertRedirect(route('new-client.create'))
+        ->assertSessionHas('success');
 });
 
 it('rejects registration without correo', function () {

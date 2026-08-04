@@ -20,7 +20,10 @@
             <h1 class="text-2xl sm:text-3xl font-semibold text-gray-900">Pedido #{{ $order->id }}</h1>
             <p class="text-sm text-gray-500 mt-1">Realizado el {{ $order->created_at->subHour(5)->format('d M Y') }}</p>
         </div>
-        <div>
+        <div class="flex flex-col items-end gap-2">
+            @if(auth()->user()?->hasAnyRole(['admin', 'seller', 'supervisor']))
+                <x-order-origin :order="$order" />
+            @endif
             <x-order-status :status="$order->status_id" />
         </div>
     </div>

@@ -196,6 +196,46 @@ class Order extends Model
         return $this->origin === self::ORIGIN_RUTA ? 'RUTA' : 'Autónomo';
     }
 
+    public function isAutonomous(): bool
+    {
+        return $this->origin === self::ORIGIN_AUTONOMO;
+    }
+
+    /**
+     * For Autónomo orders: whether the buyer is a new (prospecto/pendiente) or current (cliente) account.
+     * Returns null for RUTA orders.
+     */
+    public function autonomousClientSegment(): ?string
+    {
+        if (! $this->isAutonomous()) {
+            return null;
+        }
+
+        $user = $this->user;
+        if (! $user) {
+            return null;
+        }
+
+        if ($user->isProspectClient() || $user->isPendingClient()) {
+            return 'nuevo';
+        }
+
+        if ($user->isCliente()) {
+            return 'actual';
+        }
+
+        return null;
+    }
+
+    public function autonomousClientSegmentLabel(): ?string
+    {
+        return match ($this->autonomousClientSegment()) {
+            'nuevo' => 'Cliente nuevo',
+            'actual' => 'Cliente actual',
+            default => null,
+        };
+    }
+
     public function coupon()
     {
         return $this->belongsTo(Coupon::class);

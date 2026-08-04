@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\ZoneRoute;
 use App\Rules\ValidClientEmail;
 use App\Services\DraftOrderReconciliationService;
+use App\Services\MailingService;
 use App\Services\NewClientService;
 use App\Services\PendingClientProvisioningService;
 use Illuminate\Http\Request;
@@ -397,6 +398,9 @@ class NewClientController extends Controller
                 preserveExistingStatus: $isSucursal
             );
             $this->attemptPostCreateRuteroSync($localClient);
+            if (! $isSucursal) {
+                $this->sendRegistrationInvite($localClient);
+            }
 
             return $this->redirectAfterSellerRegistration(
                 $request,
@@ -411,6 +415,9 @@ class NewClientController extends Controller
             preserveExistingStatus: $isSucursal
         );
         $this->attemptPostCreateRuteroSync($localClient);
+        if (! $isSucursal) {
+            $this->sendRegistrationInvite($localClient);
+        }
 
         $successMessage = $isSucursal
             ? "Sucursal registrada exitosamente. Código: {$result['codigo_cliente']}. Documento del cliente: {$localClient->document}"
@@ -500,11 +507,12 @@ class NewClientController extends Controller
             'new_client_payload' => $payloadForReview,
         ]);
 
-        app(PendingClientProvisioningService::class)->provisionFromNewClient(
+        $localClient = app(PendingClientProvisioningService::class)->provisionFromNewClient(
             $validated,
             null,
             \App\Models\User::CLIENT_STATUS_PROSPECTO
         );
+        $this->sendRegistrationInvite($localClient);
 
         @unlink($signaturePdf->getPathname());
 
@@ -512,6 +520,22 @@ class NewClientController extends Controller
             'success',
             'Solicitud recibida. Un administrador validara tus documentos y completara la activacion.'
         );
+    }
+
+    /**
+     * Best-effort password-setup invite after registration (never blocks the flow).
+     */
+    private function sendRegistrationInvite(User $user): void
+    {
+        try {
+            app(MailingService::class)->sendClientRegistrationInviteEmail($user);
+        } catch (\Throwable $e) {
+            Log::warning('NewClient: registration invite email failed', [
+                'user_id' => $user->id,
+                'email' => $user->email,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**

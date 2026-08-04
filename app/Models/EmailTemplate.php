@@ -65,6 +65,7 @@ class EmailTemplate extends Model
                 'customer_email',
                 'activation_link',
                 'login_url',
+                'password_set_url',
             ],
             self::TYPE_CONTACT_FORM => [
                 'contact_name',

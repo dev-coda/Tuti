@@ -7,8 +7,11 @@
 
 <div class="p-4 bg-white block sm:flex items-center justify-between border-b border-gray-200">
     <div class="w-full">
-        <div class="flex justify-between items-center">
-            <h1 class="text-xl font-semibold text-gray-900 sm:text-2xl ">Compra #{{ $order->id }}</h1>
+        <div class="flex justify-between items-center gap-4 flex-wrap">
+            <div class="flex items-center gap-3 flex-wrap">
+                <h1 class="text-xl font-semibold text-gray-900 sm:text-2xl ">Compra #{{ $order->id }}</h1>
+                <x-order-origin :order="$order" />
+            </div>
             <div class="flex items-center space-x-4">
                 <!-- Transmission Retry Buttons (Primary) -->
                 <div class="flex space-x-2">

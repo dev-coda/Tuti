@@ -831,6 +831,22 @@ class CartController extends Controller
 
         // Get delivery method from request, default to 'tronex'
         $delivery_method = $request->input('delivery_method', 'tronex');
+
+        // Prospect draft orders: auto-assign Coordinadora 48h (entrega especial / ciudades principales).
+        if (
+            $isDraftClientCheckout
+            && $actingUser->isProspectClient()
+            && Setting::isExpress48hEnabled()
+            && $zone
+            && $zone->usesCoordinadoraFor48h()
+        ) {
+            $delivery_method = Order::DELIVERY_METHOD_EXPRESS;
+            Log::info('Prospect draft checkout forced to Coordinadora 48h promise', [
+                'acting_user_id' => $actingUser->id,
+                'zone_id' => $zone->id,
+            ]);
+        }
+
         if ($delivery_method === Order::DELIVERY_METHOD_EXPRESS && ! Setting::isExpress48hEnabled()) {
             Log::info('Express 48h / Coordinadora requested while disabled; using Tronex', [
                 'user_id' => $user_id,
@@ -856,9 +872,14 @@ class CartController extends Controller
                     'zone_id' => $zone?->id,
                     'user_id' => $user_id,
                     'message' => $e->getMessage(),
+                    'prospect_draft' => $isDraftClientCheckout && $actingUser->isProspectClient(),
                 ]);
 
-                return back()->with('error', 'No pudimos cotizar el envío Coordinadora para esta dirección. Verifica el código postal o intenta de nuevo.');
+                // Prospect drafts still keep the 48h Coordinadora promise even if quote fails
+                // (DANE / address may be incomplete until documents are validated).
+                if (! ($isDraftClientCheckout && $actingUser->isProspectClient())) {
+                    return back()->with('error', 'No pudimos cotizar el envío Coordinadora para esta dirección. Verifica el código postal o intenta de nuevo.');
+                }
             }
         }
 

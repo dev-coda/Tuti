@@ -61,6 +61,40 @@ it('derives origin from seller_id', function () {
         ->and($clientOrder->origin_label)->toBe('Autónomo');
 });
 
+it('labels autonomous orders as cliente nuevo or cliente actual', function () {
+    $nuevo = User::factory()->create(['client_status' => User::CLIENT_STATUS_PROSPECTO]);
+    $pendiente = User::factory()->create(['client_status' => User::CLIENT_STATUS_PENDIENTE]);
+    $actual = User::factory()->create(['client_status' => User::CLIENT_STATUS_CLIENTE]);
+    $seller = User::factory()->create();
+
+    $nuevoOrder = makeOriginOrder($nuevo);
+    $pendienteOrder = makeOriginOrder($pendiente);
+    $actualOrder = makeOriginOrder($actual);
+    $rutaOrder = makeOriginOrder($actual, $seller);
+
+    expect($nuevoOrder->autonomousClientSegment())->toBe('nuevo')
+        ->and($nuevoOrder->autonomousClientSegmentLabel())->toBe('Cliente nuevo')
+        ->and($pendienteOrder->autonomousClientSegment())->toBe('nuevo')
+        ->and($actualOrder->autonomousClientSegment())->toBe('actual')
+        ->and($actualOrder->autonomousClientSegmentLabel())->toBe('Cliente actual')
+        ->and($rutaOrder->autonomousClientSegment())->toBeNull();
+});
+
+it('shows cliente nuevo badge for autonomous prospect orders in admin list', function () {
+    $admin = User::factory()->create();
+    $admin->assignRole('admin');
+
+    $prospect = User::factory()->create(['client_status' => User::CLIENT_STATUS_PROSPECTO]);
+    makeOriginOrder($prospect);
+
+    actingAs($admin);
+
+    get(route('orders.index'))
+        ->assertOk()
+        ->assertSee('Autónomo')
+        ->assertSee('Cliente nuevo');
+});
+
 it('shows origin badges in the admin orders table', function () {
     $admin = User::factory()->create();
     $admin->assignRole('admin');

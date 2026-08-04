@@ -115,6 +115,61 @@ it('creates draft order for pending client checkout without dispatching transmis
     Bus::assertNotDispatched(ProcessOrderAsync::class);
 });
 
+it('assigns coordinadora 48h promise on prospect draft checkout', function () {
+    Bus::fake([ProcessOrderAsync::class]);
+
+    Setting::updateOrCreate(
+        ['key' => 'express_48h_enabled'],
+        ['name' => 'Express 48h', 'value' => '1', 'show' => true]
+    );
+    \Illuminate\Support\Facades\Cache::forget('setting_express_48h_enabled');
+
+    ['seller' => $seller, 'client' => $client, 'zone' => $zone, 'product' => $product] = createSellerClientProductForDraftTest();
+    $client->update(['client_status' => User::CLIENT_STATUS_PROSPECTO]);
+    $zone->update([
+        'fulfillment_provider_48h' => Zone::FULFILLMENT_PROVIDER_COORDINADORA,
+        'dane_code' => '11001000',
+    ]);
+
+    $this->mock(\App\Services\Shipping\CoordinadoraQuoteService::class, function ($mock) {
+        $mock->shouldReceive('quoteFromCart')->once()->andReturn([
+            'shipping_cost' => 12000,
+            'raw' => [],
+        ]);
+    });
+
+    $this->mock(DraftOrderReconciliationService::class, function ($mock) {
+        $mock->shouldReceive('syncUserFromRutero')->andReturn([
+            'success' => false, 'synced' => false, 'promoted' => false, 'message' => 'no rutero',
+        ]);
+    });
+
+    $this->actingAs($seller)
+        ->withSession(['user_id' => $client->id, 'cart' => [
+            [
+                'product_id' => $product->id,
+                'quantity' => 1,
+                'price' => 10_000,
+                'discount' => 0,
+            ],
+        ]])
+        ->post(route('cart.process'), [
+            'zone_id' => $zone->id,
+            'delivery_method' => Order::DELIVERY_METHOD_TRONEX,
+            'observations' => '',
+        ])
+        ->assertRedirect();
+
+    $order = Order::query()->latest('id')->first();
+
+    expect($order)->not->toBeNull()
+        ->and($order->status_id)->toBe(Order::STATUS_DRAFT)
+        ->and($order->delivery_method)->toBe(Order::DELIVERY_METHOD_EXPRESS)
+        ->and($order->shipping_provider)->toBe(Order::SHIPPING_PROVIDER_COORDINADORA);
+
+    Bus::assertNotDispatched(ProcessOrderAsync::class);
+});
+
 it('provisions pending prospect when rutero is missing', function () {
     Setting::updateOrCreate(
         ['key' => 'microsoft_token'],
