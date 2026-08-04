@@ -148,6 +148,7 @@ it('requires at least one contact number', function () {
             'DiaRecorrido' => 'LUNES',
             'Posicion' => 1,
             'Pep' => 'NO',
+            'Correo' => 'test@example.com',
             'signature' => 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg',
             'terms_accepted' => '1',
             'privacy_accepted' => '1',
@@ -174,6 +175,7 @@ it('rejects more than 6 documents for juridica', function () {
             'Posicion' => 1,
             'Pep' => 'NO',
             'Movil' => '3101234567',
+            'Correo' => 'test@example.com',
             'signature' => 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg',
             'terms_accepted' => '1',
             'privacy_accepted' => '1',
@@ -208,6 +210,7 @@ it('rejects unsupported document files', function () {
             'Posicion' => 1,
             'Pep' => 'NO',
             'Movil' => '3101234567',
+            'Correo' => 'test@example.com',
             'signature' => 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg',
             'terms_accepted' => '1',
             'documents' => [
@@ -356,6 +359,7 @@ it('rejects sucursal registration when document does not belong to an existing c
             'Posicion' => 1,
             'Pep' => 'NO',
             'Movil' => '3101234567',
+            'Correo' => 'sucursal.missing@example.com',
             'signature' => validSignatureDataUrl(),
             'terms_accepted' => '1',
             'privacy_accepted' => '1',
@@ -369,6 +373,7 @@ it('registers a sucursal for an existing client without demoting their status', 
 
     $client = User::factory()->create([
         'name' => 'Tienda El Sol SAS',
+        'email' => 'tienda.sol@example.com',
         'document' => '900123456',
         'business_name' => 'Tienda El Sol',
         'status_id' => User::ACTIVE,
@@ -413,6 +418,7 @@ it('registers a sucursal for an existing client without demoting their status', 
             'Posicion' => 3,
             'Pep' => 'NO',
             'Movil' => '3101234567',
+            'Correo' => 'tienda.sol@example.com',
             'signature' => validSignatureDataUrl(),
             'terms_accepted' => '1',
             'privacy_accepted' => '1',
@@ -452,6 +458,7 @@ function validNewClientPayload(array $overrides = []): array
         'Posicion' => 1,
         'Pep' => 'NO',
         'Movil' => '3101234567',
+        'Correo' => 'cliente.nuevo@example.com',
         'signature' => validSignatureDataUrl(),
         'terms_accepted' => '1',
         'privacy_accepted' => '1',
@@ -467,6 +474,46 @@ it('rejects submission without attached documents', function () {
     actingAs($this->seller)
         ->post(route('new-client.store'), validNewClientPayload(['documents' => []]))
         ->assertSessionHasErrors('documents');
+});
+
+it('requires a real correo and stores it on the provisioned client', function () {
+    \Illuminate\Support\Facades\Storage::fake('public');
+
+    $this->mock(NewClientService::class, function ($mock) {
+        $mock->shouldReceive('registerClient')->once()->andReturn([
+            'success' => true, 'id' => 77, 'codigo_cliente' => 'C-0077', 'message' => 'ok',
+        ]);
+        $mock->shouldReceive('uploadMedia')->once()->andReturn(['success' => true, 'message' => 'ok']);
+    });
+
+    $this->mock(DraftOrderReconciliationService::class, function ($mock) {
+        $mock->shouldReceive('syncUserFromRutero')->andReturn([
+            'success' => true, 'synced' => false, 'promoted' => false, 'message' => 'ok',
+        ]);
+    });
+
+    actingAs($this->seller)
+        ->post(route('new-client.store'), validNewClientPayload([
+            'Documento' => '43800986',
+            'Correo' => 'yazmin.munoz@example.com',
+        ]))
+        ->assertRedirect(route('new-client.create'))
+        ->assertSessionHas('success');
+
+    $user = User::query()->where('document', '43800986')->first();
+    expect($user)->not->toBeNull()
+        ->and($user->email)->toBe('yazmin.munoz@example.com')
+        ->and(User::isInvalidClientEmail($user->email))->toBeFalse();
+});
+
+it('rejects registration without correo', function () {
+    $this->mock(NewClientService::class, function ($mock) {
+        $mock->shouldNotReceive('registerClient');
+    });
+
+    actingAs($this->seller)
+        ->post(route('new-client.store'), validNewClientPayload(['Correo' => null]))
+        ->assertSessionHasErrors('Correo');
 });
 
 it('requires accepting the privacy policy (habeas data)', function () {

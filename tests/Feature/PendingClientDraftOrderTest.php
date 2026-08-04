@@ -238,6 +238,7 @@ it('provisions local user from new client payload', function () {
         'Documento' => '900555666',
         'RazonSocial' => 'Razon Test SAS',
         'NombreNegocio' => 'Negocio Test',
+        'Correo' => 'razon.test@example.com',
         'Zona' => '933',
         'RutaZonaVentas' => '1234',
         'DiaRecorrido' => 'LUNES',
@@ -246,8 +247,35 @@ it('provisions local user from new client payload', function () {
     ]);
 
     expect($user->document)->toBe('900555666')
+        ->and($user->email)->toBe('razon.test@example.com')
         ->and($user->client_status)->toBe(User::CLIENT_STATUS_PENDIENTE)
         ->and($user->zones)->toHaveCount(1);
+});
+
+it('replaces placeholder tuti emails when a real correo is provided', function () {
+    $existing = User::factory()->create([
+        'document' => '43800986',
+        'email' => 'cliente_43800986_'.time().'_e7yb@tuti.com',
+        'client_status' => User::CLIENT_STATUS_PENDIENTE,
+        'status_id' => User::PENDING,
+    ]);
+
+    $user = app(PendingClientProvisioningService::class)->provisionFromNewClient([
+        'Documento' => '43800986',
+        'RazonSocial' => 'Yazmin Munoz',
+        'NombreNegocio' => 'Tienda Yazmin',
+        'Correo' => 'yazmin.real@example.com',
+        'Movil' => '3101234567',
+        'Zona' => '001',
+        'RutaZonaVentas' => '1234',
+        'DiaRecorrido' => 'LUNES',
+        'Direccion' => 'Calle 1',
+        'Barrio' => 'Centro',
+    ]);
+
+    expect($user->id)->toBe($existing->id)
+        ->and($user->email)->toBe('yazmin.real@example.com')
+        ->and(User::isInvalidClientEmail($user->email))->toBeFalse();
 });
 
 it('creates prospecto for self-created client payload and blocks draft processing', function () {
@@ -257,6 +285,7 @@ it('creates prospecto for self-created client payload and blocks draft processin
         'Documento' => '911000111',
         'RazonSocial' => 'Self Service SAS',
         'NombreNegocio' => 'Tienda Self',
+        'Correo' => 'self.service@example.com',
         'Direccion' => 'Calle 10',
         'Barrio' => 'Centro',
     ], null, User::CLIENT_STATUS_PROSPECTO);
