@@ -279,6 +279,103 @@ class MailingService
     }
 
     /**
+     * Invite a newly registered client to set their password and start ordering.
+     * Uses a password-reset token (set-password link), not the magic-login OTP.
+     */
+    public function sendClientRegistrationInviteEmail(User $user): bool
+    {
+        if (User::isInvalidClientEmail($user->email)) {
+            Log::info('Skipping client registration invite for invalid/internal email', [
+                'user_id' => $user->id,
+                'email' => $user->email,
+            ]);
+
+            return false;
+        }
+
+        try {
+            $this->ensureConfigured();
+
+            $token = \Illuminate\Support\Facades\Password::broker()->createToken($user);
+            $passwordSetUrl = url(route('password.reset', [
+                'token' => $token,
+                'email' => $user->email,
+            ], false));
+
+            $data = [
+                'customer_name' => $user->name ?: $user->business_name ?: 'Cliente',
+                'customer_email' => $user->email,
+                'password_set_url' => $passwordSetUrl,
+                'login_url' => route('login'),
+            ];
+
+            $template = EmailTemplate::where('slug', 'client_registration_invite')
+                ->where('is_active', true)
+                ->first();
+
+            if ($template) {
+                $sent = $this->sendTemplateEmail('client_registration_invite', $data, $user->email);
+            } else {
+                Log::warning('client_registration_invite template missing; sending built-in fallback', [
+                    'user_id' => $user->id,
+                ]);
+                $sent = $this->sendClientRegistrationInviteFallback($data, $user->email);
+            }
+
+            if ($sent && ! $user->must_change_password) {
+                $user->forceFill(['must_change_password' => true])->save();
+            }
+
+            return (bool) $sent;
+        } catch (\Throwable $e) {
+            Log::error('Failed to send client registration invite', [
+                'user_id' => $user->id,
+                'email' => $user->email,
+                'error' => $e->getMessage(),
+            ]);
+
+            return false;
+        }
+    }
+
+    /**
+     * @param  array{customer_name: string, password_set_url: string, login_url: string}  $data
+     */
+    private function sendClientRegistrationInviteFallback(array $data, string $to): bool
+    {
+        if ($this->isInternalTutiEmail($to)) {
+            return true;
+        }
+
+        $name = e($data['customer_name']);
+        $url = e($data['password_set_url']);
+        $login = e($data['login_url']);
+
+        $html = <<<HTML
+<h2>Hemos recibido tu información de registro en TUTI</h2>
+<p>Hola {$name},</p>
+<p>Hemos recibido tu información de registro en TUTI. Realiza tu primera compra generando tu contraseña <a href="{$url}" style="color:#EE4E34;font-weight:700;text-decoration:underline;">AQUÍ</a>.</p>
+<p>Validamos la información en máximo 24 horas. Recuerda que puedes hacer tu pedido desde este instante.</p>
+<p style="text-align:center;margin:28px 0;">
+    <a href="{$url}" style="display:inline-block;background-color:#EE4E34;color:#ffffff;padding:14px 28px;text-decoration:none;border-radius:6px;font-weight:700;">Generar mi contraseña</a>
+</p>
+<p>Una vez realices tu pedido, validaremos la información enviada y activaremos tu pedido. Cuando los documentos sean aprobados, tu pedido cambiará de estado.</p>
+<p>Si el botón no funciona, copia y pega este enlace: <a href="{$url}">{$url}</a></p>
+<p>También puedes iniciar sesión en <a href="{$login}">{$login}</a>.</p>
+HTML;
+
+        Mail::html($html, function ($message) use ($to) {
+            $message->to($to)
+                ->subject('Bienvenido a TUTI - Genera tu contraseña y realiza tu primera compra')
+                ->from(config('mail.from.address'), config('mail.from.name'));
+        });
+
+        Log::info("Client registration invite fallback sent to {$to}");
+
+        return true;
+    }
+
+    /**
      * Send contact form (interesado) notification to admin.
      *
      * Falls back to a built-in plain notification when the contact_form
