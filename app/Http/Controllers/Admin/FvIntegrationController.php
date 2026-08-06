@@ -98,7 +98,9 @@ class FvIntegrationController extends Controller
             $endpoint = $fvService->resolveEndpoint();
             $result['endpoint'] = $endpoint;
 
-            $token = MicrosoftTokenService::currentOrRefresh();
+            $token = MicrosoftTokenService::currentOrRefresh(
+                $fvService->resolveTokenResource($endpoint)
+            );
             $result['token_ok'] = true;
 
             $start = microtime(true);

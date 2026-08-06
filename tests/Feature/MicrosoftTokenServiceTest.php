@@ -57,3 +57,32 @@ it('stores a refreshed token in settings', function () {
     expect(MicrosoftTokenService::refresh())->toBe('fresh-token')
         ->and(Setting::where('key', 'microsoft_token')->value('value'))->toBe('fresh-token');
 });
+
+it('mints and caches a separate token when the resource audience differs', function () {
+    config([
+        'microsoft.url_token' => 'https://login.microsoftonline.com/token',
+        'microsoft.client_id' => 'client-id',
+        'microsoft.client_secret' => 'client-secret',
+        'microsoft.resource' => 'https://uattrx.test/',
+    ]);
+
+    Setting::updateOrCreate(
+        ['key' => 'microsoft_token'],
+        ['name' => 'Microsoft Token', 'value' => 'tronex-token', 'show' => false]
+    );
+
+    Http::fake([
+        'https://login.microsoftonline.com/token' => Http::response(['access_token' => 'fv-host-token'], 200),
+    ]);
+
+    $token = MicrosoftTokenService::currentOrRefresh('https://dev03.test/soap/services/DYNPRODWSSalesForceGroup');
+
+    expect($token)->toBe('fv-host-token')
+        ->and(Setting::where('key', 'microsoft_token')->value('value'))->toBe('tronex-token')
+        ->and(Setting::where('key', 'microsoft_token')->count())->toBe(1);
+
+    Http::assertSent(function ($request) {
+        return $request->url() === 'https://login.microsoftonline.com/token'
+            && $request['resource'] === 'https://dev03.test/';
+    });
+});

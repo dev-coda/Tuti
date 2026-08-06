@@ -33,19 +33,25 @@ class FvDynamicsService
         $endpoint = $this->resolveEndpoint();
         $soapAction = (string) config('services.fv.soap_action');
         $body = $this->buildRequestXml($order);
+        // FV often lives on a different Dynamics host than Tronex SOAP
+        // (e.g. dev03ppac vs uattrx.sandbox). Mint a token whose audience
+        // matches the FV endpoint or CreateSalesOrder returns opaque 500s.
+        $tokenResource = $this->resolveTokenResource($endpoint);
+        $token = MicrosoftTokenService::currentOrRefresh($tokenResource);
 
         Log::channel('soap')->info('Sending FV CreateSalesOrder request', [
             'order_id' => $order->id,
             'endpoint' => $endpoint,
+            'token_resource' => $tokenResource,
         ]);
 
         $response = Http::withHeaders([
             'Content-Type' => 'text/xml;charset=UTF-8',
             'SOAPAction' => $soapAction,
-            'Authorization' => 'Bearer ' . MicrosoftTokenService::currentOrRefresh(),
+            'Authorization' => 'Bearer ' . $token,
         ])
-            ->timeout(30)
-            ->connectTimeout(5)
+            ->timeout(45)
+            ->connectTimeout(8)
             ->withOptions(['verify' => false, 'http_errors' => false])
             ->send('POST', $endpoint, ['body' => $body]);
 
@@ -120,6 +126,20 @@ class FvDynamicsService
     }
 
     /**
+     * Azure AD resource (audience) for the FV host. Prefer explicit
+     * FV_TOKEN_RESOURCE; otherwise derive from the SOAP endpoint host.
+     */
+    public function resolveTokenResource(?string $endpoint = null): string
+    {
+        $configured = trim((string) config('services.fv.token_resource'));
+        if ($configured !== '') {
+            return MicrosoftTokenService::normalizeResource($configured);
+        }
+
+        return MicrosoftTokenService::normalizeResource($endpoint ?: $this->resolveEndpoint());
+    }
+
+    /**
      * Build the CreateSalesOrder SOAP envelope. Element order follows the
      * request example in docs/fv.pdf (Dynamics AX data contracts require it).
      */
@@ -159,22 +179,24 @@ class FvDynamicsService
             'deliveryMode' => (string) config('services.fv.delivery_mode'),
             'detail' => (string) $order->id,
             'docType' => (string) config('services.fv.doc_type'),
-            'drive' => $this->valueOrPlaceholder(config('services.fv.drive')),
+            // Financial dimensions reject the "." empty-placeholder used elsewhere.
+            'drive' => $this->optionalDimension(config('services.fv.drive')),
             'locationInvoice' => (string) config('services.fv.location_invoice'),
             'name' => $this->valueOrPlaceholder($user?->name),
             'numInvoice' => 'NEXT',
             'numSequenceGroup' => (string) config('services.fv.num_sequence_group'),
+            // observationInternal = ID Rutero (zone sucursal code) per docs/fv.pdf.
             'observationInternal' => $observationInternal,
             'observationsCust' => $observationsCust,
             'orderType' => (string) config('services.fv.order_type'),
             'origenventa' => (string) config('services.fv.origen_venta'),
             'phone' => $this->valueOrPlaceholder($user?->mobile_phone ?: $user?->phone),
-            'resource' => $this->valueOrPlaceholder(config('services.fv.resource')),
-            'salesResponsible' => $this->valueOrPlaceholder($order->seller?->document),
+            'resource' => $this->optionalDimension(config('services.fv.resource')),
+            'salesResponsible' => $this->optionalDimension($order->seller?->document),
             'shapeDispatch' => '',
-            'supervisor' => $this->valueOrPlaceholder(config('services.fv.supervisor')),
+            'supervisor' => $this->optionalDimension(config('services.fv.supervisor')),
             'third' => $custId,
-            'vendor' => $this->valueOrPlaceholder(config('services.fv.vendor')),
+            'vendor' => $this->optionalDimension(config('services.fv.vendor')),
             'warehouse' => $warehouse,
         ];
 
@@ -285,10 +307,22 @@ class FvDynamicsService
             return '';
         }
 
+        // FV env may not have Tronex's FL0001 flete item. Empty FV_SHIPPING_ITEM_ID
+        // omits the line (shipping still stored on the Tuti order / Coordinadora quote).
+        $itemId = trim((string) config('services.fv.shipping_item_id', 'FL0001'));
+        if ($itemId === '') {
+            Log::channel('soap')->warning('FV shipping line omitted — FV_SHIPPING_ITEM_ID is empty', [
+                'order_id' => $order->id,
+                'shipping_quote_amount' => $shippingAmount,
+            ]);
+
+            return '';
+        }
+
         return $this->buildLineXml(
             warehouse: $warehouse,
             discountPercent: '0',
-            itemId: 'FL0001',
+            itemId: $itemId,
             qty: '1',
             taxValue: '0',
             unitPrice: parseCurrency($shippingAmount)
@@ -389,6 +423,15 @@ class FvDynamicsService
         $value = trim((string) $value);
 
         return $value !== '' ? $value : self::EMPTY_VALUE;
+    }
+
+    /**
+     * Conditional Dynamics financial dimensions must be omitted (empty), not "." —
+     * a lone dot is treated as an unsupported dimension value.
+     */
+    private function optionalDimension($value): string
+    {
+        return trim((string) $value);
     }
 
     private function xmlEscape(string $value): string

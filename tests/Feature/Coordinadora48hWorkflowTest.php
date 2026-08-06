@@ -84,6 +84,8 @@ it('quotes express shipping for coordinadora zones', function () {
         'fulfillment_provider_48h' => 'coordinadora',
     ]);
 
+    [, , $product] = makeTaxBrandProduct();
+
     config([
         'services.coordinadora.oauth_url' => 'https://coordinadora.test/oauth/token',
         'services.coordinadora.base_url' => 'https://coordinadora.test',
@@ -106,7 +108,9 @@ it('quotes express shipping for coordinadora zones', function () {
         ], 200),
     ]);
 
-    session()->put('cart', []);
+    session()->put('cart', [
+        ['product_id' => $product->id, 'quantity' => 1, 'price' => 10000],
+    ]);
 
     $this->getJson('/api/shipping-quote/express?zone_id=' . $zone->id)
         ->assertOk()
@@ -151,6 +155,8 @@ it('applies free express shipping when merchandise meets the configured minimum'
         'fulfillment_provider_48h' => 'coordinadora',
     ]);
 
+    [, , $product] = makeTaxBrandProduct();
+
     config([
         'services.coordinadora.oauth_url' => 'https://coordinadora.test/oauth/token',
         'services.coordinadora.base_url' => 'https://coordinadora.test',
@@ -173,7 +179,9 @@ it('applies free express shipping when merchandise meets the configured minimum'
         ], 200),
     ]);
 
-    session()->put('cart', []);
+    session()->put('cart', [
+        ['product_id' => $product->id, 'quantity' => 1, 'price' => 10000],
+    ]);
 
     $this->getJson('/api/shipping-quote/express?zone_id=' . $zone->id . '&merchandise_total=150000')
         ->assertOk()
@@ -309,6 +317,10 @@ function makeCoordinadoraOrder(): Order
 
     config([
         'app.url' => '',
+        'microsoft.resource' => 'https://dynamics.test/',
+        'microsoft.url_token' => 'https://login.microsoftonline.com/token',
+        'microsoft.client_id' => 'client-id',
+        'microsoft.client_secret' => 'client-secret',
         'services.coordinadora.oauth_url' => 'https://coordinadora.test/oauth/token',
         'services.coordinadora.base_url' => 'https://coordinadora.test',
         'services.coordinadora.guides_path' => '/guias',
@@ -375,6 +387,8 @@ it('processes coordinadora fv workflow without creating a guide by default', fun
         expect($body)->toContain('<dyn:almacen>MD15</dyn:almacen>');
         expect($body)->toContain('<dyn:itemId>SKU-TEST-001</dyn:itemId>');
         expect($body)->toContain('<dyn:observationInternal>C001</dyn:observationInternal>');
+        expect($body)->toContain('<dyn:resource></dyn:resource>');
+        expect($body)->toContain('<dyn:drive></dyn:drive>');
         // External order number must be the third token of observationsCust
         preg_match('/<dyn:observationsCust>(.*?)<\/dyn:observationsCust>/', $body, $matches);
         $tokens = preg_split('/\s+/', trim($matches[1]));
