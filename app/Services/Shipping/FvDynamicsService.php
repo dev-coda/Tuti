@@ -50,8 +50,8 @@ class FvDynamicsService
             'SOAPAction' => $soapAction,
             'Authorization' => 'Bearer ' . $token,
         ])
-            ->timeout(45)
-            ->connectTimeout(8)
+            ->timeout(90)
+            ->connectTimeout(10)
             ->withOptions(['verify' => false, 'http_errors' => false])
             ->send('POST', $endpoint, ['body' => $body]);
 
