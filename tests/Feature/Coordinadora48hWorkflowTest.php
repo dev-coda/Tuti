@@ -144,6 +144,11 @@ it('applies free express shipping when merchandise meets the configured minimum'
         ['name' => 'Envío 48h gratis desde', 'value' => '100000', 'show' => false]
     );
     Cache::forget('setting_express_free_shipping_min');
+    Setting::updateOrCreate(
+        ['key' => 'express_free_shipping_enabled'],
+        ['name' => 'Envío especial gratuito por compra mínima', 'value' => '1', 'show' => false]
+    );
+    Cache::forget('setting_express_free_shipping_enabled');
 
     $zone = Zone::create([
         'route' => 'R1',

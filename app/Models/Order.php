@@ -93,6 +93,23 @@ class Order extends Model
     const SHIPPING_PROVIDER_COORDINADORA = 'coordinadora';
     const SHIPPING_PROVIDER_TRONEX = 'tronex';
 
+    public static function deliveryMethodLabel(?string $code): string
+    {
+        return match ($code) {
+            self::DELIVERY_METHOD_EXPRESS => 'Entrega Especial',
+            self::DELIVERY_METHOD_TRONEX => 'Entrega Standard',
+            default => (string) $code,
+        };
+    }
+
+    /**
+     * Merchandise (tax-inclusive) + freight for checkout / thank-you "TOTAL A PAGAR".
+     */
+    public function totalPayable(): float
+    {
+        return round($this->totalWithTax() + (float) ($this->shipping_quote_amount ?? 0), 2);
+    }
+
     // Order origin: RUTA = placed by a seller on behalf of the client,
     // AUTONOMO = placed by the client on their own. Derived from seller_id,
     // which checkout only fills when a seller/supervisor processes the cart.

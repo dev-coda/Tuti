@@ -157,9 +157,21 @@
                     </label>
                     <p class="mt-2 text-xs text-gray-500">Cuando está activado, los usuarios verán la opción de entrega express (Coordinadora 48h) en el carrito. En producción puedes forzar que permanezca desactivada con la variable de entorno <code class="text-xs bg-gray-100 px-1 rounded">COORDINADORA_EXPRESS_48H_DISABLED=true</code> (tiene prioridad sobre este interruptor).</p>
                 </div>
+                <div class="pt-2 border-t border-gray-100">
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" name="express_free_shipping_enabled" value="1"
+                               class="sr-only peer"
+                               @checked(old('express_free_shipping_enabled', \App\Models\Setting::isExpressFreeShippingEnabled()))>
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        <span class="ml-3 text-sm font-medium text-gray-900">Activar compra mínima para envío especial gratuito</span>
+                    </label>
+                    <p class="mt-2 text-xs text-gray-500">
+                        Cuando está activo, Entrega Especial queda en $0 si el total de mercancía (sin flete) alcanza el mínimo configurado abajo.
+                    </p>
+                </div>
                 <div>
                     <label for="express_free_shipping_min" class="block text-sm font-medium text-gray-900 mb-1">
-                        Envío gratis desde (COP)
+                        Compra mínima para envío especial gratis (COP)
                     </label>
                     <input type="number"
                            id="express_free_shipping_min"
@@ -170,8 +182,7 @@
                            class="block w-full max-w-xs rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
                            placeholder="0">
                     <p class="mt-1 text-xs text-gray-500">
-                        Si el total de mercancía del carrito (sin flete) es mayor o igual a este valor, el envío 48h queda en $0.
-                        Usa <strong>0</strong> para desactivar el envío gratis.
+                        Ejemplo: 200000 → pedidos de mercancía ≥ $200.000 reciben Entrega Especial gratis.
                     </p>
                 </div>
                 <div>

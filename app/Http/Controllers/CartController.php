@@ -364,7 +364,8 @@ class CartController extends Controller
             ];
         }
 
-        // Get enabled shipping methods (hide Envío 48h / Coordinadora unless explicitly enabled)
+        // Get enabled shipping methods (hide Envío 48h / Coordinadora unless explicitly enabled).
+        // Per-zone availability is applied in the cart UI / checkout validation.
         $shippingMethods = \App\Models\ShippingMethod::getEnabled();
         if (! Setting::isExpress48hEnabled()) {
             $shippingMethods = $shippingMethods->filter(
@@ -853,6 +854,19 @@ class CartController extends Controller
                 'zone_id' => $zone?->id,
             ]);
             $delivery_method = Order::DELIVERY_METHOD_TRONEX;
+        }
+
+        if ($zone && ! $zone->allowsShippingMethod($delivery_method)) {
+            Log::warning('Delivery method not allowed for zone', [
+                'user_id' => $user_id,
+                'zone_id' => $zone->id,
+                'delivery_method' => $delivery_method,
+            ]);
+
+            return back()->with(
+                'error',
+                'El método de envío seleccionado no está disponible para esta dirección. Elige otro método e intenta de nuevo.'
+            );
         }
         $shippingProvider = Order::SHIPPING_PROVIDER_TRONEX;
         $shippingQuoteAmount = null;

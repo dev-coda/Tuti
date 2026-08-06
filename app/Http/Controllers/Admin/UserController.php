@@ -317,6 +317,8 @@ class UserController extends Controller
             'zip_code' => ['nullable', 'string', 'max:50'],
             'dane_code' => ['nullable', 'string', 'max:12', 'regex:/^\d{4,8}$/'],
             'fulfillment_provider_48h' => ['required', 'in:coordinadora,tronex'],
+            'shipping_standard_enabled' => ['nullable', 'in:0,1'],
+            'shipping_express_enabled' => ['nullable', 'in:0,1'],
         ]);
 
         if (array_key_exists('dane_code', $validated) && filled($validated['dane_code'])) {
@@ -326,6 +328,9 @@ class UserController extends Controller
             }
             $validated['dane_code'] = $normalized;
         }
+
+        $validated['shipping_standard_enabled'] = ($validated['shipping_standard_enabled'] ?? '0') === '1';
+        $validated['shipping_express_enabled'] = ($validated['shipping_express_enabled'] ?? '0') === '1';
 
         $zone->update($validated);
 

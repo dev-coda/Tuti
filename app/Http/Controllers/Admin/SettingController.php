@@ -523,6 +523,7 @@ class SettingController extends Controller
     {
         $validated = $request->validate([
             'express_48h_enabled' => 'nullable|in:1',
+            'express_free_shipping_enabled' => 'nullable|in:1',
             'express_free_shipping_min' => 'nullable|numeric|min:0',
         ]);
 
@@ -537,6 +538,17 @@ class SettingController extends Controller
             ]
         );
         \Illuminate\Support\Facades\Cache::forget('setting_express_48h_enabled');
+
+        $freeShippingEnabled = isset($validated['express_free_shipping_enabled']) ? '1' : '0';
+        Setting::updateOrCreate(
+            ['key' => 'express_free_shipping_enabled'],
+            [
+                'name' => 'Envío especial gratuito por compra mínima',
+                'value' => $freeShippingEnabled,
+                'show' => false,
+            ]
+        );
+        \Illuminate\Support\Facades\Cache::forget('setting_express_free_shipping_enabled');
 
         $min = isset($validated['express_free_shipping_min'])
             ? (string) max(0, (float) $validated['express_free_shipping_min'])

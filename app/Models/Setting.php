@@ -46,8 +46,18 @@ class Setting extends Model
     }
 
     /**
+     * Whether the free-shipping threshold for Entrega Especial is active.
+     */
+    public static function isExpressFreeShippingEnabled(): bool
+    {
+        $v = self::getByKeyWithDefault('express_free_shipping_enabled', '0');
+
+        return $v === '1' || $v === 1 || $v === true;
+    }
+
+    /**
      * Minimum merchandise total (COP) for free express / 48h shipping.
-     * 0 (or empty) disables the free-shipping threshold.
+     * Only applied when {@see isExpressFreeShippingEnabled()} is true and min > 0.
      */
     public static function expressFreeShippingMinimum(): float
     {
@@ -61,6 +71,10 @@ class Setting extends Model
      */
     public static function qualifiesForExpressFreeShipping(float $merchandiseTotal): bool
     {
+        if (! self::isExpressFreeShippingEnabled()) {
+            return false;
+        }
+
         $min = self::expressFreeShippingMinimum();
 
         return $min > 0 && $merchandiseTotal >= $min;
