@@ -522,8 +522,19 @@
                             </svg>
                             Método de entrega
                         </label>
+                        @php
+                            $expressFreeShippingMin = \App\Models\Setting::expressFreeShippingMinimum();
+                            $freeShippingMessage = \App\Models\Setting::getByKey('free_shipping_message');
+                        @endphp
                         <div class="grid grid-cols-1 gap-3 {{ $shippingMethods->count() >= 2 ? 'md:grid-cols-2' : '' }}">
                             @foreach($shippingMethods as $method)
+                            @php
+                                $isExpress = $method->code === 'express';
+                                $displayName = $isExpress ? 'Entrega Especial' : 'Entrega Standard';
+                                $displayDescription = $isExpress
+                                    ? 'Realiza tu pedido de lunes a viernes antes de las 5:00 pm para recibir en 48 horas. Sábado y domingo realiza pedido las 24 horas y recíbelo en 48 horas del siguiente día hábil. Aplica para ciudades principales.'
+                                    : 'Envío gratis.';
+                            @endphp
                             <button type="button"
                                 class="delivery-option relative w-full rounded-xl border-2 border-gray-200 bg-white p-4 text-left transition-all duration-200 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-500"
                                 data-method="{{ $method->code }}"
@@ -531,7 +542,7 @@
                                 aria-pressed="false">
                                 <div class="flex items-start gap-4" style="padding-right: 2rem;">
                                     <span class="delivery-icon-bg flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full border-2 border-gray-300 bg-gray-50 text-gray-500" style="margin-top: 2px;">
-                                        @if($method->code === 'express')
+                                        @if($isExpress)
                                             <svg class="delivery-icon block h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                                             </svg>
@@ -542,17 +553,20 @@
                                         @endif
                                     </span>
                                     <span class="min-w-0 flex-1">
-                                        <span class="delivery-title block text-base font-bold leading-tight text-gray-800">{{ $method->name }}</span>
-                                        @if($method->description)
-                                            <span class="delivery-subtitle mt-1 block text-sm text-gray-500">{{ $method->description }}</span>
-                                        @endif
-                                        @if($method->code === 'express' && \App\Models\Setting::expressFreeShippingMinimum() > 0)
+                                        <span class="delivery-title block text-base font-bold leading-tight text-gray-800">{{ $displayName }}</span>
+                                        <span class="delivery-subtitle mt-1 block text-sm leading-snug text-gray-500">{{ $displayDescription }}</span>
+                                        @if($isExpress && $expressFreeShippingMin > 0)
                                             <span class="mt-1 block text-xs text-green-700">
-                                                Envío gratis desde ${{ number_format(\App\Models\Setting::expressFreeShippingMinimum(), 0, ',', '.') }}
+                                                Envío gratis desde ${{ number_format($expressFreeShippingMin, 0, ',', '.') }}
                                             </span>
+                                        @elseif(!$isExpress && filled($freeShippingMessage))
+                                            <span class="mt-1 block text-xs text-green-700">{{ $freeShippingMessage }}</span>
                                         @endif
                                         @if(!$isForceEnabled)
-                                            <span class="delivery-date mt-2 block text-xs font-medium text-gray-400" id="delivery-date-{{ $method->code }}">Calculando...</span>
+                                            <span class="delivery-date mt-2 block text-xs font-medium text-gray-400">
+                                                Fecha de entrega:
+                                                <span id="delivery-date-{{ $method->code }}">Calculando...</span>
+                                            </span>
                                         @endif
                                     </span>
                                 </div>
