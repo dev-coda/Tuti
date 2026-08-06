@@ -516,50 +516,49 @@
                     {{-- Delivery Method Selection --}}
                     @if($shippingMethods->isNotEmpty())
                     <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <label class="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-700">
+                            <svg class="h-5 w-5 flex-shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
                             </svg>
                             Método de entrega
                         </label>
-                        <div class="grid grid-cols-1 md:grid-cols-{{ $shippingMethods->count() }} gap-4">
+                        <div class="grid grid-cols-1 gap-3 {{ $shippingMethods->count() >= 2 ? 'md:grid-cols-2' : '' }}">
                             @foreach($shippingMethods as $method)
-                            <button type="button" 
-                                class="delivery-option relative p-5 rounded-xl border-2 transition-all duration-300 text-left"
+                            <button type="button"
+                                class="delivery-option relative w-full rounded-xl border-2 border-gray-200 bg-white p-4 text-left transition-all duration-200 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-500"
                                 data-method="{{ $method->code }}"
-                                id="delivery-option-{{ $method->code }}">
-                                <div class="flex items-start gap-4">
-                                    <div class="flex-shrink-0">
-                                        <div class="w-12 h-12 rounded-full border-2 flex items-center justify-center delivery-icon-bg">
-                                            @if($method->code === 'express')
-                                                <svg class="w-6 h-6 delivery-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
-                                                </svg>
-                                            @else
-                                                <svg class="w-6 h-6 delivery-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                                                </svg>
-                                            @endif
-                                        </div>
-                                    </div>
-                                    <div class="flex-1">
-                                        <div class="font-bold text-lg delivery-title">{{ $method->name }}</div>
+                                id="delivery-option-{{ $method->code }}"
+                                aria-pressed="false">
+                                <div class="flex items-start gap-4" style="padding-right: 2rem;">
+                                    <span class="delivery-icon-bg flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full border-2 border-gray-300 bg-gray-50 text-gray-500" style="margin-top: 2px;">
+                                        @if($method->code === 'express')
+                                            <svg class="delivery-icon block h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                            </svg>
+                                        @else
+                                            <svg class="delivery-icon block h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                            </svg>
+                                        @endif
+                                    </span>
+                                    <span class="min-w-0 flex-1">
+                                        <span class="delivery-title block text-base font-bold leading-tight text-gray-800">{{ $method->name }}</span>
                                         @if($method->description)
-                                            <div class="text-sm delivery-subtitle mt-1">{{ $method->description }}</div>
+                                            <span class="delivery-subtitle mt-1 block text-sm text-gray-500">{{ $method->description }}</span>
                                         @endif
                                         @if($method->code === 'express' && \App\Models\Setting::expressFreeShippingMinimum() > 0)
-                                            <div class="text-xs text-green-700 mt-1">
+                                            <span class="mt-1 block text-xs text-green-700">
                                                 Envío gratis desde ${{ number_format(\App\Models\Setting::expressFreeShippingMinimum(), 0, ',', '.') }}
-                                            </div>
+                                            </span>
                                         @endif
                                         @if(!$isForceEnabled)
-                                            <div class="text-xs delivery-date mt-2 font-medium" id="delivery-date-{{ $method->code }}">Calculando...</div>
+                                            <span class="delivery-date mt-2 block text-xs font-medium text-gray-400" id="delivery-date-{{ $method->code }}">Calculando...</span>
                                         @endif
-                                    </div>
+                                    </span>
                                 </div>
-                                <div class="absolute top-3 right-3 w-5 h-5 rounded-full border-2 border-gray-300 delivery-check hidden items-center justify-center">
-                                    <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
-                                </div>
+                                <span class="delivery-check pointer-events-none absolute hidden h-5 w-5 items-center justify-center rounded-full border-2 border-gray-300 bg-white" style="top: 0.75rem; right: 0.75rem;" aria-hidden="true">
+                                    <svg class="block h-3 w-3 text-white" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                                </span>
                             </button>
                             @endforeach
                         </div>
@@ -1095,10 +1094,11 @@
                 if (isActive) {
                     option.classList.remove('border-gray-200', 'bg-white', 'hover:border-gray-300');
                     option.classList.add('border-orange-500', 'bg-orange-50');
+                    option.setAttribute('aria-pressed', 'true');
                     
                     if (iconBg) {
-                        iconBg.classList.remove('border-gray-300', 'bg-gray-50');
-                        iconBg.classList.add('border-orange-500', 'bg-orange-500');
+                        iconBg.classList.remove('border-gray-300', 'bg-gray-50', 'text-gray-500');
+                        iconBg.classList.add('border-orange-500', 'bg-orange-500', 'text-white');
                     }
                     if (icon) {
                         icon.classList.remove('text-gray-500');
@@ -1117,16 +1117,17 @@
                         date.classList.add('text-orange-600');
                     }
                     if (check) {
-                        check.classList.remove('hidden', 'border-gray-300');
+                        check.classList.remove('hidden', 'border-gray-300', 'bg-white');
                         check.classList.add('flex', 'border-orange-500', 'bg-orange-500');
                     }
                 } else {
                     option.classList.remove('border-orange-500', 'bg-orange-50');
                     option.classList.add('border-gray-200', 'bg-white', 'hover:border-gray-300');
+                    option.setAttribute('aria-pressed', 'false');
                     
                     if (iconBg) {
-                        iconBg.classList.remove('border-orange-500', 'bg-orange-500');
-                        iconBg.classList.add('border-gray-300', 'bg-gray-50');
+                        iconBg.classList.remove('border-orange-500', 'bg-orange-500', 'text-white');
+                        iconBg.classList.add('border-gray-300', 'bg-gray-50', 'text-gray-500');
                     }
                     if (icon) {
                         icon.classList.remove('text-white');
@@ -1146,7 +1147,7 @@
                     }
                     if (check) {
                         check.classList.remove('flex', 'border-orange-500', 'bg-orange-500');
-                        check.classList.add('hidden', 'border-gray-300');
+                        check.classList.add('hidden', 'border-gray-300', 'bg-white');
                     }
                 }
             });
