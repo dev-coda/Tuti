@@ -2,21 +2,23 @@
     /** Rows preference: old input (validation errors) > existing assignments > one empty row. */
     $existing = collect($assignments ?? [])->map(fn ($row) => [
         'zone' => (string) ($row['zone'] ?? $row->zone ?? ''),
+        'route' => (string) ($row['route'] ?? $row->route ?? ''),
     ]);
     $rows = collect(old('assignments', $existing->all()))
         ->map(fn ($row) => [
             'zone' => (string) ($row['zone'] ?? ''),
+            'route' => (string) ($row['route'] ?? ''),
         ])
         ->values();
     if ($rows->isEmpty()) {
-        $rows = collect([['zone' => '']]);
+        $rows = collect([['zone' => '', 'route' => '']]);
     }
 @endphp
 
 <div class="col-span-2 mt-2">
-    <h4 class="text-sm font-semibold text-gray-700 mb-1">Zonas asignadas</h4>
+    <h4 class="text-sm font-semibold text-gray-700 mb-1">Zonas y rutas asignadas</h4>
     <p class="text-xs text-gray-500 mb-3">
-        Zonas que el supervisor podrá consultar en Mi Cuenta (todos los pedidos de cada zona).
+        El supervisor verá todos los pedidos de cada zona (ruta vacía) o solo los de la ruta indicada.
     </p>
 
     @error('assignments')
@@ -29,6 +31,9 @@
                 <input type="number" name="assignments[{{ $index }}][zone]" value="{{ $row['zone'] }}"
                        placeholder="Zona" min="0"
                        class="w-32 border-gray-300 rounded-lg text-sm px-3 py-2">
+                <input type="text" name="assignments[{{ $index }}][route]" value="{{ $row['route'] }}"
+                       placeholder="Ruta (opcional)" inputmode="numeric" maxlength="10"
+                       class="w-40 border-gray-300 rounded-lg text-sm px-3 py-2">
                 <button type="button" data-assignment-remove
                         class="text-sm text-red-600 hover:text-red-800 font-medium">
                     Quitar
@@ -39,7 +44,7 @@
 
     <button type="button" id="supervisor-assignments-add"
             class="mt-3 px-3 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50">
-        + Agregar zona
+        + Agregar zona o ruta
     </button>
 </div>
 
@@ -47,6 +52,9 @@
     <div class="flex items-center gap-3" data-assignment-row>
         <input type="number" name="assignments[__IDX__][zone]" placeholder="Zona" min="0"
                class="w-32 border-gray-300 rounded-lg text-sm px-3 py-2">
+        <input type="text" name="assignments[__IDX__][route]" placeholder="Ruta (opcional)"
+               inputmode="numeric" maxlength="10"
+               class="w-40 border-gray-300 rounded-lg text-sm px-3 py-2">
         <button type="button" data-assignment-remove
                 class="text-sm text-red-600 hover:text-red-800 font-medium">
             Quitar

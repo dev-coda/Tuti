@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\City;
 use App\Models\User;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
@@ -29,6 +30,18 @@ class PendingClientProvisioningService
 
         $user = User::query()->where('document', $document)->first();
         $email = $this->resolveRegistrationEmail($validated['Correo'] ?? null, $document, $user?->id);
+        $cityId = City::findIdByNameAndState(
+            $validated['Ciudad'] ?? null,
+            $validated['Departamento'] ?? null
+        );
+
+        if ($user && $clientStatus === User::CLIENT_STATUS_PROSPECTO) {
+            if ($user->isCliente() || ! User::isInvalidClientEmail($user->email)) {
+                throw new InvalidArgumentException(
+                    "El documento {$document} ya está registrado."
+                );
+            }
+        }
 
         if ($user) {
             $payload = [
@@ -38,6 +51,10 @@ class PendingClientProvisioningService
                 'whatsapp' => $validated['Whatsapp'] ?? $user->whatsapp,
                 'phone' => $validated['Telefono'] ?? $user->phone,
             ];
+
+            if ($cityId) {
+                $payload['city_id'] = $cityId;
+            }
 
             if ($this->shouldReplaceUserEmail($user, $email)) {
                 $payload['email'] = $email;
@@ -61,6 +78,7 @@ class PendingClientProvisioningService
                 'mobile_phone' => $validated['Movil'] ?? null,
                 'whatsapp' => $validated['Whatsapp'] ?? null,
                 'phone' => $validated['Telefono'] ?? null,
+                'city_id' => $cityId,
             ]);
         }
 

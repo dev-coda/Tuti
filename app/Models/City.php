@@ -48,4 +48,30 @@ class City extends Model
             ->withPivot('enabled')
             ->withTimestamps();
     }
+
+    /**
+     * Match a catalog city by name (and optionally departamento), case-insensitive.
+     */
+    public static function findIdByNameAndState(?string $cityName, ?string $stateName = null): ?int
+    {
+        $cityName = trim((string) $cityName);
+        if ($cityName === '') {
+            return null;
+        }
+
+        $query = static::query()
+            ->whereRaw('LOWER(name) = ?', [mb_strtolower($cityName, 'UTF-8')]);
+
+        $stateName = trim((string) $stateName);
+        if ($stateName !== '') {
+            $query->whereHas(
+                'state',
+                fn ($state) => $state->whereRaw('LOWER(name) = ?', [mb_strtolower($stateName, 'UTF-8')])
+            );
+        }
+
+        $id = $query->value('id');
+
+        return $id !== null ? (int) $id : null;
+    }
 }

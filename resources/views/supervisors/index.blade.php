@@ -59,7 +59,7 @@
                             </th>
                             <th scope="col"
                                 class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
-                                Zonas asignadas
+                                Zonas / rutas asignadas
                             </th>
 
                           
@@ -94,10 +94,10 @@
                             <td class="p-4 text-sm text-gray-900">
                                 @forelse ($supervisor->supervisorRoutes as $assignment)
                                     <span class="inline-block bg-gray-100 text-gray-700 rounded-full px-2 py-0.5 text-xs font-medium mr-1 mb-1">
-                                        Zona {{ $assignment->zone }}
+                                        {{ $assignment->label() }}
                                     </span>
                                 @empty
-                                    <span class="text-gray-400 text-xs">Sin zonas</span>
+                                    <span class="text-gray-400 text-xs">Sin asignaciones</span>
                                 @endforelse
                             </td>
 

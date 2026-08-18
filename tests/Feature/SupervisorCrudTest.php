@@ -85,6 +85,65 @@ it('allows admin to sync supervisor zone assignments on update', function () {
     )->toBe(['60', '70']);
 });
 
+it('allows admin to assign specific routes and whole zones to a supervisor', function () {
+    $admin = User::factory()->create();
+    $admin->assignRole('admin');
+
+    actingAs($admin);
+
+    post(route('supervisors.store'), [
+        'name' => 'Supervisor Rutas',
+        'email' => 'supervisor.rutas@example.com',
+        'password' => 'Password123!',
+        'password_confirmation' => 'Password123!',
+        'assignments' => [
+            ['zone' => '101', 'route' => '0001'],
+            ['zone' => '101', 'route' => '0002'],
+            ['zone' => '202', 'route' => ''],
+            ['zone' => ''], // ignored empty row
+        ],
+    ])->assertRedirect(route('supervisors.index'));
+
+    $user = User::where('email', 'supervisor.rutas@example.com')->first();
+
+    expect($user)->not->toBeNull()
+        ->and($user->hasRole('supervisor'))->toBeTrue()
+        ->and($user->supervisorRoutes)->toHaveCount(3)
+        ->and($user->supervisedZones())->toEqualCanonicalizing(['101', '202'])
+        ->and($user->supervisedCoverages())->toEqualCanonicalizing([
+            ['zone' => '101', 'route' => '0001'],
+            ['zone' => '101', 'route' => '0002'],
+            ['zone' => '202', 'route' => null],
+        ]);
+});
+
+it('collapses specific routes when the same zone is assigned as a whole', function () {
+    $admin = User::factory()->create();
+    $admin->assignRole('admin');
+
+    actingAs($admin);
+
+    post(route('supervisors.store'), [
+        'name' => 'Supervisor Zona Completa',
+        'email' => 'supervisor.zona@example.com',
+        'password' => 'Password123!',
+        'password_confirmation' => 'Password123!',
+        'assignments' => [
+            ['zone' => '101', 'route' => '0001'],
+            ['zone' => '101', 'route' => ''],
+        ],
+    ])->assertRedirect(route('supervisors.index'));
+
+    $user = User::where('email', 'supervisor.zona@example.com')->first();
+
+    expect($user->supervisorRoutes)->toHaveCount(1)
+        ->and($user->supervisorRoutes->first()->zone)->toBe('101')
+        ->and($user->supervisorRoutes->first()->resolvedRoute())->toBeNull()
+        ->and($user->supervisedCoverages())->toEqualCanonicalizing([
+            ['zone' => '101', 'route' => null],
+        ]);
+});
+
 it('rejects non-numeric supervisor zone assignments', function () {
     $admin = User::factory()->create();
     $admin->assignRole('admin');

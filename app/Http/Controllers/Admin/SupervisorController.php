@@ -20,7 +20,8 @@ class SupervisorController extends Controller
                         ->orWhere('email', 'ilike', "%{$q}%")
                         ->orWhere('zone', 'ilike', "%{$q}%")
                         ->orWhereHas('supervisorRoutes', function ($routes) use ($q) {
-                            $routes->where('zone', 'ilike', "%{$q}%");
+                            $routes->where('zone', 'ilike', "%{$q}%")
+                                ->orWhere('route', 'ilike', "%{$q}%");
                         });
                 });
             })
@@ -124,35 +125,57 @@ class SupervisorController extends Controller
     }
 
     /**
-     * Normalize the repeatable zone rows: drop empties, reject non-numeric
-     * values and de-duplicate zones.
+     * Normalize the repeatable zone/route rows: drop empties, reject
+     * non-numeric values, and de-duplicate. An empty route means the whole
+     * zona. A zone-wide row replaces specific routes in the same zona.
      *
-     * @return array<int, array{zone: string, route: null}>
+     * @return array<int, array{zone: string, route: string}>
      */
     private function validatedAssignments(Request $request): array
     {
         $rows = collect($request->input('assignments', []))
-            ->map(fn ($row) => trim((string) ($row['zone'] ?? '')))
-            ->reject(fn ($zone) => $zone === '')
+            ->map(function ($row) {
+                return [
+                    'zone' => trim((string) ($row['zone'] ?? '')),
+                    'route' => trim((string) ($row['route'] ?? '')),
+                ];
+            })
+            ->reject(fn ($row) => $row['zone'] === '' && $row['route'] === '')
             ->values();
 
-        $invalid = $rows->first(fn ($zone) => ! preg_match('/^\d{1,10}$/', $zone));
+        if ($rows->contains(fn ($row) => $row['zone'] === '')) {
+            throw ValidationException::withMessages([
+                'assignments' => 'Cada asignación debe incluir una zona. La ruta es opcional (vacía = toda la zona).',
+            ]);
+        }
 
-        if ($invalid !== null) {
+        if ($rows->contains(fn ($row) => ! preg_match('/^\d{1,10}$/', $row['zone']))) {
             throw ValidationException::withMessages([
                 'assignments' => 'Cada zona asignada debe ser numérica.',
             ]);
         }
 
-        return $rows
+        if ($rows->contains(fn ($row) => $row['route'] !== '' && ! preg_match('/^\d{1,10}$/', $row['route']))) {
+            throw ValidationException::withMessages([
+                'assignments' => 'Cada ruta asignada debe ser numérica.',
+            ]);
+        }
+
+        $zoneWide = $rows
+            ->filter(fn ($row) => $row['route'] === '')
+            ->pluck('zone')
             ->unique()
-            ->map(fn ($zone) => ['zone' => $zone, 'route' => null])
+            ->all();
+
+        return $rows
+            ->reject(fn ($row) => $row['route'] !== '' && in_array($row['zone'], $zoneWide, true))
+            ->unique(fn ($row) => $row['zone'].'|'.$row['route'])
             ->values()
             ->all();
     }
 
     /**
-     * @param  array<int, array{zone: string, route: null}>  $assignments
+     * @param  array<int, array{zone: string, route: string}>  $assignments
      */
     private function syncAssignments(User $user, array $assignments): void
     {

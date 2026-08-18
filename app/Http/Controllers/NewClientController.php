@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\City;
 use App\Models\Contact;
 use App\Models\State;
 use App\Models\User;
@@ -307,6 +308,18 @@ class NewClientController extends Controller
             $validated['Documento'] = preg_replace('/-.*$/', '', $validated['Documento']);
         }
 
+        // Self-service must never take over an existing real account.
+        // Placeholder @tuti emails (seller cart stubs) may still be claimed.
+        if (! $isSellerFlow) {
+            $existingDocument = preg_replace('/\D+/', '', $validated['Documento']) ?: $validated['Documento'];
+            $existingUser = User::query()->where('document', $existingDocument)->first();
+            if ($existingUser && ($existingUser->isCliente() || ! User::isInvalidClientEmail($existingUser->email))) {
+                return back()->withInput()->withErrors([
+                    'Documento' => 'Este documento ya está registrado. Inicia sesión o recupera tu contraseña.',
+                ]);
+            }
+        }
+
         // "Agregar sucursal": the document must belong to an already registered client
         // that the seller covers (zone overlap with supervisedZones).
         $isSucursal = $isSellerFlow && $request->boolean('is_sucursal');
@@ -489,6 +502,10 @@ class NewClientController extends Controller
 
         $phone = $validated['Movil'] ?: ($validated['Whatsapp'] ?: ($validated['Telefono'] ?? null));
         $personType = ((int) $validated['TipoDocumento']) === 3 ? 'juridica' : 'natural';
+        $cityId = City::findIdByNameAndState(
+            $validated['Ciudad'] ?? null,
+            $validated['Departamento'] ?? null
+        );
 
         Contact::create([
             'person_type' => $personType,
@@ -498,6 +515,7 @@ class NewClientController extends Controller
             'phone' => $phone,
             'department' => $validated['Departamento'],
             'city' => $validated['Ciudad'],
+            'city_id' => $cityId,
             'address' => $validated['Direccion'],
             'nit' => $validated['Documento'],
             'terms_accepted' => (bool) ($validated['terms_accepted'] ?? false),
@@ -518,7 +536,7 @@ class NewClientController extends Controller
 
         return redirect()->route('new-client.create')->with(
             'success',
-            'Solicitud recibida. Un administrador validara tus documentos y completara la activacion.'
+            'Solicitud recibida. Revisa tu correo para generar tu contraseña e iniciar sesión. Un administrador validará tus documentos y completará la activación.'
         );
     }
 

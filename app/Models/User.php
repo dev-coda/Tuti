@@ -128,7 +128,77 @@ class User extends Authenticatable
      */
     public function supervisorRoutes()
     {
-        return $this->hasMany(SupervisorRoute::class)->orderBy('zone');
+        return $this->hasMany(SupervisorRoute::class)->orderBy('zone')->orderBy('route');
+    }
+
+    /**
+     * Zone/route pairs this staff user covers.
+     *
+     * `route` is null when the assignment (or the legacy users.zone value)
+     * covers every ruta in that zona. A zone-wide row subsumes specific
+     * routes in the same zona.
+     *
+     * @return array<int, array{zone: string, route: ?string}>
+     */
+    public function supervisedCoverages(): array
+    {
+        $coverages = [];
+        $assignments = $this->supervisorRoutes;
+        $legacyZone = trim((string) $this->zone);
+
+        // users.zone is zone-wide, but must not override route-specific
+        // assignments in the same zona (admin "zona principal" vs locked rutas).
+        $legacyOverlapsSpecificRoute = $legacyZone !== '' && $assignments->contains(
+            fn ($assignment) => trim((string) $assignment->zone) === $legacyZone
+                && $assignment->resolvedRoute() !== null
+        );
+
+        if ($legacyZone !== '' && ! $legacyOverlapsSpecificRoute) {
+            $coverages[] = ['zone' => $legacyZone, 'route' => null];
+        }
+
+        foreach ($assignments as $assignment) {
+            $zone = trim((string) $assignment->zone);
+            if ($zone === '') {
+                continue;
+            }
+
+            $coverages[] = [
+                'zone' => $zone,
+                'route' => $assignment->resolvedRoute(),
+            ];
+        }
+
+        $zoneWide = [];
+        foreach ($coverages as $coverage) {
+            if ($coverage['route'] === null) {
+                $zoneWide[$coverage['zone']] = true;
+            }
+        }
+
+        $deduped = [];
+        $seen = [];
+        foreach ($coverages as $coverage) {
+            if (isset($zoneWide[$coverage['zone']])) {
+                $key = $coverage['zone'].'|';
+                if (isset($seen[$key])) {
+                    continue;
+                }
+                $seen[$key] = true;
+                $deduped[] = ['zone' => $coverage['zone'], 'route' => null];
+
+                continue;
+            }
+
+            $key = $coverage['zone'].'|'.$coverage['route'];
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+            $deduped[] = $coverage;
+        }
+
+        return $deduped;
     }
 
     /**
@@ -139,13 +209,11 @@ class User extends Authenticatable
      */
     public function supervisedZones(): array
     {
-        $zones = collect([trim((string) $this->zone)])
-            ->merge($this->supervisorRoutes->pluck('zone')->map(fn ($zone) => trim((string) $zone)))
-            ->filter(fn ($zone) => $zone !== '')
+        return collect($this->supervisedCoverages())
+            ->pluck('zone')
             ->unique()
-            ->values();
-
-        return $zones->all();
+            ->values()
+            ->all();
     }
 
     public function favoriteProducts()

@@ -318,3 +318,222 @@ it('does not show mis zonas orders from unassigned zones', function () {
         ->assertDontSee('Cliente Fuera')
         ->assertSee('No hay pedidos en esta zona para el rango seleccionado.');
 });
+
+it('shows mis zonas orders only for an assigned supervisor route', function () {
+    $supervisor = User::factory()->create();
+    $supervisor->assignRole('supervisor');
+
+    $assignment = SupervisorRoute::create([
+        'user_id' => $supervisor->id,
+        'zone' => '101',
+        'route' => '0001',
+    ]);
+
+    $clientOnRoute = User::factory()->create(['name' => 'Cliente Ruta Asignada']);
+    $zoneOnRoute = $clientOnRoute->zones()->create([
+        'zone' => '101',
+        'route' => '0001',
+        'day' => 'Lunes',
+        'address' => 'Calle 1',
+        'code' => 'C101',
+    ]);
+
+    $clientOtherRoute = User::factory()->create(['name' => 'Cliente Otra Ruta']);
+    $zoneOther = $clientOtherRoute->zones()->create([
+        'zone' => '101',
+        'route' => '0099',
+        'day' => 'Martes',
+        'address' => 'Calle 2',
+        'code' => 'C199',
+    ]);
+
+    Order::create([
+        'user_id' => $clientOnRoute->id,
+        'status_id' => Order::STATUS_PENDING,
+        'total' => 1500,
+        'discount' => 0,
+        'delivery_method' => Order::DELIVERY_METHOD_TRONEX,
+        'zone_id' => $zoneOnRoute->id,
+        'zone_snapshot' => [
+            'zone' => '101',
+            'route' => '0001',
+            'code' => 'C101',
+        ],
+    ]);
+
+    Order::create([
+        'user_id' => $clientOtherRoute->id,
+        'status_id' => Order::STATUS_PENDING,
+        'total' => 2200,
+        'discount' => 0,
+        'delivery_method' => Order::DELIVERY_METHOD_TRONEX,
+        'zone_id' => $zoneOther->id,
+        'zone_snapshot' => [
+            'zone' => '101',
+            'route' => '0099',
+            'code' => 'C199',
+        ],
+    ]);
+
+    actingAs($supervisor);
+
+    $response = get(route('clients.orders.index', ['tab' => 'mis-rutas', 'sr' => $assignment->id]))
+        ->assertOk()
+        ->assertSee('Zona 101 — Ruta 0001')
+        ->assertSee('Pedidos de la Zona 101 — Ruta 0001')
+        ->assertSee('1 pedido');
+
+    $misRutasPanel = Str::between(
+        $response->getContent(),
+        'data-tab-panel="mis-rutas"',
+        'data-tab-panel="orders"'
+    );
+
+    expect($misRutasPanel)
+        ->toContain('Cliente Ruta Asignada')
+        ->not->toContain('Cliente Otra Ruta')
+        ->not->toContain('Todas las rutas');
+});
+
+it('limits pedidos del dia and recientes to the supervisor assigned route', function () {
+    $supervisor = User::factory()->create();
+    $supervisor->assignRole('supervisor');
+
+    SupervisorRoute::create([
+        'user_id' => $supervisor->id,
+        'zone' => '101',
+        'route' => '0001',
+    ]);
+
+    $clientOnRoute = User::factory()->create(['name' => 'Cliente Cubierto']);
+    $zoneOnRoute = $clientOnRoute->zones()->create([
+        'zone' => '101',
+        'route' => '0001',
+        'day' => 'Lunes',
+        'address' => 'Calle 1',
+        'code' => 'C101',
+    ]);
+
+    $clientOtherRoute = User::factory()->create(['name' => 'Cliente Fuera De Ruta']);
+    $zoneOther = $clientOtherRoute->zones()->create([
+        'zone' => '101',
+        'route' => '0099',
+        'day' => 'Martes',
+        'address' => 'Calle 2',
+        'code' => 'C199',
+    ]);
+
+    Order::create([
+        'user_id' => $clientOnRoute->id,
+        'status_id' => Order::STATUS_PENDING,
+        'total' => 1500,
+        'discount' => 0,
+        'delivery_method' => Order::DELIVERY_METHOD_TRONEX,
+        'zone_id' => $zoneOnRoute->id,
+        'zone_snapshot' => [
+            'zone' => '101',
+            'route' => '0001',
+            'code' => 'C101',
+        ],
+    ]);
+
+    Order::create([
+        'user_id' => $clientOtherRoute->id,
+        'status_id' => Order::STATUS_PENDING,
+        'total' => 2200,
+        'discount' => 0,
+        'delivery_method' => Order::DELIVERY_METHOD_TRONEX,
+        'zone_id' => $zoneOther->id,
+        'zone_snapshot' => [
+            'zone' => '101',
+            'route' => '0099',
+            'code' => 'C199',
+        ],
+    ]);
+
+    actingAs($supervisor);
+
+    $response = get(route('clients.orders.index'))->assertOk();
+    $html = $response->getContent();
+
+    $todayPanel = Str::between($html, 'data-tab-panel="orders-today"', 'data-tab-panel="mis-rutas"');
+    $recentPanel = Str::between($html, 'data-tab-panel="orders"', 'data-tab-panel="account"');
+
+    expect($todayPanel)
+        ->toContain('Cliente Cubierto')
+        ->not->toContain('Cliente Fuera De Ruta');
+
+    expect($recentPanel)
+        ->toContain('Cliente Cubierto')
+        ->not->toContain('Cliente Fuera De Ruta');
+});
+
+it('does not let zona principal bypass a route-specific supervisor assignment', function () {
+    $supervisor = User::factory()->create(['zone' => '101']);
+    $supervisor->assignRole('supervisor');
+
+    SupervisorRoute::create([
+        'user_id' => $supervisor->id,
+        'zone' => '101',
+        'route' => '0001',
+    ]);
+
+    expect($supervisor->fresh()->supervisedCoverages())->toEqualCanonicalizing([
+        ['zone' => '101', 'route' => '0001'],
+    ]);
+
+    $clientOnRoute = User::factory()->create(['name' => 'Cliente Ruta Principal']);
+    $zoneOnRoute = $clientOnRoute->zones()->create([
+        'zone' => '101',
+        'route' => '0001',
+        'day' => 'Lunes',
+        'address' => 'Calle 1',
+        'code' => 'C101',
+    ]);
+
+    $clientOtherRoute = User::factory()->create(['name' => 'Cliente Zona Completa']);
+    $zoneOther = $clientOtherRoute->zones()->create([
+        'zone' => '101',
+        'route' => '0099',
+        'day' => 'Martes',
+        'address' => 'Calle 2',
+        'code' => 'C199',
+    ]);
+
+    Order::create([
+        'user_id' => $clientOnRoute->id,
+        'status_id' => Order::STATUS_PENDING,
+        'total' => 1500,
+        'discount' => 0,
+        'delivery_method' => Order::DELIVERY_METHOD_TRONEX,
+        'zone_id' => $zoneOnRoute->id,
+        'zone_snapshot' => [
+            'zone' => '101',
+            'route' => '0001',
+            'code' => 'C101',
+        ],
+    ]);
+
+    Order::create([
+        'user_id' => $clientOtherRoute->id,
+        'status_id' => Order::STATUS_PENDING,
+        'total' => 2200,
+        'discount' => 0,
+        'delivery_method' => Order::DELIVERY_METHOD_TRONEX,
+        'zone_id' => $zoneOther->id,
+        'zone_snapshot' => [
+            'zone' => '101',
+            'route' => '0099',
+            'code' => 'C199',
+        ],
+    ]);
+
+    actingAs($supervisor);
+
+    $html = get(route('clients.orders.index'))->assertOk()->getContent();
+    $recentPanel = Str::between($html, 'data-tab-panel="orders"', 'data-tab-panel="account"');
+
+    expect($recentPanel)
+        ->toContain('Cliente Ruta Principal')
+        ->not->toContain('Cliente Zona Completa');
+});

@@ -329,6 +329,7 @@ class MailingService
                 'customer_name' => $user->name ?: $user->business_name ?: 'Cliente',
                 'customer_email' => $user->email,
                 'password_set_url' => $passwordSetUrl,
+                'activation_link' => $passwordSetUrl,
                 'login_url' => route('login'),
             ];
 

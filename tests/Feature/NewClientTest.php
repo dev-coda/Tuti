@@ -1,12 +1,15 @@
 <?php
 
+use App\Models\City;
 use App\Models\Contact;
 use App\Models\User;
 use App\Models\ZoneRoute;
 use App\Services\DraftOrderReconciliationService;
+use App\Services\MailingService;
 use App\Services\NewClientService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Password;
 use Spatie\Permission\Models\Role;
 
 use function Pest\Laravel\actingAs;
@@ -952,4 +955,106 @@ it('redirects to mi cuenta mi ruta after sucursal registration when return is mi
         ->assertSessionHas('success');
 
     expect(session('success'))->toContain('Sucursal registrada');
+});
+
+it('lets a guest create an account through self-service ultima milla registration', function () {
+    \Illuminate\Support\Facades\Storage::fake('public');
+
+    $this->mock(NewClientService::class, function ($mock) {
+        $mock->shouldNotReceive('registerClient');
+        $mock->shouldNotReceive('uploadMedia');
+    });
+
+    $this->mock(MailingService::class, function ($mock) {
+        $mock->shouldReceive('sendClientRegistrationInviteEmail')
+            ->once()
+            ->withArgs(fn (User $user) => $user->email === 'ultima.milla@example.com')
+            ->andReturn(true);
+    });
+
+    $state = \App\Models\State::query()->where('name', 'ANTIOQUIA')->first();
+    $city = City::create([
+        'name' => 'MEDELLIN',
+        'state_id' => $state->id,
+        'active' => true,
+        'is_preferred' => true,
+    ]);
+
+    $this->post(route('new-client.store'), validNewClientPayload([
+        'Documento' => '800111222',
+        'Correo' => 'ultima.milla@example.com',
+        'Zona' => null,
+        'RutaZonaVentas' => null,
+        'DiaRecorrido' => null,
+        'Posicion' => null,
+    ]))
+        ->assertRedirect(route('new-client.create'))
+        ->assertSessionHas('success');
+
+    expect(session('success'))->toContain('generar tu contraseña');
+
+    $user = User::query()->where('document', '800111222')->first();
+    expect($user)->not->toBeNull()
+        ->and($user->email)->toBe('ultima.milla@example.com')
+        ->and($user->client_status)->toBe(User::CLIENT_STATUS_PROSPECTO)
+        ->and((int) $user->status_id)->toBe(User::PENDING)
+        ->and((int) $user->city_id)->toBe((int) $city->id);
+
+    $contact = Contact::query()->where('nit', '800111222')->first();
+    expect($contact)->not->toBeNull()
+        ->and($contact->new_client_mode)->toBe('self_service')
+        ->and((int) $contact->city_id)->toBe((int) $city->id);
+
+    $token = Password::broker()->createToken($user);
+    $this->post(route('password.store'), [
+        'token' => $token,
+        'email' => $user->email,
+        'password' => 'NuevaClave123!',
+        'password_confirmation' => 'NuevaClave123!',
+    ])->assertRedirect(route('login'));
+
+    $this->post(route('login'), [
+        'email' => 'ultima.milla@example.com',
+        'password' => 'NuevaClave123!',
+    ])->assertRedirect('/');
+
+    $this->assertAuthenticatedAs($user->fresh());
+});
+
+it('rejects guest self-service registration that would take over an existing client', function () {
+    \Illuminate\Support\Facades\Storage::fake('public');
+
+    $existing = User::factory()->create([
+        'document' => '800111222',
+        'email' => 'cliente.real@example.com',
+        'client_status' => User::CLIENT_STATUS_CLIENTE,
+        'status_id' => User::ACTIVE,
+    ]);
+
+    $this->mock(NewClientService::class, function ($mock) {
+        $mock->shouldNotReceive('registerClient');
+    });
+
+    $this->mock(MailingService::class, function ($mock) {
+        $mock->shouldNotReceive('sendClientRegistrationInviteEmail');
+    });
+
+    $this->from(route('new-client.create'))
+        ->post(route('new-client.store'), validNewClientPayload([
+            'Documento' => '800111222',
+            'Correo' => 'atacante@example.com',
+            'Zona' => null,
+            'RutaZonaVentas' => null,
+            'DiaRecorrido' => null,
+            'Posicion' => null,
+        ]))
+        ->assertRedirect(route('new-client.create'))
+        ->assertSessionHasErrors('Documento');
+
+    $existing->refresh();
+    expect($existing->email)->toBe('cliente.real@example.com')
+        ->and($existing->client_status)->toBe(User::CLIENT_STATUS_CLIENTE)
+        ->and((int) $existing->status_id)->toBe(User::ACTIVE);
+
+    expect(Contact::query()->where('nit', '800111222')->exists())->toBeFalse();
 });

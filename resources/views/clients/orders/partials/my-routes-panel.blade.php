@@ -4,6 +4,7 @@
     $selected = $myRoutes['selected'] ?? null;
     $routeOptions = $myRoutes['routeOptions'] ?? collect();
     $selectedRoute = $myRoutes['selectedRoute'] ?? '';
+    $routeLocked = (bool) ($myRoutes['routeLocked'] ?? false);
     $routeFilters = $myRoutes['filters'] ?? [];
     $routeOrders = $myRoutes['orders'] ?? null;
 @endphp
@@ -11,7 +12,7 @@
 <div class="space-y-6">
     @if($assignments->isEmpty())
         <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-6 text-center text-gray-500">
-            No tienes zonas asignadas. Contacta al administrador para configurar tus zonas.
+            No tienes zonas ni rutas asignadas. Contacta al administrador para configurar tu cobertura.
         </div>
     @else
         <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-4 sm:p-6">
@@ -20,10 +21,10 @@
                 <input type="hidden" name="tab" value="mis-rutas">
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-4 items-end">
                     <div class="lg:col-span-1">
-                        <label for="mis-rutas-select" class="block text-xs font-medium text-gray-500 mb-1">Zona</label>
+                        <label for="mis-rutas-select" class="block text-xs font-medium text-gray-500 mb-1">Zona / ruta</label>
                         <select id="mis-rutas-select" name="sr" data-orders-autosubmit
                                 class="w-full border-gray-300 rounded-lg text-sm px-3 py-2 focus:ring-orange-500 focus:border-orange-500">
-                            <option value="">Selecciona una zona</option>
+                            <option value="">Selecciona una zona o ruta</option>
                             @foreach($assignments as $assignment)
                                 <option value="{{ $assignment->id }}" @selected($selected && $selected->id === $assignment->id)>
                                     {{ $assignment->label() }}
@@ -35,11 +36,15 @@
                         <label for="mis-rutas-ruta" class="block text-xs font-medium text-gray-500 mb-1">Ruta</label>
                         <select id="mis-rutas-ruta" name="sr_ruta" data-orders-autosubmit
                                 class="w-full border-gray-300 rounded-lg text-sm px-3 py-2 focus:ring-orange-500 focus:border-orange-500"
-                                @disabled(!$selected)>
-                            <option value="">Todas las rutas</option>
-                            @foreach($routeOptions as $route)
-                                <option value="{{ $route }}" @selected($selectedRoute === (string) $route)>{{ $route }}</option>
-                            @endforeach
+                                @disabled(!$selected || $routeLocked)>
+                            @if($routeLocked)
+                                <option value="{{ $selectedRoute }}" selected>{{ $selectedRoute }}</option>
+                            @else
+                                <option value="">Todas las rutas</option>
+                                @foreach($routeOptions as $route)
+                                    <option value="{{ $route }}" @selected($selectedRoute === (string) $route)>{{ $route }}</option>
+                                @endforeach
+                            @endif
                         </select>
                     </div>
                     <div>
@@ -78,7 +83,7 @@
         @if($selected && $routeOrders)
             <div class="flex items-center justify-between px-1">
                 <h2 class="text-sm font-semibold text-gray-900">
-                    Pedidos de la {{ $selected->label() }}{{ $selectedRoute !== '' ? ' — Ruta '.$selectedRoute : '' }}
+                    Pedidos de la {{ $selected->label() }}{{ $selected->isZoneWide() && $selectedRoute !== '' ? ' — Ruta '.$selectedRoute : '' }}
                 </h2>
                 <span class="text-xs font-medium text-gray-500">
                     {{ $routeOrders->total() }} {{ $routeOrders->total() === 1 ? 'pedido' : 'pedidos' }}

@@ -75,15 +75,16 @@ class OrderController extends Controller
     }
 
     /**
-     * Data for the supervisor "Mis Zonas" tab: the zones assigned to the
-     * supervisor and, once one is selected, every order placed in that zona
-     * (optionally filtered by ruta) within the requested timeframe.
+     * Data for the supervisor "Mis Zonas" tab: the zones and routes assigned
+     * to the supervisor and, once one is selected, every order placed in that
+     * coverage (zone-wide or a locked ruta) within the requested timeframe.
      *
      * @return array{
      *     assignments:\Illuminate\Support\Collection,
      *     selected:\App\Models\SupervisorRoute|null,
      *     routeOptions:\Illuminate\Support\Collection,
      *     selectedRoute:string,
+     *     routeLocked:bool,
      *     filters:array,
      *     orders:\Illuminate\Contracts\Pagination\LengthAwarePaginator|null
      * }
@@ -103,8 +104,9 @@ class OrderController extends Controller
             ? $this->routeOptionsForZone((string) $selected->zone)
             : collect();
 
-        $selectedRoute = trim((string) $request->input('sr_ruta', ''));
-        if ($selectedRoute !== '' && ! $routeOptions->contains($selectedRoute)) {
+        $lockedRoute = $selected?->resolvedRoute();
+        $selectedRoute = $lockedRoute ?? trim((string) $request->input('sr_ruta', ''));
+        if ($lockedRoute === null && $selectedRoute !== '' && ! $routeOptions->contains($selectedRoute)) {
             $selectedRoute = '';
         }
 
@@ -126,6 +128,7 @@ class OrderController extends Controller
             'selected' => $selected,
             'routeOptions' => $routeOptions,
             'selectedRoute' => $selectedRoute,
+            'routeLocked' => $lockedRoute !== null,
             'filters' => $filters,
             'orders' => $orders,
         ];
@@ -272,9 +275,10 @@ class OrderController extends Controller
             abort_unless($assignment, 404);
 
             $filters = $this->normalizeDailyFilters($this->extractOrderFilters($request, 'sr_'), $today);
+            $lockedRoute = $assignment->resolvedRoute();
             $routeOptions = $this->routeOptionsForZone((string) $assignment->zone);
-            $selectedRoute = trim((string) $request->input('sr_ruta', ''));
-            if ($selectedRoute !== '' && ! $routeOptions->contains($selectedRoute)) {
+            $selectedRoute = $lockedRoute ?? trim((string) $request->input('sr_ruta', ''));
+            if ($lockedRoute === null && $selectedRoute !== '' && ! $routeOptions->contains($selectedRoute)) {
                 $selectedRoute = '';
             }
 
@@ -306,29 +310,42 @@ class OrderController extends Controller
     /**
      * Visibility scope for the Mi Cuenta order lists: a user always sees their own
      * orders and the ones they created as seller. Sellers/supervisors additionally see
-     * every order delivered in their zona (any ruta), so autonomous client orders show
-     * up next to RUTA ones. Zone matching prefers the live zone row and falls back to
-     * the immutable zone_snapshot for orders whose zone row was pruned by rutero sync.
+     * every order delivered in their assigned zonas (any ruta) or specific rutas, so
+     * autonomous client orders show up next to RUTA ones. Zone matching prefers the
+     * live zone row and falls back to the immutable zone_snapshot for orders whose
+     * zone row was pruned by rutero sync.
      */
     private function applyOrderVisibilityScope($query, User $user): void
     {
-        $staffZones = $user->hasAnyRole(['seller', 'supervisor']) ? $user->supervisedZones() : [];
+        $coverages = $user->hasAnyRole(['seller', 'supervisor']) ? $user->supervisedCoverages() : [];
 
-        $query->where(function ($sub) use ($user, $staffZones) {
+        $query->where(function ($sub) use ($user, $coverages) {
             $sub->whereBelongsTo($user)
                 ->orWhere('seller_id', $user->id);
 
-            if ($staffZones !== []) {
-                $sub->orWhereHas('zone', function ($zoneQuery) use ($staffZones) {
-                    $zoneQuery->whereIn('zone', $staffZones);
-                })
-                ->orWhereIn('zone_snapshot->zone', $staffZones);
+            if ($coverages !== []) {
+                $sub->orWhere(function ($coverageQuery) use ($coverages) {
+                    $this->applyCoverageScope($coverageQuery, $coverages);
+                });
             }
         });
     }
 
     /**
-     * Whether a seller/supervisor may act on an order because it was delivered in their zona.
+     * @param  array<int, array{zone: string, route: ?string}>  $coverages
+     */
+    private function applyCoverageScope($query, array $coverages): void
+    {
+        foreach ($coverages as $coverage) {
+            $query->orWhere(function ($inner) use ($coverage) {
+                $this->applyZoneScope($inner, $coverage['zone'], $coverage['route']);
+            });
+        }
+    }
+
+    /**
+     * Whether a seller/supervisor may act on an order because it was delivered
+     * in one of their assigned zonas or rutas.
      */
     private function orderInSellerZone(Order $order, User $user): bool
     {
@@ -336,17 +353,33 @@ class OrderController extends Controller
             return false;
         }
 
-        $staffZones = $user->supervisedZones();
-        if ($staffZones === []) {
+        $coverages = $user->supervisedCoverages();
+        if ($coverages === []) {
             return false;
         }
 
         $orderZone = trim((string) ($order->zone?->zone ?? ''));
+        $orderRoute = trim((string) ($order->zone?->route ?? ''));
         if ($orderZone === '') {
             $orderZone = trim((string) ($order->zone_snapshot['zone'] ?? ''));
+            $orderRoute = trim((string) ($order->zone_snapshot['route'] ?? $orderRoute));
         }
 
-        return $orderZone !== '' && in_array($orderZone, $staffZones, true);
+        if ($orderZone === '') {
+            return false;
+        }
+
+        foreach ($coverages as $coverage) {
+            if ($coverage['zone'] !== $orderZone) {
+                continue;
+            }
+
+            if ($coverage['route'] === null || $coverage['route'] === $orderRoute) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
