@@ -60,6 +60,21 @@
                 @endif
             </div>
         </div>
+        @if(($unsyncedYesterday ?? collect())->isNotEmpty())
+        <div class="mt-3 rounded-lg border border-red-200 bg-red-50 p-4">
+            <div class="flex items-start justify-between gap-4">
+                <div>
+                    <h3 class="text-sm font-semibold text-red-800">Bodegas sin sincronización exitosa ayer</h3>
+                    <p class="text-sm text-red-700 mt-1">
+                        {{ $unsyncedYesterday->pluck('bodega_code')->join(', ') }}
+                    </p>
+                </div>
+                <a href="{{ route('settings.inventory-logs') }}" class="shrink-0 text-sm font-medium text-red-800 underline">
+                    Ver detalle
+                </a>
+            </div>
+        </div>
+        @endif
     </div>
 
     <!-- Vacation Mode Settings -->
@@ -538,6 +553,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (status === 'completed') {
             return 'px-2.5 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800';
         }
+        if (status === 'completed_with_errors') {
+            return 'px-2.5 py-1 text-xs font-semibold rounded-full bg-orange-100 text-orange-800';
+        }
         if (status === 'error') {
             return 'px-2.5 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800';
         }
@@ -557,7 +575,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         message.textContent = data.message || 'No hay sincronización activa.';
         if (errorMessage) {
-            if (status === 'error' && data.error_message) {
+            if ((status === 'error' || status === 'completed_with_errors') && data.error_message) {
                 errorMessage.textContent = data.error_message;
                 errorMessage.classList.remove('hidden');
             } else {
@@ -570,7 +588,7 @@ document.addEventListener('DOMContentLoaded', () => {
         count.textContent = `${processed} / ${total} bodegas`;
         percent.textContent = `${percentage}%`;
         bar.style.width = `${percentage}%`;
-        bar.className = `h-2 rounded-full transition-all duration-500 ${status === 'error' ? 'bg-red-600' : (status === 'completed' ? 'bg-green-600' : 'bg-orange-600')}`;
+        bar.className = `h-2 rounded-full transition-all duration-500 ${status === 'error' ? 'bg-red-600' : (status === 'completed' ? 'bg-green-600' : (status === 'completed_with_errors' ? 'bg-orange-600' : 'bg-orange-600'))}`;
 
         if (button && icon && text) {
             button.disabled = active;

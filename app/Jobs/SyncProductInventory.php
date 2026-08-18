@@ -18,10 +18,15 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Throwable;
 
 class SyncProductInventory implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+    public const HOURLY_RETRY_SECONDS = 3600;
+
+    public const SOAP_ATTEMPTS = 3;
 
     /**
      * The number of seconds the job can run before timing out.
@@ -31,24 +36,27 @@ class SyncProductInventory implements ShouldQueue
     public $timeout = 600; // Increased to 10 minutes for large syncs
 
     /**
-     * The number of times the job may be attempted.
+     * Immediate + 1 min + 5 min + 1 hour when the whole job throws.
      *
      * @var int
      */
-    public $tries = 3;
+    public $tries = 4;
 
     /**
      * The number of seconds to wait before retrying the job.
      *
-     * @var int
+     * @var array<int, int>
      */
-    public $backoff = [60, 300, 600]; // 1 min, 5 min, 10 min
+    public $backoff = [60, 300, self::HOURLY_RETRY_SECONDS];
 
     /**
-     * Create a new job instance.
+     * @param  array<int, string>|null  $bodegaCodes  Limit the run to these bodegas (hourly retry of failures).
+     * @param  int  $delayedRetryAttempt  0 = nightly/manual run; 1 = already the 1-hour follow-up.
      */
-    public function __construct()
-    {
+    public function __construct(
+        public readonly ?array $bodegaCodes = null,
+        public readonly int $delayedRetryAttempt = 0,
+    ) {
         // Force Redis queue connection for async processing with Horizon
         // This ensures the job runs async even if default queue is 'sync'
         $this->onConnection('redis');
@@ -79,6 +87,7 @@ class SyncProductInventory implements ShouldQueue
             Log::warning('Inventory sync failed - Missing microsoft_token setting.');
             $this->logToDatabase(null, 'error', 'Missing microsoft_token setting');
             $this->updateSyncProgress('error', 'Falta la configuración microsoft_token.');
+            $this->scheduleHourlyRetry($this->configuredBodegaCodes()->all());
 
             return;
         }
@@ -92,6 +101,7 @@ class SyncProductInventory implements ShouldQueue
                 Log::error('Inventory sync failed - Token refresh error: '.$e->getMessage());
                 $this->logToDatabase(null, 'error', $e->getMessage());
                 $this->updateSyncProgress('error', 'No se pudo renovar el token de Microsoft.', null, 0, 0, $e->getMessage());
+                $this->scheduleHourlyRetry($this->configuredBodegaCodes()->all());
 
                 return;
             }
@@ -101,6 +111,7 @@ class SyncProductInventory implements ShouldQueue
             Log::error('Inventory sync failed - microsoft_token setting is empty');
             $this->logToDatabase(null, 'error', 'microsoft_token setting is empty');
             $this->updateSyncProgress('error', 'Falta el valor de microsoft_token. Ejecute php artisan app:get-token.');
+            $this->scheduleHourlyRetry($this->configuredBodegaCodes()->all());
 
             return;
         }
@@ -112,7 +123,7 @@ class SyncProductInventory implements ShouldQueue
 
         $token = $tokenSetting->value;
 
-        $bodegas = ZoneWarehouse::query()->select('bodega_code')->distinct()->pluck('bodega_code');
+        $bodegas = $this->resolveBodegas();
         if ($bodegas->isEmpty()) {
             Log::warning('Inventory sync failed - No bodegas found for inventory sync');
             $this->logToDatabase(null, 'error', 'No bodegas configured in zone_warehouses table');
@@ -126,66 +137,34 @@ class SyncProductInventory implements ShouldQueue
         Log::info('Starting inventory sync for bodegas', [
             'bodegas' => $bodegas->toArray(),
             'count' => $bodegas->count(),
+            'delayed_retry_attempt' => $this->delayedRetryAttempt,
         ]);
+
+        $failedBodegas = [];
 
         foreach ($bodegas as $bodega) {
             $this->updateSyncProgress('running', "Procesando bodega {$bodega}.", (string) $bodega, $processedBodegas, $bodegas->count());
             Log::info("Processing bodega: {$bodega}");
-            $body = $this->buildSoapBody($bodega);
 
-            try {
-                $response = Http::withHeaders([
-                    'Content-Type' => 'text/xml;charset=UTF-8',
-                    'SOAPAction' => 'http://tempuri.org/DWSSalesForce/obtenerExistenciaDeInventarioEspecifica',
-                    'Authorization' => "Bearer {$token}",
-                ])->timeout(30)->send('POST', config('microsoft.resource').'/soap/services/DIITDWSSalesForceGroup', [
-                    'body' => $body,
+            $fetch = $this->fetchBodegaSoap((string) $bodega, $token);
+            if (! $fetch['ok']) {
+                $errorMsg = $fetch['error'];
+                Log::error("Inventory sync error for bodega {$bodega}: {$errorMsg}", [
+                    'response_body' => substr((string) ($fetch['body'] ?? ''), 0, 1000),
+                    'soap_attempts' => self::SOAP_ATTEMPTS,
                 ]);
 
-                Log::info("SOAP response received for bodega {$bodega}", [
-                    'status' => $response->status(),
-                    'body_length' => strlen($response->body()),
-                ]);
-
-                if (! $response->successful()) {
-                    $errorMsg = "HTTP request failed with status {$response->status()}";
-                    Log::error("Inventory sync error for bodega {$bodega}: {$errorMsg}", [
-                        'response_body' => substr($response->body(), 0, 1000),
-                    ]);
-
-                    $this->logToDatabase($bodega, 'error', $errorMsg, null, $response->body());
-                    $processedBodegas++;
-                    $this->updateSyncProgress('running', "Error HTTP en bodega {$bodega}; continuando.", (string) $bodega, $processedBodegas, $bodegas->count(), $errorMsg);
-
-                    continue;
-                }
-
-                $xmlString = preg_replace('/<(\/)?(s|a):/', '<$1$2', $response->body());
-                $xml = @simplexml_load_string($xmlString);
-                if (! $xml) {
-                    $errorMsg = 'Failed to parse SOAP XML response';
-                    Log::warning("Inventory sync error for bodega {$bodega}: {$errorMsg}", [
-                        'response_preview' => substr($response->body(), 0, 500),
-                    ]);
-
-                    $this->logToDatabase($bodega, 'error', $errorMsg, null, $response->body());
-                    $processedBodegas++;
-                    $this->updateSyncProgress('running', "Error leyendo XML de bodega {$bodega}; continuando.", (string) $bodega, $processedBodegas, $bodegas->count(), $errorMsg);
-
-                    continue;
-                }
-
-                Log::info("SOAP XML parsed successfully for bodega {$bodega}");
-            } catch (Exception $e) {
-                $errorMsg = 'HTTP/Connection error: '.$e->getMessage();
-                Log::error("Inventory sync error for bodega {$bodega}: {$errorMsg}");
-
-                $this->logToDatabase($bodega, 'error', $errorMsg);
+                $this->logToDatabase($bodega, 'error', $errorMsg, null, $fetch['body'] ?? null);
+                $failedBodegas[] = (string) $bodega;
                 $processedBodegas++;
-                $this->updateSyncProgress('running', "Error de conexión en bodega {$bodega}; continuando.", (string) $bodega, $processedBodegas, $bodegas->count(), $errorMsg);
+                $this->updateSyncProgress('running', "Error en bodega {$bodega} tras reintentos; continuando.", (string) $bodega, $processedBodegas, $bodegas->count(), $errorMsg);
 
                 continue;
             }
+
+            $xml = $fetch['xml'];
+            $responseBody = $fetch['body'];
+            Log::info("SOAP XML parsed successfully for bodega {$bodega}");
 
             $items = $xml->sBody->obtenerExistenciaDeInventarioEspecificaResponse->result->aobtenerExistenciaDeInventarioEspecificaResult->aListItemExists ?? [];
             $debugSkus = $this->debugSkus();
@@ -203,7 +182,7 @@ class SyncProductInventory implements ShouldQueue
                     'skus_received' => 0,
                     'products_updated' => 0,
                     'products_set_to_zero' => 0,
-                ], $response->body());
+                ], $responseBody);
 
                 continue;
             }
@@ -482,7 +461,7 @@ class SyncProductInventory implements ShouldQueue
                     'products_updated' => count($updatedProductIdsForBodega) + count($updatedVariationKeysForBodega),
                     'products_set_to_zero' => $setToZeroCount,
                     'skus_in_response' => array_keys($aggregatedBySku),
-                ], isset($response) ? $response->body() : null);
+                ], $responseBody);
 
                 DB::commit();
                 $processedBodegas++;
@@ -495,10 +474,20 @@ class SyncProductInventory implements ShouldQueue
                 ]);
 
                 $this->logToDatabase($bodega, 'error', $errorMsg);
+                $failedBodegas[] = (string) $bodega;
                 $processedBodegas++;
                 $this->updateSyncProgress('running', "Error guardando bodega {$bodega}; continuando.", (string) $bodega, $processedBodegas, $bodegas->count(), $errorMsg);
             }
         }
+
+        $this->scheduleHourlyRetry($failedBodegas);
+
+        $failedUnique = array_values(array_unique($failedBodegas));
+        $completionStatus = $failedUnique === [] ? 'completed' : 'completed_with_errors';
+        $completionMessage = $failedUnique === []
+            ? 'Sincronización completada.'
+            : ('Sincronización terminada con errores en: '.implode(', ', $failedUnique)
+                .($this->delayedRetryAttempt >= 1 ? '.' : '. Reintento programado en 1 hora.'));
 
         // Update last sync timestamp setting
         try {
@@ -508,12 +497,36 @@ class SyncProductInventory implements ShouldQueue
             );
             Log::info('=== INVENTORY SYNC JOB COMPLETED ===', [
                 'timestamp' => now()->toDateTimeString(),
+                'failed_bodegas' => $failedUnique,
             ]);
-            $this->updateSyncProgress('completed', 'Sincronización completada.', null, $processedBodegas, $bodegas->count(), null, now()->toDateTimeString());
+            $this->updateSyncProgress(
+                $completionStatus,
+                $completionMessage,
+                null,
+                $processedBodegas,
+                $bodegas->count(),
+                $failedUnique === [] ? null : $completionMessage,
+                now()->toDateTimeString(),
+                $failedUnique
+            );
         } catch (Exception $e) {
             Log::error('Failed to update inventory sync timestamp: '.$e->getMessage());
-            $this->updateSyncProgress('error', 'Sincronización terminó, pero no se pudo guardar la fecha final: '.$e->getMessage(), null, $processedBodegas, $bodegas->count(), $e->getMessage());
+            $this->updateSyncProgress('error', 'Sincronización terminó, pero no se pudo guardar la fecha final: '.$e->getMessage(), null, $processedBodegas, $bodegas->count(), $e->getMessage(), null, $failedUnique);
         }
+    }
+
+    /**
+     * After all queue attempts are exhausted, still retry failed bodegas in one hour.
+     */
+    public function failed(?Throwable $exception): void
+    {
+        Log::error('Inventory sync job failed permanently', [
+            'error' => $exception?->getMessage(),
+            'bodega_codes' => $this->bodegaCodes,
+            'delayed_retry_attempt' => $this->delayedRetryAttempt,
+        ]);
+
+        $this->scheduleHourlyRetry($this->resolveBodegas()->all() ?: $this->configuredBodegaCodes()->all());
     }
 
     /**
@@ -552,7 +565,8 @@ class SyncProductInventory implements ShouldQueue
         ?int $processedBodegas = null,
         ?int $totalBodegas = null,
         ?string $errorMessage = null,
-        ?string $finishedAt = null
+        ?string $finishedAt = null,
+        array $failedBodegas = []
     ): void {
         $processed = max(0, (int) ($processedBodegas ?? 0));
         $total = max(0, (int) ($totalBodegas ?? 0));
@@ -566,6 +580,7 @@ class SyncProductInventory implements ShouldQueue
             'total_bodegas' => $total,
             'percentage' => $status === 'completed' ? 100 : $percentage,
             'error_message' => $errorMessage,
+            'failed_bodegas' => $failedBodegas,
             'started_at' => data_get($this->currentSyncProgress(), 'started_at') ?? now()->toDateTimeString(),
             'updated_at' => now()->toDateTimeString(),
             'finished_at' => $finishedAt,
@@ -587,6 +602,125 @@ class SyncProductInventory implements ShouldQueue
         $decoded = json_decode((string) $raw, true);
 
         return is_array($decoded) ? $decoded : [];
+    }
+
+    /**
+     * Fetch inventory SOAP for one bodega, retrying transient HTTP/XML failures.
+     *
+     * @return array{ok: true, xml: \SimpleXMLElement, body: string}|array{ok: false, error: string, body: ?string}
+     */
+    private function fetchBodegaSoap(string $bodega, string $token): array
+    {
+        $lastError = 'Unknown SOAP error';
+        $lastBody = null;
+        $body = $this->buildSoapBody($bodega);
+        $url = config('microsoft.resource').'/soap/services/DIITDWSSalesForceGroup';
+
+        for ($attempt = 1; $attempt <= self::SOAP_ATTEMPTS; $attempt++) {
+            try {
+                $response = Http::withHeaders([
+                    'Content-Type' => 'text/xml;charset=UTF-8',
+                    'SOAPAction' => 'http://tempuri.org/DWSSalesForce/obtenerExistenciaDeInventarioEspecifica',
+                    'Authorization' => "Bearer {$token}",
+                ])->timeout(30)->send('POST', $url, [
+                    'body' => $body,
+                ]);
+
+                $lastBody = $response->body();
+
+                Log::info("SOAP response received for bodega {$bodega}", [
+                    'status' => $response->status(),
+                    'body_length' => strlen($lastBody),
+                    'attempt' => $attempt,
+                ]);
+
+                if (! $response->successful()) {
+                    $lastError = "HTTP request failed with status {$response->status()}";
+                    $this->pauseBetweenSoapAttempts($attempt);
+
+                    continue;
+                }
+
+                $xmlString = preg_replace('/<(\/)?(s|a):/', '<$1$2', $lastBody);
+                $xml = @simplexml_load_string($xmlString);
+                if (! $xml) {
+                    $lastError = 'Failed to parse SOAP XML response';
+                    $this->pauseBetweenSoapAttempts($attempt);
+
+                    continue;
+                }
+
+                return ['ok' => true, 'xml' => $xml, 'body' => $lastBody];
+            } catch (Exception $e) {
+                $lastError = 'HTTP/Connection error: '.$e->getMessage();
+                Log::warning("Inventory SOAP attempt {$attempt} failed for bodega {$bodega}", [
+                    'error' => $e->getMessage(),
+                ]);
+                $this->pauseBetweenSoapAttempts($attempt);
+            }
+        }
+
+        return ['ok' => false, 'error' => $lastError, 'body' => $lastBody];
+    }
+
+    private function pauseBetweenSoapAttempts(int $attempt): void
+    {
+        if ($attempt >= self::SOAP_ATTEMPTS || app()->environment('testing')) {
+            return;
+        }
+
+        sleep(2 * $attempt);
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, string>
+     */
+    private function resolveBodegas()
+    {
+        $query = ZoneWarehouse::query()->select('bodega_code')->distinct()->orderBy('bodega_code');
+
+        if (is_array($this->bodegaCodes) && $this->bodegaCodes !== []) {
+            $query->whereIn('bodega_code', $this->bodegaCodes);
+        }
+
+        return $query->pluck('bodega_code');
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, string>
+     */
+    private function configuredBodegaCodes()
+    {
+        return ZoneWarehouse::query()->select('bodega_code')->distinct()->orderBy('bodega_code')->pluck('bodega_code');
+    }
+
+    /**
+     * Queue a follow-up job one hour later for bodegas that still failed.
+     *
+     * @param  array<int, string>  $bodegaCodes
+     */
+    private function scheduleHourlyRetry(array $bodegaCodes): void
+    {
+        if ($this->delayedRetryAttempt >= 1) {
+            return;
+        }
+
+        $codes = array_values(array_unique(array_filter($bodegaCodes, fn ($code) => is_string($code) && $code !== '')));
+        if ($codes === []) {
+            return;
+        }
+
+        $connection = $this->connection ?: 'redis';
+
+        self::dispatch($codes, 1)
+            ->onConnection($connection)
+            ->onQueue('inventory')
+            ->delay(now()->addSeconds(self::HOURLY_RETRY_SECONDS));
+
+        Log::info('Scheduled hourly inventory retry for failed bodegas', [
+            'bodegas' => $codes,
+            'delay_seconds' => self::HOURLY_RETRY_SECONDS,
+        ]);
     }
 
     /**
