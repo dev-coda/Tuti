@@ -46,7 +46,7 @@ class OrderController extends Controller
                 ->withQueryString()
             : null;
 
-        $myRoute = $isSeller ? $this->buildMyRouteData($user, $request) : null;
+        $myRoute = ($isSeller && ! $isSupervisor) ? $this->buildMyRouteData($user, $request) : null;
         $myRoutes = $isSupervisor ? $this->buildMyRoutesData($user, $request) : null;
 
         $statuses = [
