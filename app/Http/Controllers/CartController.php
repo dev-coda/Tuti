@@ -381,7 +381,11 @@ class CartController extends Controller
 
         $bonificationPreview = $this->buildCartBonificationPreview($cart);
 
-        $context = compact('products', 'alertVendors', 'vendorDiscountAlerts', 'zoneOptions', 'set_user', 'client', 'alertTotal', 'min_amount', 'total_cart', 'has_orders', 'appliedCoupon', 'couponDiscount', 'couponMessage', 'shippingMethods', 'cartRetentions', 'bonificationPreview');
+        $cityShippingFlags = \App\Models\ShippingMethod::cityAvailabilityFlags(
+            $targetUser->city_id ? (int) $targetUser->city_id : null
+        );
+
+        $context = compact('products', 'alertVendors', 'vendorDiscountAlerts', 'zoneOptions', 'set_user', 'client', 'alertTotal', 'min_amount', 'total_cart', 'has_orders', 'appliedCoupon', 'couponDiscount', 'couponMessage', 'shippingMethods', 'cartRetentions', 'bonificationPreview', 'cityShippingFlags');
 
         return view('pages.cart', $context);
     }
@@ -866,6 +870,20 @@ class CartController extends Controller
             return back()->with(
                 'error',
                 'El método de envío seleccionado no está disponible para esta dirección. Elige otro método e intenta de nuevo.'
+            );
+        }
+
+        $cityId = $actingUser?->city_id ? (int) $actingUser->city_id : null;
+        if (! \App\Models\ShippingMethod::isCodeAllowedForCity($delivery_method, $cityId)) {
+            Log::warning('Delivery method not allowed for city', [
+                'user_id' => $user_id,
+                'city_id' => $cityId,
+                'delivery_method' => $delivery_method,
+            ]);
+
+            return back()->with(
+                'error',
+                'El método de envío seleccionado no está disponible para esta ciudad. Elige otro método e intenta de nuevo.'
             );
         }
         $shippingProvider = Order::SHIPPING_PROVIDER_TRONEX;

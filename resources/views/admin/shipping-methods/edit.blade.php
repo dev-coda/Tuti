@@ -30,6 +30,36 @@
                     </div>
                 </div>
 
+                <div class="col-span-6 mt-2">
+                    <h4 class="text-sm font-semibold text-gray-900">Disponibilidad por ciudad</h4>
+                    <p class="mt-1 text-sm text-gray-500">
+                        Aplica a la ciudad del cliente (o del vendedor si aún no hay cliente seleccionado). Sin restricción = disponible en todas las ciudades.
+                    </p>
+                    <div class="mt-3">
+                        <input type="search" id="city-shipping-filter" placeholder="Buscar ciudad o departamento"
+                               class="w-full rounded-lg border-gray-300 text-sm focus:border-orange-500 focus:ring-orange-500">
+                    </div>
+                    <div class="mt-3 max-h-80 overflow-y-auto rounded-lg border border-gray-200 divide-y divide-gray-100">
+                        @forelse($cities as $city)
+                            @php($isOn = $cityEnabled[$city->id] ?? true)
+                            <label data-city-row class="flex items-center justify-between gap-3 px-4 py-2 hover:bg-gray-50">
+                                <span class="min-w-0">
+                                    <span class="block text-sm font-medium text-gray-900">{{ $city->name }}</span>
+                                    <span class="block text-xs text-gray-500">{{ $city->state?->name }}</span>
+                                </span>
+                                <span class="flex items-center gap-2 shrink-0">
+                                    <input type="hidden" name="city_enabled[{{ $city->id }}]" value="0">
+                                    <input type="checkbox" name="city_enabled[{{ $city->id }}]" value="1"
+                                           class="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                                           @checked($isOn)>
+                                </span>
+                            </label>
+                        @empty
+                            <p class="px-4 py-3 text-sm text-gray-500">No hay ciudades registradas.</p>
+                        @endforelse
+                    </div>
+                </div>
+
                 <div class="col-span-6 justify-between items-center mt-5 space-x-2 flex">
                     <p class="flex space-x-2 items-center">
                         {{ Aire::submit('Actualizar')->variant()->submit() }}
@@ -94,4 +124,18 @@
     </div>
 </div>
 {{ Aire::close() }}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const input = document.getElementById('city-shipping-filter');
+    if (!input) {
+        return;
+    }
+    input.addEventListener('input', () => {
+        const needle = input.value.trim().toLowerCase();
+        document.querySelectorAll('[data-city-row]').forEach((row) => {
+            row.classList.toggle('hidden', needle !== '' && !row.textContent.toLowerCase().includes(needle));
+        });
+    });
+});
+</script>
 @endsection

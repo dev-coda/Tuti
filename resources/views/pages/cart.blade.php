@@ -1224,13 +1224,17 @@
         }
         
         function getSelectedZoneShippingFlags() {
+            const cityFlags = @json($cityShippingFlags ?? ['standard' => true, 'express' => true]);
             if (!zoneSelect) {
-                return { standard: true, express: true };
+                return {
+                    standard: cityFlags.standard !== false,
+                    express: cityFlags.express !== false,
+                };
             }
             const opt = zoneSelect.options[zoneSelect.selectedIndex];
             return {
-                standard: !opt || opt.getAttribute('data-shipping-standard') !== '0',
-                express: !opt || opt.getAttribute('data-shipping-express') !== '0',
+                standard: (!opt || opt.getAttribute('data-shipping-standard') !== '0') && cityFlags.standard !== false,
+                express: (!opt || opt.getAttribute('data-shipping-express') !== '0') && cityFlags.express !== false,
             };
         }
 
@@ -1255,7 +1259,7 @@
                     emptyMsg = document.createElement('p');
                     emptyMsg.id = 'delivery-options-empty';
                     emptyMsg.className = 'text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-3';
-                    emptyMsg.textContent = 'No hay métodos de envío habilitados para esta dirección.';
+                    emptyMsg.textContent = 'No hay métodos de envío habilitados para esta ciudad o dirección.';
                     grid.parentNode.insertBefore(emptyMsg, grid.nextSibling);
                 }
                 if (emptyMsg) {

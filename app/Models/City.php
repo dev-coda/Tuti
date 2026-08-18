@@ -41,4 +41,11 @@ class City extends Model
     {
         return $this->belongsTo(State::class);
     }
+
+    public function shippingMethods()
+    {
+        return $this->belongsToMany(ShippingMethod::class, 'city_shipping_method')
+            ->withPivot('enabled')
+            ->withTimestamps();
+    }
 }
