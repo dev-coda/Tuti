@@ -126,6 +126,7 @@
                         Información de Cuenta
                     </div>
                 </button>
+                @if(empty($isSeller))
                 <button type="button" data-tab-trigger="addresses"
                         class="flex-1 px-4 py-4 text-sm font-semibold text-gray-700 hover:bg-gray-50 border-b border-gray-200">
                     <div class="flex items-center justify-center gap-2">
@@ -136,6 +137,7 @@
                         Direcciones
                     </div>
                 </button>
+                @endif
             </div>
         </div>
 
@@ -291,6 +293,7 @@
                 </div>
             </div>
 
+            @if(empty($isSeller))
             <div data-tab-panel="addresses" class="hidden">
                 <div class="space-y-6">
                     @if($accountUser->zones && $accountUser->zones->count())
@@ -360,6 +363,7 @@
                     @endif
                 </div>
             </div>
+            @endif
         </div>
     </div>
 </section>
