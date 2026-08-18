@@ -34,7 +34,10 @@ class SettingController extends Controller
             ->paginate();
 
         $syncStatus = $this->inventorySyncProgressPayload();
-        $context = compact('settings', 'syncStatus');
+        $unsyncedYesterday = \Illuminate\Support\Facades\Schema::hasTable('inventory_sync_logs')
+            ? \App\Models\InventorySyncLog::unsyncedBodegasYesterday()
+            : collect();
+        $context = compact('settings', 'syncStatus', 'unsyncedYesterday');
         return view('settings.index', $context);
     }
 
@@ -361,6 +364,7 @@ class SettingController extends Controller
             \Illuminate\Support\Facades\Log::warning('Could not check if inventory_sync_logs table exists: ' . $e->getMessage());
         }
         
+        $unsyncedYesterday = collect();
         if ($tableExists) {
             // Get the latest sync run (all bodegas from the most recent sync)
             $logs = \App\Models\InventorySyncLog::getLatestSyncRun();
@@ -369,6 +373,8 @@ class SettingController extends Controller
             if ($logs->isEmpty()) {
                 $logs = \App\Models\InventorySyncLog::latest()->take(20)->get();
             }
+
+            $unsyncedYesterday = \App\Models\InventorySyncLog::unsyncedBodegasYesterday();
         }
         
         // Also try to get recent logs from the Laravel log file
@@ -380,6 +386,7 @@ class SettingController extends Controller
             'tableExists' => $tableExists,
             'lastSync' => \App\Models\Setting::getByKey('inventory_last_synced_at'),
             'syncStatus' => $this->inventorySyncProgressPayload(),
+            'unsyncedYesterday' => $unsyncedYesterday,
         ]);
     }
 
@@ -426,6 +433,7 @@ class SettingController extends Controller
             'updated_at' => null,
             'finished_at' => null,
             'last_synced_at' => \App\Models\Setting::getByKey('inventory_last_synced_at'),
+            'failed_bodegas' => [],
         ], $payload);
     }
     

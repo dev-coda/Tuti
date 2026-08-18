@@ -12,6 +12,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Queue;
 
 uses(RefreshDatabase::class);
 
@@ -235,6 +236,7 @@ it('logs an error and avoids inventory changes when the microsoft token is missi
     ]);
 
     Http::fake();
+    Queue::fake();
 
     (new SyncProductInventory())->handle();
 
@@ -245,4 +247,83 @@ it('logs an error and avoids inventory changes when the microsoft token is missi
     expect($log)->not->toBeNull()
         ->and($log->status)->toBe('error')
         ->and($log->error_message)->toBe('Missing microsoft_token setting');
+
+    Queue::assertPushed(SyncProductInventory::class, function (SyncProductInventory $job) {
+        return $job->bodegaCodes === ['BOD-SYNC']
+            && $job->delayedRetryAttempt === 1;
+    });
+});
+
+it('retries a bodega SOAP call in-process and succeeds without hourly follow-up', function () {
+    configureInventorySyncJob('BOD-RETRY');
+    Queue::fake();
+    inventorySyncProduct('RETRY-SKU');
+
+    Http::fake([
+        '*' => Http::sequence()
+            ->push('temporary error', 500)
+            ->push('temporary error', 502)
+            ->push(inventorySyncSoapResponse([
+                ['sku' => 'RETRY-SKU', 'available' => 4, 'physical' => 4, 'reserved' => 0],
+            ]), 200),
+    ]);
+
+    (new SyncProductInventory())->handle();
+
+    expect((int) ProductInventory::where('bodega_code', 'BOD-RETRY')->value('available'))->toBe(4)
+        ->and(InventorySyncLog::where('bodega_code', 'BOD-RETRY')->where('status', 'success')->count())->toBe(1);
+
+    Queue::assertNothingPushed();
+});
+
+it('retries failed bodegas after one hour and does not chain a second delay', function () {
+    configureInventorySyncJob('BOD-OK');
+    ZoneWarehouse::updateOrCreate(
+        ['zone_code' => '934'],
+        ['bodega_code' => 'BOD-FAIL']
+    );
+    Queue::fake();
+    inventorySyncProduct('OK-SKU');
+
+    Http::fake(function ($request) {
+        $xml = (string) $request->body();
+        if (str_contains($xml, 'BOD-FAIL')) {
+            return Http::response('Dynamics timeout', 500);
+        }
+
+        return Http::response(inventorySyncSoapResponse([
+            ['sku' => 'OK-SKU', 'available' => 2, 'physical' => 2, 'reserved' => 0],
+        ]), 200);
+    });
+
+    (new SyncProductInventory())->handle();
+
+    expect(InventorySyncLog::where('bodega_code', 'BOD-OK')->where('status', 'success')->exists())->toBeTrue()
+        ->and(InventorySyncLog::where('bodega_code', 'BOD-FAIL')->where('status', 'error')->exists())->toBeTrue();
+
+    $progress = json_decode((string) Setting::getByKey('inventory_sync_progress'), true);
+    expect($progress['status'])->toBe('completed_with_errors')
+        ->and($progress['failed_bodegas'])->toBe(['BOD-FAIL']);
+
+    Queue::assertPushed(SyncProductInventory::class, function (SyncProductInventory $job) {
+        return $job->bodegaCodes === ['BOD-FAIL']
+            && $job->delayedRetryAttempt === 1
+            && $job->delay !== null
+            && $job->delay->diffInSeconds(now()->addSeconds(SyncProductInventory::HOURLY_RETRY_SECONDS)) < 5;
+    });
+
+    Queue::fake();
+    Http::fake(['*' => Http::response('still down', 500)]);
+
+    (new SyncProductInventory(['BOD-FAIL'], 1))->handle();
+
+    Queue::assertNothingPushed();
+    expect(InventorySyncLog::where('bodega_code', 'BOD-FAIL')->where('status', 'error')->count())->toBeGreaterThan(1);
+});
+
+it('uses a 4-attempt job backoff that ends at one hour', function () {
+    $job = new SyncProductInventory();
+
+    expect($job->tries)->toBe(4)
+        ->and($job->backoff)->toBe([60, 300, SyncProductInventory::HOURLY_RETRY_SECONDS]);
 });

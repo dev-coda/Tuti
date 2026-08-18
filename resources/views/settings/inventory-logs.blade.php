@@ -62,6 +62,53 @@
     </div>
     @endif
 
+    @php
+        $yesterdayLabel = now(\App\Models\InventorySyncLog::reportTimezone())->subDay()->format('d/m/Y');
+    @endphp
+    @if(($unsyncedYesterday ?? collect())->isNotEmpty())
+    <div class="col-span-full mb-4">
+        <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+            <div class="flex items-start gap-3">
+                <svg class="w-5 h-5 text-red-600 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                </svg>
+                <div class="flex-1 min-w-0">
+                    <h4 class="text-sm font-semibold text-red-800">Bodegas no sincronizadas ayer ({{ $yesterdayLabel }})</h4>
+                    <p class="text-sm text-red-700 mt-1">
+                        Estas bodegas no tuvieron una sincronización exitosa el día anterior. Los fallos se reintentan en caliente y, si persisten, una hora después.
+                    </p>
+                    <div class="mt-3 overflow-x-auto">
+                        <table class="min-w-full text-sm">
+                            <thead>
+                                <tr class="text-left text-xs uppercase text-red-700">
+                                    <th class="py-1 pr-4">Bodega</th>
+                                    <th class="py-1 pr-4">Estado</th>
+                                    <th class="py-1 pr-4">Intentos</th>
+                                    <th class="py-1 pr-4">Último intento</th>
+                                    <th class="py-1">Error</th>
+                                </tr>
+                            </thead>
+                            <tbody class="text-red-900">
+                                @foreach($unsyncedYesterday as $row)
+                                <tr class="border-t border-red-100">
+                                    <td class="py-2 pr-4 font-semibold">{{ $row['bodega_code'] }}</td>
+                                    <td class="py-2 pr-4">{{ $row['last_status'] ? strtoupper($row['last_status']) : 'SIN INTENTO' }}</td>
+                                    <td class="py-2 pr-4">{{ $row['attempt_count'] }}</td>
+                                    <td class="py-2 pr-4">
+                                        {{ $row['last_attempt_at'] ? \Carbon\Carbon::parse($row['last_attempt_at'])->timezone(\App\Models\InventorySyncLog::reportTimezone())->format('d/m/Y H:i:s') : '—' }}
+                                    </td>
+                                    <td class="py-2">{{ $row['last_error'] ?: '—' }}</td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    @endif
+
     {{-- Sync Progress --}}
     <div class="col-span-full mb-4">
         <div class="bg-white border border-gray-200 rounded-lg shadow-sm p-4" id="inventory-sync-progress" data-status-url="{{ route('settings.inventory-sync-status') }}">
@@ -310,6 +357,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (status === 'completed') {
             return 'px-3 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800';
         }
+        if (status === 'completed_with_errors') {
+            return 'px-3 py-1 text-xs font-semibold rounded-full bg-orange-100 text-orange-800';
+        }
         if (status === 'error') {
             return 'px-3 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800';
         }
@@ -354,6 +404,9 @@ document.addEventListener('DOMContentLoaded', () => {
             clearInterval(pollTimer);
             pollTimer = null;
             if (status === 'completed' && wasActive) {
+                setTimeout(() => window.location.reload(), 1500);
+            }
+            if (status === 'completed_with_errors' && wasActive) {
                 setTimeout(() => window.location.reload(), 1500);
             }
         }
