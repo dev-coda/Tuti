@@ -152,6 +152,7 @@
                     <p class="font-medium mb-1">Información importante:</p>
                     <ul class="list-disc list-inside space-y-1 text-blue-700">
                         <li>Los métodos deshabilitados no serán visibles para los clientes en el carrito de compras</li>
+                        <li>Puedes restringir cada método a ciudades específicas desde Editar</li>
                         <li>Debe haber al menos un método de envío habilitado para que los clientes puedan realizar pedidos</li>
                         <li>Los cambios se aplican inmediatamente en el sitio web</li>
                     </ul>
