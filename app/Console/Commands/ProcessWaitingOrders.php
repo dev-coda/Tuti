@@ -54,11 +54,7 @@ class ProcessWaitingOrders extends Command
                 // Update status to pending before dispatching
                 $order->update(['status_id' => Order::STATUS_PENDING]);
                 
-                // Determine queue connection
-                $queueConnection = config('queue.default');
-                if ($queueConnection === 'sync') {
-                    $queueConnection = 'database';
-                }
+                $queueConnection = \App\Support\QueueConnection::forBackgroundWork();
 
                 // Dispatch job to process the order
                 ProcessOrderAsync::dispatch($order)->onConnection($queueConnection);

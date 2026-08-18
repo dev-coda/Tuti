@@ -265,7 +265,7 @@ class ReportController extends Controller
 
         // Base query for orders
         $ordersQuery = \App\Models\Order::query()
-            ->with(['user', 'seller', 'zone'])
+            ->with(['user', 'seller', 'zone', 'products.product.tax'])
             ->whereDate('created_at', '>=', $dateFrom)
             ->whereDate('created_at', '<=', $dateTo)
             ->where('status_id', \App\Models\Order::STATUS_PROCESSED);
@@ -274,15 +274,16 @@ class ReportController extends Controller
             $ordersQuery->where('seller_id', $sellerId);
         }
 
-        // Get paginated orders
-        $orders = $ordersQuery->orderBy('created_at', 'desc')->paginate(50)->appends($request->query());
-
-        // Calculate KPIs
+        // KPIs before paginate (builder must not carry limit/offset). Chunked to avoid OOM.
+        $totalOrders = (clone $ordersQuery)->count();
+        $totalSales = \App\Models\Order::sumTotalWithTaxForQuery($ordersQuery);
         $kpis = [
-            'total_orders' => (clone $ordersQuery)->count(),
-            'total_sales' => (clone $ordersQuery)->sum('total'),
-            'avg_ticket' => (clone $ordersQuery)->avg('total'),
+            'total_orders' => $totalOrders,
+            'total_sales' => $totalSales,
+            'avg_ticket' => $totalOrders > 0 ? $totalSales / $totalOrders : 0,
         ];
+
+        $orders = $ordersQuery->orderBy('created_at', 'desc')->paginate(50)->appends($request->query());
 
         // Get sellers for filter
         $sellers = \App\Models\User::role('seller')->orderBy('name')->pluck('name', 'id')->prepend('Todos los vendedores', '');

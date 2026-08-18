@@ -523,6 +523,8 @@ class SettingController extends Controller
     {
         $validated = $request->validate([
             'express_48h_enabled' => 'nullable|in:1',
+            'express_free_shipping_enabled' => 'nullable|in:1',
+            'express_free_shipping_min' => 'nullable|numeric|min:0',
         ]);
 
         // Update express 48h enabled setting
@@ -535,6 +537,32 @@ class SettingController extends Controller
                 'show' => false,
             ]
         );
+        \Illuminate\Support\Facades\Cache::forget('setting_express_48h_enabled');
+
+        $freeShippingEnabled = isset($validated['express_free_shipping_enabled']) ? '1' : '0';
+        Setting::updateOrCreate(
+            ['key' => 'express_free_shipping_enabled'],
+            [
+                'name' => 'Envío especial gratuito por compra mínima',
+                'value' => $freeShippingEnabled,
+                'show' => false,
+            ]
+        );
+        \Illuminate\Support\Facades\Cache::forget('setting_express_free_shipping_enabled');
+
+        $min = isset($validated['express_free_shipping_min'])
+            ? (string) max(0, (float) $validated['express_free_shipping_min'])
+            : '0';
+
+        Setting::updateOrCreate(
+            ['key' => 'express_free_shipping_min'],
+            [
+                'name' => 'Envío 48h gratis desde (COP)',
+                'value' => $min,
+                'show' => false,
+            ]
+        );
+        \Illuminate\Support\Facades\Cache::forget('setting_express_free_shipping_min');
 
         return back()->with('success', 'Configuración de entrega express actualizada exitosamente');
     }
@@ -659,12 +687,8 @@ class SettingController extends Controller
 
             $processedCount = 0;
             
-            // Determine queue connection
-            $queueConnection = config('queue.default');
-            if ($queueConnection === 'sync') {
-                $queueConnection = 'database';
-            }
-            
+            $queueConnection = \App\Support\QueueConnection::forBackgroundWork();
+
             foreach ($orders as $order) {
                 // Update order status to pending
                 $order->update([

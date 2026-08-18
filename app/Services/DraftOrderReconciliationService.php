@@ -394,10 +394,7 @@ class DraftOrderReconciliationService
             return 'drafts_waiting';
         }
 
-        $queueConnection = config('queue.default');
-        if ($queueConnection === 'sync') {
-            $queueConnection = 'database';
-        }
+        $queueConnection = \App\Support\QueueConnection::forBackgroundWork();
 
         ProcessOrderAsync::dispatch($order->fresh())->onConnection($queueConnection);
 

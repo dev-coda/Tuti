@@ -46,6 +46,66 @@ class Setting extends Model
     }
 
     /**
+     * Whether the free-shipping threshold for Entrega Especial is active.
+     */
+    public static function isExpressFreeShippingEnabled(): bool
+    {
+        $v = self::getByKeyWithDefault('express_free_shipping_enabled', '0');
+
+        return $v === '1' || $v === 1 || $v === true;
+    }
+
+    /**
+     * Minimum merchandise total (COP) for free express / 48h shipping.
+     * Only applied when {@see isExpressFreeShippingEnabled()} is true and min > 0.
+     */
+    public static function expressFreeShippingMinimum(): float
+    {
+        $v = self::getByKeyWithDefault('express_free_shipping_min', '0');
+
+        return max(0.0, (float) $v);
+    }
+
+    /**
+     * Whether a merchandise total qualifies for free express shipping.
+     */
+    public static function qualifiesForExpressFreeShipping(float $merchandiseTotal): bool
+    {
+        if (! self::isExpressFreeShippingEnabled()) {
+            return false;
+        }
+
+        $min = self::expressFreeShippingMinimum();
+
+        return $min > 0 && $merchandiseTotal >= $min;
+    }
+
+    /**
+     * Zero shipping_cost when the cart/order merchandise meets the free-shipping
+     * threshold. Keeps the original quote for UI ("antes $X · gratis").
+     *
+     * @param  array{shipping_cost?: float|int|string, success?: bool}  $quote
+     * @return array<string, mixed>
+     */
+    public static function applyExpressFreeShipping(array $quote, float $merchandiseTotal): array
+    {
+        $quoted = round((float) ($quote['shipping_cost'] ?? 0), 2);
+        $min = self::expressFreeShippingMinimum();
+        $free = self::qualifiesForExpressFreeShipping($merchandiseTotal);
+
+        $quote['quoted_shipping_cost'] = $quoted;
+        $quote['free_shipping_min'] = $min;
+        $quote['free_shipping_applied'] = $free;
+        $quote['merchandise_total'] = round($merchandiseTotal, 2);
+
+        if ($free) {
+            $quote['shipping_cost'] = 0.0;
+        }
+
+        return $quote;
+    }
+
+    /**
      * Check if vacation mode is currently active
      * Returns true if vacation mode is enabled AND current date is within the date range
      */

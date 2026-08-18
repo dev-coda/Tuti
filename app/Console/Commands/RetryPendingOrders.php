@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Jobs\ProcessOrderAsync;
 use App\Models\Order;
+use App\Support\QueueConnection;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
@@ -17,7 +18,8 @@ class RetryPendingOrders extends Command
     protected $signature = 'orders:retry-pending 
                             {--hours=1 : Retry orders older than this many hours}
                             {--max=10 : Maximum number of orders to retry in one run}
-                            {--dry-run : Show what would be retried without actually doing it}';
+                            {--dry-run : Show what would be retried without actually doing it}
+                            {--force : Skip the confirmation prompt}';
 
     /**
      * The console command description.
@@ -82,7 +84,10 @@ class RetryPendingOrders extends Command
             return 0;
         }
 
-        if (!$this->confirm('Do you want to retry these orders?', true)) {
+        // Runs unattended from the scheduler, so only prompt when a human is present.
+        $interactive = $this->input->isInteractive();
+
+        if (!$this->option('force') && $interactive && !$this->confirm('Do you want to retry these orders?', true)) {
             $this->info('Operation cancelled.');
             return 0;
         }
@@ -96,9 +101,10 @@ class RetryPendingOrders extends Command
                 // Mark order as manually retried
                 $order->markAsManuallyRetried();
 
-                // Dispatch the async job to retry this order
+                // Must match the connection the workers consume; dispatching without
+                // an explicit connection would run the job inline when default is sync.
                 ProcessOrderAsync::dispatch($order)
-                    ->onQueue(config('queue.default_queue', 'default'));
+                    ->onConnection(QueueConnection::forBackgroundWork());
 
                 $this->line("✓ Queued retry for order #{$order->id}");
                 $successCount++;

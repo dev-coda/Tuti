@@ -187,6 +187,9 @@
                                 Proveedor 48H
                             </th>
                             <th scope="col" class="px-6 py-3">
+                                Métodos de envío
+                            </th>
+                            <th scope="col" class="px-6 py-3">
                                 Acción
                             </th>
                         </tr>
@@ -223,6 +226,24 @@
                                 </td>
                                 <td class="px-6 py-4">
                                     {{ Aire::select(['coordinadora' => 'Coordinadora', 'tronex' => 'Tronex'], 'fulfillment_provider_48h')->value($zone->fulfillment_provider_48h ?? 'coordinadora')->groupClass('mb-0') }}
+                                </td>
+                                <td class="px-6 py-4">
+                                    <div class="flex flex-col gap-2 text-sm text-gray-700">
+                                        <label class="inline-flex items-center gap-2">
+                                            <input type="hidden" name="shipping_standard_enabled" value="0">
+                                            <input type="checkbox" name="shipping_standard_enabled" value="1"
+                                                   class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                   @checked($zone->shipping_standard_enabled !== false)>
+                                            <span>Entrega Standard</span>
+                                        </label>
+                                        <label class="inline-flex items-center gap-2">
+                                            <input type="hidden" name="shipping_express_enabled" value="0">
+                                            <input type="checkbox" name="shipping_express_enabled" value="1"
+                                                   class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                   @checked($zone->shipping_express_enabled !== false)>
+                                            <span>Entrega Especial</span>
+                                        </label>
+                                    </div>
                                 </td>
                                 <td class="px-6 py-4">
                                     {{ Aire::submit('Guardar')->variant('submit')->class('text-xs') }}

@@ -5,7 +5,6 @@ namespace App\Console;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 use App\Jobs\UpdateProductPrices;
-use App\Jobs\SyncProductInventory;
 use App\Models\Setting;
 
 class Kernel extends ConsoleKernel
@@ -27,22 +26,12 @@ class Kernel extends ConsoleKernel
             }
         })->daily();
 
-        // Nightly inventory sync (guarded by setting inventory_sync_enabled)
-        $schedule->call(function () {
-            $syncEnabled = Setting::getByKeyWithDefault('inventory_sync_enabled', '1');
-            $inventoryEnabled = Setting::getByKeyWithDefault('inventory_enabled', '1');
-            if (($syncEnabled === '1' || $syncEnabled === 1 || $syncEnabled === true) && ($inventoryEnabled === '1' || $inventoryEnabled === 1 || $inventoryEnabled === true)) {
-                $queueConnection = config('queue.default');
-                // If queue is set to 'sync', use 'redis' instead to ensure async processing with Horizon
-                if ($queueConnection === 'sync') {
-                    $queueConnection = 'redis';
-                }
-                
-                SyncProductInventory::dispatch()
-                    ->onConnection($queueConnection)
-                    ->onQueue('inventory');
-            }
-        })->dailyAt('02:30');
+        // Nightly inventory sync: refresh Microsoft token in CLI, then queue the job.
+        // Guards (inventory_sync_enabled / inventory_enabled) live in inventory:sync.
+        $schedule->command('inventory:sync')
+            ->dailyAt('02:30')
+            ->withoutOverlapping()
+            ->runInBackground();
 
         // Nightly product dimension sync from Dynamics ObtenerArticulos
         // (guarded inside the job by setting dimension_sync_enabled)

@@ -12,25 +12,25 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->dropColumn('code');
-            $table->dropColumn('company');
-            $table->dropColumn('address');
-            $table->dropColumn('area');
-            $table->dropColumn('phone');
-            $table->dropColumn('mobile');
-            $table->dropColumn('document_front');
-            $table->dropColumn('document_back');
-            $table->dropColumn('company_document');
-            $table->dropColumn('has_whatsapp');
-            $table->dropColumn('visit_by_tronex');
-            $table->dropColumn('state_id');
-            $table->dropColumn('city_id');
-            $table->dropColumn('route');
-            $table->dropColumn('zone');
-            $table->dropColumn('day');
-
-
-
+            // Single dropColumn() call so SQLite (tests) can rebuild the table once.
+            $table->dropColumn([
+                'code',
+                'company',
+                'address',
+                'area',
+                'phone',
+                'mobile',
+                'document_front',
+                'document_back',
+                'company_document',
+                'has_whatsapp',
+                'visit_by_tronex',
+                'state_id',
+                'city_id',
+                'route',
+                'zone',
+                'day',
+            ]);
         });
     }
 

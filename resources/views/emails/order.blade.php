@@ -87,13 +87,17 @@
                                 @endforeach
                                 <tr>
                                     <td colspan="3" class="border-top text-right" style="font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; border-top-width: 1px; border-top-color: #f0f0f0; border-top-style: solid; padding: 4px 12px 4px 0;" align="right">Subtotal</td>
-                                    <td class="border-top text-right" style="font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; border-top-width: 1px; border-top-color: #f0f0f0; border-top-style: solid; padding: 4px 0 4px 12px;" align="right"> ${{number_format(($order->total+$order->discount), 0)}}</td>
+                                    @php
+                                        $emailTotal = $order->totalWithTax();
+                                        $emailDiscount = $order->discountWithTax();
+                                    @endphp
+                                    <td class="border-top text-right" style="font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; border-top-width: 1px; border-top-color: #f0f0f0; border-top-style: solid; padding: 4px 0 4px 12px;" align="right"> ${{number_format(($emailTotal+$emailDiscount), 0)}}</td>
                                 </tr>
-                                @if ($order->discount)
+                                @if ($emailDiscount)
                                     <tr>
                                         <td colspan="3" class="text-right" style="font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; padding: 4px 12px 4px 0;" align="right">Descuento
                                         </td>
-                                        <td class="text-right" style="font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; padding: 4px 0 4px 12px;" align="right">${{number_format($order->discount, 0)}}</td>
+                                        <td class="text-right" style="font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; padding: 4px 0 4px 12px;" align="right">${{number_format($emailDiscount, 0)}}</td>
                                     </tr>
                                         
                                 @endif
@@ -114,7 +118,7 @@
                             <tr>
                                 <td colspan="3" class="text-right font-strong h3 m-0" style="font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; font-weight: 600; font-size: 20px; line-height: 120%; margin: 0; padding: 4px 12px 4px 0;" align="right">Total</td>
                                 <td class="font-strong h3 m-0 text-right" style="font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica Neue, Helvetica, Arial, sans-serif; font-weight: 600; font-size: 20px; line-height: 120%; margin: 0; padding: 4px 0 4px 12px;" align="right"> 
-                                   ${{number_format(($order->total+$order->discount) - $order->discount)}}
+                                   ${{number_format($emailTotal)}}
                                 </td>
                             </tr>
                             </table>

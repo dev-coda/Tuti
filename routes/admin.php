@@ -71,6 +71,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
 
     Route::get('/documentacion', [DocumentationController::class, 'index'])->name('admin.documentation.index');
     Route::get('/documentacion/ver', [DocumentationController::class, 'show'])->name('admin.documentation.show');
+    Route::get('/documentacion/pdf', [DocumentationController::class, 'pdf'])->name('admin.documentation.pdf');
 
     // KPI Dashboard routes
     Route::prefix('kpi')->name('admin.kpi.')->group(function () {
@@ -344,6 +345,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::resource('orders', OrderController::class);
     Route::post('/orders/{order}/resend', [OrderController::class, 'resend'])->name('orders.resend');
     Route::post('/orders/{order}/retry-xml-transmission', [OrderController::class, 'retryXmlTransmission'])->name('orders.retry-xml-transmission');
+    Route::post('/orders/{order}/redispatch', [OrderController::class, 'redispatch'])->name('orders.redispatch');
     Route::post('/orders/{order}/retry-confirmation-email', [OrderController::class, 'retryConfirmationEmail'])->name('orders.retry-confirmation-email');
     Route::post('/orders/{order}/retry-status-email', [OrderController::class, 'retryStatusEmail'])->name('orders.retry-status-email');
 

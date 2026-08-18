@@ -9,6 +9,60 @@ use App\Models\Setting;
 class BonificationCheckoutService
 {
     /**
+     * Product IDs that must not receive brand/vendor/coupon discounts because the cart
+     * qualifies for a bonification with allow_discounts=false.
+     *
+     * Same rule as checkout: only when the customer actually qualifies (buy/get threshold).
+     *
+     * @param  iterable<int, array<string, mixed>>  $cart
+     * @return array<int, true> product_id => true
+     */
+    public static function discountBlockedProductIds(iterable $cart): array
+    {
+        $quantities = [];
+
+        foreach ($cart as $row) {
+            $productId = (int) ($row['product_id'] ?? 0);
+            if ($productId <= 0) {
+                continue;
+            }
+
+            $tempProduct = Product::find($productId);
+            if (! $tempProduct) {
+                continue;
+            }
+
+            $packageQuantity = (int) ($tempProduct->package_quantity ?? 1);
+            $quantities[$productId] = ($quantities[$productId] ?? 0)
+                + ((int) ($row['quantity'] ?? 1)) * $packageQuantity;
+        }
+
+        $blocked = [];
+
+        foreach ($quantities as $productId => $aggregatedIndividualItems) {
+            $product = Product::with('bonifications')->find($productId);
+            if (! $product || $product->bonifications->isEmpty()) {
+                continue;
+            }
+
+            foreach ($product->bonifications as $bonification) {
+                $buy = (int) $bonification->buy;
+                if ($buy <= 0) {
+                    continue;
+                }
+
+                $bonificationQuantity = floor($aggregatedIndividualItems / $buy * $bonification->get);
+                if ($bonificationQuantity > 0 && ! $bonification->allow_discounts) {
+                    $blocked[$productId] = true;
+                    break;
+                }
+            }
+        }
+
+        return $blocked;
+    }
+
+    /**
      * Last cart key per product_id (cart order preserved) so bonifications are applied after
      * all order lines and inventory updates for that product in the current loop.
      */

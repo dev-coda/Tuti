@@ -405,17 +405,13 @@
                     <span class="font-medium" id="cart-retention-iva">-${{currency($cartRetentions['retention_iva'] ?? 0)}}</span>
                 </div>
                 @endif
-
-                <div class="flex justify-between text-gray-600 hidden" id="cart-shipping-row">
-                    <span>Envío 48H</span>
-                    <span class="font-medium" id="cart-shipping">$0</span>
-                </div>
                 
                 <div class="pt-3 border-t border-gray-200">
                     <div class="flex justify-between items-center">
-                        <span class="text-lg font-bold text-gray-900">Total</span>
+                        <span class="text-lg font-bold text-gray-900">Total productos</span>
                         <span class="text-2xl font-bold text-orange-600" id="cart-total">${{currency($finalTotal)}}</span>
                     </div>
+                    <p class="mt-1 text-xs text-gray-500">El flete y el total a pagar se confirman al elegir el método de envío.</p>
                 </div>
             </div>
         </div>
@@ -432,7 +428,7 @@
                 <svg class="w-6 h-6 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
                 </svg>
-                Detalles del pedido
+                Resumen del pedido
             </h2>
         </div>
 
@@ -506,6 +502,8 @@
                                     data-sucursal-zone="{{ $z->zone ?? '' }}"
                                     data-sucursal-day="{{ $z->day ?? '' }}"
                                     data-sucursal-address="{{ $z->address ?? '' }}"
+                                    data-shipping-standard="{{ ($z->shipping_standard_enabled ?? true) ? '1' : '0' }}"
+                                    data-shipping-express="{{ ($z->shipping_express_enabled ?? true) ? '1' : '0' }}"
                                     {{ (int) session('zone_id') === (int) $z->id ? 'selected' : '' }}
                                 >{{ $z->address }}</option>
                             @endforeach
@@ -515,45 +513,64 @@
                     {{-- Delivery Method Selection --}}
                     @if($shippingMethods->isNotEmpty())
                     <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <label class="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-700">
+                            <svg class="h-5 w-5 flex-shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
                             </svg>
-                            Método de entrega
+                            Método de envío
                         </label>
-                        <div class="grid grid-cols-1 md:grid-cols-{{ $shippingMethods->count() }} gap-4">
+                        @php
+                            $expressFreeShippingMin = \App\Models\Setting::expressFreeShippingMinimum();
+                            $expressFreeShippingEnabled = \App\Models\Setting::isExpressFreeShippingEnabled();
+                            $freeShippingMessage = \App\Models\Setting::getByKey('free_shipping_message');
+                        @endphp
+                        <div class="grid grid-cols-1 gap-3 {{ $shippingMethods->count() >= 2 ? 'md:grid-cols-2' : '' }}" id="delivery-options-grid">
                             @foreach($shippingMethods as $method)
-                            <button type="button" 
-                                class="delivery-option relative p-5 rounded-xl border-2 transition-all duration-300 text-left"
+                            @php
+                                $isExpress = $method->code === 'express';
+                                $displayName = $isExpress ? 'Entrega Especial' : 'Entrega Standard';
+                                $displayDescription = $isExpress
+                                    ? 'Realiza tu pedido de lunes a viernes antes de las 5:00 pm para recibir en 48 horas. Sábado y domingo realiza pedido las 24 horas y recíbelo en 48 horas del siguiente día hábil. Aplica para ciudades principales.'
+                                    : 'Envío gratis.';
+                            @endphp
+                            <button type="button"
+                                class="delivery-option relative w-full rounded-xl border-2 border-gray-200 bg-white p-4 text-left transition-all duration-200 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-500"
                                 data-method="{{ $method->code }}"
-                                id="delivery-option-{{ $method->code }}">
-                                <div class="flex items-start gap-4">
-                                    <div class="flex-shrink-0">
-                                        <div class="w-12 h-12 rounded-full border-2 flex items-center justify-center delivery-icon-bg">
-                                            @if($method->code === 'express')
-                                                <svg class="w-6 h-6 delivery-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
-                                                </svg>
-                                            @else
-                                                <svg class="w-6 h-6 delivery-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                                                </svg>
-                                            @endif
-                                        </div>
-                                    </div>
-                                    <div class="flex-1">
-                                        <div class="font-bold text-lg delivery-title">{{ $method->name }}</div>
-                                        @if($method->description)
-                                            <div class="text-sm delivery-subtitle mt-1">{{ $method->description }}</div>
+                                id="delivery-option-{{ $method->code }}"
+                                aria-pressed="false">
+                                <div class="flex items-start gap-4" style="padding-right: 2rem;">
+                                    <span class="delivery-icon-bg flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full border-2 border-gray-300 bg-gray-50 text-gray-500" style="margin-top: 2px;">
+                                        @if($isExpress)
+                                            <svg class="delivery-icon block h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                            </svg>
+                                        @else
+                                            <svg class="delivery-icon block h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                            </svg>
+                                        @endif
+                                    </span>
+                                    <span class="min-w-0 flex-1">
+                                        <span class="delivery-title block text-base font-bold leading-tight text-gray-800">{{ $displayName }}</span>
+                                        <span class="delivery-subtitle mt-1 block text-sm leading-snug text-gray-500">{{ $displayDescription }}</span>
+                                        @if($isExpress && $expressFreeShippingEnabled && $expressFreeShippingMin > 0)
+                                            <span class="mt-1 block text-xs text-green-700">
+                                                Envío gratis desde ${{ number_format($expressFreeShippingMin, 0, ',', '.') }}
+                                            </span>
+                                        @elseif(!$isExpress && filled($freeShippingMessage))
+                                            <span class="mt-1 block text-xs text-green-700">{{ $freeShippingMessage }}</span>
                                         @endif
                                         @if(!$isForceEnabled)
-                                            <div class="text-xs delivery-date mt-2 font-medium" id="delivery-date-{{ $method->code }}">Calculando...</div>
+                                            <span class="delivery-date mt-2 block text-xs font-medium text-gray-400">
+                                                Fecha de entrega:
+                                                <span id="delivery-date-{{ $method->code }}">Calculando...</span>
+                                            </span>
                                         @endif
-                                    </div>
+                                    </span>
                                 </div>
-                                <div class="absolute top-3 right-3 w-5 h-5 rounded-full border-2 border-gray-300 delivery-check hidden items-center justify-center">
-                                    <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
-                                </div>
+                                <span class="delivery-check pointer-events-none absolute hidden h-5 w-5 items-center justify-center rounded-full border-2 border-gray-300 bg-white" style="top: 0.75rem; right: 0.75rem;" aria-hidden="true">
+                                    <svg class="block h-3 w-3 text-white" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                                </span>
                             </button>
                             @endforeach
                         </div>
@@ -578,8 +595,26 @@
                                   class="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all resize-none"></textarea>
                     </div>
 
+                    {{-- Payable total (includes freight after method selection) --}}
+                    <div class="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-3" id="checkout-payable-section">
+                        <div class="flex justify-between text-gray-700" id="cart-shipping-row">
+                            <span id="cart-shipping-label">Flete</span>
+                            <span class="font-medium text-right" id="cart-shipping">
+                                <span class="line-through text-gray-400" id="cart-shipping-struck">$0</span>
+                                <span class="ml-2 font-semibold text-green-700" id="cart-shipping-gratis">GRATIS</span>
+                            </span>
+                        </div>
+                        <p class="text-xs text-red-600 hidden" id="cart-shipping-error"></p>
+                        <div class="pt-3 border-t border-gray-200">
+                            <div class="flex justify-between items-center">
+                                <span class="text-lg font-bold uppercase tracking-wide text-gray-900">Total a pagar</span>
+                                <span class="text-2xl font-bold text-orange-600" id="checkout-total-payable">${{currency($finalTotal)}}</span>
+                            </div>
+                        </div>
+                    </div>
+
                     {{-- Submit Button --}}
-                    <div class="pt-4 border-t border-gray-100">
+                    <div class="pt-2">
                         <div id="submit-order-button">
                             <submit-order-button></submit-order-button>
                         </div>
@@ -606,6 +641,8 @@
 <script>
     $(function() {
         let currentShippingAmount = 0;
+        let shippingQuoteRequestId = 0;
+        let shippingQuoteAbortController = null;
         // Currency formatter
         function formatCurrency(amount) {
             return '$' + new Intl.NumberFormat('es-CO', {
@@ -823,59 +860,146 @@
                 }
             }
 
-            // Update total
+            // Update merchandise total (no freight)
             const totalEl = document.getElementById('cart-total');
             if (totalEl) {
-                totalEl.textContent = formatCurrency(totalWithoutShipping + currentShippingAmount);
+                totalEl.textContent = formatCurrency(totalWithoutShipping);
+            }
+
+            const payableEl = document.getElementById('checkout-total-payable');
+            if (payableEl) {
+                payableEl.textContent = formatCurrency(totalWithoutShipping + currentShippingAmount);
             }
 
             updateCartRetentions();
         }
 
-        function setShippingAmount(amount) {
-            currentShippingAmount = Number(amount || 0);
-            const shippingRow = document.getElementById('cart-shipping-row');
+        function renderShippingAmountDisplay(options = {}) {
             const shippingAmountEl = document.getElementById('cart-shipping');
+            const shippingLabelEl = document.getElementById('cart-shipping-label');
+            const loading = options.loading === true;
+            const freeShipping = options.freeShipping === true || currentShippingAmount <= 0;
+            const quoted = Number(options.quotedShippingCost || 0);
+
+            if (shippingLabelEl) {
+                if (loading) {
+                    shippingLabelEl.textContent = 'Flete (cotizando…)';
+                } else {
+                    shippingLabelEl.textContent = 'Flete';
+                }
+            }
+
+            if (!shippingAmountEl) {
+                return;
+            }
+
+            if (loading && currentShippingAmount <= 0 && !options.freeShipping) {
+                shippingAmountEl.innerHTML = '<span class="text-gray-500">…</span>';
+                return;
+            }
+
+            if (freeShipping) {
+                const struckValue = quoted > 0 ? quoted : 0;
+                shippingAmountEl.innerHTML =
+                    '<span class="line-through text-gray-400">' + formatCurrency(struckValue) + '</span>' +
+                    '<span class="ml-2 font-semibold text-green-700">GRATIS</span>';
+                return;
+            }
+
+            shippingAmountEl.innerHTML = '<span class="font-medium text-gray-900">' + formatCurrency(currentShippingAmount) + '</span>';
+        }
+
+        function setShippingAmount(amount, options = {}) {
+            currentShippingAmount = Number(amount || 0);
             const shippingInput = document.getElementById('shipping_quote_amount');
+            const shippingErrorEl = document.getElementById('cart-shipping-error');
 
             if (shippingInput) {
                 shippingInput.value = currentShippingAmount.toFixed(2);
             }
 
-            if (shippingRow && shippingAmountEl) {
-                if (currentShippingAmount > 0) {
-                    shippingRow.classList.remove('hidden');
-                    shippingAmountEl.textContent = formatCurrency(currentShippingAmount);
+            renderShippingAmountDisplay(options);
+
+            if (shippingErrorEl) {
+                if (options.error) {
+                    shippingErrorEl.textContent = options.error;
+                    shippingErrorEl.classList.remove('hidden');
                 } else {
-                    shippingRow.classList.add('hidden');
-                    shippingAmountEl.textContent = formatCurrency(0);
+                    shippingErrorEl.textContent = '';
+                    shippingErrorEl.classList.add('hidden');
                 }
             }
 
             recalculateTotals();
         }
 
+        function getCartMerchandiseTotal() {
+            let totalWithoutShipping = 0;
+            document.querySelectorAll('.cart-item').forEach(item => {
+                const unitPrice = parseFloat(item.dataset.unitPrice);
+                const quantityInput = item.querySelector('.qty-input');
+                const quantity = quantityInput ? parseInt(quantityInput.value) : 0;
+                totalWithoutShipping += unitPrice * quantity;
+            });
+            return Math.max(0, totalWithoutShipping);
+        }
+
         function fetchShippingQuote(method) {
             const zoneId = zoneSelect ? zoneSelect.value : null;
-            if (!zoneId) {
-                setShippingAmount(0);
+            shippingQuoteRequestId += 1;
+            const requestId = shippingQuoteRequestId;
+
+            if (shippingQuoteAbortController) {
+                shippingQuoteAbortController.abort();
+            }
+            shippingQuoteAbortController = (typeof AbortController !== 'undefined')
+                ? new AbortController()
+                : null;
+
+            if (!zoneId || method !== 'express') {
+                setShippingAmount(0, { freeShipping: true, quotedShippingCost: 0 });
                 return;
             }
 
-            const url = `/api/shipping-quote/${method}?zone_id=${zoneId}`;
+            // Keep the shipping row visible while quoting so totals never
+            // silently drop the estimated cost when express is selected.
+            setShippingAmount(currentShippingAmount, { forceShow: true, loading: true });
 
-            fetch(url)
-                .then(response => response.json())
-                .then(data => {
-                    if (!data.success) {
-                        setShippingAmount(0);
+            const merchandiseTotal = getCartMerchandiseTotal();
+            const url = `/api/shipping-quote/${method}?zone_id=${zoneId}&merchandise_total=${encodeURIComponent(merchandiseTotal.toFixed(2))}`;
+
+            fetch(url, shippingQuoteAbortController ? { signal: shippingQuoteAbortController.signal } : undefined)
+                .then(response => response.json().then(data => ({ ok: response.ok, data })))
+                .then(({ ok, data }) => {
+                    if (requestId !== shippingQuoteRequestId) {
                         return;
                     }
 
-                    setShippingAmount(Number(data.shipping_cost || 0));
+                    if (!ok || !data.success) {
+                        setShippingAmount(0, {
+                            forceShow: true,
+                            error: data.message || 'No se pudo cotizar el envío 48H. Revisa la zona o intenta de nuevo.',
+                        });
+                        return;
+                    }
+
+                    setShippingAmount(Number(data.shipping_cost || 0), {
+                        forceShow: true,
+                        freeShipping: !!data.free_shipping_applied,
+                        quotedShippingCost: Number(data.quoted_shipping_cost || data.shipping_cost || 0),
+                    });
                 })
-                .catch(() => {
-                    setShippingAmount(0);
+                .catch((error) => {
+                    if (error && error.name === 'AbortError') {
+                        return;
+                    }
+                    if (requestId !== shippingQuoteRequestId) {
+                        return;
+                    }
+                    setShippingAmount(0, {
+                        forceShow: true,
+                        error: 'No se pudo cotizar el envío 48H. Revisa la zona o intenta de nuevo.',
+                    });
                 });
         }
 
@@ -1007,10 +1131,11 @@
                 if (isActive) {
                     option.classList.remove('border-gray-200', 'bg-white', 'hover:border-gray-300');
                     option.classList.add('border-orange-500', 'bg-orange-50');
+                    option.setAttribute('aria-pressed', 'true');
                     
                     if (iconBg) {
-                        iconBg.classList.remove('border-gray-300', 'bg-gray-50');
-                        iconBg.classList.add('border-orange-500', 'bg-orange-500');
+                        iconBg.classList.remove('border-gray-300', 'bg-gray-50', 'text-gray-500');
+                        iconBg.classList.add('border-orange-500', 'bg-orange-500', 'text-white');
                     }
                     if (icon) {
                         icon.classList.remove('text-gray-500');
@@ -1029,16 +1154,17 @@
                         date.classList.add('text-orange-600');
                     }
                     if (check) {
-                        check.classList.remove('hidden', 'border-gray-300');
+                        check.classList.remove('hidden', 'border-gray-300', 'bg-white');
                         check.classList.add('flex', 'border-orange-500', 'bg-orange-500');
                     }
                 } else {
                     option.classList.remove('border-orange-500', 'bg-orange-50');
                     option.classList.add('border-gray-200', 'bg-white', 'hover:border-gray-300');
+                    option.setAttribute('aria-pressed', 'false');
                     
                     if (iconBg) {
-                        iconBg.classList.remove('border-orange-500', 'bg-orange-500');
-                        iconBg.classList.add('border-gray-300', 'bg-gray-50');
+                        iconBg.classList.remove('border-orange-500', 'bg-orange-500', 'text-white');
+                        iconBg.classList.add('border-gray-300', 'bg-gray-50', 'text-gray-500');
                     }
                     if (icon) {
                         icon.classList.remove('text-white');
@@ -1058,7 +1184,7 @@
                     }
                     if (check) {
                         check.classList.remove('flex', 'border-orange-500', 'bg-orange-500');
-                        check.classList.add('hidden', 'border-gray-300');
+                        check.classList.add('hidden', 'border-gray-300', 'bg-white');
                     }
                 }
             });
@@ -1097,8 +1223,66 @@
                 });
         }
         
+        function getSelectedZoneShippingFlags() {
+            if (!zoneSelect) {
+                return { standard: true, express: true };
+            }
+            const opt = zoneSelect.options[zoneSelect.selectedIndex];
+            return {
+                standard: !opt || opt.getAttribute('data-shipping-standard') !== '0',
+                express: !opt || opt.getAttribute('data-shipping-express') !== '0',
+            };
+        }
+
+        function syncZoneShippingMethods(preferredMethod) {
+            const flags = getSelectedZoneShippingFlags();
+            const available = [];
+
+            deliveryOptions.forEach((option) => {
+                const code = option.getAttribute('data-method');
+                const allowed = code === 'express' ? flags.express : flags.standard;
+                option.classList.toggle('hidden', !allowed);
+                option.disabled = !allowed;
+                if (allowed) {
+                    available.push(code);
+                }
+            });
+
+            const grid = document.getElementById('delivery-options-grid');
+            let emptyMsg = document.getElementById('delivery-options-empty');
+            if (available.length === 0) {
+                if (!emptyMsg && grid) {
+                    emptyMsg = document.createElement('p');
+                    emptyMsg.id = 'delivery-options-empty';
+                    emptyMsg.className = 'text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-3';
+                    emptyMsg.textContent = 'No hay métodos de envío habilitados para esta dirección.';
+                    grid.parentNode.insertBefore(emptyMsg, grid.nextSibling);
+                }
+                if (emptyMsg) {
+                    emptyMsg.classList.remove('hidden');
+                }
+                if (deliveryMethodInput) {
+                    deliveryMethodInput.value = '';
+                }
+                setShippingAmount(0, { freeShipping: true });
+                return available;
+            }
+
+            if (emptyMsg) {
+                emptyMsg.classList.add('hidden');
+            }
+
+            const current = preferredMethod || (deliveryMethodInput ? deliveryMethodInput.value : null);
+            const next = available.includes(current) ? current : available[0];
+            updateDeliveryOption(next);
+            return available;
+        }
+
         deliveryOptions.forEach(option => {
             option.addEventListener('click', function() {
+                if (this.disabled || this.classList.contains('hidden')) {
+                    return;
+                }
                 const method = this.getAttribute('data-method');
                 updateDeliveryOption(method);
             });
@@ -1107,9 +1291,7 @@
         if (zoneSelect) {
             zoneSelect.addEventListener('change', function() {
                 syncCheckoutSucursalCode();
-                const currentMethod = deliveryMethodInput ? deliveryMethodInput.value : 'tronex';
-                fetchDeliveryDate(currentMethod);
-                fetchShippingQuote(currentMethod);
+                syncZoneShippingMethods();
             });
         }
 
@@ -1119,12 +1301,13 @@
 
         // Initialize (only methods shown in checkout — no hard-coded express when 48h is off)
         if (shippingMethodCodes.length) {
-            updateDeliveryOption(shippingMethodCodes[0]);
+            syncZoneShippingMethods(shippingMethodCodes[0]);
             shippingMethodCodes.forEach(function(code) {
                 fetchDeliveryDate(code);
             });
+        } else {
+            setShippingAmount(0, { freeShipping: true });
         }
-        setShippingAmount(0);
     })
 </script>
 

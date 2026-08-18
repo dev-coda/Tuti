@@ -28,7 +28,14 @@ class Zone extends Model
         'zip_code',
         'dane_code',
         'fulfillment_provider_48h',
+        'shipping_standard_enabled',
+        'shipping_express_enabled',
         'user_id',
+    ];
+
+    protected $casts = [
+        'shipping_standard_enabled' => 'boolean',
+        'shipping_express_enabled' => 'boolean',
     ];
 
     public const FULFILLMENT_PROVIDER_COORDINADORA = 'coordinadora';
@@ -150,6 +157,19 @@ class Zone extends Model
     public function usesCoordinadoraFor48h(): bool
     {
         return ($this->fulfillment_provider_48h ?? self::FULFILLMENT_PROVIDER_COORDINADORA) === self::FULFILLMENT_PROVIDER_COORDINADORA;
+    }
+
+    /**
+     * Whether a checkout shipping method code is offered for this zone.
+     * Defaults to enabled when the flag is null (pre-migration rows / fresh casts).
+     */
+    public function allowsShippingMethod(string $code): bool
+    {
+        return match ($code) {
+            Order::DELIVERY_METHOD_TRONEX => $this->shipping_standard_enabled !== false,
+            Order::DELIVERY_METHOD_EXPRESS => $this->shipping_express_enabled !== false,
+            default => true,
+        };
     }
 
     /**

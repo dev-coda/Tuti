@@ -415,7 +415,8 @@ HTML;
             'contact_email' => $contact->email,
             'contact_phone' => $contact->phone,
             'business_name' => $contact->business_name,
-            'city' => $contact->city->name ?? 'No especificada',
+            // city is a legacy string column that shadows the city() relation.
+            'city' => $contact->cityName(),
             'department' => $contact->department ?? 'No especificado',
             'nit' => $contact->nit,
             'person_type' => $personTypeLabel,
@@ -435,24 +436,26 @@ HTML;
         }
 
         $template = EmailTemplate::where('slug', 'contact_form')->first();
+        $useFallback = false;
 
         if ($template && !$template->is_active) {
-            Log::warning('Interesado notification skipped: the contact_form email template is deactivated. Activate it in Admin > Plantillas de correo to receive these alerts.', [
+            // Never drop interesado alerts because a template was toggled off.
+            Log::warning('Interesado notification: contact_form template is deactivated; sending built-in fallback so the alert is not lost.', [
                 'contact_id' => $contact->id,
             ]);
-
-            return false;
+            $useFallback = true;
         }
 
         if (!$template) {
             Log::error('Interesado notification: contact_form email template is missing; sending built-in fallback notification. Run the EmailTemplatesSeeder or create the template in Admin > Plantillas de correo.', [
                 'contact_id' => $contact->id,
             ]);
+            $useFallback = true;
         }
 
         $sent = false;
         foreach ($adminEmails as $adminEmail) {
-            $ok = $template
+            $ok = (! $useFallback && $template)
                 ? $this->sendTemplateEmailWithAttachments('contact_form', $data, $adminEmail, $attachmentPaths, true)
                 : $this->sendFallbackContactNotification($data, $adminEmail, $attachmentPaths);
 

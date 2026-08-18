@@ -93,11 +93,64 @@ class Order extends Model
     const SHIPPING_PROVIDER_COORDINADORA = 'coordinadora';
     const SHIPPING_PROVIDER_TRONEX = 'tronex';
 
+    public static function deliveryMethodLabel(?string $code): string
+    {
+        return match ($code) {
+            self::DELIVERY_METHOD_EXPRESS => 'Entrega Especial',
+            self::DELIVERY_METHOD_TRONEX => 'Entrega Standard',
+            default => (string) $code,
+        };
+    }
+
+    /**
+     * Merchandise (tax-inclusive) + freight for checkout / thank-you "TOTAL A PAGAR".
+     */
+    public function totalPayable(): float
+    {
+        return round($this->totalWithTax() + (float) ($this->shipping_quote_amount ?? 0), 2);
+    }
+
     // Order origin: RUTA = placed by a seller on behalf of the client,
     // AUTONOMO = placed by the client on their own. Derived from seller_id,
     // which checkout only fills when a seller/supervisor processes the cart.
     const ORIGIN_RUTA = 'ruta';
     const ORIGIN_AUTONOMO = 'autonomo';
+
+    /**
+     * Whether this order is fulfilled through the FV (Dynamics CreateSalesOrder)
+     * + Coordinadora guide flow instead of the legacy Tronex presales XML.
+     *
+     * Single source of truth for that branch: every caller that transmits an
+     * order must use this so the queued job and the manual retries agree.
+     */
+    public function usesFvFulfillment(): bool
+    {
+        return $this->delivery_method === self::DELIVERY_METHOD_EXPRESS
+            && $this->shipping_provider === self::SHIPPING_PROVIDER_COORDINADORA;
+    }
+
+    /**
+     * Restrict a query to orders that transmit through the FV flow.
+     */
+    public function scopeFvFulfilled($query)
+    {
+        return $query->where('delivery_method', self::DELIVERY_METHOD_EXPRESS)
+            ->where('shipping_provider', self::SHIPPING_PROVIDER_COORDINADORA);
+    }
+
+    /**
+     * Whether the order still needs to be transmitted. Used to decide if a
+     * manual transmit action should be offered.
+     */
+    public function awaitingTransmission(): bool
+    {
+        return in_array($this->status_id, [
+            self::STATUS_PENDING,
+            self::STATUS_ERROR,
+            self::STATUS_ERROR_WEBSERVICE,
+            self::STATUS_WAITING,
+        ], true);
+    }
 
     /**
      * Get status slug from status ID
@@ -203,6 +256,172 @@ class Order extends Model
     public function coupon()
     {
         return $this->belongsTo(Coupon::class);
+    }
+
+    /**
+     * Tax-inclusive merchandise total for display (matches cart / storefront).
+     *
+     * Prefers recomputing from line items + product tax so older orders stored
+     * without IVA still show the correct total. Falls back to the stored total.
+     */
+    public function totalWithTax(): float
+    {
+        $fromLines = $this->sumLineTotalsWithTax();
+        if ($fromLines !== null) {
+            return $fromLines;
+        }
+
+        return round((float) $this->total, 2);
+    }
+
+    /**
+     * Sum tax-inclusive totals for a query without loading every order at once.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<\App\Models\Order>  $query
+     */
+    public static function sumTotalWithTaxForQuery($query, int $chunkSize = 200): float
+    {
+        $sum = 0.0;
+
+        (clone $query)
+            ->with(['products.product.tax'])
+            ->orderBy('id')
+            ->chunkById($chunkSize, function ($orders) use (&$sum) {
+                foreach ($orders as $order) {
+                    $sum += $order->totalWithTax();
+                }
+            });
+
+        return round($sum, 2);
+    }
+
+    /**
+     * Tax-inclusive discount amount paired with totalWithTax() for resumen math.
+     */
+    public function discountWithTax(): float
+    {
+        $fromLines = $this->sumLineDiscountsWithTax();
+        if ($fromLines !== null) {
+            return $fromLines;
+        }
+
+        return round((float) $this->discount, 2);
+    }
+
+    /**
+     * @return float|null Null when line items / tax relations are unavailable
+     */
+    public function sumLineTotalsWithTax(): ?float
+    {
+        if (! $this->relationLoaded('products')) {
+            $this->loadMissing('products.product.tax');
+        } elseif ($this->products->isNotEmpty() && ! $this->products->first()?->relationLoaded('product')) {
+            $this->loadMissing('products.product.tax');
+        }
+
+        if ($this->products->isEmpty()) {
+            return null;
+        }
+
+        $sum = 0.0;
+        foreach ($this->products as $line) {
+            $exclusive = $this->lineExclusiveNet($line);
+            if ($exclusive === null) {
+                return null;
+            }
+            $taxPct = (float) (optional($line->product?->tax)->tax ?? 0);
+            $sum += amount_with_tax($exclusive, $taxPct);
+        }
+
+        return round($sum, 2);
+    }
+
+    /**
+     * @return float|null
+     */
+    public function sumLineDiscountsWithTax(): ?float
+    {
+        if (! $this->relationLoaded('products')) {
+            $this->loadMissing('products.product.tax');
+        } elseif ($this->products->isNotEmpty() && ! $this->products->first()?->relationLoaded('product')) {
+            $this->loadMissing('products.product.tax');
+        }
+
+        if ($this->products->isEmpty()) {
+            return null;
+        }
+
+        $sum = 0.0;
+        foreach ($this->products as $line) {
+            $exclusiveDiscount = $this->lineExclusiveDiscount($line);
+            if ($exclusiveDiscount === null) {
+                return null;
+            }
+            $taxPct = (float) (optional($line->product?->tax)->tax ?? 0);
+            $sum += amount_with_tax($exclusiveDiscount, $taxPct);
+        }
+
+        return round($sum, 2);
+    }
+
+    /**
+     * Net merchandise for a line before IVA (lista / SOAP basis).
+     */
+    private function lineExclusiveNet(OrderProduct $line): ?float
+    {
+        $price = (float) $line->price;
+        $qty = (float) $line->quantity;
+        $pkg = max(1.0, (float) ($line->package_quantity ?: 1));
+        $product = $line->product;
+
+        if (($line->discount_type ?? 'percentage') === 'fixed_amount') {
+            $flat = (float) ($line->flat_discount_amount ?? 0);
+            if ($product?->calculate_package_price) {
+                $unitPrice = $pkg > 1 ? ($price / $pkg) : $price;
+
+                return max(0, $unitPrice - $flat) * $pkg * $qty;
+            }
+
+            return max(0, $price - $flat) * $qty * $pkg;
+        }
+
+        $pct = max(0.0, min(100.0, (float) ($line->percentage ?? 0)));
+        $gross = $product?->calculate_package_price
+            ? ($price * $qty)
+            : ($price * $qty * $pkg);
+
+        return $gross * (1 - ($pct / 100));
+    }
+
+    /**
+     * Discount for a line before IVA.
+     */
+    private function lineExclusiveDiscount(OrderProduct $line): ?float
+    {
+        $price = (float) $line->price;
+        $qty = (float) $line->quantity;
+        $pkg = max(1.0, (float) ($line->package_quantity ?: 1));
+        $product = $line->product;
+
+        if (($line->discount_type ?? 'percentage') === 'fixed_amount') {
+            $flat = (float) ($line->flat_discount_amount ?? 0);
+            if ($product?->calculate_package_price) {
+                return max(0, $flat) * $pkg * $qty;
+            }
+
+            return max(0, $flat) * $qty * $pkg;
+        }
+
+        $pct = max(0.0, min(100.0, (float) ($line->percentage ?? 0)));
+        if ($pct <= 0) {
+            return 0.0;
+        }
+
+        $gross = $product?->calculate_package_price
+            ? ($price * $qty)
+            : ($price * $qty * $pkg);
+
+        return $gross * ($pct / 100);
     }
 
     /**

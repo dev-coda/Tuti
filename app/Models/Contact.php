@@ -17,33 +17,35 @@ class Contact extends Model
         parent::boot();
 
         static::created(function ($contact) {
-            // Dispatch asynchronously when a real queue worker exists; otherwise send synchronously
-            // so interesados notifications are not lost in environments without workers.
-            $queueConnection = config('queue.default');
+            // Always send in-process. Interesado alerts are rare and must not depend on
+            // Horizon/workers listening to the emails queue.
+            $contactId = $contact->id;
 
-            if ($queueConnection === 'sync') {
+            $send = function () use ($contactId) {
                 try {
-                    app(MailingService::class)->sendContactFormNotification($contact->fresh(['city']));
+                    $fresh = static::query()->find($contactId);
+                    if (!$fresh) {
+                        return;
+                    }
+
+                    app(MailingService::class)->sendContactFormNotification($fresh);
                 } catch (\Throwable $e) {
-                    \Log::error("Failed to send contact form email synchronously for contact {$contact->id}: " . $e->getMessage());
+                    \Log::error("Failed to send contact form email for contact {$contactId}: " . $e->getMessage(), [
+                        'contact_id' => $contactId,
+                        'exception' => $e,
+                    ]);
                 }
+            };
+
+            // Prefer afterResponse during HTTP requests so the form can return first.
+            // In console/tests (no response cycle) send immediately.
+            if (! app()->runningInConsole()) {
+                dispatch($send)->afterResponse();
 
                 return;
             }
 
-            try {
-                \App\Jobs\SendContactFormEmail::dispatch($contact)
-                    ->onConnection($queueConnection)
-                    ->onQueue('emails');
-            } catch (\Exception $e) {
-                \Log::error("Failed to dispatch contact form email for contact {$contact->id}: " . $e->getMessage());
-                // Last-resort fallback to avoid losing notifications.
-                try {
-                    app(MailingService::class)->sendContactFormNotification($contact->fresh(['city']));
-                } catch (\Throwable $inner) {
-                    \Log::error("Fallback contact form email failed for contact {$contact->id}: " . $inner->getMessage());
-                }
-            }
+            $send();
         });
     }
 
@@ -80,6 +82,31 @@ class Contact extends Model
     public function city()
     {
         return $this->belongsTo(City::class);
+    }
+
+    /**
+     * Resolve a displayable city name.
+     *
+     * contacts.city is a legacy string column that shadows the city() relation,
+     * so $contact->city may be a string (Cliente Nuevo) or null with city_id set
+     * (legacy /formulario). Never call $contact->city->name directly.
+     */
+    public function cityName(): string
+    {
+        $raw = $this->getAttributes()['city'] ?? null;
+        if (is_string($raw) && trim($raw) !== '') {
+            return trim($raw);
+        }
+
+        if ($this->city_id) {
+            $relatedName = City::query()->whereKey($this->city_id)->value('name');
+
+            if (is_string($relatedName) && $relatedName !== '') {
+                return $relatedName;
+            }
+        }
+
+        return 'No especificada';
     }
 
     public function clientUser()

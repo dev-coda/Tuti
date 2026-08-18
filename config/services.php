@@ -54,6 +54,13 @@ return [
         'origin_address' => env('COORDINADORA_ORIGIN_ADDRESS'),
         'origin_phone' => env('COORDINADORA_ORIGIN_PHONE'),
 
+        /**
+         * When true, CoordinadoraOrderProcessingService also creates a shipping
+         * guide after the FV. Default off: Activity owns physical fulfillment;
+         * Tuti only needs the cotización API for cart shipping cost + FV.
+         */
+        'create_guides' => filter_var(env('COORDINADORA_CREATE_GUIDES', false), FILTER_VALIDATE_BOOL),
+
         /** When true, hides Envío 48h / Coordinadora everywhere regardless of admin Setting */
         'express_48h_disabled' => filter_var(env('COORDINADORA_EXPRESS_48H_DISABLED', false), FILTER_VALIDATE_BOOL),
     ],
@@ -65,6 +72,9 @@ return [
      */
     'fv' => [
         'endpoint' => env('FV_SOAP_ENDPOINT'),
+        // Azure AD audience when FV lives on a different host than MICROSOFT_RESOURCE_URL.
+        // Defaults to the host of FV_SOAP_ENDPOINT (e.g. https://dev03ppac.operations.dynamics.com/).
+        'token_resource' => env('FV_TOKEN_RESOURCE'),
         'soap_action' => env('FV_SOAP_ACTION', 'http://tempuri.org/DWSSalesForce/CreateSalesOrder'),
         'company' => env('FV_COMPANY', 'TRX'),
         'origen_venta' => env('FV_ORIGEN_VENTA', 'Tuti'),
@@ -77,6 +87,8 @@ return [
         'location_invoice' => env('FV_LOCATION_INVOICE', 'HHMEDELLIN'),
         'num_sequence_group' => env('FV_NUM_SEQUENCE_GROUP', 'HHMEDELLIN'),
         'default_warehouse' => env('FV_DEFAULT_WAREHOUSE'),
+        // Flete line SKU on FV CreateSalesOrder. Empty string omits the line.
+        'shipping_item_id' => env('FV_SHIPPING_ITEM_ID', 'FL0001'),
         // Conditional Dynamics dimensions (drive, resource, supervisor, vendor)
         'drive' => env('FV_DRIVE'),
         'resource' => env('FV_RESOURCE'),

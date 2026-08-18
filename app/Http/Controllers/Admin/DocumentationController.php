@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
@@ -83,6 +84,35 @@ class DocumentationController extends Controller
 
     public function show(Request $request)
     {
+        $doc = $this->resolveGuide($request);
+
+        return view('admin.documentation.show', [
+            'pageTitle' => $doc['title'],
+            'slug' => $doc['slug'],
+            'html' => $doc['html'],
+        ]);
+    }
+
+    public function pdf(Request $request)
+    {
+        $doc = $this->resolveGuide($request);
+        $downloadName = Str::slug(pathinfo($doc['slug'], PATHINFO_FILENAME) ?: 'guia').'.pdf';
+
+        return Pdf::loadView('admin.documentation.pdf', [
+            'pageTitle' => $doc['title'],
+            'slug' => $doc['slug'],
+            'html' => $doc['html'],
+            'generatedAt' => now()->timezone(config('app.timezone'))->format('d/m/Y H:i'),
+        ])
+            ->setPaper('a4')
+            ->download($downloadName);
+    }
+
+    /**
+     * @return array{title: string, slug: string, html: string}
+     */
+    private function resolveGuide(Request $request): array
+    {
         $relative = (string) $request->query('f', '');
         if ($relative === '' || ! preg_match('#^[a-z0-9_/-]+\.md$#i', $relative) || str_contains($relative, '..')) {
             abort(404);
@@ -98,11 +128,11 @@ class DocumentationController extends Controller
         $h1 = self::firstH1($raw);
         $fallback = self::titleFromFilename(basename($relative, '.md'));
 
-        return view('admin.documentation.show', [
-            'pageTitle' => $h1 ?? $fallback,
+        return [
+            'title' => $h1 ?? $fallback,
             'slug' => $relative,
             'html' => $html,
-        ]);
+        ];
     }
 
     private static function firstH1(string $raw): ?string

@@ -47,8 +47,8 @@ class ClientOrdersExport implements FromQuery, WithHeadings, WithMapping, WithCh
             optional($order->created_at)->format('Y-m-d H:i:s'),
             $order->user->name ?? '',
             $statusMap[$order->status_id] ?? (string) $order->status_id,
-            (float) $order->total,
-            (float) $order->discount,
+            (float) $order->totalWithTax(),
+            (float) $order->discountWithTax(),
             (int) ($order->products_sum_quantity ?? 0),
         ];
     }

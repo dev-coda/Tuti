@@ -99,7 +99,7 @@
                         <p class="text-xs text-gray-500">{{ $order->created_at->subHour(5)->format('d M Y') }}</p>
                     </div>
                     <div class="text-right">
-                        <p class="text-sm font-semibold text-orange-600">${{ number_format(($order->total + $order->discount) - $order->discount) }}</p>
+                        <p class="text-sm font-semibold text-orange-600">${{ number_format($order->totalWithTax()) }}</p>
                         <p class="text-xs text-gray-500">{{ $order->products_sum_quantity ?? 0 }} artículos</p>
                     </div>
                 </div>

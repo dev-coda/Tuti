@@ -27,6 +27,30 @@ it('resolves last cart key per product', function () {
         ->and($m[20])->toBe('b');
 });
 
+it('marks products discount-blocked only when a no-discount bonification is qualified', function () {
+    $trigger = Product::factory()->for(BrandFactory::new())->create(['package_quantity' => 1]);
+    $gift = Product::factory()->for(BrandFactory::new())->create(['price' => 0]);
+    $bonification = Bonification::create([
+        'name' => 'Buy 2 get 1 blocks discounts',
+        'buy' => 2,
+        'get' => 1,
+        'product_id' => $gift->id,
+        'max' => 10,
+        'allow_discounts' => false,
+    ]);
+    $trigger->bonifications()->attach($bonification->id);
+
+    $notQualified = BonificationCheckoutService::discountBlockedProductIds([
+        ['product_id' => $trigger->id, 'quantity' => 1],
+    ]);
+    expect($notQualified)->toBe([]);
+
+    $qualified = BonificationCheckoutService::discountBlockedProductIds([
+        ['product_id' => $trigger->id, 'quantity' => 2],
+    ]);
+    expect($qualified)->toHaveKey($trigger->id);
+});
+
 describe('inventory and obsequio line resolution', function () {
     beforeEach(function () {
         Cache::flush();

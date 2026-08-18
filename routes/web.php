@@ -141,8 +141,102 @@ Route::middleware(['auth'])->group(function () {});
 
 // Moved to admin.php: Route::delete('/admins/{id}', [AdminController::class, 'destroy'])->name('admins.destroy');
 
-// Cart API route
+// Cart / shipping quote APIs — must use the web middleware group so the
+// browser session (cart + zone) is available. The api middleware group does
+// not start sessions, which made Coordinadora quotes always see an empty cart.
 Route::get('/api/cart', [CartApiController::class, 'index'])->name('api.cart');
+
+Route::get('/api/shipping-quote/{method}', function (\Illuminate\Http\Request $request, string $method) {
+    $zone = null;
+    if ($request->filled('zone_id')) {
+        $zone = \App\Models\Zone::find($request->integer('zone_id'));
+    } elseif (auth()->check() && session()->has('zone_id')) {
+        $zone = \App\Models\Zone::find((int) session()->get('zone_id'));
+    }
+
+    if (!$zone) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Zona no válida para cotización.',
+        ], 422);
+    }
+
+    if ($method === \App\Models\Order::DELIVERY_METHOD_EXPRESS && !\App\Models\Setting::isExpress48hEnabled()) {
+        return response()->json([
+            'success' => true,
+            'provider' => \App\Models\Order::SHIPPING_PROVIDER_TRONEX,
+            'shipping_cost' => 0,
+        ]);
+    }
+
+    if ($method !== \App\Models\Order::DELIVERY_METHOD_EXPRESS) {
+        return response()->json([
+            'success' => true,
+            'provider' => \App\Models\Order::SHIPPING_PROVIDER_TRONEX,
+            'shipping_cost' => 0,
+        ]);
+    }
+
+    if (!$zone->usesCoordinadoraFor48h()) {
+        return response()->json([
+            'success' => true,
+            'provider' => \App\Models\Order::SHIPPING_PROVIDER_TRONEX,
+            'shipping_cost' => 0,
+        ]);
+    }
+
+    $cart = collect(session()->get('cart', []));
+    if ($cart->isEmpty()) {
+        return response()->json([
+            'success' => false,
+            'provider' => \App\Models\Order::SHIPPING_PROVIDER_COORDINADORA,
+            'message' => 'El carrito está vacío; no se puede cotizar el envío.',
+        ], 422);
+    }
+
+    try {
+        $quote = app(\App\Services\Shipping\CoordinadoraQuoteService::class)->quoteFromCart($cart, $zone);
+
+        // Prefer the cart UI total when provided so free-shipping matches what the
+        // shopper sees; fall back to a simple list-price estimate from the session.
+        $merchandiseTotal = $request->filled('merchandise_total')
+            ? max(0.0, (float) $request->input('merchandise_total'))
+            : (float) $cart->sum(function ($row) {
+                $product = \App\Models\Product::find($row['product_id'] ?? null);
+                if (!$product) {
+                    return 0;
+                }
+                $qty = (int) ($row['quantity'] ?? 0);
+                $pkg = max(1, (int) ($product->package_quantity ?? 1));
+
+                return (float) $product->price * $qty * $pkg;
+            });
+
+        $quote = \App\Models\Setting::applyExpressFreeShipping($quote, $merchandiseTotal);
+
+        return response()->json([
+            'success' => true,
+            'provider' => \App\Models\Order::SHIPPING_PROVIDER_COORDINADORA,
+            'shipping_cost' => $quote['shipping_cost'],
+            'quoted_shipping_cost' => $quote['quoted_shipping_cost'] ?? $quote['shipping_cost'],
+            'free_shipping_applied' => (bool) ($quote['free_shipping_applied'] ?? false),
+            'free_shipping_min' => $quote['free_shipping_min'] ?? 0,
+            'delivery_estimate' => $quote['delivery_estimate'] ?? null,
+        ]);
+    } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::warning('Coordinadora shipping quote failed', [
+            'zone_id' => $zone->id,
+            'cart_count' => $cart->count(),
+            'message' => $e->getMessage(),
+        ]);
+
+        return response()->json([
+            'success' => false,
+            'provider' => \App\Models\Order::SHIPPING_PROVIDER_COORDINADORA,
+            'message' => 'No se pudo cotizar el envío en este momento.',
+        ], 422);
+    }
+})->name('api.shipping-quote');
 
 if (! app()->isProduction()) {
     // Dev-only: unauthenticated product inspection / one-off data repair — never expose in prod

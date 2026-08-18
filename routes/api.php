@@ -81,64 +81,6 @@ Route::middleware('api')->group(function () {
     });
 });
 
-Route::get('/shipping-quote/{method}', function (Request $request, string $method) {
-    $zone = null;
-    if ($request->filled('zone_id')) {
-        $zone = \App\Models\Zone::find($request->integer('zone_id'));
-    } elseif (auth()->check() && session()->has('zone_id')) {
-        $zone = \App\Models\Zone::find((int) session()->get('zone_id'));
-    }
-
-    if (!$zone) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Zona no válida para cotización.',
-        ], 422);
-    }
-
-    if ($method === Order::DELIVERY_METHOD_EXPRESS && !\App\Models\Setting::isExpress48hEnabled()) {
-        return response()->json([
-            'success' => true,
-            'provider' => Order::SHIPPING_PROVIDER_TRONEX,
-            'shipping_cost' => 0,
-        ]);
-    }
-
-    if ($method !== Order::DELIVERY_METHOD_EXPRESS) {
-        return response()->json([
-            'success' => true,
-            'provider' => Order::SHIPPING_PROVIDER_TRONEX,
-            'shipping_cost' => 0,
-        ]);
-    }
-
-    if (!$zone->usesCoordinadoraFor48h()) {
-        return response()->json([
-            'success' => true,
-            'provider' => Order::SHIPPING_PROVIDER_TRONEX,
-            'shipping_cost' => 0,
-        ]);
-    }
-
-    try {
-        $cart = collect(session()->get('cart', []));
-        $quote = app(\App\Services\Shipping\CoordinadoraQuoteService::class)->quoteFromCart($cart, $zone);
-
-        return response()->json([
-            'success' => true,
-            'provider' => Order::SHIPPING_PROVIDER_COORDINADORA,
-            'shipping_cost' => $quote['shipping_cost'],
-            'delivery_estimate' => $quote['delivery_estimate'] ?? null,
-        ]);
-    } catch (\Throwable $e) {
-        return response()->json([
-            'success' => false,
-            'provider' => Order::SHIPPING_PROVIDER_COORDINADORA,
-            'message' => 'No se pudo cotizar el envío en este momento.',
-        ], 422);
-    }
-});
-
 Route::get('/cities', [CityController::class, 'index'])->name('cities.index');
 
 Route::get('/products/latest', [ProductsApiController::class, 'latest']);

@@ -67,7 +67,10 @@ it('blocks non-admin users from the fv panel', function () {
 it('runs a connectivity test and stores the result', function () {
     $admin = makeFvPanelAdmin();
 
-    config(['services.fv.endpoint' => 'https://dynamics.test/soap/services/DYNPRODWSSalesForceGroup']);
+    config([
+        'services.fv.endpoint' => 'https://dynamics.test/soap/services/DYNPRODWSSalesForceGroup',
+        'microsoft.resource' => 'https://dynamics.test/',
+    ]);
     Setting::updateOrCreate(
         ['key' => 'microsoft_token'],
         ['name' => 'Microsoft Token', 'value' => 'test-token', 'show' => false]
@@ -91,7 +94,10 @@ it('runs a connectivity test and stores the result', function () {
 it('records a failed connectivity test when the endpoint errors', function () {
     $admin = makeFvPanelAdmin();
 
-    config(['services.fv.endpoint' => 'https://dynamics.test/soap/services/DYNPRODWSSalesForceGroup']);
+    config([
+        'services.fv.endpoint' => 'https://dynamics.test/soap/services/DYNPRODWSSalesForceGroup',
+        'microsoft.resource' => 'https://dynamics.test/',
+    ]);
     Setting::updateOrCreate(
         ['key' => 'microsoft_token'],
         ['name' => 'Microsoft Token', 'value' => 'test-token', 'show' => false]
