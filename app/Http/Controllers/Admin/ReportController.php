@@ -25,8 +25,8 @@ class ReportController extends Controller
                 'type' => 'async',
             ],
             'users_export' => [
-                'name' => 'Exportar Usuarios',
-                'description' => 'Genera en segundo plano la exportación de todos los clientes (Excel). Descárgala desde "Mis Exportaciones" en la sección Clientes cuando esté lista.',
+                'name' => 'Exportar Clientes',
+                'description' => 'Genera en segundo plano la exportación de todos los clientes (Excel), incluyendo teléfonos, email y datos de zona. Descárgala desde "Mis Exportaciones" en la sección Clientes cuando esté lista.',
                 'has_filters' => false,
                 'type' => 'direct',
                 'url' => '/userexport',

@@ -11,7 +11,7 @@
             <div class="flex items-center gap-2">
                 <a href="{{ route('admin.export.users') }}"
                    class="inline-flex items-center px-3 py-2 text-sm font-medium text-white rounded-lg bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300"
-                   title="Generar exportación de clientes">
+                   title="Generar exportación de clientes en segundo plano (incluye email y teléfonos)">
                     @svg('heroicon-o-arrow-down-on-square', 'w-5 h-5 sm:mr-2')
                     <span class="hidden sm:inline">Exportar clientes</span>
                 </a>
