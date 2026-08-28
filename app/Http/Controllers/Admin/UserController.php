@@ -17,7 +17,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Carbon\Carbon;
-use App\Exports\UsersExport;
 
 class UserController extends Controller
 {
@@ -236,14 +235,13 @@ class UserController extends Controller
     /**
      * Queue an async export of all clients.
      *
-     * The full clients list is too large to export synchronously (it times out
-     * and exhausts memory in production), so the file is generated in the
-     * background and made available via "Mis Exportaciones".
+     * Streams a UTF-8 CSV on the dedicated `exports` Horizon queue. PhpSpreadsheet
+     * XLSX queued exports OOM / timeout on the full production client list.
      */
     public function export()
     {
         $timestamp = time();
-        $filename = "clientes_{$timestamp}.xlsx";
+        $filename = "clientes_{$timestamp}.csv";
 
         $exportFile = ExportFile::create([
             'user_id' => auth()->id(),
@@ -257,18 +255,11 @@ class UserController extends Controller
         ]);
 
         try {
-            (new UsersExport())
-                ->queue($exportFile->file_path, 'local')
-                ->chain([
-                    function () use ($exportFile) {
-                        $totalRecords = User::query()->whereDoesntHave('roles')->count();
-                        $exportFile->markAsCompleted($totalRecords);
-                    },
-                ]);
+            \App\Jobs\ExportClientsJob::dispatch($exportFile->id);
 
             $exportFile->markAsProcessing();
 
-            return back()->with('success', 'La exportación de clientes se está generando en segundo plano. Aparecerá en "Mis Exportaciones" cuando esté lista.');
+            return back()->with('success', 'La exportación de clientes se está generando en segundo plano. Aparecerá en "Mis Exportaciones" cuando esté lista (CSV).');
         } catch (\Throwable $e) {
             $exportFile->markAsFailed($e->getMessage());
 

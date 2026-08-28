@@ -26,7 +26,7 @@ class ReportController extends Controller
             ],
             'users_export' => [
                 'name' => 'Exportar Clientes',
-                'description' => 'Genera en segundo plano la exportación de todos los clientes (Excel), incluyendo teléfonos, email y datos de zona. Descárgala desde "Mis Exportaciones" en la sección Clientes cuando esté lista.',
+                'description' => 'Genera en segundo plano un CSV de todos los clientes (teléfonos, email y datos de zona). Descárgalo desde "Mis Exportaciones" en la sección Clientes cuando esté listo.',
                 'has_filters' => false,
                 'type' => 'direct',
                 'url' => '/userexport',

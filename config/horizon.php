@@ -232,6 +232,18 @@ return [
             'timeout' => 3600,
             'nice' => 0,
         ],
+        'supervisor-exports' => [
+            'connection' => 'redis',
+            'queue' => ['exports'],
+            'balance' => 'simple',
+            'maxProcesses' => 1,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 512,
+            'tries' => 1,
+            'timeout' => 1800,
+            'nice' => 0,
+        ],
     ],
 
     'environments' => [
@@ -288,6 +300,16 @@ return [
                 'timeout' => 3600,
                 'nice' => 0,
             ],
+            'supervisor-exports' => [
+                'connection' => 'redis',
+                'queue' => ['exports'],
+                'balance' => 'simple',
+                'maxProcesses' => 1,
+                'memory' => 512,
+                'tries' => 1,
+                'timeout' => 1800,
+                'nice' => 0,
+            ],
         ],
 
         'local' => [
@@ -329,6 +351,16 @@ return [
                 'memory' => 256,
                 'tries' => 1,
                 'timeout' => 3600,
+                'nice' => 0,
+            ],
+            'supervisor-exports' => [
+                'connection' => 'redis',
+                'queue' => ['exports'],
+                'balance' => 'simple',
+                'maxProcesses' => 1,
+                'memory' => 512,
+                'tries' => 1,
+                'timeout' => 1800,
                 'nice' => 0,
             ],
         ],
