@@ -330,50 +330,46 @@ class Product extends Model
 
     /**
      * Get all active tags for this product (manual + auto tags)
-     * Returns up to 2 tags: manual tag (if exists) + auto tags (NUEVO, discount % / amount)
+     * Returns up to 2 tags, always preferring a configured manual tag when present.
      */
     public function getActiveTags(): array
     {
-        $tags = [];
+        $manual = [];
+        $autos = [];
 
-        // Get manual tag (lowest priority)
         $manualTag = Tag::getTagForProduct($this);
         if ($manualTag) {
-            $tags[] = [
+            $manual[] = [
                 'content' => $manualTag->content,
                 'type' => 'manual',
                 'priority' => $manualTag->priority,
             ];
         }
 
-        // Check auto tag settings
         $autoTagNuevoEnabled = Setting::getByKey('auto_tag_nuevo_enabled') === '1';
         $autoTagDescuentoEnabled = Setting::getByKey('auto_tag_descuento_enabled') === '1';
 
-        // Auto tag: NUEVO (if product created within 30 days)
         if ($autoTagNuevoEnabled && $this->created_at && $this->created_at->diffInDays(now()) <= 30) {
-            $tags[] = [
+            $autos[] = [
                 'content' => 'NUEVO',
                 'type' => 'auto_nuevo',
                 'priority' => 999,
             ];
         }
 
-        // Auto tag: DESCUENTO — product or brand discount only (vendor promos never trigger the card tag)
         if ($autoTagDescuentoEnabled && $this->hasAnyDiscountForAutoTag()) {
-            $tags[] = [
+            $autos[] = [
                 'content' => $this->getAutoDescuentoTagContent(),
                 'type' => 'auto_descuento',
                 'priority' => 998,
             ];
         }
 
-        // Sort by priority (lower is better) and limit to 2 tags
-        usort($tags, function ($a, $b) {
+        usort($autos, function ($a, $b) {
             return $a['priority'] <=> $b['priority'];
         });
 
-        return array_slice($tags, 0, 2);
+        return array_slice(array_merge($manual, $autos), 0, 2);
     }
 
     /**

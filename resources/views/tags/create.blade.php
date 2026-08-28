@@ -14,7 +14,7 @@
             <div class="grid grid-cols-6 gap-6">
                 {{ Aire::input('content', 'Contenido de la etiqueta')->groupClass('col-span-6')->helpText('Texto que aparecerá en la etiqueta') }}
                 
-                {{ Aire::input('priority', 'Prioridad')->type('number')->value(999)->groupClass('col-span-3')->helpText('Número más bajo = mayor prioridad. Si varias etiquetas aplican, se mostrará la de menor número.') }}
+                {{ Aire::input('priority', 'Prioridad')->type('number')->value(10)->groupClass('col-span-3')->helpText('Número más bajo = mayor prioridad. Usa un valor bajo (ej. 10) para que la etiqueta manual se vea junto al descuento automático.') }}
 
                 <div class="col-span-6">
                     <div class="flex items-center">
