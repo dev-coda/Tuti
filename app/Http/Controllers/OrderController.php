@@ -27,27 +27,50 @@ class OrderController extends Controller
         $isSupervisor = $user->hasRole('supervisor');
         $sellerDashToday = Carbon::now($this->sellerReportTimezone())->format('Y-m-d');
 
+        // Only hydrate the active tab. Supervisors land on Mis Zonas; loading every
+        // zone's pedidos + dashboard lists at once was timing out Mi Cuenta.
+        $availableTabs = ['orders', 'account'];
+        if ($isSeller) {
+            $availableTabs[] = 'orders-today';
+            if ($isSupervisor) {
+                $availableTabs[] = 'mis-rutas';
+            } else {
+                $availableTabs[] = 'mi-ruta';
+            }
+        } else {
+            $availableTabs[] = 'addresses';
+        }
+
+        $requestedTab = (string) $request->input('tab', '');
+        $defaultTab = $isSupervisor ? 'mis-rutas' : ($isSeller ? 'orders-today' : 'orders');
+        $activeTab = in_array($requestedTab, $availableTabs, true) ? $requestedTab : $defaultTab;
+
         $recentFilters = $this->extractOrderFilters($request);
         $todayFilters = $this->extractOrderFilters($request, 'today_');
-
-        $orders = $this->buildOrdersQuery($user, $recentFilters, $request)
-            ->orderByDesc('id')
-            ->paginate()
-            ->withQueryString();
-
         if ($isSeller) {
             $todayFilters = $this->normalizeDailyFilters($todayFilters, $sellerDashToday);
         }
 
-        $dailyOrders = $isSeller
-            ? $this->buildOrdersQuery($user, $todayFilters, $request)
+        $orders = null;
+        $dailyOrders = null;
+        $myRoute = null;
+        $myRoutes = null;
+
+        if ($activeTab === 'orders') {
+            $orders = $this->buildOrdersQuery($user, $recentFilters, $request)
+                ->orderByDesc('id')
+                ->paginate()
+                ->withQueryString();
+        } elseif ($activeTab === 'orders-today' && $isSeller) {
+            $dailyOrders = $this->buildOrdersQuery($user, $todayFilters, $request)
                 ->orderByDesc('id')
                 ->paginate(15, ['*'], 'today_page')
-                ->withQueryString()
-            : null;
-
-        $myRoute = ($isSeller && ! $isSupervisor) ? $this->buildMyRouteData($user, $request) : null;
-        $myRoutes = $isSupervisor ? $this->buildMyRoutesData($user, $request) : null;
+                ->withQueryString();
+        } elseif ($activeTab === 'mi-ruta' && $isSeller && ! $isSupervisor) {
+            $myRoute = $this->buildMyRouteData($user, $request);
+        } elseif ($activeTab === 'mis-rutas' && $isSupervisor) {
+            $myRoutes = $this->buildMyRoutesData($user, $request);
+        }
 
         $statuses = [
             '' => 'Todos',
@@ -70,7 +93,8 @@ class OrderController extends Controller
             'recentFilters',
             'todayFilters',
             'myRoute',
-            'myRoutes'
+            'myRoutes',
+            'activeTab'
         ));
     }
 
@@ -336,8 +360,34 @@ class OrderController extends Controller
      */
     private function applyCoverageScope($query, array $coverages): void
     {
+        $zoneWide = [];
+        $routeSpecific = [];
+
         foreach ($coverages as $coverage) {
-            $query->orWhere(function ($inner) use ($coverage) {
+            if ($coverage['route'] === null || $coverage['route'] === '') {
+                $zoneWide[] = $coverage['zone'];
+            } else {
+                $routeSpecific[] = $coverage;
+            }
+        }
+
+        $zoneWide = array_values(array_unique($zoneWide));
+        $started = false;
+
+        if ($zoneWide !== []) {
+            // Batch zone-wide coverage — same shape as the pre-route supervisor query.
+            $query->where(function ($zoneQuery) use ($zoneWide) {
+                $zoneQuery->whereHas('zone', function ($inner) use ($zoneWide) {
+                    $inner->whereIn('zone', $zoneWide);
+                })->orWhereIn('zone_snapshot->zone', $zoneWide);
+            });
+            $started = true;
+        }
+
+        foreach ($routeSpecific as $coverage) {
+            $method = $started ? 'orWhere' : 'where';
+            $started = true;
+            $query->{$method}(function ($inner) use ($coverage) {
                 $this->applyZoneScope($inner, $coverage['zone'], $coverage['route']);
             });
         }

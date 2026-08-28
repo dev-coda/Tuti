@@ -3,7 +3,7 @@
 
 @section('head')
 
-    @include('elements.seo', ['title'=>'Ordenes' ])
+    @include('elements.seo', ['title'=>'Mi Cuenta' ])
 
 @endsection
 
@@ -74,9 +74,10 @@
 
         <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
             <div class="flex flex-col sm:flex-row">
+                @php $activeTab = $activeTab ?? (!empty($isSupervisor) ? 'mis-rutas' : (!empty($isSeller) ? 'orders-today' : 'orders')); @endphp
                 @if(!empty($isSeller))
                 <button type="button" data-tab-trigger="orders-today"
-                        class="flex-1 px-4 py-4 text-sm font-semibold {{ !empty($isSupervisor) ? 'text-gray-700 hover:bg-gray-50 border-b border-gray-200' : 'text-orange-600 bg-orange-50 border-b-2 border-orange-500' }}">
+                        class="flex-1 px-4 py-4 text-sm font-semibold {{ $activeTab === 'orders-today' ? 'text-orange-600 bg-orange-50 border-b-2 border-orange-500' : 'text-gray-700 hover:bg-gray-50 border-b border-gray-200' }}">
                     <div class="flex items-center justify-center gap-2">
                         <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10m-12 9h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v11a2 2 0 002 2z" />
@@ -86,7 +87,7 @@
                 </button>
                 @if(empty($isSupervisor))
                 <button type="button" data-tab-trigger="mi-ruta"
-                        class="flex-1 px-4 py-4 text-sm font-semibold text-gray-700 hover:bg-gray-50 border-b border-gray-200">
+                        class="flex-1 px-4 py-4 text-sm font-semibold {{ $activeTab === 'mi-ruta' ? 'text-orange-600 bg-orange-50 border-b-2 border-orange-500' : 'text-gray-700 hover:bg-gray-50 border-b border-gray-200' }}">
                     <div class="flex items-center justify-center gap-2">
                         <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
@@ -98,7 +99,7 @@
                 @endif
                 @if(!empty($isSupervisor))
                 <button type="button" data-tab-trigger="mis-rutas"
-                        class="flex-1 px-4 py-4 text-sm font-semibold text-orange-600 bg-orange-50 border-b-2 border-orange-500">
+                        class="flex-1 px-4 py-4 text-sm font-semibold {{ $activeTab === 'mis-rutas' ? 'text-orange-600 bg-orange-50 border-b-2 border-orange-500' : 'text-gray-700 hover:bg-gray-50 border-b border-gray-200' }}">
                     <div class="flex items-center justify-center gap-2">
                         <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8.25 8.25 0 1111.314 0z" />
@@ -109,7 +110,7 @@
                 </button>
                 @endif
                 <button type="button" data-tab-trigger="orders"
-                        class="flex-1 px-4 py-4 text-sm font-semibold text-gray-700 hover:bg-gray-50 border-b border-gray-200">
+                        class="flex-1 px-4 py-4 text-sm font-semibold {{ $activeTab === 'orders' ? 'text-orange-600 bg-orange-50 border-b-2 border-orange-500' : 'text-gray-700 hover:bg-gray-50 border-b border-gray-200' }}">
                     <div class="flex items-center justify-center gap-2">
                         <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
@@ -118,7 +119,7 @@
                     </div>
                 </button>
                 <button type="button" data-tab-trigger="account"
-                        class="flex-1 px-4 py-4 text-sm font-semibold text-gray-700 hover:bg-gray-50 border-b border-gray-200">
+                        class="flex-1 px-4 py-4 text-sm font-semibold {{ $activeTab === 'account' ? 'text-orange-600 bg-orange-50 border-b-2 border-orange-500' : 'text-gray-700 hover:bg-gray-50 border-b border-gray-200' }}">
                     <div class="flex items-center justify-center gap-2">
                         <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -128,7 +129,7 @@
                 </button>
                 @if(empty($isSeller))
                 <button type="button" data-tab-trigger="addresses"
-                        class="flex-1 px-4 py-4 text-sm font-semibold text-gray-700 hover:bg-gray-50 border-b border-gray-200">
+                        class="flex-1 px-4 py-4 text-sm font-semibold {{ $activeTab === 'addresses' ? 'text-orange-600 bg-orange-50 border-b-2 border-orange-500' : 'text-gray-700 hover:bg-gray-50 border-b border-gray-200' }}">
                     <div class="flex items-center justify-center gap-2">
                         <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8.25 8.25 0 1111.314 0z" />
@@ -143,65 +144,73 @@
 
         <div class="mt-6">
             @if(!empty($isSeller))
-            <div data-tab-panel="orders-today" @if(!empty($isSupervisor)) class="hidden" @endif>
-                @include('clients.orders.partials.orders-tab-panel', [
-                    'tabKey' => 'orders-today',
-                    'pageParam' => 'today_page',
-                    'showFilters' => false,
-                    'showOrigin' => true,
-                    'orders' => $dailyOrders,
-                    'statuses' => $statuses,
-                    'sellerDashToday' => $sellerDashToday,
-                    'filters' => $todayFilters,
-                    'queryKeys' => [
-                        'q' => 'today_q',
-                        'order_id' => 'today_order_id',
-                        'from_date' => 'today_from_date',
-                        'to_date' => 'today_to_date',
-                        'status_id' => 'today_status_id',
-                    ],
-                    'emptyMessage' => 'No tienes pedidos para el rango seleccionado.',
-                ])
+            <div data-tab-panel="orders-today" class="{{ ($activeTab ?? '') === 'orders-today' ? '' : 'hidden' }}">
+                @if($dailyOrders)
+                    @include('clients.orders.partials.orders-tab-panel', [
+                        'tabKey' => 'orders-today',
+                        'pageParam' => 'today_page',
+                        'showFilters' => false,
+                        'showOrigin' => true,
+                        'orders' => $dailyOrders,
+                        'statuses' => $statuses,
+                        'sellerDashToday' => $sellerDashToday,
+                        'filters' => $todayFilters,
+                        'queryKeys' => [
+                            'q' => 'today_q',
+                            'order_id' => 'today_order_id',
+                            'from_date' => 'today_from_date',
+                            'to_date' => 'today_to_date',
+                            'status_id' => 'today_status_id',
+                        ],
+                        'emptyMessage' => 'No tienes pedidos para el rango seleccionado.',
+                    ])
+                @endif
             </div>
 
             @if(empty($isSupervisor))
-            <div data-tab-panel="mi-ruta" class="hidden">
-                @include('clients.orders.partials.my-route-panel', ['myRoute' => $myRoute])
+            <div data-tab-panel="mi-ruta" class="{{ ($activeTab ?? '') === 'mi-ruta' ? '' : 'hidden' }}">
+                @if($myRoute)
+                    @include('clients.orders.partials.my-route-panel', ['myRoute' => $myRoute])
+                @endif
             </div>
             @endif
             @endif
 
             @if(!empty($isSupervisor))
-            <div data-tab-panel="mis-rutas">
-                @include('clients.orders.partials.my-routes-panel', [
-                    'myRoutes' => $myRoutes,
-                    'statuses' => $statuses,
-                    'sellerDashToday' => $sellerDashToday,
-                ])
+            <div data-tab-panel="mis-rutas" class="{{ ($activeTab ?? 'mis-rutas') === 'mis-rutas' ? '' : 'hidden' }}">
+                @if($myRoutes)
+                    @include('clients.orders.partials.my-routes-panel', [
+                        'myRoutes' => $myRoutes,
+                        'statuses' => $statuses,
+                        'sellerDashToday' => $sellerDashToday,
+                    ])
+                @endif
             </div>
             @endif
 
-            <div data-tab-panel="orders" @if(!empty($isSeller)) class="hidden" @endif>
-                @include('clients.orders.partials.orders-tab-panel', [
-                    'tabKey' => 'orders',
-                    'pageParam' => 'page',
-                    'showOrigin' => !empty($isSeller),
-                    'orders' => $orders,
-                    'statuses' => $statuses,
-                    'sellerDashToday' => $sellerDashToday,
-                    'filters' => $recentFilters,
-                    'queryKeys' => [
-                        'q' => 'q',
-                        'order_id' => 'order_id',
-                        'from_date' => 'from_date',
-                        'to_date' => 'to_date',
-                        'status_id' => 'status_id',
-                    ],
-                    'emptyMessage' => 'No tienes pedidos recientes.',
-                ])
+            <div data-tab-panel="orders" class="{{ ($activeTab ?? '') === 'orders' ? '' : 'hidden' }}">
+                @if($orders)
+                    @include('clients.orders.partials.orders-tab-panel', [
+                        'tabKey' => 'orders',
+                        'pageParam' => 'page',
+                        'showOrigin' => !empty($isSeller),
+                        'orders' => $orders,
+                        'statuses' => $statuses,
+                        'sellerDashToday' => $sellerDashToday,
+                        'filters' => $recentFilters,
+                        'queryKeys' => [
+                            'q' => 'q',
+                            'order_id' => 'order_id',
+                            'from_date' => 'from_date',
+                            'to_date' => 'to_date',
+                            'status_id' => 'status_id',
+                        ],
+                        'emptyMessage' => 'No tienes pedidos recientes.',
+                    ])
+                @endif
             </div>
 
-            <div data-tab-panel="account" class="hidden">
+            <div data-tab-panel="account" class="{{ ($activeTab ?? '') === 'account' ? '' : 'hidden' }}">
                 @php
                     $accountUser = $accountUser ?? auth()->user();
                     $fullName = trim((string) $accountUser->name);
@@ -294,7 +303,7 @@
             </div>
 
             @if(empty($isSeller))
-            <div data-tab-panel="addresses" class="hidden">
+            <div data-tab-panel="addresses" class="{{ ($activeTab ?? '') === 'addresses' ? '' : 'hidden' }}">
                 <div class="space-y-6">
                     @if($accountUser->zones && $accountUser->zones->count())
                         @foreach($accountUser->zones as $zone)
@@ -375,41 +384,24 @@
 @section('scripts')
 <script>
     (function(){
-        /* ── Tab switching ─────────────────────────────────── */
+        /* ── Tab switching (full navigation so each tab loads its own data) ── */
         const tabTriggers = document.querySelectorAll('[data-tab-trigger]');
-        const tabPanels = document.querySelectorAll('[data-tab-panel]');
-
-        function activateTab(tabKey) {
-            tabPanels.forEach(panel => {
-                panel.classList.toggle('hidden', panel.dataset.tabPanel !== tabKey);
-            });
-            tabTriggers.forEach(trigger => {
-                const isActive = trigger.dataset.tabTrigger === tabKey;
-                trigger.classList.toggle('text-orange-600', isActive);
-                trigger.classList.toggle('bg-orange-50', isActive);
-                trigger.classList.toggle('border-orange-500', isActive);
-                trigger.classList.toggle('border-b-2', isActive);
-                trigger.classList.toggle('text-gray-700', !isActive);
-            });
-
-            const params = new URLSearchParams(window.location.search);
-            params.set('tab', tabKey);
-            window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
-        }
+        const activeTab = @json($activeTab ?? 'orders');
 
         tabTriggers.forEach(trigger => {
-            trigger.addEventListener('click', () => activateTab(trigger.dataset.tabTrigger));
-        });
+            trigger.addEventListener('click', () => {
+                const tabKey = trigger.dataset.tabTrigger;
+                if (tabKey === activeTab) return;
 
-        // Check for tab query parameter, otherwise default to first seller/orders tab
-        const urlParams = new URLSearchParams(window.location.search);
-        const tabParam = urlParams.get('tab');
-        const availableTabs = Array.from(tabTriggers).map(trigger => trigger.dataset.tabTrigger);
-        const fallbackTab = availableTabs.includes('mis-rutas')
-            ? 'mis-rutas'
-            : (availableTabs.includes('orders-today') ? 'orders-today' : 'orders');
-        const initialTab = tabParam && availableTabs.includes(tabParam) ? tabParam : fallbackTab;
-        activateTab(initialTab);
+                const params = new URLSearchParams(window.location.search);
+                params.set('tab', tabKey);
+                // Reset pagination when changing tabs.
+                params.delete('page');
+                params.delete('today_page');
+                params.delete('sr_page');
+                window.location = `${window.location.pathname}?${params.toString()}`;
+            });
+        });
 
         /* ── Order filter debounce ─────────────────────────── */
         document.querySelectorAll('[data-orders-filter]').forEach(input => {

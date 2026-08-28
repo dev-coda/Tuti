@@ -453,17 +453,14 @@ it('limits pedidos del dia and recientes to the supervisor assigned route', func
 
     actingAs($supervisor);
 
-    $response = get(route('clients.orders.index'))->assertOk();
-    $html = $response->getContent();
+    $todayHtml = get(route('clients.orders.index', ['tab' => 'orders-today']))->assertOk()->getContent();
+    $recentHtml = get(route('clients.orders.index', ['tab' => 'orders']))->assertOk()->getContent();
 
-    $todayPanel = Str::between($html, 'data-tab-panel="orders-today"', 'data-tab-panel="mis-rutas"');
-    $recentPanel = Str::between($html, 'data-tab-panel="orders"', 'data-tab-panel="account"');
-
-    expect($todayPanel)
+    expect($todayHtml)
         ->toContain('Cliente Cubierto')
         ->not->toContain('Cliente Fuera De Ruta');
 
-    expect($recentPanel)
+    expect($recentHtml)
         ->toContain('Cliente Cubierto')
         ->not->toContain('Cliente Fuera De Ruta');
 });
@@ -530,10 +527,34 @@ it('does not let zona principal bypass a route-specific supervisor assignment', 
 
     actingAs($supervisor);
 
-    $html = get(route('clients.orders.index'))->assertOk()->getContent();
-    $recentPanel = Str::between($html, 'data-tab-panel="orders"', 'data-tab-panel="account"');
+    $html = get(route('clients.orders.index', ['tab' => 'orders']))->assertOk()->getContent();
 
-    expect($recentPanel)
+    expect($html)
         ->toContain('Cliente Ruta Principal')
         ->not->toContain('Cliente Zona Completa');
+});
+
+it('loads the default mi cuenta tab and account tab for supervisors', function () {
+    $supervisor = User::factory()->create(['name' => 'Supervisor Cuenta']);
+    $supervisor->assignRole('supervisor');
+
+    SupervisorRoute::create([
+        'user_id' => $supervisor->id,
+        'zone' => '101',
+        'route' => null,
+    ]);
+
+    actingAs($supervisor);
+
+    get(route('clients.orders.index'))
+        ->assertOk()
+        ->assertSee('Mi Cuenta')
+        ->assertSee('data-tab-trigger="mis-rutas"', false)
+        ->assertSee('Mis Zonas');
+
+    get(route('clients.orders.index', ['tab' => 'account']))
+        ->assertOk()
+        ->assertSee('Información de Cuenta')
+        ->assertSee('Información Personal')
+        ->assertSee($supervisor->email);
 });
