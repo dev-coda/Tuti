@@ -169,6 +169,9 @@ class FvDynamicsService
 
         $linesXml = $this->buildLinesXml($order, $warehouse);
 
+        // Element names/order match the Dynamics CreateSalesOrder demo envelope.
+        // Config defaults cover generic values that never change; order/user data
+        // wins when present, otherwise demo placeholders (., 9999, etc.).
         $fields = [
             'TRO_E_obsequio' => '0',
             'approval' => (string) config('services.fv.approval'),
@@ -179,8 +182,7 @@ class FvDynamicsService
             'deliveryMode' => (string) config('services.fv.delivery_mode'),
             'detail' => (string) $order->id,
             'docType' => (string) config('services.fv.doc_type'),
-            // Financial dimensions reject the "." empty-placeholder used elsewhere.
-            'drive' => $this->optionalDimension(config('services.fv.drive')),
+            'drive' => $this->valueOrDefault(config('services.fv.drive'), '9000'),
             'locationInvoice' => (string) config('services.fv.location_invoice'),
             'name' => $this->valueOrPlaceholder($user?->name),
             'numInvoice' => 'NEXT',
@@ -190,13 +192,17 @@ class FvDynamicsService
             'observationsCust' => $observationsCust,
             'orderType' => (string) config('services.fv.order_type'),
             'origenventa' => (string) config('services.fv.origen_venta'),
+            'transportadora' => (string) config('services.fv.transportadora'),
             'phone' => $this->valueOrPlaceholder($user?->mobile_phone ?: $user?->phone),
-            'resource' => $this->optionalDimension(config('services.fv.resource')),
-            'salesResponsible' => $this->optionalDimension($order->seller?->document),
+            'resource' => $this->valueOrDefault(config('services.fv.resource'), '9999'),
+            'salesResponsible' => $this->valueOrDefault(
+                $order->seller?->document,
+                (string) config('services.fv.sales_responsible', '9999')
+            ),
             'shapeDispatch' => '',
-            'supervisor' => $this->optionalDimension(config('services.fv.supervisor')),
+            'supervisor' => $this->valueOrDefault(config('services.fv.supervisor'), '9999'),
             'third' => $custId,
-            'vendor' => $this->optionalDimension(config('services.fv.vendor')),
+            'vendor' => $this->valueOrDefault(config('services.fv.vendor'), '9999'),
             'warehouse' => $warehouse,
         ];
 
@@ -209,6 +215,9 @@ class FvDynamicsService
             <soapenv:Header>
                 <dat:CallContext>
                     <dat:Company>' . $this->xmlEscape((string) config('services.fv.company')) . '</dat:Company>
+                    <dat:Language></dat:Language>
+                    <dat:MessageId></dat:MessageId>
+                    <dat:PartitionKey></dat:PartitionKey>
                 </dat:CallContext>
             </soapenv:Header>
             <soapenv:Body>
@@ -426,12 +435,14 @@ class FvDynamicsService
     }
 
     /**
-     * Conditional Dynamics financial dimensions must be omitted (empty), not "." —
-     * a lone dot is treated as an unsupported dimension value.
+     * Prefer a real value; fall back to the Dynamics demo default when blank.
+     * Do not use "." for financial dimensions — Dynamics rejects it.
      */
-    private function optionalDimension($value): string
+    private function valueOrDefault($value, string $default): string
     {
-        return trim((string) $value);
+        $value = trim((string) $value);
+
+        return $value !== '' ? $value : $default;
     }
 
     private function xmlEscape(string $value): string

@@ -76,6 +76,7 @@ return [
         // Defaults to the host of FV_SOAP_ENDPOINT (e.g. https://dev03ppac.operations.dynamics.com/).
         'token_resource' => env('FV_TOKEN_RESOURCE'),
         'soap_action' => env('FV_SOAP_ACTION', 'http://tempuri.org/DWSSalesForce/CreateSalesOrder'),
+        // Defaults below match the Dynamics CreateSalesOrder demo envelope.
         'company' => env('FV_COMPANY', 'TRX'),
         'origen_venta' => env('FV_ORIGEN_VENTA', 'Tuti'),
         'order_type' => env('FV_ORDER_TYPE', 'PDVTA'),
@@ -84,16 +85,18 @@ return [
         'delivery_mode' => env('FV_DELIVERY_MODE', 'TERRESTRE'),
         'business_unit' => env('FV_BUSINESS_UNIT', '01'),
         'cost_center' => env('FV_COST_CENTER', '1'),
-        'location_invoice' => env('FV_LOCATION_INVOICE', 'HHMEDELLIN'),
-        'num_sequence_group' => env('FV_NUM_SEQUENCE_GROUP', 'HHMEDELLIN'),
+        'location_invoice' => env('FV_LOCATION_INVOICE', 'MEDELLIN'),
+        'num_sequence_group' => env('FV_NUM_SEQUENCE_GROUP', 'MEDELLIN'),
+        'transportadora' => env('FV_TRANSPORTADORA', 'COORDINADORA'),
         'default_warehouse' => env('FV_DEFAULT_WAREHOUSE'),
         // Flete line SKU on FV CreateSalesOrder. Empty string omits the line.
         'shipping_item_id' => env('FV_SHIPPING_ITEM_ID', 'FL0001'),
-        // Conditional Dynamics dimensions (drive, resource, supervisor, vendor)
-        'drive' => env('FV_DRIVE'),
-        'resource' => env('FV_RESOURCE'),
-        'supervisor' => env('FV_SUPERVISOR'),
-        'vendor' => env('FV_VENDOR'),
+        // Financial dimensions / party codes — demo defaults when order data is missing.
+        'drive' => env('FV_DRIVE', '9000'),
+        'resource' => env('FV_RESOURCE', '9999'),
+        'supervisor' => env('FV_SUPERVISOR', '9999'),
+        'vendor' => env('FV_VENDOR', '9999'),
+        'sales_responsible' => env('FV_SALES_RESPONSIBLE', '9999'),
     ],
 
 ];

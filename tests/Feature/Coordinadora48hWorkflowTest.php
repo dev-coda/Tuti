@@ -386,14 +386,33 @@ it('processes coordinadora fv workflow without creating a guide by default', fun
         expect($request->header('Authorization')[0] ?? '')->toBe('Bearer test-microsoft-token');
 
         expect($body)->toContain('<tem:CreateSalesOrder>');
+        expect($body)->toContain('<dat:Company>TRX</dat:Company>');
+        expect($body)->toContain('<dat:Language></dat:Language>');
         expect($body)->toContain('<dyn:custId>901295332</dyn:custId>');
         expect($body)->toContain('<dyn:origenventa>Tuti</dyn:origenventa>');
+        expect($body)->toContain('<dyn:transportadora>COORDINADORA</dyn:transportadora>');
         expect($body)->toContain('<dyn:warehouse>MD15</dyn:warehouse>');
         expect($body)->toContain('<dyn:almacen>MD15</dyn:almacen>');
         expect($body)->toContain('<dyn:itemId>SKU-TEST-001</dyn:itemId>');
+        expect($body)->toContain('<dyn:lote>.</dyn:lote>');
+        expect($body)->toContain('<dyn:serial>.</dyn:serial>');
+        expect($body)->toContain('<dyn:taxCode>.</dyn:taxCode>');
+        expect($body)->toContain('<dyn:taxGroup>.</dyn:taxGroup>');
         expect($body)->toContain('<dyn:observationInternal>C001</dyn:observationInternal>');
-        expect($body)->toContain('<dyn:resource></dyn:resource>');
-        expect($body)->toContain('<dyn:drive></dyn:drive>');
+        expect($body)->toContain('<dyn:locationInvoice>MEDELLIN</dyn:locationInvoice>');
+        expect($body)->toContain('<dyn:numSequenceGroup>MEDELLIN</dyn:numSequenceGroup>');
+        expect($body)->toContain('<dyn:numInvoice>NEXT</dyn:numInvoice>');
+        expect($body)->toContain('<dyn:approval>YES</dyn:approval>');
+        expect($body)->toContain('<dyn:deliveryMode>TERRESTRE</dyn:deliveryMode>');
+        expect($body)->toContain('<dyn:docType>Factura</dyn:docType>');
+        expect($body)->toContain('<dyn:orderType>PDVTA</dyn:orderType>');
+        expect($body)->toContain('<dyn:TRO_E_obsequio>0</dyn:TRO_E_obsequio>');
+        expect($body)->toContain('<dyn:drive>9000</dyn:drive>');
+        expect($body)->toContain('<dyn:resource>9999</dyn:resource>');
+        expect($body)->toContain('<dyn:supervisor>9999</dyn:supervisor>');
+        expect($body)->toContain('<dyn:vendor>9999</dyn:vendor>');
+        expect($body)->toContain('<dyn:salesResponsible>9999</dyn:salesResponsible>');
+        expect($body)->toContain('<dyn:shapeDispatch></dyn:shapeDispatch>');
         // External order number must be the third token of observationsCust
         preg_match('/<dyn:observationsCust>(.*?)<\/dyn:observationsCust>/', $body, $matches);
         $tokens = preg_split('/\s+/', trim($matches[1]));
