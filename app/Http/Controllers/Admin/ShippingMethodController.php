@@ -14,8 +14,14 @@ class ShippingMethodController extends Controller
      */
     public function index()
     {
-        $shippingMethods = ShippingMethod::orderBy('sort_order')->get();
-        
+        $shippingMethods = ShippingMethod::query()
+            ->orderBy('sort_order')
+            ->withCount([
+                'cities as allowed_cities_count' => fn ($q) => $q->where('city_shipping_method.enabled', true),
+                'cities as blocked_cities_count' => fn ($q) => $q->where('city_shipping_method.enabled', false),
+            ])
+            ->get();
+
         return view('admin.shipping-methods.index', compact('shippingMethods'));
     }
 
@@ -46,12 +52,14 @@ class ShippingMethodController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'enabled' => 'boolean',
+            'restrict_cities' => 'boolean',
             'sort_order' => 'required|integer|min:0',
             'city_enabled' => 'nullable|array',
             'city_enabled.*' => 'in:0,1',
         ]);
 
         $validated['enabled'] = $request->has('enabled');
+        $validated['restrict_cities'] = $request->has('restrict_cities');
         $cityEnabled = $validated['city_enabled'] ?? [];
         unset($validated['city_enabled']);
 
@@ -75,8 +83,10 @@ class ShippingMethodController extends Controller
     }
 
     /**
-     * Persist per-city availability. Missing row = enabled; store only explicit disables
-     * plus explicit enables that replace a previous disable.
+     * Persist per-city availability.
+     *
+     * Opt-out (restrict_cities = false): store only explicit disables.
+     * Allowlist (restrict_cities = true): store only explicit enables.
      *
      * @param  array<string, mixed>  $cityEnabled
      */
@@ -84,9 +94,19 @@ class ShippingMethodController extends Controller
     {
         $cityIds = City::query()->pluck('id');
         $sync = [];
+        $default = $shippingMethod->restrict_cities ? '0' : '1';
 
         foreach ($cityIds as $cityId) {
-            $allowed = ($cityEnabled[(string) $cityId] ?? $cityEnabled[$cityId] ?? '1') === '1';
+            $allowed = ($cityEnabled[(string) $cityId] ?? $cityEnabled[$cityId] ?? $default) === '1';
+
+            if ($shippingMethod->restrict_cities) {
+                if ($allowed) {
+                    $sync[$cityId] = ['enabled' => true];
+                }
+
+                continue;
+            }
+
             if ($allowed) {
                 continue;
             }

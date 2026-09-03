@@ -14,11 +14,13 @@ class City extends Model
         'state_id',
         'active',
         'is_preferred',
+        'force_delivery_date_enabled',
     ];
 
     protected $casts = [
         'active' => 'boolean',
         'is_preferred' => 'boolean',
+        'force_delivery_date_enabled' => 'boolean',
     ];
 
     // Query Scopes for safe city filtering
@@ -47,6 +49,13 @@ class City extends Model
         return $this->belongsToMany(ShippingMethod::class, 'city_shipping_method')
             ->withPivot('enabled')
             ->withTimestamps();
+    }
+
+    public function allowsForceDeliveryDate(): bool
+    {
+        return $this->force_delivery_date_enabled !== false
+            && $this->force_delivery_date_enabled !== 0
+            && $this->force_delivery_date_enabled !== '0';
     }
 
     /**

@@ -463,7 +463,7 @@ class DraftOrderReconciliationService
         $statusId = Order::STATUS_PENDING;
         $scheduledDate = null;
 
-        $forceDeliveryDate = Setting::getByKey('force_delivery_date_enabled') == '1';
+        $forceDeliveryDate = Setting::isForceDeliveryDateEnabledForOrder($order);
 
         if ($order->delivery_method === Order::DELIVERY_METHOD_TRONEX && ! $forceDeliveryDate) {
             $sellerVisitDate = OrderRepository::getTronexSellerVisitDate($zone);

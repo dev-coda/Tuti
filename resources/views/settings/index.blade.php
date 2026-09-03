@@ -236,9 +236,43 @@
                                 </label>
                                 <p class="mt-2 text-xs text-gray-500">Cuando está activado, todos los pedidos enviados al SOAP API usarán el próximo día hábil como fecha de entrega, ignorando la fecha programada.</p>
                                 @if(\App\Models\Setting::getByKey('force_delivery_date_enabled') == '1')
-                                    <p class="mt-2 text-xs text-red-600 font-medium">⚠️ MODO ACTIVO: Los pedidos se enviarán con fecha de entrega forzada al próximo día hábil.</p>
+                                    <p class="mt-2 text-xs text-red-600 font-medium">⚠️ MODO ACTIVO: Los pedidos se enviarán con fecha de entrega forzada al próximo día hábil, excepto en las ciudades desmarcadas abajo.</p>
                                 @endif
                             </div>
+                        </form>
+                    </div>
+
+                    <div class="mb-6 pt-4 border-t border-gray-200">
+                        <h4 class="text-sm font-semibold text-gray-900">No aplicar Forzar Fecha en estas ciudades</h4>
+                        <p class="mt-1 text-xs text-gray-500">
+                            Desmarca la ciudad del piloto express para que conserve fechas programadas (y muestre la fecha de Entrega Especial) aunque el interruptor global esté activo.
+                        </p>
+                        <form action="{{ route('settings.update-force-delivery-date-cities') }}" method="POST" class="mt-3 space-y-3">
+                            @csrf
+                            <input type="search" id="force-date-city-filter" placeholder="Buscar ciudad o departamento"
+                                   class="w-full rounded-lg border-gray-300 text-sm focus:border-red-500 focus:ring-red-500">
+                            <div class="max-h-64 overflow-y-auto rounded-lg border border-gray-200 divide-y divide-gray-100 bg-white">
+                                @forelse($cities ?? [] as $city)
+                                    <label data-force-city-row class="flex items-center justify-between gap-3 px-4 py-2 hover:bg-gray-50">
+                                        <span class="min-w-0">
+                                            <span class="block text-sm font-medium text-gray-900">{{ $city->name }}</span>
+                                            <span class="block text-xs text-gray-500">{{ $city->state?->name }}</span>
+                                        </span>
+                                        <span class="flex items-center gap-2 shrink-0">
+                                            <span class="text-xs text-gray-500">Aplicar</span>
+                                            <input type="hidden" name="city_force_delivery[{{ $city->id }}]" value="0">
+                                            <input type="checkbox" name="city_force_delivery[{{ $city->id }}]" value="1"
+                                                   class="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                                                   @checked($city->force_delivery_date_enabled !== false)>
+                                        </span>
+                                    </label>
+                                @empty
+                                    <p class="px-4 py-3 text-sm text-gray-500">No hay ciudades registradas.</p>
+                                @endforelse
+                            </div>
+                            <button type="submit" class="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700">
+                                Guardar excepciones por ciudad
+                            </button>
                         </form>
                     </div>
 
@@ -623,5 +657,18 @@ function confirmProcessOrders() {
     
     return confirmed;
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+    const input = document.getElementById('force-date-city-filter');
+    if (!input) {
+        return;
+    }
+    input.addEventListener('input', () => {
+        const needle = input.value.trim().toLowerCase();
+        document.querySelectorAll('[data-force-city-row]').forEach((row) => {
+            row.classList.toggle('hidden', needle !== '' && !row.textContent.toLowerCase().includes(needle));
+        });
+    });
+});
 </script>
 @endsection

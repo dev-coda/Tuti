@@ -95,7 +95,7 @@ class ProcessOrderAsync implements ShouldQueue, ShouldBeUnique
 
         // Check if order is waiting for scheduled transmission date
         // BUT: Skip waiting if force delivery date is enabled (emergency override)
-        $forceDeliveryDate = \App\Models\Setting::getByKey('force_delivery_date_enabled') == '1';
+        $forceDeliveryDate = \App\Models\Setting::isForceDeliveryDateEnabledForOrder($this->order);
         
         if ($this->order->status_id === Order::STATUS_WAITING && $this->order->scheduled_transmission_date && !$forceDeliveryDate) {
             $scheduledDate = \Carbon\Carbon::parse($this->order->scheduled_transmission_date);

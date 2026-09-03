@@ -124,7 +124,7 @@ class OrderRepository
             return '';
         }
         $delivery_date = $order->delivery_date;
-        $forceDeliveryDate = Setting::getByKey('force_delivery_date_enabled') == '1';
+        $forceDeliveryDate = Setting::isForceDeliveryDateEnabledForOrder($order);
         if ($forceDeliveryDate) {
             $delivery_date = self::getBusinessDay(0);
         }
@@ -429,7 +429,7 @@ class OrderRepository
         $delivery_date = $order->delivery_date;
 
         // Check if force delivery date is enabled (emergency override)
-        $forceDeliveryDate = Setting::getByKey('force_delivery_date_enabled') == '1';
+        $forceDeliveryDate = Setting::isForceDeliveryDateEnabledForOrder($order);
         if ($forceDeliveryDate) {
             // Override with next business day
             $nextBusinessDay = self::getBusinessDay(0);

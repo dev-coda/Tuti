@@ -88,6 +88,7 @@
                             'delivery-calendars.index'=>'Calendario de Entrega',
                             'route-cycles.index'=>'Ciclos de Rutas',
                             'zone-routes.index'=>'Rutas por Zona',
+                            'department-placeholder-zones.index'=>'Zonas placeholder',
                             'banners.index'=>'Banners',
                             'featured-products.index'=>'Productos Destacados',
                             'featured-categories.index'=>'Categorías Destacadas',

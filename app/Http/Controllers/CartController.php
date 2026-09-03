@@ -153,8 +153,18 @@ class CartController extends Controller
             }
         }
 
+        $targetUser = $client ?? $user;
+        if ($zoneOptions->isEmpty()) {
+            $placeholderZone = app(\App\Services\DepartmentPlaceholderZoneService::class)
+                ->ensureZoneForUser($targetUser);
+            if ($placeholderZone) {
+                $zoneOptions = collect([$placeholderZone]);
+            }
+        }
+
         // When inventory is enabled, hide addresses whose logistics zone has no bodega mapping.
         // This prevents users from selecting an address that will fail at checkout.
+        // Placeholder cabecera zones stay visible — they are the no-sucursal fallback.
         $inventoryEnabledRaw = Setting::getByKey('inventory_enabled');
         $isInventoryEnabledForFilter = ($inventoryEnabledRaw === '1' || $inventoryEnabledRaw === 1 || $inventoryEnabledRaw === true);
 
@@ -162,7 +172,9 @@ class CartController extends Controller
             $zoneCodes = $zoneOptions->pluck('zone')->filter()->unique()->values();
             $bodegaByZone = $zoneCodes->mapWithKeys(fn ($code) => [$code => ZoneWarehouse::getBodegaForZone($code)]);
 
-            $filtered = $zoneOptions->filter(fn ($z) => $z->zone && ($bodegaByZone[$z->zone] ?? null) !== null);
+            $filtered = $zoneOptions->filter(
+                fn ($z) => $z->isPlaceholder() || ($z->zone && ($bodegaByZone[$z->zone] ?? null) !== null)
+            );
 
             if ($filtered->isEmpty()) {
                 \Log::warning('All zones filtered out — no bodega mapping for any address', [
@@ -178,8 +190,6 @@ class CartController extends Controller
         $products = [];
         $total_cart = 0;
 
-        // Check if the target user has orders - needed for discount calculations
-        $targetUser = $client ?? $user;
         $has_orders = Order::with('user')
             ->withCount('products')
             ->whereBelongsTo($targetUser)
@@ -381,11 +391,11 @@ class CartController extends Controller
 
         $bonificationPreview = $this->buildCartBonificationPreview($cart);
 
-        $cityShippingFlags = \App\Models\ShippingMethod::cityAvailabilityFlags(
-            $targetUser->city_id ? (int) $targetUser->city_id : null
-        );
+        $checkoutCityId = $targetUser->city_id ? (int) $targetUser->city_id : null;
+        $cityShippingFlags = \App\Models\ShippingMethod::cityAvailabilityFlags($checkoutCityId);
+        $isForceEnabled = Setting::isForceDeliveryDateEnabled($checkoutCityId);
 
-        $context = compact('products', 'alertVendors', 'vendorDiscountAlerts', 'zoneOptions', 'set_user', 'client', 'alertTotal', 'min_amount', 'total_cart', 'has_orders', 'appliedCoupon', 'couponDiscount', 'couponMessage', 'shippingMethods', 'cartRetentions', 'bonificationPreview', 'cityShippingFlags');
+        $context = compact('products', 'alertVendors', 'vendorDiscountAlerts', 'zoneOptions', 'set_user', 'client', 'alertTotal', 'min_amount', 'total_cart', 'has_orders', 'appliedCoupon', 'couponDiscount', 'couponMessage', 'shippingMethods', 'cartRetentions', 'bonificationPreview', 'cityShippingFlags', 'isForceEnabled');
 
         return view('pages.cart', $context);
     }
@@ -768,7 +778,7 @@ class CartController extends Controller
         // Inventory validation based on zone/bodega
         $inventoryEnabled = Setting::getByKey('inventory_enabled');
         $isInventoryEnabled = ($inventoryEnabled === '1' || $inventoryEnabled === 1 || $inventoryEnabled === true);
-        $enforceInventoryChecks = $isInventoryEnabled && ! $isDraftClientCheckout;
+        $enforceInventoryChecks = $isInventoryEnabled && ! $isDraftClientCheckout && ! $zone?->isPlaceholder();
 
         // Bodega mapping uses logistics zone number (zones.zone, e.g. "933"), not CustRuteroID (zones.code).
         // zones.code is the stable key for checkout sucursal selection after rutero sync.
@@ -907,11 +917,16 @@ class CartController extends Controller
                     'prospect_draft' => $isDraftClientCheckout && $actingUser->isProspectClient(),
                 ]);
 
-                // Prospect drafts still keep the 48h Coordinadora promise even if quote fails
-                // (DANE / address may be incomplete until documents are validated).
-                if (! ($isDraftClientCheckout && $actingUser->isProspectClient())) {
+                // Prospect drafts and department-placeholder sucursales keep the 48h
+                // promise even if Coordinadora is unreachable (demo / incomplete DANE).
+                $allowQuoteFallback = ($isDraftClientCheckout && $actingUser->isProspectClient())
+                    || $zone?->isPlaceholder();
+                if (! $allowQuoteFallback) {
                     return back()->with('error', 'No pudimos cotizar el envío Coordinadora para esta dirección. Verifica el código postal o intenta de nuevo.');
                 }
+
+                $shippingQuoteAmount = 0.0;
+                $shippingQuoteQuoted = 0.0;
             }
         }
 
@@ -923,8 +938,9 @@ class CartController extends Controller
         $orderStatus = Order::STATUS_PENDING;
         $sellerVisitDate = null;
 
-        // Check if force delivery date is enabled (emergency override - bypasses waiting)
-        $forceDeliveryDate = \App\Models\Setting::getByKey('force_delivery_date_enabled') == '1';
+        // Check if force delivery date is enabled (emergency override - bypasses waiting).
+        // Cities with the flag off (express pilot) keep programmed dates / WAITING.
+        $forceDeliveryDate = Setting::isForceDeliveryDateEnabled($cityId);
 
         // Get seller visit date for Tronex orders (for logging and delay calculation)
         if ($delivery_method === Order::DELIVERY_METHOD_TRONEX && $zone) {
@@ -1406,7 +1422,7 @@ class CartController extends Controller
 
                 // Decrement inventory (only when enabled). Selected variation SKUs can map to
                 // their own synced product inventory; otherwise inventory stays on the catalog product.
-                if ($isInventoryEnabled && $p->isInventoryManaged()) {
+                if ($enforceInventoryChecks && $p->isInventoryManaged()) {
                     $variationItemId = isset($row['variation_id']) ? (int) $row['variation_id'] : null;
                     $inventory = $p->inventoryQueryForBodega($bodega, $variationItemId)?->lockForUpdate()->first();
                     $current = (int) ($inventory?->available ?? 0);
@@ -2355,6 +2371,14 @@ class CartController extends Controller
         }
 
         if ($zoneCount === 0) {
+            $placeholderZone = app(\App\Services\DepartmentPlaceholderZoneService::class)
+                ->ensureZoneForUser($actingUser);
+            if ($placeholderZone) {
+                session()->put('zone_id', $placeholderZone->id);
+
+                return ['ok' => true, 'zone' => $placeholderZone];
+            }
+
             return [
                 'ok' => false,
                 'message' => 'No hay dirección de entrega disponible. Actualiza tus datos de rutero e intenta de nuevo.',

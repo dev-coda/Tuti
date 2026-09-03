@@ -14,11 +14,13 @@ class ShippingMethod extends Model
         'name',
         'description',
         'enabled',
+        'restrict_cities',
         'sort_order',
     ];
 
     protected $casts = [
         'enabled' => 'boolean',
+        'restrict_cities' => 'boolean',
         'sort_order' => 'integer',
     ];
 
@@ -56,25 +58,45 @@ class ShippingMethod extends Model
     }
 
     /**
-     * Whether this method is offered in a city. Missing override = allowed.
+     * Whether this method is offered in a city.
+     *
+     * restrict_cities = false (opt-out): missing row = allowed.
+     * restrict_cities = true (allowlist / pilot): only explicit enabled rows.
      */
     public function isAllowedForCity(?int $cityId): bool
     {
+        if ($this->restrict_cities) {
+            if ($cityId === null) {
+                return false;
+            }
+
+            $override = $this->cityOverride($cityId);
+
+            return $override !== null && self::pivotEnabled($override->pivot->enabled);
+        }
+
         if ($cityId === null) {
             return true;
         }
 
-        $override = $this->cities()
-            ->where('cities.id', $cityId)
-            ->first();
-
+        $override = $this->cityOverride($cityId);
         if (! $override) {
             return true;
         }
 
-        return $override->pivot->enabled !== false
-            && $override->pivot->enabled !== 0
-            && $override->pivot->enabled !== '0';
+        return self::pivotEnabled($override->pivot->enabled);
+    }
+
+    private function cityOverride(int $cityId): ?City
+    {
+        return $this->cities()
+            ->where('cities.id', $cityId)
+            ->first();
+    }
+
+    private static function pivotEnabled(mixed $enabled): bool
+    {
+        return $enabled !== false && $enabled !== 0 && $enabled !== '0';
     }
 
     /**
