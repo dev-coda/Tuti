@@ -13,9 +13,11 @@
 @section('content')
 
 @php
-    // Define delivery settings variables at top level for use throughout the view
-    $forceDeliveryDateEnabled = \App\Models\Setting::getByKey('force_delivery_date_enabled');
-    $isForceEnabled = ($forceDeliveryDateEnabled === '1' || $forceDeliveryDateEnabled === 1 || $forceDeliveryDateEnabled === true);
+    $isForceEnabled = $isForceEnabled ?? \App\Models\Setting::isForceDeliveryDateEnabled(
+        isset($client) && $client?->city_id
+            ? (int) $client->city_id
+            : (auth()->user()?->city_id ? (int) auth()->user()->city_id : null)
+    );
     $isEnabled = \App\Models\Setting::isExpress48hEnabled();
 @endphp
 

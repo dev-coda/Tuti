@@ -43,6 +43,9 @@
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Descripción
                             </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Ciudades
+                            </th>
                             <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-32">
                                 Estado
                             </th>
@@ -80,6 +83,17 @@
                                 </td>
                                 <td class="px-6 py-4 text-sm text-gray-500">
                                     {{ $method->description ?? '-' }}
+                                </td>
+                                <td class="px-6 py-4 text-sm text-gray-500">
+                                    @if($method->restrict_cities)
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                            Solo {{ $method->allowed_cities_count }} ciudad(es)
+                                        </span>
+                                    @elseif($method->blocked_cities_count > 0)
+                                        <span class="text-xs text-gray-600">Todas excepto {{ $method->blocked_cities_count }}</span>
+                                    @else
+                                        <span class="text-xs text-gray-500">Todas</span>
+                                    @endif
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-center">
                                     @if($method->enabled)
@@ -129,7 +143,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5" class="px-6 py-12 text-center text-gray-500">
+                                <td colspan="6" class="px-6 py-12 text-center text-gray-500">
                                     <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path>
                                     </svg>

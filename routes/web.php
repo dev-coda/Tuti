@@ -169,6 +169,16 @@ Route::get('/api/shipping-quote/{method}', function (\Illuminate\Http\Request $r
         ]);
     }
 
+    $quoteCityId = $zone->user?->city_id
+        ? (int) $zone->user->city_id
+        : (auth()->user()?->city_id ? (int) auth()->user()->city_id : null);
+    if (! \App\Models\ShippingMethod::isCodeAllowedForCity($method, $quoteCityId)) {
+        return response()->json([
+            'success' => false,
+            'message' => 'El método de envío no está disponible para esta ciudad.',
+        ], 422);
+    }
+
     if ($method !== \App\Models\Order::DELIVERY_METHOD_EXPRESS) {
         return response()->json([
             'success' => true,
@@ -229,6 +239,18 @@ Route::get('/api/shipping-quote/{method}', function (\Illuminate\Http\Request $r
             'cart_count' => $cart->count(),
             'message' => $e->getMessage(),
         ]);
+
+        if ($zone->isPlaceholder()) {
+            return response()->json([
+                'success' => true,
+                'provider' => \App\Models\Order::SHIPPING_PROVIDER_COORDINADORA,
+                'shipping_cost' => 0,
+                'quoted_shipping_cost' => 0,
+                'free_shipping_applied' => true,
+                'fallback' => true,
+                'message' => 'Cotización Coordinadora no disponible; se usa flete $0 temporalmente.',
+            ]);
+        }
 
         return response()->json([
             'success' => false,

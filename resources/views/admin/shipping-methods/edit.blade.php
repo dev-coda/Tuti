@@ -30,18 +30,36 @@
                     </div>
                 </div>
 
+                <div class="col-span-6">
+                    <div class="flex items-start">
+                        {{ Aire::checkbox('restrict_cities', 'Limitar a ciudades seleccionadas')->value(1) }}
+                        <span class="ml-2 text-sm text-gray-600">
+                            Piloto: el método solo aparece en las ciudades marcadas abajo. Sin esta opción, está disponible en todas excepto las que desmarques.
+                        </span>
+                    </div>
+                </div>
+
                 <div class="col-span-6 mt-2">
                     <h4 class="text-sm font-semibold text-gray-900">Disponibilidad por ciudad</h4>
-                    <p class="mt-1 text-sm text-gray-500">
-                        Aplica a la ciudad del cliente (o del vendedor si aún no hay cliente seleccionado). Sin restricción = disponible en todas las ciudades.
+                    <p id="city-shipping-help-restrict" class="mt-1 text-sm text-gray-500 {{ $shippingMethod->restrict_cities ? '' : 'hidden' }}">
+                        Solo las ciudades marcadas tendrán este método. Ideal para un piloto en una ciudad.
                     </p>
-                    <div class="mt-3">
+                    <p id="city-shipping-help-all" class="mt-1 text-sm text-gray-500 {{ $shippingMethod->restrict_cities ? 'hidden' : '' }}">
+                        Aplica a la ciudad del cliente. Desmarca las ciudades donde no debe estar disponible.
+                    </p>
+                    <div class="mt-3 flex flex-wrap items-center gap-2">
                         <input type="search" id="city-shipping-filter" placeholder="Buscar ciudad o departamento"
-                               class="w-full rounded-lg border-gray-300 text-sm focus:border-orange-500 focus:ring-orange-500">
+                               class="flex-1 min-w-[12rem] rounded-lg border-gray-300 text-sm focus:border-orange-500 focus:ring-orange-500">
+                        <button type="button" id="city-shipping-select-all" class="px-3 py-2 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+                            Marcar todas
+                        </button>
+                        <button type="button" id="city-shipping-select-none" class="px-3 py-2 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+                            Ninguna
+                        </button>
                     </div>
                     <div class="mt-3 max-h-80 overflow-y-auto rounded-lg border border-gray-200 divide-y divide-gray-100">
                         @forelse($cities as $city)
-                            @php($isOn = $cityEnabled[$city->id] ?? true)
+                            @php($isOn = $shippingMethod->restrict_cities ? ($cityEnabled[$city->id] ?? false) : ($cityEnabled[$city->id] ?? true))
                             <label data-city-row class="flex items-center justify-between gap-3 px-4 py-2 hover:bg-gray-50">
                                 <span class="min-w-0">
                                     <span class="block text-sm font-medium text-gray-900">{{ $city->name }}</span>
@@ -50,6 +68,7 @@
                                 <span class="flex items-center gap-2 shrink-0">
                                     <input type="hidden" name="city_enabled[{{ $city->id }}]" value="0">
                                     <input type="checkbox" name="city_enabled[{{ $city->id }}]" value="1"
+                                           data-city-enabled
                                            class="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
                                            @checked($isOn)>
                                 </span>
@@ -82,6 +101,17 @@
                     <dd class="mt-1 text-sm text-gray-900 font-mono">{{ $shippingMethod->code }}</dd>
                 </div>
                 
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Ciudades</dt>
+                    <dd class="mt-1 text-sm text-gray-900">
+                        @if($shippingMethod->restrict_cities)
+                            Solo ciudades seleccionadas
+                        @else
+                            Todas (con exclusiones)
+                        @endif
+                    </dd>
+                </div>
+
                 <div>
                     <dt class="text-sm font-medium text-gray-500">Estado actual</dt>
                     <dd class="mt-1">
@@ -127,15 +157,33 @@
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     const input = document.getElementById('city-shipping-filter');
-    if (!input) {
-        return;
-    }
-    input.addEventListener('input', () => {
-        const needle = input.value.trim().toLowerCase();
-        document.querySelectorAll('[data-city-row]').forEach((row) => {
-            row.classList.toggle('hidden', needle !== '' && !row.textContent.toLowerCase().includes(needle));
+    const restrict = document.querySelector('input[name="restrict_cities"]');
+    const helpRestrict = document.getElementById('city-shipping-help-restrict');
+    const helpAll = document.getElementById('city-shipping-help-all');
+
+    if (input) {
+        input.addEventListener('input', () => {
+            const needle = input.value.trim().toLowerCase();
+            document.querySelectorAll('[data-city-row]').forEach((row) => {
+                row.classList.toggle('hidden', needle !== '' && !row.textContent.toLowerCase().includes(needle));
+            });
         });
-    });
+    }
+
+    const setAll = (checked) => {
+        document.querySelectorAll('[data-city-enabled]').forEach((box) => {
+            box.checked = checked;
+        });
+    };
+    document.getElementById('city-shipping-select-all')?.addEventListener('click', () => setAll(true));
+    document.getElementById('city-shipping-select-none')?.addEventListener('click', () => setAll(false));
+
+    const syncHelp = () => {
+        const on = !!(restrict && restrict.checked);
+        helpRestrict?.classList.toggle('hidden', !on);
+        helpAll?.classList.toggle('hidden', on);
+    };
+    restrict?.addEventListener('change', syncHelp);
 });
 </script>
 @endsection

@@ -180,6 +180,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::post('settings/update-global-inventory', [SettingController::class, 'updateGlobalInventory'])->name('settings.update-global-inventory');
     Route::post('settings/update-express-48h', [SettingController::class, 'updateExpress48h'])->name('settings.update-express-48h');
     Route::post('settings/update-force-delivery-date', [SettingController::class, 'updateForceDeliveryDate'])->name('settings.update-force-delivery-date');
+    Route::post('settings/update-force-delivery-date-cities', [SettingController::class, 'updateForceDeliveryDateCities'])->name('settings.update-force-delivery-date-cities');
     Route::post('settings/process-waiting-orders', [SettingController::class, 'processWaitingOrders'])->name('settings.process-waiting-orders');
     Route::get('settings/mailer-config', [SettingController::class, 'mailer'])->name('settings.mailer');
     Route::post('settings/mailer-config', [SettingController::class, 'updateMailer'])->name('settings.mailer.update');
@@ -222,6 +223,8 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('route-cycles-template', [RouteCycleController::class, 'exportTemplate'])->name('route-cycles.template');
     Route::resource('zone-routes', ZoneRouteController::class)->only(['index', 'store', 'destroy']);
     Route::post('zone-routes/sync-from-ruteros', [ZoneRouteController::class, 'syncFromRuteros'])->name('zone-routes.sync-from-ruteros');
+    Route::get('department-placeholder-zones', [\App\Http\Controllers\Admin\DepartmentPlaceholderZoneController::class, 'index'])->name('department-placeholder-zones.index');
+    Route::put('department-placeholder-zones', [\App\Http\Controllers\Admin\DepartmentPlaceholderZoneController::class, 'update'])->name('department-placeholder-zones.update');
     Route::post('test-email', function (\Illuminate\Http\Request $request) {
         try {
             // Validate email input

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Category;
+use App\Models\City;
 use App\Models\Setting;
 use App\Models\ZoneWarehouse;
 use App\Services\MicrosoftTokenService;
@@ -37,7 +38,12 @@ class SettingController extends Controller
         $unsyncedYesterday = \Illuminate\Support\Facades\Schema::hasTable('inventory_sync_logs')
             ? \App\Models\InventorySyncLog::unsyncedBodegasYesterday()
             : collect();
-        $context = compact('settings', 'syncStatus', 'unsyncedYesterday');
+        $cities = City::query()
+            ->with('state')
+            ->orderBy('name')
+            ->get();
+
+        $context = compact('settings', 'syncStatus', 'unsyncedYesterday', 'cities');
         return view('settings.index', $context);
     }
 
@@ -633,6 +639,37 @@ class SettingController extends Controller
             : 'Forzar Fecha de Entrega DESACTIVADO: Los pedidos se enviarán con su fecha programada normal.';
 
         return back()->with('success', $message);
+    }
+
+    /**
+     * Per-city exceptions for force delivery date (pilot cities can keep programmed dates).
+     */
+    public function updateForceDeliveryDateCities(Request $request)
+    {
+        $validated = $request->validate([
+            'city_force_delivery' => 'nullable|array',
+            'city_force_delivery.*' => 'in:0,1',
+        ]);
+
+        $flags = $validated['city_force_delivery'] ?? [];
+
+        foreach (City::query()->cursor() as $city) {
+            $enabled = ($flags[(string) $city->id] ?? $flags[$city->id] ?? '1') === '1';
+            if ((bool) $city->force_delivery_date_enabled === $enabled) {
+                continue;
+            }
+
+            $city->force_delivery_date_enabled = $enabled;
+            $city->save();
+        }
+
+        \Illuminate\Support\Facades\Log::warning('Force Delivery Date city exceptions updated', [
+            'disabled_city_ids' => City::query()->where('force_delivery_date_enabled', false)->pluck('id')->all(),
+            'user' => auth()->user()->email ?? 'Unknown',
+            'timestamp' => now()->toDateTimeString(),
+        ]);
+
+        return back()->with('success', 'Excepciones de Forzar Fecha de Entrega por ciudad actualizadas.');
     }
 
     /**

@@ -31,6 +31,36 @@ class Setting extends Model
     }
 
     /**
+     * Emergency "Forzar Fecha de Entrega". Global must be on, then the client's
+     * city can opt out (pilot cities with express keep their programmed dates).
+     */
+    public static function isForceDeliveryDateEnabled(?int $cityId = null): bool
+    {
+        $v = self::getByKeyWithDefault('force_delivery_date_enabled', '0');
+        if ($v !== '1' && $v !== 1 && $v !== true) {
+            return false;
+        }
+
+        if ($cityId === null) {
+            return true;
+        }
+
+        $city = City::query()->find($cityId);
+        if (! $city) {
+            return true;
+        }
+
+        return $city->allowsForceDeliveryDate();
+    }
+
+    public static function isForceDeliveryDateEnabledForOrder(?Order $order): bool
+    {
+        $cityId = $order?->user?->city_id;
+
+        return self::isForceDeliveryDateEnabled($cityId !== null ? (int) $cityId : null);
+    }
+
+    /**
      * Envío 48h (Coordinadora quote + provider) — admin Setting express_48h_enabled.
      * Default off. COORDINADORA_EXPRESS_48H_DISABLED=true in .env forces off in production.
      */
