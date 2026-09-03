@@ -63,6 +63,68 @@ class BonificationCheckoutService
     }
 
     /**
+     * Spanish message when Entrega Especial is blocked by cart bonifications.
+     */
+    public static function expressBlockedByBonificationsMessage(): string
+    {
+        return 'Tu carrito tiene productos no aptos para Entrega Especial por bonificaciones. Usa Entrega Standard o modifica el carrito.';
+    }
+
+    /**
+     * Whether the cart currently qualifies for at least one bonification gift.
+     * Same buy/get/max rules as checkout and the cart preview.
+     *
+     * @param  iterable<int, array<string, mixed>>  $cart
+     */
+    public static function cartHasQualifyingBonifications(iterable $cart): bool
+    {
+        $quantities = [];
+
+        foreach ($cart as $row) {
+            $productId = (int) ($row['product_id'] ?? 0);
+            if ($productId <= 0) {
+                continue;
+            }
+
+            $tempProduct = Product::find($productId);
+            if (! $tempProduct) {
+                continue;
+            }
+
+            $packageQuantity = max(1, (int) ($tempProduct->package_quantity ?? 1));
+            $quantities[$productId] = ($quantities[$productId] ?? 0)
+                + ((int) ($row['quantity'] ?? 0)) * $packageQuantity;
+        }
+
+        foreach ($quantities as $productId => $aggregatedIndividualItems) {
+            $product = Product::with('bonifications')->find($productId);
+            if (! $product || $product->bonifications->isEmpty()) {
+                continue;
+            }
+
+            foreach ($product->bonifications as $bonification) {
+                $buy = (int) $bonification->buy;
+                $get = (int) $bonification->get;
+                if ($buy <= 0 || $get <= 0) {
+                    continue;
+                }
+
+                $giftQuantity = (int) floor(($aggregatedIndividualItems / $buy) * $get);
+                $max = (int) ($bonification->max ?? 0);
+                if ($giftQuantity > $max) {
+                    $giftQuantity = $max;
+                }
+
+                if ($giftQuantity > 0) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Last cart key per product_id (cart order preserved) so bonifications are applied after
      * all order lines and inventory updates for that product in the current loop.
      */

@@ -576,6 +576,9 @@
                             </button>
                             @endforeach
                         </div>
+                        <p id="express-bonification-block" class="mt-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-3 {{ !empty($cartHasBonifications) ? '' : 'hidden' }}">
+                            {{ \App\Services\BonificationCheckoutService::expressBlockedByBonificationsMessage() }}
+                        </p>
                         <input type="hidden" name="delivery_method" id="delivery_method" value="{{ $shippingMethods->first()->code ?? 'tronex' }}">
                         <input type="hidden" name="shipping_quote_amount" id="shipping_quote_amount" value="0">
                     </div>
@@ -1227,22 +1230,24 @@
         
         function getSelectedZoneShippingFlags() {
             const cityFlags = @json($cityShippingFlags ?? ['standard' => true, 'express' => true]);
+            const cartHasBonifications = {{ !empty($cartHasBonifications) ? 'true' : 'false' }};
             if (!zoneSelect) {
                 return {
                     standard: cityFlags.standard !== false,
-                    express: cityFlags.express !== false,
+                    express: cityFlags.express !== false && !cartHasBonifications,
                 };
             }
             const opt = zoneSelect.options[zoneSelect.selectedIndex];
             return {
                 standard: (!opt || opt.getAttribute('data-shipping-standard') !== '0') && cityFlags.standard !== false,
-                express: (!opt || opt.getAttribute('data-shipping-express') !== '0') && cityFlags.express !== false,
+                express: (!opt || opt.getAttribute('data-shipping-express') !== '0') && cityFlags.express !== false && !cartHasBonifications,
             };
         }
 
         function syncZoneShippingMethods(preferredMethod) {
             const flags = getSelectedZoneShippingFlags();
             const available = [];
+            const cartHasBonifications = {{ !empty($cartHasBonifications) ? 'true' : 'false' }};
 
             deliveryOptions.forEach((option) => {
                 const code = option.getAttribute('data-method');
@@ -1253,6 +1258,11 @@
                     available.push(code);
                 }
             });
+
+            const bonifMsg = document.getElementById('express-bonification-block');
+            if (bonifMsg) {
+                bonifMsg.classList.toggle('hidden', !cartHasBonifications);
+            }
 
             const grid = document.getElementById('delivery-options-grid');
             let emptyMsg = document.getElementById('delivery-options-empty');
