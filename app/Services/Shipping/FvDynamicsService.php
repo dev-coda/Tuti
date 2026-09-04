@@ -34,7 +34,7 @@ class FvDynamicsService
         $soapAction = (string) config('services.fv.soap_action');
         $body = $this->buildRequestXml($order);
         // FV often lives on a different Dynamics host than Tronex SOAP
-        // (e.g. dev03ppac vs uattrx.sandbox). Mint a token whose audience
+        // (e.g. uattrx.sandbox vs a separate FV host). Mint a token whose audience
         // matches the FV endpoint or CreateSalesOrder returns opaque 500s.
         $tokenResource = $this->resolveTokenResource($endpoint);
         $token = MicrosoftTokenService::currentOrRefresh($tokenResource);
@@ -316,9 +316,9 @@ class FvDynamicsService
             return '';
         }
 
-        // FV env may not have Tronex's FL0001 flete item. Empty FV_SHIPPING_ITEM_ID
+        // FV flete line SKU (default FL00001). Empty FV_SHIPPING_ITEM_ID
         // omits the line (shipping still stored on the Tuti order / Coordinadora quote).
-        $itemId = trim((string) config('services.fv.shipping_item_id', 'FL0001'));
+        $itemId = trim((string) config('services.fv.shipping_item_id', 'FL00001'));
         if ($itemId === '') {
             Log::channel('soap')->warning('FV shipping line omitted — FV_SHIPPING_ITEM_ID is empty', [
                 'order_id' => $order->id,

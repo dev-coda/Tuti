@@ -417,8 +417,8 @@ it('processes coordinadora fv workflow without creating a guide by default', fun
         preg_match('/<dyn:observationsCust>(.*?)<\/dyn:observationsCust>/', $body, $matches);
         $tokens = preg_split('/\s+/', trim($matches[1]));
         expect($tokens[2])->toBe((string) $order->id);
-        // Shipping charge travels as FL0001 line
-        expect($body)->toContain('<dyn:itemId>FL0001</dyn:itemId>');
+        // Shipping charge travels as FL00001 line
+        expect($body)->toContain('<dyn:itemId>FL00001</dyn:itemId>');
         expect($body)->toContain('<dyn:unitPrice>5000.00</dyn:unitPrice>');
 
         return true;
