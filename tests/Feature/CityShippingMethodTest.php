@@ -326,6 +326,69 @@ it('resolves shipping city from Dynamics city_code when city_id is null', functi
         ->and($diagnosis['city_source'])->toContain('city_code');
 });
 
+it('quotes express for city_code-only clients (preview uses resolvedCityId)', function () {
+    Setting::updateOrCreate(['key' => 'express_48h_enabled'], ['name' => '48h', 'value' => '1', 'show' => false]);
+    Cache::forget('setting_express_48h_enabled');
+
+    ['medellin' => $medellin, 'express' => $express] = cityShippingFixtures();
+    $express->update(['enabled' => true, 'restrict_cities' => true]);
+    $express->setCityEnabled($medellin->id, true);
+
+    $client = User::factory()->create([
+        'city_id' => null,
+        'city_code' => '05001',
+    ]);
+    $zone = Zone::create([
+        'user_id' => $client->id,
+        'route' => 'R-CODE',
+        'zone' => '104',
+        'day' => '1',
+        'address' => 'Calle City Code',
+        'code' => 'CODE-1',
+        'dane_code' => '05001000',
+        'fulfillment_provider_48h' => 'coordinadora',
+        'shipping_standard_enabled' => true,
+        'shipping_express_enabled' => true,
+    ]);
+
+    $product = Product::factory()->create(['price' => 10000, 'package_quantity' => 1]);
+
+    config([
+        'services.coordinadora.oauth_url' => 'https://coordinadora.test/oauth/token',
+        'services.coordinadora.base_url' => 'https://coordinadora.test',
+        'services.coordinadora.key' => 'k',
+        'services.coordinadora.secret' => 's',
+        'services.coordinadora.id_proceso' => '11577',
+        'services.coordinadora.nit' => '811025446',
+        'services.coordinadora.origin_dane' => '05001000',
+    ]);
+    Http::fake([
+        'https://coordinadora.test/oauth/token' => Http::response(['access_token' => 'token', 'expires_in' => 3600], 200),
+        'https://coordinadora.test/cotizador/nacional' => Http::response([
+            'isError' => false,
+            'data' => [
+                'flete_total' => 15664,
+                'valor_envio' => 15664,
+                'dias_entrega' => 1,
+            ],
+        ], 200),
+    ]);
+
+    actingAs($client)
+        ->withSession([
+            'cart' => [
+                ['product_id' => $product->id, 'quantity' => 1, 'variation_id' => null],
+            ],
+        ])
+        ->getJson('/api/shipping-quote/express?zone_id='.$zone->id)
+        ->assertOk()
+        ->assertJson([
+            'success' => true,
+            'provider' => Order::SHIPPING_PROVIDER_COORDINADORA,
+            'shipping_cost' => 15664.0,
+        ]);
+});
+
 it('turns off force delivery date for a city while the global toggle stays on', function () {
     Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
     $admin = User::factory()->create();

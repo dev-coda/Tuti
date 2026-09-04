@@ -169,9 +169,10 @@ Route::get('/api/shipping-quote/{method}', function (\Illuminate\Http\Request $r
         ]);
     }
 
-    $quoteCityId = $zone->user?->city_id
-        ? (int) $zone->user->city_id
-        : (auth()->user()?->city_id ? (int) auth()->user()->city_id : null);
+    // Prefer the zone owner's city; fall back to the shopper. Use resolvedCityId
+    // so Dynamics city_code (DANE) maps the same way as checkout / cart visibility.
+    $quoteUser = $zone->user ?? auth()->user();
+    $quoteCityId = $quoteUser?->resolvedCityId();
     if (! \App\Models\ShippingMethod::isCodeAllowedForCity($method, $quoteCityId)) {
         return response()->json([
             'success' => false,

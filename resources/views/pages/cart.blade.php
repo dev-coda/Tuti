@@ -14,9 +14,9 @@
 
 @php
     $isForceEnabled = $isForceEnabled ?? \App\Models\Setting::isForceDeliveryDateEnabled(
-        isset($client) && $client?->city_id
-            ? (int) $client->city_id
-            : (auth()->user()?->city_id ? (int) auth()->user()->city_id : null)
+        isset($client) && $client
+            ? $client->resolvedCityId()
+            : (auth()->user()?->resolvedCityId())
     );
     $isEnabled = \App\Models\Setting::isExpress48hEnabled();
 @endphp
