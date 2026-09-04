@@ -392,7 +392,7 @@ class CartController extends Controller
         $bonificationPreview = $this->buildCartBonificationPreview($cart);
         $cartHasBonifications = BonificationCheckoutService::cartHasQualifyingBonifications($cart);
 
-        $checkoutCityId = $targetUser->city_id ? (int) $targetUser->city_id : null;
+        $checkoutCityId = $targetUser->resolvedCityId();
         $cityShippingFlags = \App\Models\ShippingMethod::cityAvailabilityFlags($checkoutCityId);
         $isForceEnabled = Setting::isForceDeliveryDateEnabled($checkoutCityId);
 
@@ -404,7 +404,7 @@ class CartController extends Controller
         $expressVisibilityDebug = null;
         if (auth()->user()?->hasRole('admin')) {
             $expressVisibilityDebug = app(\App\Services\ExpressVisibilityDebugger::class)
-                ->forCity($checkoutCityId);
+                ->forUser($targetUser);
         }
 
         $context = compact('products', 'alertVendors', 'vendorDiscountAlerts', 'zoneOptions', 'set_user', 'client', 'alertTotal', 'min_amount', 'total_cart', 'has_orders', 'appliedCoupon', 'couponDiscount', 'couponMessage', 'shippingMethods', 'cartRetentions', 'bonificationPreview', 'cityShippingFlags', 'isForceEnabled', 'cartHasBonifications', 'expressVisibilityDebug');
@@ -909,11 +909,12 @@ class CartController extends Controller
             );
         }
 
-        $cityId = $actingUser?->city_id ? (int) $actingUser->city_id : null;
+        $cityId = $actingUser?->resolvedCityId();
         if (! \App\Models\ShippingMethod::isCodeAllowedForCity($delivery_method, $cityId)) {
             Log::warning('Delivery method not allowed for city', [
                 'user_id' => $user_id,
                 'city_id' => $cityId,
+                'city_code' => $actingUser?->city_code,
                 'delivery_method' => $delivery_method,
             ]);
 

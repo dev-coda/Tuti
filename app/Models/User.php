@@ -108,6 +108,33 @@ class User extends Authenticatable
         return $this->belongsTo(City::class);
     }
 
+    /**
+     * Catalog city used for shipping pilots / force-date.
+     * Prefer explicit city_id; otherwise map Dynamics city_code (DANE) → cities.id.
+     */
+    public function resolvedCityId(): ?int
+    {
+        if ($this->city_id) {
+            return (int) $this->city_id;
+        }
+
+        return City::findIdByDaneCode($this->city_code);
+    }
+
+    public function resolvedCity(): ?City
+    {
+        $id = $this->resolvedCityId();
+        if ($id === null) {
+            return null;
+        }
+
+        if ($this->relationLoaded('city') && $this->city && (int) $this->city->id === $id) {
+            return $this->city;
+        }
+
+        return City::query()->with('state')->find($id);
+    }
+
     public function state()
     {
         return $this->belongsTo(State::class);

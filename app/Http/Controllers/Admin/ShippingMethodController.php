@@ -124,13 +124,30 @@ class ShippingMethodController extends Controller
     }
 
     /**
-     * JSON diagnosis of Entrega Especial visibility for a city.
+     * JSON diagnosis of Entrega Especial visibility for a city or client city_code.
      */
     public function diagnose(Request $request, ExpressVisibilityDebugger $debugger)
     {
         $validated = $request->validate([
             'city_id' => 'nullable|integer|exists:cities,id',
+            'city_code' => 'nullable|string|max:32',
+            'user_id' => 'nullable|integer|exists:users,id',
         ]);
+
+        if (! empty($validated['user_id'])) {
+            $user = \App\Models\User::query()->findOrFail($validated['user_id']);
+
+            return response()->json($debugger->forUser($user));
+        }
+
+        if (! empty($validated['city_code']) && empty($validated['city_id'])) {
+            $resolved = City::findIdByDaneCode($validated['city_code']);
+            $payload = $debugger->forCity($resolved);
+            $payload['city_code'] = $validated['city_code'];
+            $payload['city_source'] = 'city_code→DANE→cities.id';
+
+            return response()->json($payload);
+        }
 
         return response()->json(
             $debugger->forCity(isset($validated['city_id']) ? (int) $validated['city_id'] : null)

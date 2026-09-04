@@ -139,13 +139,14 @@ class DepartmentPlaceholderZoneService
 
     public function resolveForUser(?User $user): ?DepartmentPlaceholderZone
     {
-        if (! $user?->city_id) {
+        $cityId = $user?->resolvedCityId();
+        if (! $cityId) {
             return null;
         }
 
-        $city = $user->relationLoaded('city')
+        $city = ($user->relationLoaded('city') && $user->city && (int) $user->city->id === $cityId)
             ? $user->city
-            : City::query()->with('state')->find($user->city_id);
+            : City::query()->with('state')->find($cityId);
 
         if (! $city?->state_id) {
             return null;

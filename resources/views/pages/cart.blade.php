@@ -584,10 +584,16 @@
                                 <summary class="cursor-pointer font-semibold text-slate-900">
                                     Admin · diagnóstico Entrega Especial
                                     ({{ $expressVisibilityDebug['visible'] ? 'VISIBLE' : 'OCULTO' }}
-                                    @if($expressVisibilityDebug['city_name'])
+                                    @if($expressVisibilityDebug['city_name'] ?? null)
                                         · {{ $expressVisibilityDebug['city_name'] }}
+                                    @endif
+                                    @if($expressVisibilityDebug['city_code'] ?? null)
+                                        · code {{ $expressVisibilityDebug['city_code'] }}
                                     @endif)
                                 </summary>
+                                @if($expressVisibilityDebug['city_source'] ?? null)
+                                    <p class="mt-1 text-[11px] text-slate-500">Fuente ciudad: {{ $expressVisibilityDebug['city_source'] }}</p>
+                                @endif
                                 <ul class="mt-2 space-y-1.5">
                                     @foreach($expressVisibilityDebug['checks'] as $check)
                                         <li>

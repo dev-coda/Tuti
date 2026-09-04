@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\City;
 use App\Models\Setting;
 use App\Models\ShippingMethod;
+use App\Models\User;
 use App\Models\Zone;
 
 /**
@@ -17,6 +18,49 @@ class ExpressVisibilityDebugger
      *     visible: bool,
      *     city_id: int|null,
      *     city_name: string|null,
+     *     city_code: string|null,
+     *     city_source: string|null,
+     *     mode: string,
+     *     checks: list<array{key: string, ok: bool, label: string, detail: string}>
+     * }
+     */
+    public function forUser(User $user, ?Zone $zone = null): array
+    {
+        $resolvedId = $user->resolvedCityId();
+        $source = $user->city_id
+            ? 'users.city_id'
+            : ($user->city_code ? 'users.city_code→DANE→cities.id' : null);
+
+        $result = $this->forCity($resolvedId, $zone);
+        $result['city_code'] = $user->city_code ? (string) $user->city_code : null;
+        $result['city_source'] = $source;
+
+        if ($result['city_name'] === null && $user->city_code) {
+            $result['checks'] = array_map(function (array $check) use ($user, $resolvedId) {
+                if ($check['key'] !== 'city_allowed') {
+                    return $check;
+                }
+
+                if ($resolvedId === null) {
+                    $check['ok'] = false;
+                    $check['detail'] = 'Cliente tiene city_code='.$user->city_code.' pero no mapea a ninguna ciudad del catálogo (cities).';
+                }
+
+                return $check;
+            }, $result['checks']);
+            $result['visible'] = collect($result['checks'])->every(fn (array $c) => $c['ok']);
+        }
+
+        return $result;
+    }
+
+    /**
+     * @return array{
+     *     visible: bool,
+     *     city_id: int|null,
+     *     city_name: string|null,
+     *     city_code: string|null,
+     *     city_source: string|null,
      *     mode: string,
      *     checks: list<array{key: string, ok: bool, label: string, detail: string}>
      * }
@@ -85,6 +129,8 @@ class ExpressVisibilityDebugger
             'visible' => $visible,
             'city_id' => $city?->id,
             'city_name' => $city ? trim($city->name.($city->state ? ' / '.$city->state->name : '')) : null,
+            'city_code' => null,
+            'city_source' => $cityId ? 'cities.id' : null,
             'mode' => $mode,
             'checks' => $checks,
         ];
@@ -98,29 +144,28 @@ class ExpressVisibilityDebugger
 
         if ($cityId === null) {
             return $restrictCities
-                ? 'Modo piloto (allowlist): sin ciudad de cliente → express oculto.'
-                : 'Sin ciudad de cliente → se asume permitido (modo opt-out).';
+                ? 'Modo piloto (allowlist): sin ciudad resuelta (ni city_id ni city_code mapeable) → express oculto.'
+                : 'Sin ciudad resuelta → se asume permitido (modo opt-out).';
         }
 
         $override = $express->cities()->where('cities.id', $cityId)->first();
-        $pivot = $override?->pivot?->enabled;
 
         if ($restrictCities) {
             if ($cityAllowed) {
-                return 'Modo piloto: ciudad en la lista permitida (pivot enabled=1). Otras ciudades no cambian.';
+                return 'Modo piloto: ciudad #'.$cityId.' en la lista permitida. Otras ciudades no cambian.';
             }
 
             return $override
-                ? 'Modo piloto: la ciudad tiene pivot enabled=0.'
-                : 'Modo piloto: la ciudad no está en la allowlist. Actívala sola sin tocar las demás.';
+                ? 'Modo piloto: la ciudad #'.$cityId.' tiene pivot enabled=0.'
+                : 'Modo piloto: la ciudad #'.$cityId.' no está en la allowlist. Actívala sola sin tocar las demás.';
         }
 
         if ($cityAllowed) {
             return $override
-                ? 'Modo global: ciudad con override enabled=1.'
-                : 'Modo global: sin override → permitida por defecto.';
+                ? 'Modo global: ciudad #'.$cityId.' con override enabled=1.'
+                : 'Modo global: ciudad #'.$cityId.' sin override → permitida por defecto.';
         }
 
-        return 'Modo global: ciudad excluida (pivot enabled=0). El resto de ciudades no se modifica.';
+        return 'Modo global: ciudad #'.$cityId.' excluida (pivot enabled=0). El resto de ciudades no se modifica.';
     }
 }

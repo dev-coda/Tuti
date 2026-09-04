@@ -55,7 +55,7 @@ class Setting extends Model
 
     public static function isForceDeliveryDateEnabledForOrder(?Order $order): bool
     {
-        $cityId = $order?->user?->city_id;
+        $cityId = $order?->user?->resolvedCityId();
 
         return self::isForceDeliveryDateEnabled($cityId !== null ? (int) $cityId : null);
     }

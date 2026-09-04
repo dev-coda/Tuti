@@ -294,6 +294,38 @@ it('returns an explicit express visibility diagnosis for a city', function () {
         ->assertJsonFragment(['key' => 'city_allowed', 'ok' => false]);
 });
 
+it('resolves shipping city from Dynamics city_code when city_id is null', function () {
+    Setting::updateOrCreate(['key' => 'express_48h_enabled'], ['name' => '48h', 'value' => '1', 'show' => false]);
+    Cache::forget('setting_express_48h_enabled');
+
+    ['medellin' => $medellin, 'bogota' => $bogota, 'express' => $express] = cityShippingFixtures();
+    // DANE catalog names Bogotá as "Bogotá D.C." (city and department).
+    $bogota->update(['name' => 'Bogotá D.C.']);
+    $bogota->state->update(['name' => 'Bogotá D.C.']);
+
+    $express->update(['enabled' => true, 'restrict_cities' => true]);
+    $express->setCityEnabled($medellin->id, true);
+
+    $medellinClient = User::factory()->create([
+        'city_id' => null,
+        'city_code' => '05001',
+    ]);
+    $bogotaClient = User::factory()->create([
+        'city_id' => null,
+        'city_code' => '11001',
+    ]);
+
+    expect($medellinClient->resolvedCityId())->toBe($medellin->id)
+        ->and($bogotaClient->resolvedCityId())->toBe($bogota->id)
+        ->and(ShippingMethod::isCodeAllowedForCity('express', $medellinClient->resolvedCityId()))->toBeTrue()
+        ->and(ShippingMethod::isCodeAllowedForCity('express', $bogotaClient->resolvedCityId()))->toBeFalse();
+
+    $diagnosis = app(\App\Services\ExpressVisibilityDebugger::class)->forUser($medellinClient);
+    expect($diagnosis['visible'])->toBeTrue()
+        ->and($diagnosis['city_code'])->toBe('05001')
+        ->and($diagnosis['city_source'])->toContain('city_code');
+});
+
 it('turns off force delivery date for a city while the global toggle stays on', function () {
     Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
     $admin = User::factory()->create();

@@ -59,6 +59,44 @@ class City extends Model
     }
 
     /**
+     * Map a Dynamics/DANE city_code (e.g. "05001") to a cities.id via states.csv.
+     * Almost all rutero clients store city_code, not city_id.
+     */
+    public static function findIdByDaneCode(?string $cityCode): ?int
+    {
+        $normalized = \App\Services\Shipping\DaneCodeService::normalize($cityCode);
+        if ($normalized === null) {
+            return null;
+        }
+
+        $fiveDigit = substr($normalized, 0, 5);
+        $map = self::daneCodeToIdMap();
+
+        return $map[$fiveDigit] ?? null;
+    }
+
+    /**
+     * @return array<string, int> 5-digit divipola => cities.id
+     */
+    private static function daneCodeToIdMap(): array
+    {
+        $map = [];
+        foreach (static::query()->with('state')->get() as $city) {
+            $dane = \App\Services\Shipping\DaneCodeService::forCity($city->name, $city->state?->name);
+            if ($dane === null) {
+                continue;
+            }
+
+            $fiveDigit = substr($dane, 0, 5);
+            if (! isset($map[$fiveDigit]) || $city->is_preferred) {
+                $map[$fiveDigit] = (int) $city->id;
+            }
+        }
+
+        return $map;
+    }
+
+    /**
      * Match a catalog city by name (and optionally departamento), case-insensitive.
      */
     public static function findIdByNameAndState(?string $cityName, ?string $stateName = null): ?int
