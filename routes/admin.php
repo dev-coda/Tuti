@@ -195,9 +195,11 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
 
     // Shipping Methods
     Route::get('shipping-methods', [ShippingMethodController::class, 'index'])->name('shipping-methods.index');
+    Route::get('shipping-methods/diagnose-express', [ShippingMethodController::class, 'diagnose'])->name('shipping-methods.diagnose-express');
     Route::get('shipping-methods/{shippingMethod}/edit', [ShippingMethodController::class, 'edit'])->name('shipping-methods.edit');
     Route::put('shipping-methods/{shippingMethod}', [ShippingMethodController::class, 'update'])->name('shipping-methods.update');
     Route::patch('shipping-methods/{shippingMethod}/toggle', [ShippingMethodController::class, 'toggle'])->name('shipping-methods.toggle');
+    Route::patch('shipping-methods/{shippingMethod}/cities/{city}', [ShippingMethodController::class, 'toggleCity'])->name('shipping-methods.toggle-city');
 
     // Bulk Operations
     Route::prefix('bulk-operations')->name('bulk-operations.')->group(function () {

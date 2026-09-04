@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\City;
+use App\Models\Order;
 use App\Models\Setting;
+use App\Models\ShippingMethod;
 use App\Models\ZoneWarehouse;
 use App\Services\MicrosoftTokenService;
 use Illuminate\Http\Request;
@@ -552,6 +554,12 @@ class SettingController extends Controller
             ]
         );
         \Illuminate\Support\Facades\Cache::forget('setting_express_48h_enabled');
+
+        // Keep the shipping_methods row in sync — cart only lists enabled methods.
+        $expressMethod = ShippingMethod::query()->where('code', Order::DELIVERY_METHOD_EXPRESS)->first();
+        if ($expressMethod) {
+            $expressMethod->update(['enabled' => $enabled === '1']);
+        }
 
         $freeShippingEnabled = isset($validated['express_free_shipping_enabled']) ? '1' : '0';
         Setting::updateOrCreate(

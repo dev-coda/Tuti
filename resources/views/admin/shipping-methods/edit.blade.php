@@ -3,111 +3,135 @@
 @section('title', 'Editar Método de Envío')
 
 @section('content')
-{{ Aire::open()->route('shipping-methods.update', $shippingMethod)->bind($shippingMethod)->put() }}
 <div class="grid grid-cols-1 p-4 xl:grid-cols-3 xl:gap-4">
     <div class="mb-4 col-span-full xl:mb-2">
         <h1 class="text-xl font-semibold text-gray-900 sm:text-2xl">Editar Método de Envío</h1>
         <p class="text-sm text-gray-500 mt-1">Actualiza la información del método de envío</p>
     </div>
 
-    <div class="col-span-2">
-        <div class="p-4 mb-4 bg-white border border-gray-200 rounded-lg shadow-sm">
+    @if(session('success'))
+        <div class="col-span-full">
+            <div class="p-4 mb-4 text-sm text-green-800 bg-green-100 border border-green-200 rounded-lg">
+                {{ session('success') }}
+            </div>
+        </div>
+    @endif
+
+    <div class="col-span-2 space-y-4">
+        {{ Aire::open()->route('shipping-methods.update', $shippingMethod)->bind($shippingMethod)->put() }}
+        <div class="p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
             <h3 class="mb-4 text-xl font-semibold">Información del Método</h3>
 
             <div class="grid grid-cols-6 gap-6">
                 {{ Aire::input('name', 'Nombre')->groupClass('col-span-6')->helpText('Nombre que verán los clientes') }}
-                
+
                 {{ Aire::textarea('description', 'Descripción')->rows(3)->groupClass('col-span-6')->helpText('Descripción breve del método de envío') }}
-                
+
                 {{ Aire::input('sort_order', 'Orden de visualización')->type('number')->groupClass('col-span-3')->helpText('Número más bajo aparece primero') }}
 
                 <div class="col-span-6">
                     <div class="flex items-center">
                         {{ Aire::checkbox('enabled', 'Habilitado')->value(1) }}
                         <span class="ml-2 text-sm text-gray-600">
-                            Si está habilitado, el método estará disponible para los clientes
+                            Si está deshabilitado, no aparece en ninguna ciudad.
                         </span>
                     </div>
                 </div>
 
                 <div class="col-span-6">
                     <div class="flex items-start">
-                        {{ Aire::checkbox('restrict_cities', 'Limitar a ciudades seleccionadas')->value(1) }}
+                        {{ Aire::checkbox('restrict_cities', 'Limitar a ciudades seleccionadas (piloto)')->value(1) }}
                         <span class="ml-2 text-sm text-gray-600">
-                            Piloto: el método solo aparece en las ciudades marcadas abajo. Sin esta opción, está disponible en todas excepto las que desmarques.
+                            Recomendado para Entrega Especial: solo las ciudades que actives abajo lo verán. Cambiar este modo limpia la lista de ciudades para no mezclar reglas.
                         </span>
                     </div>
                 </div>
 
-                <div class="col-span-6 mt-2">
-                    <h4 class="text-sm font-semibold text-gray-900">Disponibilidad por ciudad</h4>
-                    <p id="city-shipping-help-restrict" class="mt-1 text-sm text-gray-500 {{ $shippingMethod->restrict_cities ? '' : 'hidden' }}">
-                        Solo las ciudades marcadas tendrán este método. Ideal para un piloto en una ciudad.
-                    </p>
-                    <p id="city-shipping-help-all" class="mt-1 text-sm text-gray-500 {{ $shippingMethod->restrict_cities ? 'hidden' : '' }}">
-                        Aplica a la ciudad del cliente. Desmarca las ciudades donde no debe estar disponible.
-                    </p>
-                    <div class="mt-3 flex flex-wrap items-center gap-2">
-                        <input type="search" id="city-shipping-filter" placeholder="Buscar ciudad o departamento"
-                               class="flex-1 min-w-[12rem] rounded-lg border-gray-300 text-sm focus:border-orange-500 focus:ring-orange-500">
-                        <button type="button" id="city-shipping-select-all" class="px-3 py-2 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
-                            Marcar todas
-                        </button>
-                        <button type="button" id="city-shipping-select-none" class="px-3 py-2 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
-                            Ninguna
-                        </button>
-                    </div>
-                    <div class="mt-3 max-h-80 overflow-y-auto rounded-lg border border-gray-200 divide-y divide-gray-100">
-                        @forelse($cities as $city)
-                            @php($isOn = $shippingMethod->restrict_cities ? ($cityEnabled[$city->id] ?? false) : ($cityEnabled[$city->id] ?? true))
-                            <label data-city-row class="flex items-center justify-between gap-3 px-4 py-2 hover:bg-gray-50">
-                                <span class="min-w-0">
-                                    <span class="block text-sm font-medium text-gray-900">{{ $city->name }}</span>
-                                    <span class="block text-xs text-gray-500">{{ $city->state?->name }}</span>
-                                </span>
-                                <span class="flex items-center gap-2 shrink-0">
-                                    <input type="hidden" name="city_enabled[{{ $city->id }}]" value="0">
-                                    <input type="checkbox" name="city_enabled[{{ $city->id }}]" value="1"
-                                           data-city-enabled
-                                           class="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-                                           @checked($isOn)>
-                                </span>
-                            </label>
-                        @empty
-                            <p class="px-4 py-3 text-sm text-gray-500">No hay ciudades registradas.</p>
-                        @endforelse
-                    </div>
-                </div>
-
-                <div class="col-span-6 justify-between items-center mt-5 space-x-2 flex">
+                <div class="col-span-6 justify-between items-center mt-2 space-x-2 flex">
                     <p class="flex space-x-2 items-center">
-                        {{ Aire::submit('Actualizar')->variant()->submit() }}
+                        {{ Aire::submit('Guardar método')->variant()->submit() }}
                         <a href="{{ route('shipping-methods.index') }}" class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
-                            Cancelar
+                            Volver
                         </a>
                     </p>
                 </div>
             </div>
         </div>
+        {{ Aire::close() }}
+
+        <div class="p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
+            <h3 class="mb-1 text-lg font-semibold text-gray-900">Disponibilidad por ciudad</h3>
+            <p class="text-sm text-gray-500 mb-3">
+                Cada ciudad se activa o desactiva sola. Guardar una ciudad <strong>no reescribe</strong> las demás.
+                @if($shippingMethod->restrict_cities)
+                    Modo actual: <span class="font-medium text-orange-700">piloto / allowlist</span> — off por defecto; marca solo las ciudades del piloto.
+                @else
+                    Modo actual: <span class="font-medium text-gray-700">global / opt-out</span> — on por defecto; desactiva solo las que quieras excluir.
+                @endif
+            </p>
+
+            <div class="mb-3">
+                <input type="search" id="city-shipping-filter" placeholder="Buscar ciudad o departamento"
+                       class="w-full rounded-lg border-gray-300 text-sm focus:border-orange-500 focus:ring-orange-500">
+            </div>
+
+            <div class="max-h-96 overflow-y-auto rounded-lg border border-gray-200 divide-y divide-gray-100">
+                @forelse($cities as $city)
+                    @php($isOn = $shippingMethod->restrict_cities ? ($cityEnabled[$city->id] ?? false) : ($cityEnabled[$city->id] ?? true))
+                    <div data-city-row class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 hover:bg-gray-50">
+                        <div class="min-w-0">
+                            <div class="text-sm font-medium text-gray-900">{{ $city->name }}</div>
+                            <div class="text-xs text-gray-500">{{ $city->state?->name }} · id {{ $city->id }}</div>
+                        </div>
+                        <div class="flex items-center gap-2 shrink-0">
+                            @if($isOn)
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">ON</span>
+                            @else
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">OFF</span>
+                            @endif
+
+                            <form method="POST" action="{{ route('shipping-methods.toggle-city', [$shippingMethod, $city]) }}" class="inline">
+                                @csrf
+                                @method('PATCH')
+                                <input type="hidden" name="enabled" value="{{ $isOn ? '0' : '1' }}">
+                                <button type="submit"
+                                        class="px-3 py-1.5 text-xs font-medium rounded-lg border {{ $isOn ? 'border-red-200 text-red-700 hover:bg-red-50' : 'border-green-200 text-green-700 hover:bg-green-50' }}">
+                                    {{ $isOn ? 'Desactivar solo esta' : 'Activar solo esta' }}
+                                </button>
+                            </form>
+
+                            @if($shippingMethod->code === 'express')
+                                <a href="{{ route('shipping-methods.edit', ['shippingMethod' => $shippingMethod, 'diagnose_city' => $city->id]) }}"
+                                   class="px-3 py-1.5 text-xs font-medium text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-50">
+                                    Diagnosticar
+                                </a>
+                            @endif
+                        </div>
+                    </div>
+                @empty
+                    <p class="px-4 py-3 text-sm text-gray-500">No hay ciudades registradas.</p>
+                @endforelse
+            </div>
+        </div>
     </div>
 
-    <div class="col-span-1">
-        <div class="p-4 mb-4 bg-white border border-gray-200 rounded-lg shadow-sm">
+    <div class="col-span-1 space-y-4">
+        <div class="p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
             <h3 class="mb-4 text-xl font-semibold">Detalles</h3>
-            
+
             <dl class="space-y-3">
                 <div>
                     <dt class="text-sm font-medium text-gray-500">Código</dt>
                     <dd class="mt-1 text-sm text-gray-900 font-mono">{{ $shippingMethod->code }}</dd>
                 </div>
-                
+
                 <div>
-                    <dt class="text-sm font-medium text-gray-500">Ciudades</dt>
+                    <dt class="text-sm font-medium text-gray-500">Modo ciudades</dt>
                     <dd class="mt-1 text-sm text-gray-900">
                         @if($shippingMethod->restrict_cities)
-                            Solo ciudades seleccionadas
+                            Piloto (solo seleccionadas)
                         @else
-                            Todas (con exclusiones)
+                            Global (con exclusiones)
                         @endif
                     </dd>
                 </div>
@@ -116,22 +140,13 @@
                     <dt class="text-sm font-medium text-gray-500">Estado actual</dt>
                     <dd class="mt-1">
                         @if($shippingMethod->enabled)
-                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                Habilitado
-                            </span>
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">Habilitado</span>
                         @else
-                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                Deshabilitado
-                            </span>
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">Deshabilitado</span>
                         @endif
                     </dd>
                 </div>
-                
-                <div>
-                    <dt class="text-sm font-medium text-gray-500">Creado</dt>
-                    <dd class="mt-1 text-sm text-gray-900">{{ $shippingMethod->created_at->format('d/m/Y H:i') }}</dd>
-                </div>
-                
+
                 <div>
                     <dt class="text-sm font-medium text-gray-500">Última actualización</dt>
                     <dd class="mt-1 text-sm text-gray-900">{{ $shippingMethod->updated_at->format('d/m/Y H:i') }}</dd>
@@ -139,51 +154,81 @@
             </dl>
         </div>
 
-        <!-- Warning Box -->
-        <div class="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <div class="flex">
-                <svg class="w-5 h-5 text-yellow-600 mr-3 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
-                </svg>
-                <div class="text-sm text-yellow-800">
-                    <p class="font-medium mb-1">Advertencia</p>
-                    <p>Al deshabilitar este método, los clientes no podrán seleccionarlo al realizar pedidos.</p>
-                </div>
+        @if($shippingMethod->code === 'express')
+            <div class="p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
+                <h3 class="mb-2 text-lg font-semibold text-gray-900">Diagnóstico Entrega Especial</h3>
+                <p class="text-xs text-gray-500 mb-3">
+                    Checklist explícito de por qué se muestra u oculta para una ciudad (env, setting, método, ciudad, zona).
+                </p>
+
+                <form method="GET" action="{{ route('shipping-methods.edit', $shippingMethod) }}" class="mb-3">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Ciudad a diagnosticar</label>
+                    <div class="flex gap-2">
+                        <select name="diagnose_city" class="flex-1 rounded-lg border-gray-300 text-sm focus:border-orange-500 focus:ring-orange-500">
+                            <option value="">— elegir —</option>
+                            @foreach($cities as $city)
+                                <option value="{{ $city->id }}" @selected((int) $diagnoseCityId === (int) $city->id)>
+                                    {{ $city->name }}{{ $city->state ? ' / '.$city->state->name : '' }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <button type="submit" class="px-3 py-2 text-sm font-medium text-white bg-orange-600 rounded-lg hover:bg-orange-700">
+                            Ver
+                        </button>
+                    </div>
+                </form>
+
+                @if($diagnosis)
+                    <div class="mb-3 p-3 rounded-lg border {{ $diagnosis['visible'] ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200' }}">
+                        <p class="text-sm font-semibold {{ $diagnosis['visible'] ? 'text-green-800' : 'text-red-800' }}">
+                            {{ $diagnosis['visible'] ? 'VISIBLE en carrito' : 'OCULTO en carrito' }}
+                            @if($diagnosis['city_name'])
+                                · {{ $diagnosis['city_name'] }}
+                            @endif
+                        </p>
+                        <p class="text-xs mt-1 text-gray-600">Modo: {{ $diagnosis['mode'] }}</p>
+                    </div>
+                    <ul class="space-y-2">
+                        @foreach($diagnosis['checks'] as $check)
+                            <li class="text-sm border border-gray-100 rounded-lg p-2">
+                                <div class="flex items-start gap-2">
+                                    <span class="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold {{ $check['ok'] ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700' }}">
+                                        {{ $check['ok'] ? '✓' : '✗' }}
+                                    </span>
+                                    <div>
+                                        <div class="font-medium text-gray-900">{{ $check['label'] }}</div>
+                                        <div class="text-xs text-gray-600 mt-0.5">{{ $check['detail'] }}</div>
+                                        <div class="text-[10px] uppercase tracking-wide text-gray-400 mt-1">{{ $check['key'] }}</div>
+                                    </div>
+                                </div>
+                            </li>
+                        @endforeach
+                    </ul>
+                    <p class="mt-3 text-xs text-gray-500">
+                        API: <code class="bg-gray-100 px-1 rounded">GET {{ route('shipping-methods.diagnose-express') }}?city_id={{ $diagnoseCityId }}</code>
+                    </p>
+                @endif
             </div>
+        @endif
+
+        <div class="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+            <p class="text-sm font-medium text-amber-900 mb-1">Sin efectos colaterales</p>
+            <p class="text-sm text-amber-800">
+                Usa “Activar/Desactivar solo esta” por ciudad. No uses un guardado masivo de checkboxes: eso era lo que podía alterar otras ciudades sin querer.
+            </p>
         </div>
     </div>
 </div>
-{{ Aire::close() }}
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     const input = document.getElementById('city-shipping-filter');
-    const restrict = document.querySelector('input[name="restrict_cities"]');
-    const helpRestrict = document.getElementById('city-shipping-help-restrict');
-    const helpAll = document.getElementById('city-shipping-help-all');
-
-    if (input) {
-        input.addEventListener('input', () => {
-            const needle = input.value.trim().toLowerCase();
-            document.querySelectorAll('[data-city-row]').forEach((row) => {
-                row.classList.toggle('hidden', needle !== '' && !row.textContent.toLowerCase().includes(needle));
-            });
+    if (!input) return;
+    input.addEventListener('input', () => {
+        const needle = input.value.trim().toLowerCase();
+        document.querySelectorAll('[data-city-row]').forEach((row) => {
+            row.classList.toggle('hidden', needle !== '' && !row.textContent.toLowerCase().includes(needle));
         });
-    }
-
-    const setAll = (checked) => {
-        document.querySelectorAll('[data-city-enabled]').forEach((box) => {
-            box.checked = checked;
-        });
-    };
-    document.getElementById('city-shipping-select-all')?.addEventListener('click', () => setAll(true));
-    document.getElementById('city-shipping-select-none')?.addEventListener('click', () => setAll(false));
-
-    const syncHelp = () => {
-        const on = !!(restrict && restrict.checked);
-        helpRestrict?.classList.toggle('hidden', !on);
-        helpAll?.classList.toggle('hidden', on);
-    };
-    restrict?.addEventListener('change', syncHelp);
+    });
 });
 </script>
 @endsection

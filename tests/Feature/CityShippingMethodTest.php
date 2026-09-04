@@ -57,17 +57,10 @@ it('saves per-city shipping availability from admin', function () {
     ['medellin' => $medellin, 'bogota' => $bogota, 'express' => $express] = cityShippingFixtures();
 
     actingAs($admin)
-        ->put(route('shipping-methods.update', $express), [
-            'name' => $express->name,
-            'description' => $express->description,
-            'sort_order' => $express->sort_order,
-            'enabled' => 1,
-            'city_enabled' => [
-                $medellin->id => '0',
-                $bogota->id => '1',
-            ],
+        ->patch(route('shipping-methods.toggle-city', [$express, $medellin]), [
+            'enabled' => '0',
         ])
-        ->assertRedirect(route('shipping-methods.index'));
+        ->assertRedirect();
 
     expect($express->fresh()->isAllowedForCity($medellin->id))->toBeFalse()
         ->and($express->fresh()->isAllowedForCity($bogota->id))->toBeTrue();
@@ -233,23 +226,72 @@ it('saves allowlist city availability from admin', function () {
             'sort_order' => $express->sort_order,
             'enabled' => 1,
             'restrict_cities' => 1,
-            'city_enabled' => [
-                $medellin->id => '1',
-                $bogota->id => '0',
-            ],
         ])
-        ->assertRedirect(route('shipping-methods.index'));
+        ->assertRedirect(route('shipping-methods.edit', $express));
 
     $express->refresh();
-
     expect($express->restrict_cities)->toBeTrue()
-        ->and($express->isAllowedForCity($medellin->id))->toBeTrue()
+        ->and($express->isAllowedForCity($medellin->id))->toBeFalse()
         ->and($express->isAllowedForCity($bogota->id))->toBeFalse();
+
+    actingAs($admin)
+        ->patch(route('shipping-methods.toggle-city', [$express, $medellin]), ['enabled' => '1'])
+        ->assertRedirect();
+
+    expect($express->fresh()->isAllowedForCity($medellin->id))->toBeTrue()
+        ->and($express->fresh()->isAllowedForCity($bogota->id))->toBeFalse();
 
     actingAs($admin)
         ->get(route('shipping-methods.index'))
         ->assertOk()
         ->assertSee('Solo 1 ciudad');
+});
+
+it('toggles one city without disrupting others in allowlist mode', function () {
+    Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
+    $admin = User::factory()->create();
+    $admin->assignRole('admin');
+
+    ['medellin' => $medellin, 'bogota' => $bogota, 'express' => $express] = cityShippingFixtures();
+    $express->update(['restrict_cities' => true, 'enabled' => true]);
+    $express->cities()->sync([
+        $medellin->id => ['enabled' => true],
+        $bogota->id => ['enabled' => true],
+    ]);
+
+    actingAs($admin)
+        ->patch(route('shipping-methods.toggle-city', [$express, $medellin]), ['enabled' => '0'])
+        ->assertRedirect();
+
+    expect($express->fresh()->isAllowedForCity($medellin->id))->toBeFalse()
+        ->and($express->fresh()->isAllowedForCity($bogota->id))->toBeTrue()
+        ->and($express->fresh()->cities()->pluck('cities.id')->all())->toContain($bogota->id);
+});
+
+it('returns an explicit express visibility diagnosis for a city', function () {
+    Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
+    $admin = User::factory()->create();
+    $admin->assignRole('admin');
+
+    Setting::updateOrCreate(['key' => 'express_48h_enabled'], ['name' => '48h', 'value' => '1', 'show' => false]);
+    Cache::forget('setting_express_48h_enabled');
+
+    ['medellin' => $medellin, 'bogota' => $bogota, 'express' => $express] = cityShippingFixtures();
+    $express->update(['enabled' => true, 'restrict_cities' => true]);
+    $express->setCityEnabled($medellin->id, true);
+
+    actingAs($admin)
+        ->getJson(route('shipping-methods.diagnose-express', ['city_id' => $medellin->id]))
+        ->assertOk()
+        ->assertJsonPath('visible', true)
+        ->assertJsonPath('city_id', $medellin->id)
+        ->assertJsonStructure(['checks' => [['key', 'ok', 'label', 'detail']]]);
+
+    actingAs($admin)
+        ->getJson(route('shipping-methods.diagnose-express', ['city_id' => $bogota->id]))
+        ->assertOk()
+        ->assertJsonPath('visible', false)
+        ->assertJsonFragment(['key' => 'city_allowed', 'ok' => false]);
 });
 
 it('turns off force delivery date for a city while the global toggle stays on', function () {

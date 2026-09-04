@@ -396,7 +396,18 @@ class CartController extends Controller
         $cityShippingFlags = \App\Models\ShippingMethod::cityAvailabilityFlags($checkoutCityId);
         $isForceEnabled = Setting::isForceDeliveryDateEnabled($checkoutCityId);
 
-        $context = compact('products', 'alertVendors', 'vendorDiscountAlerts', 'zoneOptions', 'set_user', 'client', 'alertTotal', 'min_amount', 'total_cart', 'has_orders', 'appliedCoupon', 'couponDiscount', 'couponMessage', 'shippingMethods', 'cartRetentions', 'bonificationPreview', 'cityShippingFlags', 'isForceEnabled', 'cartHasBonifications');
+        // Hide methods the client's city cannot use (server-side; JS also filters by zone).
+        $shippingMethods = $shippingMethods->filter(
+            fn ($m) => \App\Models\ShippingMethod::isCodeAllowedForCity($m->code, $checkoutCityId)
+        )->values();
+
+        $expressVisibilityDebug = null;
+        if (auth()->user()?->hasRole('admin')) {
+            $expressVisibilityDebug = app(\App\Services\ExpressVisibilityDebugger::class)
+                ->forCity($checkoutCityId);
+        }
+
+        $context = compact('products', 'alertVendors', 'vendorDiscountAlerts', 'zoneOptions', 'set_user', 'client', 'alertTotal', 'min_amount', 'total_cart', 'has_orders', 'appliedCoupon', 'couponDiscount', 'couponMessage', 'shippingMethods', 'cartRetentions', 'bonificationPreview', 'cityShippingFlags', 'isForceEnabled', 'cartHasBonifications', 'expressVisibilityDebug');
 
         return view('pages.cart', $context);
     }

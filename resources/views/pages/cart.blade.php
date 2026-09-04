@@ -579,6 +579,27 @@
                         <p id="express-bonification-block" class="mt-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-3 {{ !empty($cartHasBonifications) ? '' : 'hidden' }}">
                             {{ \App\Services\BonificationCheckoutService::expressBlockedByBonificationsMessage() }}
                         </p>
+                        @if(!empty($expressVisibilityDebug) && auth()->user()?->hasRole('admin'))
+                            <details class="mt-3 rounded-lg border border-slate-300 bg-slate-50 p-3 text-xs text-slate-800">
+                                <summary class="cursor-pointer font-semibold text-slate-900">
+                                    Admin · diagnóstico Entrega Especial
+                                    ({{ $expressVisibilityDebug['visible'] ? 'VISIBLE' : 'OCULTO' }}
+                                    @if($expressVisibilityDebug['city_name'])
+                                        · {{ $expressVisibilityDebug['city_name'] }}
+                                    @endif)
+                                </summary>
+                                <ul class="mt-2 space-y-1.5">
+                                    @foreach($expressVisibilityDebug['checks'] as $check)
+                                        <li>
+                                            <span class="font-mono">{{ $check['ok'] ? '[OK]' : '[FAIL]' }}</span>
+                                            <strong>{{ $check['label'] }}</strong>
+                                            — {{ $check['detail'] }}
+                                            <span class="text-slate-400">({{ $check['key'] }})</span>
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            </details>
+                        @endif
                         <input type="hidden" name="delivery_method" id="delivery_method" value="{{ $shippingMethods->first()->code ?? 'tronex' }}">
                         <input type="hidden" name="shipping_quote_amount" id="shipping_quote_amount" value="0">
                     </div>

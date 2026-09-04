@@ -87,6 +87,37 @@ class ShippingMethod extends Model
         return self::pivotEnabled($override->pivot->enabled);
     }
 
+    /**
+     * Turn this method on/off for a single city without rewriting other cities.
+     *
+     * Allowlist mode: attach (on) or detach (off).
+     * Opt-out mode: detach (on / default) or attach enabled=false (off).
+     */
+    public function setCityEnabled(int $cityId, bool $enabled): void
+    {
+        if ($this->restrict_cities) {
+            if ($enabled) {
+                $this->cities()->syncWithoutDetaching([
+                    $cityId => ['enabled' => true],
+                ]);
+            } else {
+                $this->cities()->detach($cityId);
+            }
+
+            return;
+        }
+
+        if ($enabled) {
+            $this->cities()->detach($cityId);
+
+            return;
+        }
+
+        $this->cities()->syncWithoutDetaching([
+            $cityId => ['enabled' => false],
+        ]);
+    }
+
     private function cityOverride(int $cityId): ?City
     {
         return $this->cities()
