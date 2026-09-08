@@ -156,12 +156,13 @@ class FvDynamicsService
 
         // "El número externo del pedido se toma de la posición 3" (docs/fv.pdf):
         // the third whitespace-separated token of observationsCust must be the
-        // external order number.
+        // external order number (alphanumeric consecutive, e.g. TEST123 in stage).
+        $soapConsecutive = $order->soapConsecutive();
         $observationsCust = sprintf(
-            'Pedido Tuti %d - ConsecVta %s-%d - %s',
-            $order->id,
+            'Pedido Tuti %s - ConsecVta %s-%s - %s',
+            $soapConsecutive,
             $zonePayload['zone'] !== '' ? $zonePayload['zone'] : '0',
-            $order->id,
+            $soapConsecutive,
             ($order->created_at ?? now())->format('Y/m/d')
         );
 
@@ -180,7 +181,7 @@ class FvDynamicsService
             'custId' => $custId,
             'dateInvoice' => now()->format('Y-m-d'),
             'deliveryMode' => (string) config('services.fv.delivery_mode'),
-            'detail' => (string) $order->id,
+            'detail' => $soapConsecutive,
             'docType' => (string) config('services.fv.doc_type'),
             'drive' => $this->valueOrDefault(config('services.fv.drive'), '9000'),
             'locationInvoice' => (string) config('services.fv.location_invoice'),

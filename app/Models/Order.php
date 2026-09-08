@@ -130,6 +130,23 @@ class Order extends Model
     }
 
     /**
+     * Alphanumeric consecutive sent to Dynamics SOAP (orderSales, salesCons,
+     * FV detail / ConsecVta). DB id stays numeric; only the SOAP payload changes.
+     *
+     * Non-production defaults to TEST{id}. Override with SOAP_ORDER_CONSECUTIVE_PREFIX.
+     */
+    public function soapConsecutive(): string
+    {
+        $prefix = config('microsoft.order_consecutive_prefix');
+
+        if ($prefix === null) {
+            $prefix = app()->environment('production') ? '' : 'TEST';
+        }
+
+        return (string) $prefix . $this->id;
+    }
+
+    /**
      * Restrict a query to orders that transmit through the FV flow.
      */
     public function scopeFvFulfilled($query)

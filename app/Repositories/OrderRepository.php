@@ -133,7 +133,7 @@ class OrderRepository
         $route = $zonePayload['route'] ?? '';
         $code = $zonePayload['code'] ?? '';
         $zoneNum = $zonePayload['zone'] ?? '';
-        $order_id = $order->id;
+        $order_id = $order->soapConsecutive();
         $transactionDate = $order->created_at ? $order->created_at->format('Y-m-d') : now()->format('Y-m-d');
 
         $productIds = $products->pluck('product_id')->toArray();
@@ -615,7 +615,7 @@ class OrderRepository
         $productList = self::renderListDetailsXml($lines);
         $productList .= self::buildShippingServiceXmlLine($order, (int) $bonification);
 
-        $order_id = $order->id;
+        $order_id = $order->soapConsecutive();
         $transactionDate = $order->created_at->format('Y-m-d');
 
         $body = '<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:dat="http://schemas.microsoft.com/dynamics/2013/01/datacontracts" xmlns:tem="http://tempuri.org" xmlns:dyn="http://schemas.datacontract.org/2004/07/Dynamics.AX.Application">

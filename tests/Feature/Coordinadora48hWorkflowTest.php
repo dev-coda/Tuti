@@ -414,9 +414,13 @@ it('processes coordinadora fv workflow without creating a guide by default', fun
         expect($body)->toContain('<dyn:salesResponsible>9999</dyn:salesResponsible>');
         expect($body)->toContain('<dyn:shapeDispatch></dyn:shapeDispatch>');
         // External order number must be the third token of observationsCust
+        // (alphanumeric consecutive: TEST{id} outside production).
+        $soapConsecutive = $order->soapConsecutive();
         preg_match('/<dyn:observationsCust>(.*?)<\/dyn:observationsCust>/', $body, $matches);
         $tokens = preg_split('/\s+/', trim($matches[1]));
-        expect($tokens[2])->toBe((string) $order->id);
+        expect($tokens[2])->toBe($soapConsecutive);
+        expect($body)->toContain('<dyn:detail>' . $soapConsecutive . '</dyn:detail>');
+        expect($soapConsecutive)->toBe('TEST' . $order->id);
         // Shipping charge travels as FL00001 line
         expect($body)->toContain('<dyn:itemId>FL00001</dyn:itemId>');
         expect($body)->toContain('<dyn:unitPrice>5000.00</dyn:unitPrice>');
