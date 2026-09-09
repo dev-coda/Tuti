@@ -340,7 +340,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
 
         // Vendor sales (includes bonifications)
         Route::get('/vendor-sales', [App\Http\Controllers\Admin\ReportController::class, 'vendorSales'])->name('vendor-sales');
-        Route::get('/vendor-sales/export', [App\Http\Controllers\Admin\ReportController::class, 'exportVendorSales'])->name('vendor-sales.export');
+        Route::post('/vendor-sales/export', [App\Http\Controllers\Admin\ReportController::class, 'exportVendorSales'])->name('vendor-sales.export');
     });
     Route::resource('sellers', SellerController::class);
     Route::resource('supervisors', SupervisorController::class);

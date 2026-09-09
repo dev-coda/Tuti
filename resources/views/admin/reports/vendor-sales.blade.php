@@ -17,6 +17,12 @@
 </div>
 
 <div class="p-4">
+    @if(session('success'))
+        <div class="mb-4 p-4 text-sm text-green-700 bg-green-100 rounded-lg" role="alert">
+            {{ session('success') }}
+        </div>
+    @endif
+
     @if($errors->any())
         <div class="mb-4 p-4 text-sm text-red-700 bg-red-100 rounded-lg" role="alert">
             {{ $errors->first() }}
@@ -27,7 +33,8 @@
         $checkedVendorIds = array_map('intval', old('vendor_ids', $selectedVendorIds));
     @endphp
 
-    <form method="GET" action="{{ route('admin.reports.vendor-sales.export') }}" class="bg-white border border-gray-200 rounded-lg p-6 space-y-6">
+    <form method="POST" action="{{ route('admin.reports.vendor-sales.export') }}" class="bg-white border border-gray-200 rounded-lg p-6 space-y-6">
+        @csrf
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
                 <label for="date_from" class="block text-sm font-medium text-gray-700 mb-1">Fecha desde</label>
@@ -78,10 +85,57 @@
             <button type="submit"
                 class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:ring-4 focus:ring-blue-300">
                 @svg('heroicon-o-arrow-down-tray', 'w-4 h-4 mr-2')
-                Descargar Excel
+                Generar reporte
             </button>
         </div>
     </form>
+
+    <div class="mt-6 bg-white border border-gray-200 rounded-lg">
+        <div class="p-4 border-b border-gray-200">
+            <h2 class="text-lg font-semibold text-gray-900">Reportes generados</h2>
+            <p class="text-sm text-gray-600 mt-1">El archivo se prepara en segundo plano. Actualiza esta página o espera a que aparezca el enlace de descarga.</p>
+        </div>
+        @if($exports->isEmpty())
+            <p class="p-4 text-sm text-gray-500">Aún no has generado este reporte.</p>
+        @else
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm text-left text-gray-600">
+                    <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-3">Reporte</th>
+                            <th class="px-4 py-3">Estado</th>
+                            <th class="px-4 py-3">Creado</th>
+                            <th class="px-4 py-3"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($exports as $export)
+                            <tr class="border-b" @if($export->isProcessing()) data-export-pending @endif>
+                                <td class="px-4 py-3 text-gray-900">{{ $export->params['label'] ?? $export->filename }}</td>
+                                <td class="px-4 py-3">
+                                    @if($export->isCompleted())
+                                        <span class="text-green-700">Listo</span>
+                                    @elseif($export->hasFailed())
+                                        <span class="text-red-700">Error</span>
+                                    @else
+                                        <span class="text-amber-700">Generando</span>
+                                    @endif
+                                </td>
+                                <td class="px-4 py-3">{{ $export->created_at->format('d/m/Y H:i') }}</td>
+                                <td class="px-4 py-3 text-right">
+                                    @if($export->isCompleted())
+                                        <a href="{{ route('admin.exports.download', $export) }}" class="text-blue-600 hover:text-blue-800">Descargar</a>
+                                    @elseif($export->hasFailed())
+                                        <span class="text-xs text-red-600">{{ $export->error_message }}</span>
+                                    @endif
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        @endif
+    </div>
 </div>
 @endsection
 
@@ -98,5 +152,11 @@
             box.checked = (box.dataset.vendorName || '').toLowerCase().includes('eterna');
         });
     });
+
+    if (document.querySelector('[data-export-pending]')) {
+        setTimeout(function () {
+            window.location.reload();
+        }, 8000);
+    }
 </script>
 @endsection

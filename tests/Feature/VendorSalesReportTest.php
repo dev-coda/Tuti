@@ -1,6 +1,8 @@
 <?php
 
 use App\Exports\VendorSalesExport;
+use App\Jobs\GenerateVendorSalesExport;
+use App\Models\ExportFile;
 use App\Models\Bonification;
 use App\Models\Brand;
 use App\Models\Order;
@@ -16,8 +18,10 @@ use Maatwebsite\Excel\Facades\Excel;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use Spatie\Permission\Models\Role;
 
+use Illuminate\Support\Facades\Queue;
 use function Pest\Laravel\actingAs;
 use function Pest\Laravel\get;
+use function Pest\Laravel\post;
 
 uses(RefreshDatabase::class);
 
@@ -102,13 +106,40 @@ it('rejects guests and non-admins and requires a vendor', function () {
     actingAs($seller);
     $denied = get(route('admin.reports.vendor-sales'));
     expect($denied->status())->not->toBe(200);
-    expect($denied->getContent())->not->toContain('Descargar Excel');
+    expect($denied->getContent())->not->toContain('Generar reporte');
 
     actingAs(vendorSalesAdmin());
-    get(route('admin.reports.vendor-sales.export', [
+    post(route('admin.reports.vendor-sales.export'), [
         'date_from' => '2026-08-01',
         'date_to' => '2026-08-31',
-    ]))->assertSessionHasErrors('vendor_ids');
+    ])->assertSessionHasErrors('vendor_ids');
+});
+
+it('queues the vendor sales report instead of building it in the request', function () {
+    Queue::fake();
+
+    $admin = vendorSalesAdmin();
+    $eterna = Vendor::factory()->create(['name' => 'ETERNA']);
+
+    actingAs($admin);
+
+    post(route('admin.reports.vendor-sales.export'), [
+        'date_from' => '2026-08-01',
+        'date_to' => '2026-08-31',
+        'vendor_ids' => [$eterna->id],
+    ])->assertRedirect(route('admin.reports.vendor-sales', [
+        'date_from' => '2026-08-01',
+        'date_to' => '2026-08-31',
+        'vendor_ids' => [$eterna->id],
+    ]));
+
+    $export = ExportFile::query()->where('type', 'vendor_sales')->first();
+    expect($export)->not->toBeNull()
+        ->and($export->status)->toBe(ExportFile::STATUS_PENDING);
+
+    Queue::assertPushed(GenerateVendorSalesExport::class, function (GenerateVendorSalesExport $job) use ($export) {
+        return $job->exportFileId === $export->id && $job->queue === 'exports';
+    });
 });
 
 it('counts shipped units, tax, bonifications, vendors, statuses, and Colombia date bounds', function () {

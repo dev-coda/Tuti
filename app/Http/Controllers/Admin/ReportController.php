@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Admin;
 use App\Exports\VendorSalesExport;
 use App\Http\Controllers\Controller;
 use App\Jobs\GenerateUserEmailReport;
+use App\Jobs\GenerateVendorSalesExport;
+use App\Models\ExportFile;
 use App\Models\Report;
 use App\Models\Vendor;
 use App\Reports\UserEmailReport;
@@ -325,11 +327,17 @@ class ReportController extends Controller
             'dateFrom' => $dateFrom,
             'dateTo' => $dateTo,
             'selectedVendorIds' => $vendorIds,
+            'exports' => ExportFile::forUser(auth()->id())
+                ->where('type', 'vendor_sales')
+                ->recent(30)
+                ->orderByDesc('created_at')
+                ->limit(15)
+                ->get(),
         ]);
     }
 
     /**
-     * Download vendor sales Excel (paid lines + bonifications).
+     * Queue vendor sales Excel (paid lines, bonifications, and full orders).
      */
     public function exportVendorSales(Request $request)
     {
@@ -342,18 +350,41 @@ class ReportController extends Controller
 
         $dateFrom = $validated['date_from'];
         $dateTo = $validated['date_to'];
-        $vendorIds = array_map('intval', $validated['vendor_ids']);
+        $vendorIds = array_values(array_map('intval', $validated['vendor_ids']));
+        $vendorNames = Vendor::query()->whereIn('id', $vendorIds)->orderBy('name')->pluck('name')->all();
 
         $filename = 'ventas_proveedor_'
             .Carbon::parse($dateFrom)->format('Ymd')
             .'_'
             .Carbon::parse($dateTo)->format('Ymd')
+            .'_'
+            .time()
             .'.xlsx';
 
-        return Excel::download(
-            new VendorSalesExport($dateFrom, $dateTo, $vendorIds),
-            $filename
-        );
+        $exportFile = ExportFile::create([
+            'user_id' => auth()->id(),
+            'type' => 'vendor_sales',
+            'filename' => $filename,
+            'file_path' => 'exports/vendor-sales/'.$filename,
+            'status' => ExportFile::STATUS_PENDING,
+            'params' => [
+                'label' => 'Ventas '.$dateFrom.' a '.$dateTo.' — '.implode(', ', $vendorNames),
+                'date_from' => $dateFrom,
+                'date_to' => $dateTo,
+                'vendor_ids' => $vendorIds,
+                'vendor_names' => $vendorNames,
+            ],
+        ]);
+
+        GenerateVendorSalesExport::dispatch($exportFile->id);
+
+        return redirect()
+            ->route('admin.reports.vendor-sales', [
+                'date_from' => $dateFrom,
+                'date_to' => $dateTo,
+                'vendor_ids' => $vendorIds,
+            ])
+            ->with('success', 'El reporte se está generando en segundo plano. Descárgalo aquí cuando esté listo.');
     }
 
     /**
