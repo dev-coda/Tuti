@@ -337,6 +337,10 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
         // Daily Sales Report
         Route::get('/daily-sales', [App\Http\Controllers\Admin\ReportController::class, 'dailySales'])->name('daily-sales');
         Route::get('/daily-sales/export', [App\Http\Controllers\Admin\ReportController::class, 'exportDailySales'])->name('daily-sales.export');
+
+        // Vendor sales (includes bonifications)
+        Route::get('/vendor-sales', [App\Http\Controllers\Admin\ReportController::class, 'vendorSales'])->name('vendor-sales');
+        Route::get('/vendor-sales/export', [App\Http\Controllers\Admin\ReportController::class, 'exportVendorSales'])->name('vendor-sales.export');
     });
     Route::resource('sellers', SellerController::class);
     Route::resource('supervisors', SupervisorController::class);
