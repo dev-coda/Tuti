@@ -37,13 +37,12 @@ class CouponController extends Controller
         $brands = Brand::all(['id', 'name']);
         $vendors = Vendor::all(['id', 'name']);
         $roles = Role::whereNotIn('name', ['admin', 'seller', 'supervisor'])->get(['name']);
-        
-        // Get zones and unique routes for restrictions
-        $zones = Zone::select('id', 'zone', 'route')->distinct()->get();
+
+        // Zone *numbers* and routes only — never load all zone rows (90k+).
         $uniqueZones = Zone::whereNotNull('zone')->distinct()->pluck('zone')->sort()->values();
         $uniqueRoutes = Zone::whereNotNull('route')->distinct()->pluck('route')->sort()->values();
 
-        return view('coupons.create', compact('categories', 'brands', 'vendors', 'roles', 'zones', 'uniqueZones', 'uniqueRoutes'));
+        return view('coupons.create', compact('categories', 'brands', 'vendors', 'roles', 'uniqueZones', 'uniqueRoutes'));
     }
 
     /**
@@ -150,9 +149,8 @@ class CouponController extends Controller
         $brands = Brand::all(['id', 'name']);
         $vendors = Vendor::all(['id', 'name']);
         $roles = Role::whereNotIn('name', ['admin', 'seller', 'supervisor'])->get(['name']);
-        
-        // Get zones and unique routes for restrictions
-        $zones = Zone::select('id', 'zone', 'route')->distinct()->get();
+
+        // Zone *numbers* and routes only — never load all zone rows (90k+).
         $uniqueZones = Zone::whereNotNull('zone')->distinct()->pluck('zone')->sort()->values();
         $uniqueRoutes = Zone::whereNotNull('route')->distinct()->pluck('route')->sort()->values();
 
@@ -175,7 +173,27 @@ class CouponController extends Controller
                 ])->values()->toArray();
         }
 
-        return view('coupons.edit', compact('coupon', 'categories', 'brands', 'vendors', 'roles', 'zones', 'uniqueZones', 'uniqueRoutes', 'preselectedItems'));
+        $preselectedZones = [];
+        if (!empty($coupon->allowed_zone_ids)) {
+            $preselectedZones = Zone::whereIn('id', $coupon->allowed_zone_ids)
+                ->get(['id', 'zone', 'route'])
+                ->map(fn ($z) => [
+                    'id' => $z->id,
+                    'display' => 'ID: ' . $z->id . ' - Zona: ' . ($z->zone ?? 'N/A') . ' - Ruta: ' . ($z->route ?? 'N/A'),
+                ])->values()->toArray();
+        }
+
+        return view('coupons.edit', compact(
+            'coupon',
+            'categories',
+            'brands',
+            'vendors',
+            'roles',
+            'uniqueZones',
+            'uniqueRoutes',
+            'preselectedItems',
+            'preselectedZones'
+        ));
     }
 
     /**
@@ -409,6 +427,37 @@ class CouponController extends Controller
             ]);
 
         return response()->json($customers);
+    }
+
+    /**
+     * AJAX search for zones by id / zone number / route (coupon create/edit forms).
+     * Avoids rendering the full zones table (~90k rows) into the page.
+     */
+    public function searchZones(Request $request)
+    {
+        $query = trim((string) $request->input('q', ''));
+
+        if ($query === '' || strlen($query) < 1) {
+            return response()->json([]);
+        }
+
+        $zones = Zone::query()
+            ->select('id', 'zone', 'route')
+            ->where(function ($q) use ($query) {
+                $q->where('id', $query)
+                    ->orWhere('zone', 'like', "%{$query}%")
+                    ->orWhere('route', 'like', "%{$query}%")
+                    ->orWhere('code', 'like', "%{$query}%")
+                    ->orWhere('address', 'like', "%{$query}%");
+            })
+            ->limit(50)
+            ->get()
+            ->map(fn ($z) => [
+                'id' => $z->id,
+                'display' => 'ID: ' . $z->id . ' - Zona: ' . ($z->zone ?? 'N/A') . ' - Ruta: ' . ($z->route ?? 'N/A'),
+            ]);
+
+        return response()->json($zones);
     }
 
     /**
