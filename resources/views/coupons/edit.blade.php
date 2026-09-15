@@ -163,19 +163,27 @@
             <p class="text-sm text-gray-500 mb-4">Opcional: Restringir este cupón a zonas o rutas específicas. Dejar vacío para permitir en todas las zonas/rutas.</p>
             
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <!-- Zone IDs -->
+                <!-- Zone IDs (AJAX search — zones table is too large to render inline) -->
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">Zonas permitidas (por ID)</label>
-                    <select name="allowed_zone_ids[]" multiple 
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                        size="5">
-                        @foreach($zones as $zone)
-                            <option value="{{ $zone->id }}" {{ in_array($zone->id, old('allowed_zone_ids', $coupon->allowed_zone_ids ?? [])) ? 'selected' : '' }}>
-                                ID: {{ $zone->id }} - Zona: {{ $zone->zone ?? 'N/A' }} - Ruta: {{ $zone->route ?? 'N/A' }}
-                            </option>
-                        @endforeach
-                    </select>
-                    <p class="mt-1 text-xs text-gray-500">Mantén presionado Ctrl/Cmd para seleccionar múltiples</p>
+                    <input
+                        type="text"
+                        id="zone-ids-filter"
+                        placeholder="Buscar por ID, zona, ruta o dirección..."
+                        class="w-full mb-2 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500"
+                    >
+                    <div id="zone-ids-checkboxes" class="border border-gray-300 rounded-lg p-3 max-h-60 overflow-y-auto bg-gray-50">
+                        @forelse(($preselectedZones ?? []) as $zone)
+                            <label class="flex items-center py-1.5 px-2 hover:bg-white rounded cursor-pointer zone-id-item">
+                                <input type="checkbox" name="allowed_zone_ids[]" value="{{ $zone['id'] }}" checked
+                                    class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500">
+                                <span class="ml-2 text-sm text-gray-700">{{ $zone['display'] }}</span>
+                            </label>
+                        @empty
+                            <p class="text-sm text-gray-500 p-2 zone-ids-empty">Escribe para buscar zonas...</p>
+                        @endforelse
+                    </div>
+                    <p class="mt-1 text-xs text-gray-500">Busca y marca las zonas. Las seleccionadas se conservan al buscar de nuevo.</p>
                     @error('allowed_zone_ids')
                         <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                     @enderror
@@ -441,7 +449,72 @@
         
         if (typeSelect.value) updateValueLabel(typeSelect.value);
         if (appliesSelect.value) updateAppliesTo(appliesSelect.value);
+
+        initZoneIdSearch();
     });
+
+    function initZoneIdSearch() {
+        const filterInput = document.getElementById('zone-ids-filter');
+        const container = document.getElementById('zone-ids-checkboxes');
+        if (!filterInput || !container) return;
+
+        const searchUrl = "{{ route('coupons.search-zones') }}";
+        let debounceTimer = null;
+
+        function createZoneCheckbox(item, checked) {
+            const itemLabel = document.createElement('label');
+            itemLabel.className = 'flex items-center py-1.5 px-2 hover:bg-white rounded cursor-pointer zone-id-item';
+
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.name = 'allowed_zone_ids[]';
+            checkbox.value = item.id;
+            checkbox.className = 'w-4 h-4 text-blue-600 rounded focus:ring-blue-500';
+            if (checked) checkbox.checked = true;
+
+            const span = document.createElement('span');
+            span.className = 'ml-2 text-sm text-gray-700';
+            span.textContent = item.display;
+
+            itemLabel.appendChild(checkbox);
+            itemLabel.appendChild(span);
+            return itemLabel;
+        }
+
+        filterInput.addEventListener('input', function () {
+            clearTimeout(debounceTimer);
+            const query = this.value.trim();
+
+            if (query.length < 1) {
+                if (container.querySelectorAll('.zone-id-item input:checked').length === 0) {
+                    container.innerHTML = '<p class="text-sm text-gray-500 p-2 zone-ids-empty">Escribe para buscar zonas...</p>';
+                }
+                return;
+            }
+
+            debounceTimer = setTimeout(() => {
+                const checkedIds = Array.from(container.querySelectorAll('input[type="checkbox"]:checked'))
+                    .map(cb => String(cb.value));
+                const preserved = Array.from(container.querySelectorAll('input[type="checkbox"]:checked'))
+                    .map(cb => cb.closest('.zone-id-item'));
+
+                fetch(searchUrl + '?q=' + encodeURIComponent(query))
+                    .then(r => r.json())
+                    .then(results => {
+                        container.innerHTML = '';
+                        preserved.forEach(el => container.appendChild(el));
+                        results.forEach(item => {
+                            if (!checkedIds.includes(String(item.id))) {
+                                container.appendChild(createZoneCheckbox(item, false));
+                            }
+                        });
+                        if (container.children.length === 0) {
+                            container.innerHTML = '<p class="text-sm text-gray-500 p-2">No se encontraron resultados.</p>';
+                        }
+                    });
+            }, 300);
+        });
+    }
 </script>
 
 @endsection
