@@ -132,6 +132,10 @@ class UpdateProductPrices implements ShouldQueue
 
         DB::beginTransaction();
         try {
+            // Collected TATNAC prices keyed by normalized SKU, used after the
+            // product loop to price variation rows matched by their own SKU.
+            $tatnacPrices = [];
+
             foreach ($products as $product) {
                 // Filter by GroupId == TATNAC
                 $groupIdNode = $product->xpath('./*[local-name()="GroupId"]');
@@ -153,6 +157,8 @@ class UpdateProductPrices implements ShouldQueue
                 $amount = str_replace('.', '', $amount);
                 $amount = str_replace(',', '.', $amount);
                 $cleanAmount = number_format((float) $amount, 2, '.', '');
+
+                $tatnacPrices[mb_strtoupper(trim($itemId))] = $cleanAmount;
 
                 $matchingProducts = Product::query()
                     ->matchingSku($itemId)
@@ -181,6 +187,37 @@ class UpdateProductPrices implements ShouldQueue
                                 info("  └─ Producto {$existingProduct->id}: sincronizadas {$variationCount} variaciones con precio {$effectivePrice}");
                             }
                         }
+                    }
+                }
+            }
+
+            // Second pass: variation rows whose own SKU exists in Dynamics get
+            // priced directly. Some SKUs only exist at variation level (e.g.
+            // glove sizes) and their parent products use placeholder SKUs, so
+            // the product loop above can never reach them. Running after the
+            // loop also ensures a variation's own Dynamics price wins over the
+            // parent-copy done via sync_variations_with_dynamics.
+            if (!empty($tatnacPrices)) {
+                $variationRows = DB::table('product_item_variation')
+                    ->whereIn(DB::raw('UPPER(TRIM(sku))'), array_keys($tatnacPrices))
+                    ->get();
+
+                foreach ($variationRows as $row) {
+                    $amount = $tatnacPrices[mb_strtoupper(trim($row->sku))];
+
+                    $parent = Product::find($row->product_id);
+                    $effectivePrice = $amount;
+                    if ($parent && ! $parent->calculate_package_price) {
+                        $packageQty = (float) ($parent->package_quantity ?? 1);
+                        $packageQty = $packageQty > 0 ? $packageQty : 1;
+                        $effectivePrice = number_format(((float) $amount) / $packageQty, 2, '.', '');
+                    }
+
+                    if ((float) $row->price !== (float) $effectivePrice) {
+                        DB::table('product_item_variation')
+                            ->where('id', $row->id)
+                            ->update(['price' => $effectivePrice, 'updated_at' => now()]);
+                        info("Precio de variación actualizado para {$row->sku} (producto {$row->product_id}, variación #{$row->id}): {$effectivePrice}");
                     }
                 }
             }
