@@ -39,48 +39,49 @@
             </div>
 
             <!-- Order Details -->
+            @php
+                $thankYouShipping = (float) ($order->shipping_quote_amount ?? 0);
+                $thankYouPayable = $order->totalPayable();
+            @endphp
             <div class="space-y-4">
                 <div class="flex justify-between items-center py-3 border-b border-gray-100">
-                    <span class="text-sm text-gray-600">Número de pedido</span>
-                    <span class="text-sm font-semibold text-gray-900">#{{ $order->id }}</span>
-                </div>
-
-                <div class="flex justify-between items-center py-3 border-b border-gray-100">
-                    <span class="text-sm text-gray-600">Fecha del pedido</span>
+                    <span class="text-sm text-gray-600">Fecha de pedido</span>
                     <span class="text-sm font-semibold text-gray-900">{{ $order->created_at->locale('es')->translatedFormat('d \d\e F \d\e Y') }}</span>
                 </div>
 
-                @if($order->delivery_method)
+                <div class="flex justify-between items-center py-3 border-b border-gray-100">
+                    <span class="text-sm text-gray-600">Fecha de entrega estimada</span>
+                    <span class="text-sm font-semibold text-gray-900">
+                        @if($order->delivery_date)
+                            {{ \Carbon\Carbon::parse($order->delivery_date)->locale('es')->translatedFormat('l d \d\e F \d\e Y') }}
+                        @else
+                            —
+                        @endif
+                    </span>
+                </div>
+
                 <div class="flex justify-between items-center py-3 border-b border-gray-100">
                     <span class="text-sm text-gray-600">Método de envío</span>
-                    <span class="text-sm font-semibold text-gray-900">{{ \App\Models\Order::deliveryMethodLabel($order->delivery_method) }}</span>
+                    <span class="text-sm font-semibold text-gray-900">
+                        @if($order->delivery_method)
+                            {{ \App\Models\Order::deliveryMethodLabel($order->delivery_method) }}
+                        @else
+                            —
+                        @endif
+                    </span>
                 </div>
-                @endif
 
-                @if($order->delivery_date)
                 <div class="flex justify-between items-center py-3 border-b border-gray-100">
-                    <span class="text-sm text-gray-600">Entrega estimada</span>
-                    <span class="text-sm font-semibold text-gray-900">{{ \Carbon\Carbon::parse($order->delivery_date)->locale('es')->translatedFormat('l d \d\e F \d\e Y') }}</span>
-                </div>
-                @endif
-
-                @php
-                    $thankYouShipping = (float) ($order->shipping_quote_amount ?? 0);
-                    $showShippingRow = filled($order->delivery_method);
-                @endphp
-                @if($showShippingRow)
-                <div class="flex justify-between items-center py-3 border-b border-gray-100">
-                    <span class="text-sm text-gray-600">Flete</span>
+                    <span class="text-sm text-gray-600">Valor del envío</span>
                     @if($thankYouShipping > 0)
                         <span class="text-sm font-semibold text-gray-900">${{ number_format($thankYouShipping, 0, ',', '.') }}</span>
                     @else
                         <span class="text-sm font-semibold text-right">
-                            <span class="line-through text-gray-400">${{ number_format(0, 0, ',', '.') }}</span>
+                            <span class="line-through text-gray-400">$0</span>
                             <span class="ml-2 text-green-700">GRATIS</span>
                         </span>
                     @endif
                 </div>
-                @endif
 
                 @if(($order->retention_total ?? 0) > 0)
                 <div class="rounded-lg bg-amber-50 border border-amber-100 px-3 py-3 space-y-2 text-sm">
@@ -101,8 +102,8 @@
                 @endif
 
                 <div class="flex justify-between items-center pt-4">
-                    <span class="text-base font-bold uppercase tracking-wide text-gray-900">Total a pagar</span>
-                    <span class="text-2xl font-bold text-orange-600">${{ number_format($order->totalPayable(), 0, ',', '.') }}</span>
+                    <span class="text-base font-bold uppercase tracking-wide text-gray-900">TOTAL A PAGAR</span>
+                    <span class="text-2xl font-bold text-orange-600">${{ number_format($thankYouPayable, 0, ',', '.') }}</span>
                 </div>
             </div>
         </div>
