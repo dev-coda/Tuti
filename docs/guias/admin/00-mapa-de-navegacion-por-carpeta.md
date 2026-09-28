@@ -1,88 +1,63 @@
-# Guía: panel de administración (rol `admin`)
+# Guía: panel de administración (mapa de módulos)
 
-Vista de conjunto de los **módulos** del back-office y sus usos, alineada con [admin.php](../../routes/admin.php) y nombres de ruta. Para detalle de reglas y campos, enlazar con los manuales de dominio: [configuracion.md](./configuracion.md), [catalogo-productos.md](./catalogo-productos.md), [inventario.md](./inventario.md), [cupones.md](./cupones.md), etc.
+Vista de conjunto del back-office alineada con `routes/admin.php`. Detalle operativo en las guías numeradas de esta carpeta.
 
-## Navegación y punto de entrada
+## Navegación
 
-- Tras `auth` + `role:admin`, el **dashboard** (`/dashboard`) redirige a `products.index` (catálogo) salvo otra lógica en vuestro menú.
-- Estructurar en la UI: **Catálogo e inventario**, **Clientes y vendedores**, **Ventas y reportes**, **Promociones**, **Contenido y marketing**, **Ajustes del sistema**.
-
-> Las URLs exactas siguen el patrón `/recurso` o `/prefijo/...` según las líneas de [admin.php](../../routes/admin.php). Si el menú aplica *prefix* global (p. ej. `admin/`), añadid el prefijo que use vuestra `RouteServiceProvider` / URL del servidor.
+- Tras `auth` + `role:admin`, el dashboard suele redirigir al catálogo (`products.index`).
+- Bloques típicos de menú: **Catálogo e inventario**, **Clientes y vendedores**, **Ventas y reportes**, **Promociones**, **Contenido**, **Ajustes**.
 
 ## Catálogo, precios e inventario
 
-| Recurso o prefijo | Qué hace (resumen) |
-|-------------------|---------------------|
-| `products` | Productos, imágenes, reorden, combinaciones, exportación, actualización de precios masiva (`updateproductprices`) |
-| `categories` y `categories/{id}/highlights` | Categorías y productos **destacados** por categoría |
-| `brands` | Marcas (proveedores) |
-| `vendors` | **Proveedores** raíz |
-| `labels` | Etiquetas (filtros, SEO, vitrinas) |
-| `tags` y toggles (auto *nuevo*, *descuento*) | **Etiquetas** de producto y reglas automáticas |
-| `variations` / `variations.items` | **Variaciones** y posiciones/ítems de variación |
-| `settings` (subsecciones) y `settings/ventas` | Ajuste global, inventario, vacaciones, reenviar pedidos, mailer, ventas |
-| `settings/zone-warehouses` (sync) | Mapeo **bodega ↔ zona** |
-| `settings/sync-inventory`, `inventory-logs` | Sincro de inventario y trazas |
-| `shipping-methods` | Métodos de entrega, activación, edición |
-| `holidays` (import, export) | Días no laborables o especiales en calendario de entregas |
-| `delivery-calendars` (+ import) | **Calendarios** de días/ventanas de entrega |
-| `route-cycles` (+ import) | **Ciclos de ruta** |
-| `bulk-operations` | Sincro masiva de datos de clientes y **reportes** generados (descargar, borrar) |
-| `taxes` | **Impuestos** |
+| Recurso o prefijo | Qué hace | Guía |
+|-------------------|----------|------|
+| `products` (+ `updateproductprices`) | Productos, imágenes, precios; sync Dynamics por SKU de producto **y** de variación | [01](./01-gestion-de-catalogo-producto-y-medios.md) |
+| `categories`, `brands`, `vendors`, `labels`, `tags`, `variations` | Taxonomía y variaciones | [01](./01-gestion-de-catalogo-producto-y-medios.md) |
+| `settings` / inventario / `inventory-logs` | Inventario, mínimo global, sync, aviso bodegas no sync ayer | [05](./05-inventario-bodegas-y-sincronizacion.md), [14](./14-configuracion-ajustes-modo-vacaciones-correo.md) |
+| `shipping-methods` | Métodos + **habilitación por ciudad** | [18](./18-festivos-impuestos-envio-y-retenciones.md) |
+| `holidays`, `delivery-calendars`, `route-cycles` | Festivos, calendarios, ciclos | [13](./13-calendarios-entrega-y-envio.md), [18](./18-festivos-impuestos-envio-y-retenciones.md) |
+| `bulk-operations` | Sincro masiva clientes | [15](./15-operations-masivas-sincro-clientes.md) |
+| `taxes` | Impuestos | [18](./18-festivos-impuestos-envio-y-retenciones.md) |
 
-Búsquedas: ver documentación de API para integraciones; en UI, usad filtros y exportaciones CSV/Excel de cada módulo cuando exista.
+## Promociones y marketing
 
-## Promociones, precios y marketing transaccional
+| Recurso | Uso | Guía |
+|---------|-----|------|
+| `promociones`, `volume-discounts`, `promocion` | Hub y descuentos por volumen/precio | [06](./06-centro-de-promociones-precio-y-volumen.md), [07](./07-descuentos-y-promociones-englobado.md) |
+| `bonifications` | Compra X lleva Y; mensajes de stock de obsequio en checkout | [08](./08-bonificaciones.md) |
+| `coupons` (+ `search-zones`, mass-create, export) | Cupones, zonas AJAX, stacking marca/proveedor | [09](./09-cupones-gestion-avanzada.md) |
+| `coupon-tests` | Diagnóstico técnico | [17](./17-coupon-tests-solo-tecnicos.md) |
+| `banners`, `featured-*`, `content`, `content-pages`, `upsell-*` | Contenido en sitio | [11](./11-contenido-banners-destacados-campanas-upsell.md) |
+| `admin.campaigns` | Hub: auto-tags y título de destacados | [11](./11-contenido-banners-destacados-campanas-upsell.md) |
+| `retentions`, `email-templates` | Retenciones y plantillas | [18](./18-festivos-impuestos-envio-y-retenciones.md), [11](./11-contenido-banners-destacados-campanas-upsell.md) |
 
-| Recurso o prefijo | Uso |
-|-------------------|-----|
-| `promociones` (index: hub) | Página central de *promociones* (enlaces a descuento directo, volumen, bonificaciones, cupones, análisis) |
-| `volume-discounts` | **Descuentos por volumen** (reglas y tramos) |
-| `promocion` (resource) | Tipo *promoción* (según vuestro modelo) |
-| `bonifications` | [Bonificaciones “compra X, lleva Y”](./bonificaciones.md) |
-| `coupons` (export, mass-create, toggle) | [Cupones](./cupones.md) y operaciones en masa |
-| `coupon-tests` | Módulo de **prueba/diagnóstico** de cupones (órdenes simuladas, inspección XML) — *uso técnico* |
-| `banners` | Banners (tipos, secuencia) |
-| `featured-products`, `featured-categories` | **Destacados** en inicio, carruseles, títulos |
-| `content` (claves) | **Contenido estático** (claves reutilizables) |
-| `content-pages` | Páginas con **slug** (`/contenido/{slug}`) [contenido-banners-campanas.md](./contenido-banners-campanas.md) |
-| `upsell-zones`, `upsell-rules` | Zonas de *cross/upsell* y reglas |
-| `retentions` | **Retención** o reglas retenidas (según modelo) |
-| `admin.campaigns` (index + settings) | **Campañas** (activación, parámetros) |
+## Personas, pedidos y reportes
 
-También: [Plantillas de correo](../EMAIL_TEMPLATES.md) (detalle técnico en repositorio); en la app: ruta `admin.email-templates.*`.
+| Recurso | Uso | Guía |
+|---------|-----|------|
+| `users`, `sellers`, `admins` | Cuentas, 48h, zonas | [10](./10-usuarios-vendedores-y-accesos.md) |
+| `orders`, `exports` | Pedidos, reintentos XML/email, exportes | [04 b2b](../b2b-tienda/04-carrito-checkout-y-ordenes.md), [16](./16-reportes-kpi-y-exportes.md) |
+| `reports`, `reports/daily-sales`, `reports/vendor-sales` | Reportes bajo demanda, ventas día, **ventas por proveedor** (cola) | [16](./16-reportes-kpi-y-exportes.md) |
+| `contacts`, `kpi` | Leads / KPI | [16](./16-reportes-kpi-y-exportes.md) |
 
-## Personas, pedidos y comunicación
+## Fuera del panel admin (pero operativos)
 
-| Recurso | Uso |
-|---------|-----|
-| `users` (patch zona 48h) | [Usuarios](./usuarios-autenticacion.md), 48h Coordinadora, export |
-| `sellers` y export vendedor | Gestionar vendedores |
-| `admins` | Cuentas administradoras del panel |
-| `orders` (resend, reintentar XML, reintentar emails, exporte mensual) | [Órdenes](./carrito-ordenes.md#gestión-de-órdenes-administradores) |
-| `exports` (listado, download, status) | Colas de **exportes** mensuales/ masivos de órdenes |
-| `reports` (generate, download) | **Reportes** bajo demanda; [reportes-y-exportaciones.md](./reportes-y-exportaciones.md) |
-| `reports/daily-sales` y export | [reportes-y-exportaciones.md](./reportes-y-exportaciones.md) |
-| `contacts` y `contactexport` | Formularios o leads en **Contact** |
-| `kpi` (KpiController) | [reportes-y-exportaciones.md](./reportes-y-exportaciones.md) (dashboard KPI y export) |
+| Tema | Guía |
+|------|------|
+| Mi Cuenta / Mi Ruta / Mis Zonas / Direcciones por rol | [roles/03](../roles/03-mi-cuenta-pestanas-y-visibilidad.md) |
+| `/cliente-nuevo`, magic link, Tronex | [b2b/03](../b2b-tienda/03-registro-alta-cuenta-tronex-y-sesion.md) |
+| Carrito Entrega Standard / Especial | [b2b/04](../b2b-tienda/04-carrito-checkout-y-ordenes.md), [b2b/05](../b2b-tienda/05-plazos-entrega-vista-comprador.md) |
+| Zonas 48h / Coordinadora | [12](./12-zonas-rutas-y-48-horas.md) |
 
-**Perfil** del proveedor (genérico): ruta de perfil `profile.update` apuntando a `VendorController@index` en el fragmento visto; confirmar con el menú *Perfil*.
+## Ajustes globales frecuentes
 
-**Acción de prueba de correo:** ruta con nombre `test.email` (POST) para probar el mailer (Mailgun) desde el panel, según vuestro formulario en Ajustes.
+Express 48h, envío gratis especial, forzar fecha, inventario mínimo global, modo vacaciones, colas — [14](./14-configuracion-ajustes-modo-vacaciones-correo.md).
 
-## Impuestos, entrega e inventario mínimo
+## Buenas prácticas
 
-- **Express 48h**, forzar fecha de entrega, inventario mínimo global, modo vacaciones, procesar pedidos en cola, etc. — formularios en [configuracion.md](./configuracion.md) bajo *settings* (POST documentados en admin).
-
-## Exportaciones y auditoría (referencia)
-
-- `orderauditexport` — descarga vinculada a auditoría de pedidos. Véase la documentación técnica (p. ej. *Daily audit* en [../tecnica/README.md](../tecnica/README.md)) para runbooks en inglés; el uso operativo es **descargar** el informe y revisar discrepancias.
-
-## Buenas prácticas de seguridad
-
-- Operaciones destructivas (migraciones, borrado) solo por personal con formación. Ver [DANGEROUS_MIGRATIONS.md](../DANGEROUS_MIGRATIONS.md) en documentación técnica.
-- *Coupon-tests* y *bulk* pueden afectar datos: usar en *stage* o con supervisión.
+- Operaciones destructivas solo con formación ([DANGEROUS_MIGRATIONS.md](../../DANGEROUS_MIGRATIONS.md)).
+- *Coupon-tests* y *bulk* preferible en *stage*.
 
 ---
 
-**Revisado:** Abril 2026
+**Revisado:** septiembre 2026

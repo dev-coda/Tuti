@@ -2,7 +2,7 @@
 
 ## 📋 Descripción General
 
-El módulo de Calendarios de Entrega gestiona la configuración de semanas disponibles para entrega, días festivos, y el cálculo de fechas de entrega según el método seleccionado (Tronex o Express).
+El módulo de Calendarios de Entrega gestiona la configuración de semanas disponibles para entrega, días festivos, y el cálculo de fechas de entrega según el método seleccionado (**Entrega Standard** / Tronex o **Entrega Especial** / express).
 
 ## 📅 Calendarios de Entrega
 
@@ -129,15 +129,17 @@ Si el día de visita del vendedor **no es hoy**:
 - El job de procesamiento espera hasta esa fecha
 - Cuando llega la fecha, se procesa automáticamente
 
-### Método Express
+### Método Entrega Especial (express / 48h)
 
-El método Express promete entrega en **2 días hábiles** desde la fecha de la orden.
+En UI del carrito se muestra como **Entrega Especial**. Promete entrega en **~2 días hábiles** desde la fecha de la orden (según festivos y configuración).
 
 #### Proceso de Cálculo
 
 1. **Fecha Base**: Mañana (las órdenes de hoy no se entregan hoy)
 2. **Contar Días Hábiles**: Se cuentan exactamente 2 días hábiles desde mañana
 3. **Resultado**: Fecha de entrega = mañana + 2 días hábiles
+
+Disponibilidad adicional: toggle global Express 48h, toggles por zona y por ciudad (ver [18](./18-festivos-impuestos-envio-y-retenciones.md) y [05 plazos comprador](../b2b-tienda/05-plazos-entrega-vista-comprador.md)).
 
 #### Ejemplo
 
@@ -285,11 +287,11 @@ Los calendarios se pueden actualizar cuando cambian las rutas:
 3. **Requieren Ciclo**: La ruta debe estar mapeada a un ciclo
 4. **Requieren Semana Disponible**: Debe haber una semana disponible para ese ciclo
 
-### Órdenes Express
+### Órdenes Entrega Especial (express)
 
-1. **No Requieren Zona**: Se calcula independientemente de la zona
-2. **Siempre Disponible**: No depende de calendarios
-3. **Fijo**: Siempre 2 días hábiles
+1. **Requieren** que Express 48h esté habilitado y que zona/ciudad permitan el método
+2. Fecha ~2 días hábiles (festivos/sábados según configuración)
+3. Pueden cotizar flete Coordinadora cuando la zona usa fulfillment 48h
 
 ## ⚠️ Consideraciones Importantes
 

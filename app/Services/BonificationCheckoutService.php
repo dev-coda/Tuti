@@ -124,6 +124,257 @@ class BonificationCheckoutService
         return self::minRequestedUnitsGivenAvailable($disponible, $giftProduct, $requestedUnits) >= $requestedUnits;
     }
 
+    /**
+     * Human-readable reason for the inventory floor applied to a product.
+     *
+     * @return array{floor: int, label: string, uses_product_safety: bool}
+     */
+    public static function inventoryFloorDetails(Product $product): array
+    {
+        $product->loadMissing('categories');
+        $safety = (int) $product->getEffectiveSafetyStock();
+        $globalMin = (int) (Setting::getByKey('global_minimum_inventory') ?? 5);
+        $usesProductSafety = $safety > 0;
+        $floor = $usesProductSafety ? $safety : $globalMin;
+
+        return [
+            'floor' => $floor,
+            'label' => $usesProductSafety
+                ? "stock de seguridad del producto ({$floor})"
+                : "mínimo global de inventario ({$floor})",
+            'uses_product_safety' => $usesProductSafety,
+        ];
+    }
+
+    /**
+     * Clear Spanish message when a bonification gift cannot be fulfilled from zone stock.
+     * Distinguishes "no inventory row", "raw shortage", and "blocked by safety/global floor"
+     * so checkout does not look like a paid cart line failed.
+     */
+    public static function insufficientGiftStockMessage(
+        Product $giftProduct,
+        int $disponible,
+        int $requestedUnits,
+        ?string $variationLabel = null
+    ): string {
+        $name = trim((string) $giftProduct->name) !== '' ? $giftProduct->name : 'el producto de obsequio';
+        $variationSuffix = $variationLabel
+            ? " (variación: {$variationLabel})"
+            : '';
+
+        if ($disponible <= 0) {
+            return "No se puede aplicar la bonificación: el obsequio «{$name}»{$variationSuffix}"
+                .' no tiene inventario disponible en la bodega de tu zona.'
+                ." Se requieren {$requestedUnits} unidad(es) de obsequio."
+                .' Revisa el stock del producto de regalo (no el del producto comprado).';
+        }
+
+        $floor = self::inventoryFloorDetails($giftProduct);
+        $maxGivable = max(0, $disponible - $floor['floor']);
+
+        if ($maxGivable < $requestedUnits && $disponible >= $requestedUnits) {
+            return "No se puede aplicar la bonificación: el obsequio «{$name}»{$variationSuffix}"
+                ." requiere {$requestedUnits} unidad(es), hay {$disponible} disponible(s) en tu zona,"
+                ." pero el {$floor['label']} deja solo {$maxGivable} unidad(es) entregables."
+                .' Baja la cantidad del producto que activa la bonificación o espera reposición del obsequio.';
+        }
+
+        return "No se puede aplicar la bonificación: el obsequio «{$name}»{$variationSuffix}"
+            ." requiere {$requestedUnits} unidad(es) y solo hay {$disponible} disponible(s) en tu zona"
+            ." (entregables tras {$floor['label']}: {$maxGivable})."
+            .' Revisa el stock del producto de regalo (no el del producto comprado).';
+    }
+
+    /**
+     * Clear Spanish message when a paid cart line fails the final inventory check.
+     */
+    public static function insufficientPaidLineStockMessage(
+        Product $product,
+        int $disponible,
+        int $requestedQty
+    ): string {
+        $name = trim((string) $product->name) !== '' ? $product->name : 'el producto';
+        $floor = self::inventoryFloorDetails($product);
+        $remainingAfter = $disponible - $requestedQty;
+
+        if ($requestedQty > $disponible) {
+            return "Inventario insuficiente para «{$name}»: solicitas {$requestedQty} unidad(es)"
+                ." y solo hay {$disponible} disponible(s) en tu zona.";
+        }
+
+        if ($disponible <= $floor['floor']) {
+            return "Inventario insuficiente para «{$name}»: hay {$disponible} disponible(s) en tu zona,"
+                ." pero está por debajo o en el {$floor['label']}.";
+        }
+
+        return "Inventario insuficiente para «{$name}»: solicitas {$requestedQty} unidad(es),"
+            ." hay {$disponible} disponible(s) en tu zona, y tras el pedido quedarían {$remainingAfter}"
+            ." (debe quedar al menos el {$floor['label']}).";
+    }
+
+    /**
+     * Preview whether qualified bonification gifts can be fulfilled from zone stock,
+     * after subtracting cart demand for the same gift SKU/variation.
+     *
+     * Intentionally not wired as a hard checkout gate: keep CartController's
+     * lockForUpdate path as the sole authority to avoid false rejects from
+     * pre-check vs in-transaction variation resolution drift.
+     *
+     * @param  array<int|string, array<string, mixed>>  $cart
+     * @return string|null Error message, or null when stock is OK / inventory not enforced
+     */
+    public static function validateCartGiftStock(array $cart, ?string $bodega): ?string
+    {
+        if (! $bodega) {
+            return null;
+        }
+
+        $productQuantities = [];
+        $cartDemandByStockKey = [];
+
+        foreach ($cart as $row) {
+            $productId = (int) ($row['product_id'] ?? 0);
+            if ($productId <= 0) {
+                continue;
+            }
+
+            $product = Product::with(['categories', 'items'])->find($productId);
+            if (! $product) {
+                continue;
+            }
+
+            $packageQuantity = (int) ($product->package_quantity ?? 1);
+            $lineQty = (int) ($row['quantity'] ?? 0);
+            $productQuantities[$productId] = ($productQuantities[$productId] ?? 0) + ($lineQty * $packageQuantity);
+
+            $variationItemId = isset($row['variation_id']) ? (int) $row['variation_id'] : null;
+            $stockKey = $productId.':'.($variationItemId ?: 'base');
+            $cartDemandByStockKey[$stockKey] = ($cartDemandByStockKey[$stockKey] ?? 0) + $lineQty;
+        }
+
+        if (empty($productQuantities)) {
+            return null;
+        }
+
+        $giftDemandByStockKey = [];
+        $giftMetaByStockKey = [];
+
+        $triggers = Product::with(['bonifications.product.items', 'bonifications.product.categories'])
+            ->whereIn('id', array_keys($productQuantities))
+            ->get()
+            ->keyBy('id');
+
+        foreach ($productQuantities as $productId => $aggregatedItems) {
+            $trigger = $triggers->get($productId);
+            if (! $trigger || $trigger->bonifications->isEmpty()) {
+                continue;
+            }
+
+            foreach ($trigger->bonifications as $bonification) {
+                $buy = (int) ($bonification->buy ?? 0);
+                $get = (int) ($bonification->get ?? 0);
+                if ($buy <= 0 || $get <= 0) {
+                    continue;
+                }
+
+                $giftQty = (int) floor(($aggregatedItems / $buy) * $get);
+                // Match CartController clamp order (including max=0 → no gift).
+                if ($giftQty <= 0) {
+                    continue;
+                }
+                if ($giftQty > (int) ($bonification->max ?? 0)) {
+                    $giftQty = (int) $bonification->max;
+                }
+                if ($giftQty <= 0) {
+                    continue;
+                }
+
+                $giftProduct = $bonification->product;
+                if (! $giftProduct || ! $giftProduct->isInventoryManaged()) {
+                    continue;
+                }
+
+                // Match checkout: if the gift is already a paid cart line with a variation,
+                // resolveGiftVariationItemId will lock to that OrderProduct variation after insert.
+                // Prefer the same variation here so pre-check does not false-reject/accept.
+                $variationItemId = self::firstCartVariationItemIdForProduct($cart, (int) $giftProduct->id)
+                    ?? self::resolveGiftVariationItemId(
+                        $giftProduct,
+                        0,
+                        $bodega,
+                        $giftQty
+                    );
+                $stockKey = ((int) $giftProduct->id).':'.($variationItemId ?: 'base');
+                $giftDemandByStockKey[$stockKey] = ($giftDemandByStockKey[$stockKey] ?? 0) + $giftQty;
+                $giftMetaByStockKey[$stockKey] = [
+                    'product' => $giftProduct,
+                    'variation_item_id' => $variationItemId,
+                ];
+            }
+        }
+
+        foreach ($giftDemandByStockKey as $stockKey => $requestedTotal) {
+            $meta = $giftMetaByStockKey[$stockKey];
+            /** @var Product $giftProduct */
+            $giftProduct = $meta['product'];
+            $variationItemId = $meta['variation_item_id'];
+            $disponible = (int) $giftProduct->getInventoryForBodega($bodega, $variationItemId);
+            $cartDemand = (int) ($cartDemandByStockKey[$stockKey] ?? 0);
+            $remainingAfterCart = max(0, $disponible - $cartDemand);
+
+            if (self::hasEnoughStockForRequestedUnits($remainingAfterCart, $giftProduct, $requestedTotal)) {
+                continue;
+            }
+
+            $variationLabel = null;
+            if ($variationItemId) {
+                $item = $giftProduct->items->firstWhere('id', $variationItemId);
+                $variationLabel = $item?->name;
+            }
+
+            $message = self::insufficientGiftStockMessage(
+                $giftProduct,
+                $remainingAfterCart,
+                $requestedTotal,
+                $variationLabel
+            );
+
+            if ($cartDemand > 0) {
+                $message .= " Nota: el carrito ya reserva {$cartDemand} unidad(es) de este mismo producto.";
+            }
+
+            return $message;
+        }
+
+        return null;
+    }
+
+    /**
+     * First non-null variation_id for a product already in the cart (cart insertion order).
+     * Mirrors OrderProduct::orderBy('id')->first() once paid lines are written at checkout.
+     */
+    public static function firstCartVariationItemIdForProduct(array $cart, int $productId): ?int
+    {
+        if ($productId <= 0) {
+            return null;
+        }
+
+        foreach ($cart as $row) {
+            if ((int) ($row['product_id'] ?? 0) !== $productId) {
+                continue;
+            }
+
+            $variationId = $row['variation_id'] ?? null;
+            if ($variationId === null || $variationId === '' || (int) $variationId === 0) {
+                continue;
+            }
+
+            return (int) $variationId;
+        }
+
+        return null;
+    }
+
     public static function giftProductHasEnabledItems(Product $product): bool
     {
         return $product->items()->wherePivot('enabled', true)->exists();

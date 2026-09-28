@@ -20,9 +20,18 @@ Guía de módulos de *datos maestros* y fiscos menores. Rutas: `Tuti/routes/admi
 
 ## 3. Métodos de envío (`shipping-methods`)
 
-- **Rutas:** por lo general *index*, *edit*, *update* y *toggle* (revisar `admin.php`).  
-- **Controlador:** `ShippingMethodController`.  
-- **Contenido:** texto, descripción, orden, **activo**; lo que ve el *comprador* al elegir *envío*. Los *nombres* deben ser coherentes con *Order* y con el *endpoint* `GET /api/shipping-quote/{método}`. Desactivar un método en la lista no reemplaza por sí sola toda la lógica de cotización en *API*; verificar con [api-referencia-completa.md](../../tecnica/api-referencia-completa.md) y *pruebas*.
+- **Rutas:** *index*, *edit*, *update*, *toggle* (`admin.php`).
+- **Controlador:** `ShippingMethodController`.
+- **Contenido:** texto, descripción, orden, **activo**.
+- **Nombres en carrito (UI):** *Entrega Standard* y *Entrega Especial* (códigos internos `tronex` / `express`).
+- **Por ciudad:** en la edición del método se listan ciudades y se habilita/deshabilita el método por ciudad (`city_shipping_method`). Una ciudad deshabilitada no verá esa opción en checkout aunque el método esté activo globalmente.
+- Cotización: `GET /api/shipping-quote/{método}` (sesión de carrito). Fechas: `GET /api/delivery-date/{método}`.
+- Complementos de negocio:
+  - Express 48h global (Ajustes)
+  - Envío gratis Entrega Especial: `express_free_shipping_enabled` + `express_free_shipping_min`
+  - Toggles por **zona** del cliente: `shipping_standard_enabled` / `shipping_express_enabled` (edición de zona/usuario)
+
+Desactivar un método en la lista no sustituye por sí sola toda la lógica de Coordinadora; verificar con [api-referencia-completa.md](../../tecnica/api-referencia-completa.md) y pruebas.
 
 ## 4. Retenciones (`retentions` — estilo RTE / IVA)
 
@@ -42,4 +51,4 @@ Guía de módulos de *datos maestros* y fiscos menores. Rutas: `Tuti/routes/admi
 
 ---
 
-*Revisado: abril 2026.*
+*Revisado: septiembre 2026.*

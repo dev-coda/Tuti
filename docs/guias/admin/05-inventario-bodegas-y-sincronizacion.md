@@ -166,9 +166,25 @@ El sistema sincroniza inventario automáticamente con un sistema externo vía SO
 
 ### Productos con Variaciones
 
-- El inventario se gestiona a nivel de producto padre
-- Todas las variaciones comparten el mismo stock
-- Al comprar cualquier variación, se decrementa del stock del padre
+- Si la variación **no** tiene SKU propio en Dynamics, el stock suele vivir a nivel producto padre
+- Si la variación tiene **SKU propio**, la sincronización puede mantener inventario **por variación** (`variation_item_id`); el checkout consulta ese pool
+- En vitrina, el stock “pedible” puede mostrar el máximo entre variaciones habilitadas
+- No asumir que “todas las variaciones siempre comparten el mismo stock”: depende de cómo estén cargados los SKU en Dynamics y en el producto
+
+### Al Procesar Orden — mensajes al comprador
+
+Los mensajes de error nombran cantidades y el piso aplicable:
+
+- Línea pagada bajo piso: *«… está por debajo del stock de seguridad (X disponibles, mínimo: Y)»* o *mínimo global de inventario*
+- Cantidad excesiva: *«… (N solicitadas, M disponibles)»*
+- Obsequio de bonificación: mensaje distinto que nombra el **producto de regalo** (ver [08 — Bonificaciones](./08-bonificaciones.md))
+
+### Logs de Sincronización
+
+- Panel Admin → Configuración → Logs de Inventario
+- Muestra últimas sincronizaciones (fecha, bodega, productos, estado, respuesta)
+- **Bodegas no sincronizadas ayer**: aviso si alguna bodega no completó sync el día anterior
+- Tras fallos, el sistema puede **reintentar** sincronizaciones de bodega con retraso (p. ej. ~1 h) y reportar omisiones del día previo
 
 ## 📈 Reportes de Inventario
 
@@ -184,16 +200,9 @@ El sistema sincroniza inventario automáticamente con un sistema externo vía SO
 - Incluye órdenes procesadas
 - Incluye sincronizaciones
 
-### Logs de Sincronización
+### Logs de Sincronización (detalle)
 
-- Panel Admin → Configuración → Logs de Inventario
-- Muestra últimas sincronizaciones
-- Incluye:
-  - Fecha y hora
-  - Bodega procesada
-  - Productos actualizados
-  - Estado
-  - Respuesta completa del servicio
+Ver sección anterior: pantalla `settings/inventory-logs`, incluyendo el aviso de bodegas sin sync de ayer.
 
 ## ⚙️ Configuración
 

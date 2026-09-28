@@ -1014,8 +1014,8 @@ class CartController extends Controller
                     ]);
 
                     $errorMsg = ($safety > 0)
-                        ? "{$product->name} está por debajo del stock de seguridad."
-                        : "El producto {$product->name} tiene inventario insuficiente en su zona (mínimo: {$globalMinInventory} unidades).";
+                        ? "{$product->name} está por debajo del stock de seguridad ({$available} disponibles, mínimo: {$safety})."
+                        : "El producto {$product->name} tiene inventario insuficiente en su zona ({$available} disponibles, mínimo: {$globalMinInventory} unidades).";
 
                     return back()->with('error', $errorMsg);
                 }
@@ -1032,7 +1032,7 @@ class CartController extends Controller
                         'bodega' => $bodega,
                     ]);
 
-                    return back()->with('error', "La cantidad solicitada de {$product->name} excede el inventario disponible en su zona.");
+                    return back()->with('error', "La cantidad solicitada de {$product->name} excede el inventario disponible en su zona ({$cartItem['quantity']} solicitadas, {$available} disponibles).");
                 }
             }
         }
@@ -1441,7 +1441,14 @@ class CartController extends Controller
                         ]);
                         DB::rollBack();
 
-                        return back()->with('error', "Inventario insuficiente para {$p->name} en su zona.");
+                        return back()->with(
+                            'error',
+                            BonificationCheckoutService::insufficientPaidLineStockMessage(
+                                $p,
+                                $current,
+                                (int) $row['quantity']
+                            )
+                        );
                     }
                     if ($inventory) {
                         $inventory->update(['available' => $current - (int) $row['quantity']]);
@@ -1542,6 +1549,15 @@ class CartController extends Controller
                             $requestedTotal
                         );
                         if (! $hasEnoughForAll) {
+                            $variationLabel = null;
+                            if (str_contains($stockKey, ':') && ! str_ends_with($stockKey, ':base')) {
+                                $variationId = (int) substr($stockKey, strrpos($stockKey, ':') + 1);
+                                $catalogProduct->loadMissing('items');
+                                $variationLabel = $catalogProduct->items
+                                    ->firstWhere('id', $variationId)
+                                    ?->name;
+                            }
+
                             Log::warning('Order rollback: insufficient stock for bonification gift', [
                                 'order_id' => $order->id,
                                 'trigger_product_id' => $id,
@@ -1549,13 +1565,24 @@ class CartController extends Controller
                                 'stock_key' => $stockKey,
                                 'requested_total' => $requestedTotal,
                                 'available' => $disponible,
+                                'inventory_floor' => BonificationCheckoutService::effectiveInventoryFloor($catalogProduct),
+                                'max_givable' => BonificationCheckoutService::minRequestedUnitsGivenAvailable(
+                                    $disponible,
+                                    $catalogProduct,
+                                    $requestedTotal
+                                ),
                                 'bodega' => $bodega,
                             ]);
                             DB::rollBack();
 
                             return back()->with(
                                 'error',
-                                "Inventario insuficiente para entregar la bonificación de {$catalogProduct->name} en su zona."
+                                BonificationCheckoutService::insufficientGiftStockMessage(
+                                    $catalogProduct,
+                                    $disponible,
+                                    $requestedTotal,
+                                    $variationLabel
+                                )
                             );
                         }
                     }

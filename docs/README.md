@@ -1,27 +1,29 @@
 # Documentación Tuti
 
-Portal del repositorio. **Guía principal (por carpetas, español):** [guias/README.md](./guias/README.md). En el panel *admin* (rol administrador) las mismas guías se pueden leer bajo la ruta **/documentación** (menú *Documentación*).
+Portal del repositorio. **Guía principal (español):** [guias/README.md](./guias/README.md). En el panel *admin* (rol administrador) las mismas guías se leen bajo **/documentacion** (menú *Documentación*).
 
-## Estructura (abr 2026)
+## Estructura
 
 
-| Ubicación                                                | Contenido                                                                                                                                               |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [guias/](./guias/README.md)                              | **Fuente** de manuales: B2B tienda, `admin/`, `roles/`. El contenido largo (carrito, calendario, etc.) vive bajo nombres numerados en esas subcarpetas. |
-| [manuales-usuario/](./manuales-usuario/README.md)        | Redirige a `guias/`; conservar solo si enlazas desde wikis antiguos.                                                                                    |
-| [manuales-archivados/](./manuales-archivados/)           | *Snapshot* al reorganizar (abril 2026); no actualizar salvo *diff* a propósito.                                                                         |
-| [tecnica/](./tecnica/README.md)                          | Despliegue, colas, API, integración ERP, índice de *fixes* e inglés.                                                                                    |
-| [DOCUMENTACION_COMPLETA.md](./DOCUMENTACION_COMPLETA.md) | Visión *macro* de módulos y entidades.                                                                                                                  |
-| [../README.md](../README.md)                             | *README* del proyecto (stack, filosofía).                                                                                                               |
+| Ubicación | Contenido |
+| --------- | --------- |
+| [guias/](./guias/README.md) | **Fuente** del módulo Documentación: B2B, admin, roles |
+| [manuales-usuario/](./manuales-usuario/README.md) | Redirige a `guias/` |
+| [manuales-archivados/](./manuales-archivados/) | Snapshot histórico; no actualizar de forma proactiva |
+| [tecnica/](./tecnica/README.md) | Despliegue, colas, API, ERP |
+| [DOCUMENTACION_COMPLETA.md](./DOCUMENTACION_COMPLETA.md) | Visión macro |
+| [../README.md](../README.md) | README del proyecto |
 
 
 ## Ruta rápida por perfil
 
-- **Comprador / *tendero* (web):** [guias/b2b-tienda/](./guias/b2b-tienda/) (empezar por `00` o `01`).  
-- **Vendedor (seller):** [guias/roles/01-vendedor-rol-seller.md](./guias/roles/01-vendedor-rol-seller.md).  
-- **Back-office:** [guias/admin/](./guias/admin/) (mapa: `00-mapa…`).  
-- **Desarrollador / DevOps:** [tecnica/README.md](./tecnica/README.md), [tecnica/api-referencia-completa.md](./tecnica/api-referencia-completa.md).
+- **Comprador / tendero:** [guias/b2b-tienda/](./guias/b2b-tienda/)
+- **Vendedor / supervisor:** [guias/roles/](./guias/roles/) (empezar por `01` y `03` Mi Cuenta)
+- **Back-office:** [guias/admin/](./guias/admin/) (`00-mapa…`)
+- **DevOps:** [tecnica/README.md](./tecnica/README.md)
 
 ## Idioma
 
-Guías bajo `guias/` y sumarios en `tecnica/`* (despliegue, colas, API, integración) en **español**. Documentos históricos en **inglés** siguen en la raíz de `docs/` y se listan en [tecnica/README.md](./tecnica/README.md).
+Guías en `guias/` y sumarios en `tecnica/` en **español**. Documentos históricos en inglés en la raíz de `docs/` (índice en [tecnica/README.md](./tecnica/README.md)).
+
+*Contenido operativo de guías actualizado: septiembre 2026.*

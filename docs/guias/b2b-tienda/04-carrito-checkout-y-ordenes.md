@@ -109,14 +109,23 @@ El módulo de Carrito y Órdenes gestiona todo el proceso de compra desde la sel
 
 #### Método de Entrega
 
-1. **Tronex**
-   - Entrega programada según ruta
-   - Fecha calculada automáticamente
-   - Puede tener fecha de transmisión diferida
+En el carrito los nombres visibles son:
 
-2. **Express**
-   - Entrega rápida
-   - Fecha calculada según calendario
+1. **Entrega Standard** (código interno `tronex` / standard)
+   - Entrega programada según ruta del cliente
+   - Fecha estimada bajo la tarjeta del método (`/api/delivery-date/{method}`)
+   - Puede tener fecha de transmisión diferida al ERP
+
+2. **Entrega Especial** (código interno `express`)
+   - Entrega rápida (~2 días hábiles según calendario)
+   - Cotización de flete vía sesión web (`/api/shipping-quote/{method}`); Coordinadora cuando la zona usa 48h
+   - Puede mostrar umbral de **envío gratis** si está configurado en Ajustes
+   - Solo aparece si Express 48h está habilitado globalmente **y** la zona/ciudad del cliente lo permiten
+
+La disponibilidad por método también depende de:
+
+- Toggles por **zona** (`shipping_standard_enabled` / `shipping_express_enabled` en la zona del usuario)
+- Toggles por **ciudad** en *Métodos de envío* (tabla `city_shipping_method`)
 
 #### Observaciones
 
@@ -129,9 +138,10 @@ El módulo de Carrito y Órdenes gestiona todo el proceso de compra desde la sel
 El sistema valida automáticamente:
 
 1. **Inventario**
-   - Disponibilidad en la bodega asignada
-   - Stock de seguridad
+   - Disponibilidad en la bodega asignada (padre o por variación según SKU)
+   - Stock de seguridad del producto o, si es 0, mínimo global de inventario
    - Cantidad solicitada vs disponible
+   - Pre-chequeo de stock de **obsequios** de bonificación (mensaje distinto al de línea pagada)
 
 2. **Mínimos de Vendedor**
    - Algunos vendedores tienen mínimos de compra
@@ -140,6 +150,7 @@ El sistema valida automáticamente:
 3. **Bonificaciones**
    - Se calculan automáticamente
    - Se agregan al carrito si aplican
+   - Fallo de stock del regalo bloquea el pedido con mensaje explícito
 
 ### Paso 4: Procesamiento
 
@@ -470,21 +481,18 @@ Algunos vendedores tienen un **mínimo de compra** que debe alcanzarse para proc
 
 ### Validación de Stock de Seguridad
 
-El sistema valida que el stock disponible esté por encima del stock de seguridad antes de procesar.
+El sistema valida que, tras el pedido, el stock quede por encima del **piso** aplicable antes de procesar.
 
-#### Reglas
+#### Piso de inventario
 
-1. **Validación Estricta**:
-   - Si `disponible <= stock_de_seguridad`: Se bloquea la venta
-   - Mensaje: "Producto está por debajo del stock de seguridad"
+1. Si el producto tiene **stock de seguridad** &gt; 0 → ese valor es el piso.
+2. Si no → se usa el **mínimo global de inventario** (ajuste en Configuración; valor por defecto típico: 5).
 
-2. **Validación de Cantidad Mínima**:
-   - Si `disponible <= 5`: Se bloquea la venta
-   - Mensaje: "Producto tiene inventario insuficiente"
+#### Mensajes (ejemplos)
 
-3. **Validación de Cantidad Solicitada**:
-   - Si `cantidad_solicitada > (disponible - reservado)`: Se bloquea
-   - Mensaje: "Cantidad solicitada excede inventario disponible"
+1. Bajo el piso: *«{producto} está por debajo del stock de seguridad (X disponibles, mínimo: Y)»* o equivalente con mínimo global.
+2. Cantidad excesiva: *«La cantidad solicitada de {producto} excede el inventario disponible en su zona (N solicitadas, M disponibles)»*.
+3. Obsequio de bonificación: mensaje que nombra el **producto de regalo**, disponibles, solicitadas y el piso (ver [admin/08](../admin/08-bonificaciones.md)).
 
 ## 📅 Cálculo de Fechas de Entrega
 
@@ -541,9 +549,9 @@ Para órdenes Tronex, la fecha se calcula basándose en:
 - Se encuentra viernes dentro de esa semana
 - Fecha de entrega = viernes + 1 día hábil = lunes siguiente
 
-### Método Express - Cálculo de Fecha
+### Método Entrega Especial (express) — Cálculo de Fecha
 
-Para órdenes Express, la fecha se calcula más simplemente:
+Para **Entrega Especial**, la fecha se calcula de forma más simple (~2 días hábiles):
 
 1. **Días Hábiles Adelante**: Configurable (normalmente 1-2 días)
 2. **Cálculo**: Hoy (o mañana si pasó hora de cierre) + N días hábiles
@@ -597,9 +605,9 @@ Precio Final = Precio con Descuento × (1 + Impuesto%)
    - Valida cantidad solicitada
 
 3. **Productos con Variaciones**
-   - El inventario es compartido entre variaciones
-   - Se decrementa del producto padre
-   - Todas las variaciones comparten el mismo stock
+   - Puede haber stock a nivel padre o **por variación** si la variación tiene SKU propio sincronizado desde Dynamics
+   - El checkout usa el pool correspondiente a la variación elegida cuando existe
+   - No asumir que siempre comparten un único stock
 
 ### Descuentos
 

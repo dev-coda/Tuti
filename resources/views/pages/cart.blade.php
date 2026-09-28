@@ -12,13 +12,6 @@
 
 @section('content')
 
-@php
-    // Define delivery settings variables at top level for use throughout the view
-    $forceDeliveryDateEnabled = \App\Models\Setting::getByKey('force_delivery_date_enabled');
-    $isForceEnabled = ($forceDeliveryDateEnabled === '1' || $forceDeliveryDateEnabled === 1 || $forceDeliveryDateEnabled === true);
-    $isEnabled = \App\Models\Setting::isExpress48hEnabled();
-@endphp
-
 @if($set_user)
 <div class="grid grid-cols-1 w-full gap-y-5 gap-x-5 xl:px-72" x-data="{'isModalOpen': false}" x-on:keydown.escape="isModalOpen=false">
 
@@ -530,8 +523,8 @@
                                 $isExpress = $method->code === 'express';
                                 $displayName = $isExpress ? 'Entrega Especial' : 'Entrega Standard';
                                 $displayDescription = $isExpress
-                                    ? 'Realiza tu pedido de lunes a viernes antes de las 5:00 pm para recibir en 48 horas. Sábado y domingo realiza pedido las 24 horas y recíbelo en 48 horas del siguiente día hábil. Aplica para ciudades principales.'
-                                    : 'Envío gratis.';
+                                    ? '48 h en ciudades principales. Lun–vie: pide antes de las 5:00 pm. Fin de semana: 48 h desde el siguiente día hábil.'
+                                    : 'Según tu ruta programada. Envío gratis.';
                             @endphp
                             <button type="button"
                                 class="delivery-option relative w-full rounded-xl border-2 border-gray-200 bg-white p-4 text-left transition-all duration-200 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-500"
@@ -560,12 +553,10 @@
                                         @elseif(!$isExpress && filled($freeShippingMessage))
                                             <span class="mt-1 block text-xs text-green-700">{{ $freeShippingMessage }}</span>
                                         @endif
-                                        @if(!$isForceEnabled)
-                                            <span class="delivery-date mt-2 block text-xs font-medium text-gray-400">
-                                                Fecha de entrega:
-                                                <span id="delivery-date-{{ $method->code }}">Calculando...</span>
-                                            </span>
-                                        @endif
+                                        <span class="delivery-date mt-2 block text-xs font-medium text-gray-400">
+                                            Fecha de entrega:
+                                            <span id="delivery-date-{{ $method->code }}">Calculando...</span>
+                                        </span>
                                     </span>
                                 </div>
                                 <span class="delivery-check pointer-events-none absolute hidden h-5 w-5 items-center justify-center rounded-full border-2 border-gray-300 bg-white" style="top: 0.75rem; right: 0.75rem;" aria-hidden="true">
@@ -1194,33 +1185,42 @@
         }
         
         function fetchDeliveryDate(method) {
-            // Skip fetching delivery dates if force delivery date is enabled
-            const forceDeliveryEnabled = {{ $isForceEnabled ? 'true' : 'false' }};
-            if (forceDeliveryEnabled) {
-                return; // Don't fetch or display delivery dates when force is active
-            }
-            
             const zoneId = zoneSelect ? zoneSelect.value : null;
             let url = `/api/delivery-date/${method}`;
             if (zoneId) {
                 url += `?zone_id=${zoneId}`;
             }
-            
+
+            const dateElement = document.getElementById(`delivery-date-${method}`);
+            if (dateElement) {
+                dateElement.textContent = 'Calculando...';
+            }
+
             fetch(url)
                 .then(response => response.json())
                 .then(data => {
-                    const dateElement = document.getElementById(`delivery-date-${method}`);
                     if (dateElement && data.date) {
                         dateElement.textContent = data.date;
                     }
                 })
                 .catch(error => {
                     console.error('Error fetching delivery date:', error);
-                    const dateElement = document.getElementById(`delivery-date-${method}`);
                     if (dateElement) {
                         dateElement.textContent = 'Error al calcular fecha';
                     }
                 });
+        }
+
+        function refreshVisibleDeliveryDates() {
+            deliveryOptions.forEach((option) => {
+                if (option.disabled || option.classList.contains('hidden')) {
+                    return;
+                }
+                const code = option.getAttribute('data-method');
+                if (code) {
+                    fetchDeliveryDate(code);
+                }
+            });
         }
         
         function getSelectedZoneShippingFlags() {
@@ -1296,6 +1296,7 @@
             zoneSelect.addEventListener('change', function() {
                 syncCheckoutSucursalCode();
                 syncZoneShippingMethods();
+                refreshVisibleDeliveryDates();
             });
         }
 
@@ -1306,9 +1307,7 @@
         // Initialize (only methods shown in checkout — no hard-coded express when 48h is off)
         if (shippingMethodCodes.length) {
             syncZoneShippingMethods(shippingMethodCodes[0]);
-            shippingMethodCodes.forEach(function(code) {
-                fetchDeliveryDate(code);
-            });
+            refreshVisibleDeliveryDates();
         } else {
             setShippingAmount(0, { freeShipping: true });
         }

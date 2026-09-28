@@ -142,7 +142,7 @@ Productos que agrupan múltiples productos simples:
 ### Inventario de Variaciones
 
 - El inventario se gestiona a nivel de producto padre
-- Todas las variaciones comparten el mismo stock
+- El stock puede estar a nivel padre o **por variación** cuando la variación tiene SKU propio sincronizado desde Dynamics; no asumir un único pool compartido en todos los casos
 - Al comprar cualquier variación, se decrementa del stock del producto padre
 
 ## 📁 Categorías
@@ -406,5 +406,9 @@ No se puede eliminar. Primero debes mover o eliminar los productos de esa catego
 
 ### ¿Cómo actualizo precios masivamente?
 
-Usa la función de importación masiva o contacta al administrador para actualización por lotes.
+1. **Sincronización desde Dynamics (recomendado en producción):** acción admin `updateproductprices` / job `UpdateProductPrices`.
+   - Actualiza el precio del producto por su SKU.
+   - **Segunda pasada:** si una **variación** tiene SKU propio en Dynamics (`product_item_variation.sku`), se actualiza el precio de esa fila de variación.
+   - Si el producto tiene `sync_variations_with_dynamics`, primero puede copiar el precio del padre a las variaciones; el precio por SKU de variación **gana** sobre esa copia.
+2. Importación masiva / edición manual: solo cuando operaciones lo indique; no sustituye el job de Dynamics para el catálogo vivo.
 

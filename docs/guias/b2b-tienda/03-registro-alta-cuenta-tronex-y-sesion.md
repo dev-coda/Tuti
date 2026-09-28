@@ -1,64 +1,72 @@
 # Registro, alta, Tronex y sesión (Web)
 
-Audiencia: operaciones, soporte y compradores. Referencias: `Tuti/routes/auth.php`, `Tuti/routes/web.php`, `TronexMigrationController`, y el middleware que obliga a completar el perfil tras la migración Tronex.
+Audiencia: operaciones, soporte y compradores. Referencias: `routes/auth.php`, `routes/web.php`, `TronexMigrationController`, `NewClientController`, `MagicLinkController`.
 
-> **Importante:** en este proyecto, la ruta con nombre `login` en GET **redirige** al formulario B2B (`/formulario`), no a un formulario de inicio de sesión clásico en la misma URL. La autenticación por contraseña sigue siendo el `POST` de login definido en `auth.php` (`AuthenticatedSessionController@store`).
+> **Importante:** `GET login` **redirige** al formulario B2B (`/formulario`). La autenticación por contraseña es el `POST` de login (`AuthenticatedSessionController@store`). El email de login/recuperación es **case-insensitive**.
 
-## 1. Tres vías hacia un usuario identificado (no se deben mezclar al orientar a un tendero)
+## 1. Vías hacia un usuario identificado
 
 ### A) Formulario B2B (`/formulario`)
 
-- **Rutas:** `form`, `form_post`, `form.check-existing` (NIT o documento duplicado), `form.cities-by-state` (cascada departamento / ciudad).  
-- **Rol de negocio:** captura de interesados o inicio de alta; puede generar tareas o leads según el flujo. **No** confundir con la creación automática de una contraseña para comprar.  
-- **Quien documenta** debe alinear con producto/operación si, tras aprobar el lead, se crea usuario por otro canal.
+- **Rutas:** `form`, `form_post`, `form.check-existing`, `form.cities-by-state`.
+- Captura de interesados / inicio de alta; **no** equivale por sí sola a una cuenta lista para comprar con contraseña.
 
 ### B) Registro con contraseña (`register` / `complete` en `auth.php`)
 
-- Flujo estándar Breeze: email, contraseña, verificación de email (si aplica y está habilitada en el modelo de usuario).  
-- Úsese cuando se dé de alta a un usuario que ya debe acceder a `/ordenes` y al carrito.
+- Flujo Breeze: email, contraseña, verificación de email si aplica.
 
-### C) Migración Tronex
+### C) Cliente nuevo / autoservicio (`/cliente-nuevo`)
 
-- `POST /tronex/migrate`: búsqueda/validación por documento y vía de verificación (teléfono); en el buen término, puede autenticar o preparar al usuario para el siguiente paso.  
-- `GET` y `POST` `/tronex/completar-perfil` (bajo `middleware` `auth`): fija **email y contraseña** definitivos y levanta el indicador de migración pendiente.
+- **Rutas:** `new-client.create`, `new-client.store`, `new-client.existing-client`.
+- Modos de uso (según query/`mode` y rol):
+  - **Autoservicio** (`self_service`): el interesado crea cuenta; se exige email real.
+  - **Vendedor / sucursal:** alta desde Mi Ruta (`?mode=sucursal&return=mi-ruta`) u otros flujos comerciales.
+- Tras el alta, el sistema puede enviar **invitación de registro** (correo) y marcar `must_change_password` → flujo `/cambiar-contrasena`.
+- Prospectos / borradores pueden forzar Coordinadora 48h según reglas de negocio del controlador.
 
-Mientras un usuario tenga el perfil de migración pendiente, el **middleware** de la aplicación lo mantiene en un circuito de rutas acotado (pantalla de completar, guardar, cerrar sesión) hasta concluir.
+### D) Migración Tronex
 
-## 2. Cierre de sesión, recuperación de clave, magic link, verificación de email
+- `POST /tronex/migrate` → luego `GET`/`POST` `/tronex/completar-perfil` (auth) para email y contraseña definitivos.
+- Mientras el perfil de migración esté pendiente, el middleware limita las rutas (completar, guardar, logout).
 
-| Flujo | Rutas (nombres habituales) | Notas operativas |
-|-------|----------------------------|------------------|
-| Olvidé la contraseña | `password.request` / `password.email` y `password.reset` / `password.store` | Enseñar al usuario a abrir el correo y, si no llega, revisar Mailgun, spam y dominio. |
-| Magic link (sin contraseña) | `magic-link.send`, `magic-link.verify` | Límites de `throttle` (ej. 6 o 10 intentos por minuto) para abuso. |
-| Verificar email | `verification.notice`, `verification.verify`, reenvío | Puede afectar si exigen email verificado antes de comprar; confirmar con la instancia. |
+## 2. Cierre de sesión, recuperación, código mágico, verificación
 
-## 3. Procedimiento Tronex (para mesa de soporte)
+| Flujo | Rutas | Notas operativas |
+|-------|-------|------------------|
+| Olvidé la contraseña | `password.request` / `password.email`, `password.reset` / `password.store` | Email case-insensitive; revisar Mailgun/spam si no llega. |
+| Código mágico (sin contraseña) | `magic-link.send`, `magic-link.verify` | Código de **6 dígitos** por correo (no solo un enlace). Límites: **3 envíos** y **5 verificaciones** por email cada **5 minutos**. Bloqueado si el usuario debe actualizar email (`requiresClientEmailUpdate`). Supervisor autenticado redirige a Mi Cuenta `tab=mis-rutas`. |
+| Verificar email | `verification.notice`, `verification.verify` | Confirmar si la instancia exige email verificado antes de comprar. |
 
-1. **Migrar:** el usuario llena el paso 1/2 (documento, luego contacto) según la propia UI; el back-end habla con la fuente de datos de negocio.  
-2. **Si queda autenticado y pendiente:** cualquier ruta de negocio debería redirigir a `tronex.completar-perfil` (salvo lista blanca: guardar, logout, etc. según el middleware).  
-3. **Completar perfil:** email único, contraseña, confirmación. Al guardar, el flag de bloqueo desaparece.  
-4. **Si se queda atascado:** comprobar email duplicado, sesión, cookies, o intervención de datos (fusión de usuarios) solo a nivel de base bajo gobernanza, no en esta guía.
+## 3. Procedimiento Tronex (soporte)
 
-## 4. Vendedor (rol `seller`) y su sesión
+1. Migrar (documento / contacto según UI).
+2. Si queda autenticado y pendiente → `tronex.completar-perfil`.
+3. Completar email único y contraseña.
+4. Si se atasca: email duplicado, sesión, logs.
 
-- El inicio y cierre de sesión usan el mismo mecanismo web que un cliente.  
-- La asociación a un “cliente activo” (pedido en nombre de tercero) se hace con `POST` `seller.setclient` y `POST` `seller.removeclient` en el panel, no reemplazando a la autenticación. Ver [roles/01-vendedor-rol-seller.md](../roles/01-vendedor-rol-seller.md).
+## 4. Vendedor / supervisor
 
-## 5. Síntomas frecuentes (mesa de ayuda)
+- Misma autenticación web que el cliente.
+- Cliente activo: `seller.setclient` / `seller.removeclient`. Ver [roles/01](../roles/01-vendedor-rol-seller.md) y [roles/03 Mi Cuenta](../roles/03-mi-cuenta-pestanas-y-visibilidad.md).
+
+## 5. Síntomas frecuentes
 
 | Síntoma | Qué comprobar primero |
 |--------|------------------------|
-| “Solo veo el formulario B2B, no dónde pongo email” | Está pasando por `GET` `login` que redirige: usar la ruta o pantalla de acceso con contraseña, magic link, o enlace de reset. |
-| Bucle a completar Tronex | Validez de email, unicidad, sesión, token de migración, logs de `laravel.log`. |
-| 403 en `/api/seller-dashboard` | El usuario no tiene el rol vendedor o el token (si aplica) no acompaña la petición. |
-| Código de magic no llega | Cuenta de prueba, Mailgun, dominio de envío, carpeta de spam, throttle. Técnica: [../tecnica/](../tecnica/README.md). |
+| “Solo veo el formulario B2B” | `GET login` redirige; usar pantalla de acceso con contraseña, código mágico o reset. |
+| Bucle a completar Tronex | Email, unicidad, sesión, logs. |
+| Código mágico no llega / “demasiados intentos” | Mailgun, spam, y ventanas de 3/5 por 5 min. |
+| No puede entrar por magic y pide actualizar datos | `requiresClientEmailUpdate` — completar actualización de correo antes. |
+| 403 en `/api/seller-dashboard` | Rol vendedor/supervisor o auth. |
+| Alta por `/cliente-nuevo` sin contraseña usable | Revisar correo de invitación y flujo `must_change_password`. |
 
 ## 6. Referencias
 
-- [01-vision-general-rutas-y-flujos.md](./01-vision-general-rutas-y-flujos.md) — listado de rutas.  
-- [04-carrito-checkout-y-ordenes.md](./04-carrito-checkout-y-ordenes.md) — qué pasa al cerrar un pedido **después** de autenticado.  
-- [../admin/10-usuarios-vendedores-y-accesos.md](../admin/10-usuarios-vendedores-y-accesos.md) — 48h, zonas, export.
+- [01 — Visión general de rutas](./01-vision-general-rutas-y-flujos.md)
+- [04 — Carrito y órdenes](./04-carrito-checkout-y-ordenes.md)
+- [03 — Mi Cuenta](../roles/03-mi-cuenta-pestanas-y-visibilidad.md)
+- [10 — Usuarios (admin)](../admin/10-usuarios-vendedores-y-accesos.md)
 
 ---
 
-*Revisión: abril 2026. Validar nombres de ruta y middleware tras cada despliegue de ramas grandes.*
+*Revisión: septiembre 2026.*

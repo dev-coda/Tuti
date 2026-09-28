@@ -141,9 +141,9 @@ Productos que agrupan múltiples productos simples:
 
 ### Inventario de Variaciones
 
-- El inventario se gestiona a nivel de producto padre
-- Todas las variaciones comparten el mismo stock
-- Al comprar cualquier variación, se decrementa del stock del producto padre
+- El inventario puede estar a nivel padre o **por variación** (SKU propio en Dynamics)
+- Al comprar una variación, se descuenta del pool correspondiente (padre o `variation_item_id`)
+- No asumir que todas las variaciones siempre comparten un único stock
 
 ## 📁 Categorías
 
