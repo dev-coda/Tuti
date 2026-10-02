@@ -53,7 +53,7 @@
                     <span class="text-sm text-gray-600">Fecha de entrega estimada</span>
                     <span class="text-sm font-semibold text-gray-900">
                         @if($order->delivery_date)
-                            {{ \Carbon\Carbon::parse($order->delivery_date)->locale('es')->translatedFormat('l d \d\e F \d\e Y') }}
+                            {{ \App\Repositories\OrderRepository::parseBusinessDate($order->delivery_date)->locale('es')->translatedFormat('l d \d\e F \d\e Y') }}
                         @else
                             —
                         @endif
@@ -166,7 +166,7 @@
                 <div>
                     <h3 class="text-sm font-medium text-yellow-800">Pedido programado</h3>
                     <p class="text-sm text-yellow-700 mt-1">
-                        Tu pedido será enviado el {{ \Carbon\Carbon::parse($order->scheduled_transmission_date)->format('d/m/Y') }}.
+                        Tu pedido será enviado el {{ \App\Repositories\OrderRepository::parseBusinessDate($order->scheduled_transmission_date)->format('d/m/Y') }}.
                     </p>
                 </div>
             </div>

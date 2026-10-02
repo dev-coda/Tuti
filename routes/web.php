@@ -146,6 +146,38 @@ Route::middleware(['auth'])->group(function () {});
 // not start sessions, which made Coordinadora quotes always see an empty cart.
 Route::get('/api/cart', [CartApiController::class, 'index'])->name('api.cart');
 
+// Same reason as shipping-quote: cart JS calls this from the logged-in page.
+// On the api middleware group auth() is empty, so sellers were priced as clients
+// (next visit day + 1 business day) and Entrega Standard showed a day late.
+Route::get('/api/delivery-date/{method}', function (string $method) {
+    $zone = null;
+
+    if (auth()->check()) {
+        $zoneId = session()->get('zone_id');
+        if ($zoneId) {
+            $zone = \App\Models\Zone::find($zoneId);
+        }
+    }
+
+    if (! $zone && request()->has('zone_id')) {
+        $zone = \App\Models\Zone::find(request()->get('zone_id'));
+    }
+
+    $deliveryDate = \App\Repositories\OrderRepository::getDeliveryDateByMethod($method, $zone);
+    $date = \App\Repositories\OrderRepository::parseBusinessDate($deliveryDate);
+
+    $days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    $months = [
+        'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+    ];
+
+    return response()->json([
+        'date' => $days[$date->dayOfWeek].' '.$date->day.' de '.$months[$date->month - 1],
+        'raw_date' => $deliveryDate,
+    ]);
+})->name('api.delivery-date');
+
 Route::get('/api/shipping-quote/{method}', function (\Illuminate\Http\Request $request, string $method) {
     $zone = null;
     if ($request->filled('zone_id')) {

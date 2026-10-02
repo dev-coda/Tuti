@@ -183,7 +183,7 @@
                                             <x-order-status :status="$order->status_id" />
                                             @if($order->status_id === 7 && $order->scheduled_transmission_date)
                                                 <div class="text-xs text-purple-600 mt-1">
-                                                    Transmisión: {{ \Carbon\Carbon::parse($order->scheduled_transmission_date)->format('d/m/Y') }}
+                                                    Transmisión: {{ \App\Repositories\OrderRepository::parseBusinessDate($order->scheduled_transmission_date)->format('d/m/Y') }}
                                                 </div>
                                             @endif
                                             @if($order->status_id === \App\Models\Order::STATUS_DRAFT && $order->draft_reconciliation_note)

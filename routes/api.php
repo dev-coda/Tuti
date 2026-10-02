@@ -17,8 +17,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Models\Category;
 use App\Models\Product;
-use App\Repositories\OrderRepository;
-use Carbon\Carbon;
 
 /*
 |--------------------------------------------------------------------------
@@ -105,60 +103,8 @@ Route::get('/vacation-mode', function () {
     ]);
 });
 
-// Delivery date calculation endpoint
-Route::get('/delivery-date/{method}', function ($method) {
-    $zone = null;
-    
-    // Get zone from session if user is authenticated
-    if (auth()->check()) {
-        $zoneId = session()->get('zone_id');
-        if ($zoneId) {
-            $zone = \App\Models\Zone::find($zoneId);
-        }
-    }
-    
-    // Also check if zone_id is provided in query string (for zone selection changes)
-    if (!$zone && request()->has('zone_id')) {
-        $zone = \App\Models\Zone::find(request()->get('zone_id'));
-    }
-    
-    $deliveryDate = OrderRepository::getDeliveryDateByMethod($method, $zone);
-    $date = Carbon::parse($deliveryDate);
-    
-    // Spanish days and months
-    $days = [
-        "Domingo",
-        "Lunes",
-        "Martes",
-        "Miércoles",
-        "Jueves",
-        "Viernes",
-        "Sábado"
-    ];
-    
-    $months = [
-        "Enero",
-        "Febrero",
-        "Marzo",
-        "Abril",
-        "Mayo",
-        "Junio",
-        "Julio",
-        "Agosto",
-        "Septiembre",
-        "Octubre",
-        "Noviembre",
-        "Diciembre"
-    ];
-    
-    // Format date: Lunes 12 de Julio
-    $formattedDate = $days[$date->dayOfWeek] . ' ' . $date->day . ' de ' . $months[$date->month - 1];
-    
-    return response()->json([
-        'date' => $formattedDate,
-        'raw_date' => $deliveryDate
-    ]);
-});
+// Delivery date lives on the web routes (session). The api group does not
+// start the browser session, so sellers were calculated as guests.
 
 // Authenticated API Routes
 Route::middleware('auth:sanctum')->group(function () {

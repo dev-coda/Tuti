@@ -3,7 +3,6 @@
 namespace App\View\Components;
 
 use App\Repositories\OrderRepository;
-use Carbon\Carbon;
 use Closure;
 use Illuminate\Contracts\View\View;
 use Illuminate\View\Component;
@@ -24,7 +23,7 @@ class HumanDate extends Component
     public function render(): View|Closure|string
     {
         $date = OrderRepository::getBusinessDay();
-        $date = Carbon::parse($date);
+        $date = OrderRepository::parseBusinessDate($date);
         //spanis days array
         $days = [
             "Domingo",

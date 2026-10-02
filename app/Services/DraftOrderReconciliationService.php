@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\Zone;
 use App\Repositories\OrderRepository;
 use App\Repositories\UserRepository;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
 class DraftOrderReconciliationService
@@ -468,7 +469,7 @@ class DraftOrderReconciliationService
         if ($order->delivery_method === Order::DELIVERY_METHOD_TRONEX && ! $forceDeliveryDate) {
             $sellerVisitDate = OrderRepository::getTronexSellerVisitDate($zone);
             if ($sellerVisitDate) {
-                $today = now();
+                $today = Carbon::now(OrderRepository::businessTimezone())->startOfDay();
                 $isTodaySellerVisitDay = $today->format('Y-m-d') === $sellerVisitDate->format('Y-m-d');
                 if (! $isTodaySellerVisitDay) {
                     $statusId = Order::STATUS_WAITING;

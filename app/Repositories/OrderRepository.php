@@ -897,6 +897,28 @@ class OrderRepository
     }
 
     /**
+     * Business calendar timezone for delivery / visit-day math (Colombia).
+     */
+    public static function businessTimezone(): string
+    {
+        return (string) config('app.seller_dashboard_timezone', 'America/Bogota');
+    }
+
+    /**
+     * Parse a Y-m-d (or datetime) value as a calendar date in the business timezone.
+     * Avoids the UTC-midnight → America/Bogota (−1 day) footgun.
+     */
+    public static function parseBusinessDate(string|\DateTimeInterface $value): Carbon
+    {
+        $tz = self::businessTimezone();
+        $dateOnly = $value instanceof \DateTimeInterface
+            ? Carbon::instance($value)->format('Y-m-d')
+            : substr(trim((string) $value), 0, 10);
+
+        return Carbon::createFromFormat('Y-m-d', $dateOnly, $tz)->startOfDay();
+    }
+
+    /**
      * Calculate a business day N days ahead from today
      * 
      * @param int $daysAhead Number of business days ahead (0 = next business day, 1 = 2 business days ahead, etc.)
@@ -904,16 +926,15 @@ class OrderRepository
      */
     public static function getBusinessDay($daysAhead = 0)
     {
-        // Get current time adjusted for timezone (subtract 5 hours for Colombia timezone)
-        $now = now();
-        $hour = $now->copy()->subHours(5)->hour;
+        $tz = self::businessTimezone();
+        $now = Carbon::now($tz);
         $closing_time = (int) Setting::getByKey('closing_time');
 
-        // If current hour is after closing time, start from tomorrow
-        if ($closing_time <= $hour) {
-            $now = now()->addDay();
+        // Closing hour is Colombia local time — compare against Bogota clock, not UTC−5 hacks.
+        if ($closing_time <= $now->hour) {
+            $now = $now->copy()->startOfDay()->addDay();
         } else {
-            $now = now();
+            $now = $now->copy()->startOfDay();
         }
 
         // Find the required number of business days ahead
@@ -1139,7 +1160,8 @@ class OrderRepository
 
         // Step 3: Find the matching weekday in the ciclo system
         // Keep iterating through weeks until we find a date that's at least tomorrow
-        $today = now()->startOfDay();
+        // Use Colombia calendar days (app timezone is UTC).
+        $today = Carbon::now(self::businessTimezone())->startOfDay();
         $tomorrow = $today->copy()->addDay();
         $fromDate = $tomorrow; // Start searching from tomorrow
 
@@ -1156,8 +1178,8 @@ class OrderRepository
                 return null;
             }
 
-            $startDate = Carbon::parse($nextWeek->start_date)->startOfDay();
-            $endDate = Carbon::parse($nextWeek->end_date)->startOfDay();
+            $startDate = self::parseBusinessDate($nextWeek->start_date);
+            $endDate = self::parseBusinessDate($nextWeek->end_date);
 
             // Find the matching weekday in this week
             $currentDate = $startDate->copy();
@@ -1236,8 +1258,8 @@ class OrderRepository
         // The seller visit date is already guaranteed to be at least tomorrow (from getTronexSellerVisitDate)
         // So we just need to add 1 business day to it
         $deliveryDate = self::getBusinessDayFromDate($sellerVisitDate, 0);
-        $deliveryDateCarbon = Carbon::parse($deliveryDate)->startOfDay();
-        $tomorrow = now()->startOfDay()->addDay();
+        $deliveryDateCarbon = self::parseBusinessDate($deliveryDate);
+        $tomorrow = Carbon::now(self::businessTimezone())->startOfDay()->addDay();
 
         // Double-check: ensure delivery date is at least tomorrow
         // This is a safety check in case getBusinessDayFromDate somehow returns today
@@ -1299,8 +1321,8 @@ class OrderRepository
      */
     public static function getExpressDeliveryDate()
     {
-        // Start counting from tomorrow (orders placed today cannot be delivered today)
-        $startDate = now()->startOfDay()->addDay();
+        // Start counting from tomorrow in Colombia (orders placed today cannot be delivered today)
+        $startDate = Carbon::now(self::businessTimezone())->startOfDay()->addDay();
 
         // Count exactly 2 business days starting from tomorrow
         $now = $startDate->copy();

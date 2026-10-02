@@ -20,6 +20,7 @@ use App\Services\BonificationCheckoutService;
 use App\Services\CouponService;
 use App\Services\DraftOrderReconciliationService;
 use App\Services\Shipping\CoordinadoraQuoteService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -931,9 +932,14 @@ class CartController extends Controller
             $sellerVisitDate = OrderRepository::getTronexSellerVisitDate($zone);
         }
 
+        // Sellers/supervisors placing orders (e.g. Mi Ruta) transmit immediately — they are
+        // already on the visit. Waiting applies only to client self-service orders.
+        // Use auth()->user() (the seller), not $actingUser (the client being ordered for).
+        $placedBySeller = auth()->check() && auth()->user()->hasAnyRole(['seller', 'supervisor']);
+
         // Only set waiting status if force delivery is NOT active
-        if ($delivery_method === Order::DELIVERY_METHOD_TRONEX && $zone && ! $forceDeliveryDate && $sellerVisitDate) {
-            $today = now();
+        if ($delivery_method === Order::DELIVERY_METHOD_TRONEX && $zone && ! $forceDeliveryDate && $sellerVisitDate && ! $placedBySeller) {
+            $today = Carbon::now(OrderRepository::businessTimezone())->startOfDay();
             $isTodaySellerVisitDay = $today->format('Y-m-d') === $sellerVisitDate->format('Y-m-d');
 
             if (! $isTodaySellerVisitDay) {
