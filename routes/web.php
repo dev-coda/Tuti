@@ -2,7 +2,6 @@
 
 
 use App\Http\Controllers\CartController;
-use App\Http\Controllers\ExpressGiftDemoController;
 use App\Http\Controllers\ContentController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PageController;
@@ -32,7 +31,6 @@ use Illuminate\Support\Facades\Route;
 
 
 Route::get('/', [PageController::class, 'home'])->name('home');
-Route::get('/demo/prorrateo-express', ExpressGiftDemoController::class)->name('express-gifts.demo');
 Route::get('/busqueda/{order?}/{category_id?}/{brand_id?}', [PageController::class, 'search'])->name('search');
 
 // Content pages
