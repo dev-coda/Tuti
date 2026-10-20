@@ -3,7 +3,6 @@
 namespace App\Services\ExpressGifts;
 
 use App\Models\Product;
-use App\Services\BonificationCheckoutService;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -70,8 +69,6 @@ class ExpressGiftPlanner
             'messages' => [],
             'proration' => null,
             'failed_gift_keys' => [],
-            'granted_sums' => [],
-            'denied_sums' => [],
         ];
 
         // Aggregate by product (all variations count together, like classic bonifications).
@@ -90,7 +87,6 @@ class ExpressGiftPlanner
             ->keyBy('id');
 
         $giftRequests = []; // key => ['qty','unit_value','tax_rate']
-        $individualItems = [];
         foreach ($byProduct as $productId => $info) {
             /** @var Product|null $product */
             $product = $products[$productId] ?? null;
@@ -99,15 +95,11 @@ class ExpressGiftPlanner
             }
 
             $packageQty = max(1, (int) ($product->package_quantity ?? 1));
-            $individualItems[$productId] = $info['cart_units'] * $packageQty;
-            $units = $individualItems[$productId];
+            $units = $info['cart_units'] * $packageQty;
 
             $qualified = [];
             $giftCatalogValue = 0.0;
             foreach ($product->bonifications as $bonification) {
-                if ($bonification->sumsProducts()) {
-                    continue;
-                }
                 $buy = (int) $bonification->buy;
                 if ($buy <= 0) {
                     continue;
@@ -179,59 +171,6 @@ class ExpressGiftPlanner
             }
         }
 
-        foreach (BonificationCheckoutService::summedGrants($individualItems) as $grant) {
-            $bonification = $grant['bonification'];
-            $giftProduct = Product::with(['items', 'tax'])->find($bonification->product_id);
-            if (! $giftProduct) {
-                continue;
-            }
-
-            $discountSavings = 0.0;
-            foreach ($grant['product_ids'] as $productId) {
-                $product = $products[$productId] ?? null;
-                if (! $product) {
-                    continue;
-                }
-                $final = $product->getFinalPriceForUser($hasOrders);
-                $discountSavings += max(0.0, (float) ($final['totalDiscount'] ?? 0)) * ($byProduct[$productId]['cart_units'] ?? 0);
-            }
-
-            $catalogUnit = $this->catalogUnitPrice($giftProduct);
-            $unitValue = $bonification->giftInvoiceUnitValue();
-            $giftCatalogValue = ($catalogUnit > 0 ? $catalogUnit : $unitValue) * $grant['quantity'];
-
-            if ($discountSavings > 0 && $discountSavings >= $giftCatalogValue) {
-                $plan['denied_sums'][$bonification->id] = true;
-                $plan['messages'][] = "En \"{$bonification->name}\" se aplicó el descuento porque es más favorable que el obsequio.";
-
-                continue;
-            }
-
-            $plan['granted_sums'][$bonification->id] = [
-                'quantity' => $grant['quantity'],
-                'product_ids' => $grant['product_ids'],
-                'units' => $grant['units'],
-            ];
-            if ($discountSavings > 0) {
-                foreach ($grant['product_ids'] as $productId) {
-                    $plan['blocked'][$productId] = true;
-                    $plan['blocked_by_sum'][$productId] = true;
-                }
-                $plan['messages'][] = "En \"{$bonification->name}\" se aplicó el obsequio porque es más favorable que el descuento.";
-            }
-
-            $giftRequests['sum:'.$bonification->id] = [
-                'key' => 'sum:'.$bonification->id,
-                'qty' => $grant['quantity'],
-                'unit_value' => $unitValue,
-                'tax_rate' => (float) ($giftProduct->tax->tax ?? 0),
-                'scope' => $bonification->giftProrationScope(),
-                'trigger_product_id' => 0,
-                'trigger_product_ids' => $grant['product_ids'],
-                'bonification_id' => (int) $bonification->id,
-            ];
-        }
-
         if ($giftRequests === []) {
             return $plan;
         }
@@ -243,20 +182,6 @@ class ExpressGiftPlanner
         $plan['failed_gift_keys'] = $result['failed'] ?? [];
 
         if ($plan['failed_gift_keys'] !== []) {
-            foreach (array_keys($plan['failed_gift_keys']) as $failedKey) {
-                if (! is_string($failedKey) || ! str_starts_with($failedKey, 'sum:')) {
-                    continue;
-                }
-                $bonificationId = (int) substr($failedKey, 4);
-                $contributorIds = $plan['granted_sums'][$bonificationId]['product_ids'] ?? [];
-                unset($plan['granted_sums'][$bonificationId]);
-                foreach ($contributorIds as $productId) {
-                    if (! isset($plan['granted'][$productId]) && ! empty($plan['blocked_by_sum'][$productId])) {
-                        unset($plan['blocked'][$productId]);
-                    }
-                }
-            }
-
             Log::warning('Express gifts: some prorations were not feasible', [
                 'code' => $result['code'],
                 'reason' => $result['reason'],

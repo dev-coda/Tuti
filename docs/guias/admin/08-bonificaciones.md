@@ -9,7 +9,6 @@ Las bonificaciones son promociones del tipo "Compra X, Lleva Y" que se aplican a
 ### Modelo "Compra X, Lleva Y"
 
 - **Compra**: Cantidad mínima a comprar del producto
-- **Sumar cantidades**: si está activo, las unidades de todos los productos asociados se suman. 6 de uno y 4 de otro cuentan como 10. Si está apagado, cada producto completa la cantidad por su cuenta.
 - **Lleva**: Cantidad que se regala
 - **Ejemplo**: Compra 12, Lleva 2 → Al comprar 12 unidades, recibes 2 gratis
 

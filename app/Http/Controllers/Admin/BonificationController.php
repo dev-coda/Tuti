@@ -48,12 +48,10 @@ class BonificationController extends Controller
             'allow_discounts' => 'boolean',
             'gift_invoice_unit_value' => 'nullable|numeric|min:0.01|max:99999999',
             'gift_proration_scope' => 'nullable|in:cart,trigger',
-            'sum_products' => 'nullable|boolean',
         ]);
 
         // Handle checkbox: if not present, set to false
         $validate['allow_discounts'] = $request->has('allow_discounts') ? (bool)$request->input('allow_discounts') : false;
-        $validate['sum_products'] = $request->boolean('sum_products');
         $validate['gift_invoice_unit_value'] = $request->filled('gift_invoice_unit_value')
             ? $request->input('gift_invoice_unit_value')
             : null;
@@ -100,12 +98,10 @@ class BonificationController extends Controller
             'allow_discounts' => 'boolean',
             'gift_invoice_unit_value' => 'nullable|numeric|min:0.01|max:99999999',
             'gift_proration_scope' => 'nullable|in:cart,trigger',
-            'sum_products' => 'nullable|boolean',
         ]);
 
         // Handle checkbox: if not present, set to false
         $validate['allow_discounts'] = $request->has('allow_discounts') ? (bool)$request->input('allow_discounts') : false;
-        $validate['sum_products'] = $request->boolean('sum_products');
         $validate['gift_invoice_unit_value'] = $request->filled('gift_invoice_unit_value')
             ? $request->input('gift_invoice_unit_value')
             : null;

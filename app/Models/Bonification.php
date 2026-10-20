@@ -15,7 +15,6 @@ class Bonification extends Model
         'get',
         'product_id',
         'max',
-        'sum_products',
         'allow_discounts',
         'gift_invoice_unit_value',
         'gift_proration_scope',
@@ -27,7 +26,6 @@ class Bonification extends Model
 
     protected $casts = [
         'allow_discounts' => 'boolean',
-        'sum_products' => 'boolean',
         'gift_invoice_unit_value' => 'decimal:2',
     ];
 
@@ -56,12 +54,6 @@ class Bonification extends Model
      * cart: el valor se reparte en todos los productos sin descuento.
      * trigger: solo en los productos que activan esta bonificacion.
      */
-    /** Las unidades de los productos asociados se suman para alcanzar la cantidad comprada. */
-    public function sumsProducts(): bool
-    {
-        return (bool) $this->sum_products;
-    }
-
     public function giftProrationScope(): string
     {
         return $this->gift_proration_scope === self::PRORATION_TRIGGER

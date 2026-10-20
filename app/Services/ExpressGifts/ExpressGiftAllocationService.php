@@ -57,13 +57,9 @@ class ExpressGiftAllocationService
         }
 
         $gifts = $giftRows->map(function (OrderProductBonification $b) {
-            if ($b->spending_gift_id) {
-                $triggerIds = $b->spendingGift->products->pluck('id')->map(fn ($id) => (int) $id)->all();
-            } elseif ($b->bonification && $b->bonification->sumsProducts()) {
-                $triggerIds = $b->bonification->products->pluck('id')->map(fn ($id) => (int) $id)->all();
-            } else {
-                $triggerIds = [(int) ($b->orderProduct->product_id ?? 0)];
-            }
+            $triggerIds = $b->spending_gift_id
+                ? $b->spendingGift->products->pluck('id')->map(fn ($id) => (int) $id)->all()
+                : [(int) ($b->orderProduct->product_id ?? 0)];
 
             return [
                 'key' => (int) $b->id,

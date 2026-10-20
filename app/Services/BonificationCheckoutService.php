@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\Bonification;
 use App\Models\OrderProduct;
 use App\Models\Product;
 use App\Models\Setting;
@@ -55,9 +54,6 @@ class BonificationCheckoutService
             }
 
             foreach ($product->bonifications as $bonification) {
-                if ($bonification->sumsProducts()) {
-                    continue;
-                }
                 $buy = (int) $bonification->buy;
                 if ($buy <= 0) {
                     continue;
@@ -71,85 +67,7 @@ class BonificationCheckoutService
             }
         }
 
-        foreach (self::summedGrants($quantities) as $grant) {
-            if ($grant['bonification']->allow_discounts) {
-                continue;
-            }
-            foreach ($grant['product_ids'] as $productId) {
-                $blocked[$productId] = true;
-            }
-        }
-
         return $blocked;
-    }
-
-    public static function giftUnits(int $buy, int $get, int $max, int $aggregatedItems): int
-    {
-        if ($buy <= 0 || $get <= 0 || $aggregatedItems <= 0) {
-            return 0;
-        }
-
-        $qty = (int) floor($aggregatedItems / $buy * $get);
-        if ($qty > $max) {
-            $qty = $max;
-        }
-
-        return max(0, $qty);
-    }
-
-    /**
-     * Bonificaciones que suman las unidades de sus productos asociados.
-     * El regalo se calcula una sola vez con el total del grupo.
-     *
-     * @param  array<int, int>  $productQuantities  product_id => unidades individuales
-     * @return array<int, array{bonification: Bonification, quantity: int, units: int, product_ids: array<int, int>}>
-     */
-    public static function summedGrants(array $productQuantities): array
-    {
-        $ids = array_values(array_filter(array_map('intval', array_keys($productQuantities))));
-        if ($ids === []) {
-            return [];
-        }
-
-        $bonifications = Bonification::query()
-            ->where('sum_products', true)
-            ->whereHas('products', fn ($query) => $query->whereIn('products.id', $ids))
-            ->with(['products:id,name', 'product'])
-            ->orderBy('id')
-            ->get();
-
-        $grants = [];
-        foreach ($bonifications as $bonification) {
-            $contributors = [];
-            $units = 0;
-            foreach ($bonification->products as $product) {
-                $qty = (int) ($productQuantities[(int) $product->id] ?? 0);
-                if ($qty <= 0) {
-                    continue;
-                }
-                $contributors[] = (int) $product->id;
-                $units += $qty;
-            }
-
-            $giftQty = self::giftUnits(
-                (int) $bonification->buy,
-                (int) $bonification->get,
-                (int) ($bonification->max ?? 0),
-                $units
-            );
-            if ($giftQty <= 0) {
-                continue;
-            }
-
-            $grants[] = [
-                'bonification' => $bonification,
-                'quantity' => $giftQty,
-                'units' => $units,
-                'product_ids' => $contributors,
-            ];
-        }
-
-        return $grants;
     }
 
     /**
@@ -361,9 +279,6 @@ class BonificationCheckoutService
             }
 
             foreach ($trigger->bonifications as $bonification) {
-                if ($bonification->sumsProducts()) {
-                    continue;
-                }
                 $buy = (int) ($bonification->buy ?? 0);
                 $get = (int) ($bonification->get ?? 0);
                 if ($buy <= 0 || $get <= 0) {
@@ -404,23 +319,6 @@ class BonificationCheckoutService
                     'variation_item_id' => $variationItemId,
                 ];
             }
-        }
-
-        foreach (self::summedGrants($productQuantities) as $grant) {
-            $giftProduct = $grant['bonification']->product;
-            if (! $giftProduct || ! $giftProduct->isInventoryManaged()) {
-                continue;
-            }
-            $giftProduct->loadMissing(['items', 'categories']);
-            $giftQty = (int) $grant['quantity'];
-            $variationItemId = self::firstCartVariationItemIdForProduct($cart, (int) $giftProduct->id)
-                ?? self::resolveGiftVariationItemId($giftProduct, 0, $bodega, $giftQty);
-            $stockKey = ((int) $giftProduct->id).':'.($variationItemId ?: 'base');
-            $giftDemandByStockKey[$stockKey] = ($giftDemandByStockKey[$stockKey] ?? 0) + $giftQty;
-            $giftMetaByStockKey[$stockKey] = [
-                'product' => $giftProduct,
-                'variation_item_id' => $variationItemId,
-            ];
         }
 
         foreach ($giftDemandByStockKey as $stockKey => $requestedTotal) {
