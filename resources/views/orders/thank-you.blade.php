@@ -23,6 +23,15 @@
             </p>
         </div>
 
+        @php($expressGiftMessages = array_values(array_filter($order->express_gift_audit['messages'] ?? [])))
+        @if(!empty($expressGiftMessages))
+            <div class="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                @foreach($expressGiftMessages as $expressGiftMessage)
+                    <p>{{ $expressGiftMessage }}</p>
+                @endforeach
+            </div>
+        @endif
+
         <!-- Order Summary Card -->
         <div class="bg-white rounded-lg shadow-sm border-l-4 border-orange-500 p-6 sm:p-8 mb-6">
             <!-- Header with Icon -->

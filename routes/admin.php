@@ -18,6 +18,7 @@ use App\Http\Controllers\Admin\PromocionesController;
 use App\Http\Controllers\Admin\PromocionController;
 use App\Http\Controllers\Admin\FvIntegrationController;
 use App\Http\Controllers\Admin\SettingController;
+use App\Http\Controllers\Admin\SpendingGiftController;
 use App\Http\Controllers\Admin\TaxController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\VariationController;
@@ -129,6 +130,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::resource('tags', TagController::class);
     Route::resource('vendors', VendorController::class);
     Route::resource('bonifications', BonificationController::class);
+    Route::resource('spending-gifts', SpendingGiftController::class);
     // Custom coupon routes must be defined before resource routes to avoid conflicts
     Route::get('coupons/export', [CouponController::class, 'export'])->name('coupons.export');
     Route::get('coupons/search-products', [CouponController::class, 'searchProducts'])->name('coupons.search-products');

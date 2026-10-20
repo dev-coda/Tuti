@@ -9,6 +9,7 @@ Las bonificaciones son promociones del tipo "Compra X, Lleva Y" que se aplican a
 ### Modelo "Compra X, Lleva Y"
 
 - **Compra**: Cantidad mínima a comprar del producto
+- **Sumar cantidades**: si está activo, las unidades de todos los productos asociados se suman. 6 de uno y 4 de otro cuentan como 10. Si está apagado, cada producto completa la cantidad por su cuenta.
 - **Lleva**: Cantidad que se regala
 - **Ejemplo**: Compra 12, Lleva 2 → Al comprar 12 unidades, recibes 2 gratis
 
@@ -323,3 +324,39 @@ Sí, puedes configurar que al comprar el Producto A, se bonifique el Producto B.
 
 Porque el bloqueo es del **obsequio**. Revisá inventario del producto regalado en la bodega de la zona del cliente.
 
+
+
+## Pedidos Express: obsequio facturado y prorrateado
+
+Solo aplica a pedidos con método de entrega **Express** (Coordinadora 48h / FV, incluye Última milla). Los pedidos Tronex conservan el obsequio clásico en $0.
+
+**Reglas**
+
+1. Descuento **o** obsequio por producto, nunca los dos. En Express la casilla "Permitir descuentos y cupones" se ignora.
+   - Producto sin descuento: recibe el obsequio.
+   - Producto con descuento: gana lo más favorable para el cliente (ahorro del descuento vs. valor de catálogo del obsequio). En empate gana el descuento.
+2. El obsequio se factura con un **valor mínimo por unidad** (campo "Valor mínimo facturable del obsequio (Express)" de la bonificación; si está vacío se usa `EXPRESS_GIFTS_MIN_UNIT_VALUE`).
+3. Ese valor se **prorratea** (ponderado por valor con IVA) para que el total de la factura FV coincida con el total del pedido. En cada bonificación se elige el alcance:
+   - **Todo el carrito sin descuento** (`gift_proration_scope = cart`, valor por defecto).
+   - **Solo los productos que activan esta bonificación** (`gift_proration_scope = trigger`).
+4. Ninguna línea puede quedar en cero ni por debajo del piso (`EXPRESS_GIFTS_LINE_FLOOR_RATIO`, 10% por defecto). Si ocurre, no se aplica el obsequio, se conservan los descuentos y se muestra el aviso "No se pudo aplicar el obsequio…" al cliente.
+
+**Configuración** (`config/express_gifts.php`): `EXPRESS_GIFTS_ENABLED`, `EXPRESS_GIFTS_MIN_UNIT_VALUE`, `EXPRESS_GIFTS_LINE_FLOOR_RATIO`, `EXPRESS_GIFTS_BALANCE_TOLERANCE`.
+
+**Auditoría**: `orders.express_gift_audit` (decisiones, avisos y prorrateo), `order_products.gift_deduction_per_unit`, `order_product_bonifications.invoice_unit_value / invoice_total_value`.
+
+**Código**: `App\Services\ExpressGifts\{ExpressGiftPlanner, GiftProrationService, ExpressGiftAllocationService, ExpressGiftContext, SpendingGiftService}`; factura en `FvDynamicsService::buildLinesXml`.
+
+## Obsequios por monto (Express)
+
+Módulo aparte de “Compra X, lleva Y”: **Productos → Obsequios por monto** (`/spending-gifts`).
+
+Cada registro define:
+
+- el **producto que se regala** (cada regla puede regalar un producto distinto)
+- las **unidades** de ese obsequio (una sola vez por pedido, no por cada unidad comprada)
+- el **monto mínimo con IVA**
+- los **productos que suman** para ese monto (se asocian en la edición)
+- el valor facturable y el alcance del prorrateo, igual que en las bonificaciones Express
+
+Si la suma con IVA de esos productos alcanza el monto en un pedido Express, se entrega ese obsequio y se prorratea con las mismas reglas (piso del 10%, aviso si no se puede). Varias reglas activas pueden cumplirse en el mismo pedido y entregar obsequios distintos. En Tronex estas reglas no se aplican.

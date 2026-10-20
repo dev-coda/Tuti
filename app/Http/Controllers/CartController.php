@@ -17,6 +17,10 @@ use App\Models\ZoneWarehouse;
 use App\Repositories\OrderRepository;
 use App\Repositories\UserRepository;
 use App\Services\BonificationCheckoutService;
+use App\Services\ExpressGifts\ExpressGiftAllocationService;
+use App\Services\ExpressGifts\ExpressGiftContext;
+use App\Services\ExpressGifts\ExpressGiftPlanner;
+use App\Services\ExpressGifts\SpendingGiftService;
 use App\Services\CouponService;
 use App\Services\DraftOrderReconciliationService;
 use App\Services\Shipping\CoordinadoraQuoteService;
@@ -120,6 +124,7 @@ class CartController extends Controller
 
     public function cart()
     {
+        ExpressGiftContext::deactivate();
 
         // session()->forget('cart');
         // back();
@@ -675,6 +680,9 @@ class CartController extends Controller
 
     public function processOrder(Request $request)
     {
+        // Express gift context lives only for one checkout; never leak a stale one.
+        ExpressGiftContext::deactivate();
+
         // Check vacation mode (active based on date range)
         $vacationInfo = Setting::getVacationModeInfo();
 
@@ -1101,6 +1109,25 @@ class CartController extends Controller
         $firstOrderDiscountEnabled = config('app.first_order_discount_enabled', true);
         $has_orders = $firstOrderDiscountEnabled ? Order::where('user_id', $user_id)->exists() : false;
 
+        // Express orders (Coordinadora 48h / FV, includes Ultima milla): each product gets the
+        // discount OR the gift, whichever is better for the customer; the gift is invoiced and
+        // its value prorated across discount-free lines (see App\Services\ExpressGifts).
+        $expressGiftPlan = null;
+        if (
+            $delivery_method === Order::DELIVERY_METHOD_EXPRESS
+            && ExpressGiftPlanner::isEnabled()
+        ) {
+            $expressGiftPlan = app(ExpressGiftPlanner::class)->plan($cart, $has_orders);
+            ExpressGiftContext::activate(ExpressGiftContext::MODE_ACTIVE, $expressGiftPlan['blocked']);
+            Log::info('Express gift plan resolved', [
+                'user_id' => $user_id,
+                'blocked_product_ids' => array_keys($expressGiftPlan['blocked']),
+                'denied_product_ids' => array_keys($expressGiftPlan['denied']),
+                'granted_product_ids' => array_keys($expressGiftPlan['granted']),
+                'decisions' => $expressGiftPlan['decisions'],
+            ]);
+        }
+
         // Check for applied coupons and calculate proper discounts
         $couponDiscount = 0;
         $couponResult = null;
@@ -1483,11 +1510,22 @@ class CartController extends Controller
                 // IMPORTANT: For products with variations, bonifications are checked at the
                 // product level and quantities are aggregated across all variation lines.
                 $bonificationsToCheck = $p->bonifications;
+                if ($expressGiftPlan !== null && isset($expressGiftPlan['denied'][$id])) {
+                    // Express: the discount is more favorable (or the gift cannot be prorated).
+                    $bonificationsToCheck = collect();
+                } elseif ($expressGiftPlan !== null && ! empty($expressGiftPlan['failed_gift_keys'])) {
+                    $bonificationsToCheck = $bonificationsToCheck->reject(
+                        fn ($bonification) => isset($expressGiftPlan['failed_gift_keys'][$id.':'.$bonification->id])
+                    );
+                }
                 if ($bonificationsToCheck->isNotEmpty() && ($lastCartKeyByProductId[$id] ?? $key) === $key) {
                     $plannedBonifications = [];
                     $giftProductStockPlan = []; // stock key => ['catalog_product', 'inventory', 'requested_total']
 
                     foreach ($bonificationsToCheck as $bonification) {
+                        if ($bonification->sumsProducts()) {
+                            continue;
+                        }
                         $aggregatedIndividualItems = $productQuantities[$id] ?? ($row['quantity'] * ($p->package_quantity ?? 1));
                         $bonification_quantity = (int) floor($aggregatedIndividualItems / $bonification->buy * $bonification->get);
                         if ($bonification_quantity <= 0) {
@@ -1612,6 +1650,13 @@ class CartController extends Controller
                             'variation_item_id' => $planned['variation_item_id'],
                             'quantity' => (int) $planned['quantity'],
                             'order_id' => $order->id,
+                            // Express: gift is invoiced with a minimum value (prorated later).
+                            'invoice_unit_value' => $expressGiftPlan !== null
+                                ? $planned['bonification']->giftInvoiceUnitValue()
+                                : null,
+                            'proration_scope' => $expressGiftPlan !== null
+                                ? $planned['bonification']->giftProrationScope()
+                                : null,
                         ]);
 
                         if (! isset($consumedByGiftProduct[$stockKey])) {
@@ -1677,6 +1722,17 @@ class CartController extends Controller
 
                 // Increment sales count for best-selling tracking
                 $p->incrementSalesCount($row['quantity']);
+            }
+
+            $summedGiftError = $this->attachSummedBonifications(
+                $order,
+                $productQuantities,
+                $expressGiftPlan,
+                (bool) $isInventoryEnabled,
+                $bodega ?? null
+            );
+            if ($summedGiftError !== null) {
+                return $summedGiftError;
             }
 
             // For users with orders, reset traditional discounts but keep coupon discounts
@@ -1777,6 +1833,57 @@ class CartController extends Controller
                 'retention_total' => $retentionCalc['retention_total'],
             ]);
 
+            // Express gifts: prorate the invoiced gift value across discount-free lines so the
+            // FV invoice total matches the order total. If it cannot be done (a line would end
+            // up at zero or below the floor) the gift is removed and the customer is told.
+            if ($expressGiftPlan !== null) {
+                $spendingGifts = app(SpendingGiftService::class)->attachToOrder(
+                    $order,
+                    is_array($cart) ? $cart : [],
+                    (bool) $has_orders,
+                    (bool) $isInventoryEnabled,
+                    $bodega ?? null
+                );
+
+                $giftAudit = [
+                    'decisions' => $expressGiftPlan['decisions'],
+                    'messages' => array_values(array_filter(array_merge(
+                        $expressGiftPlan['messages'],
+                        $spendingGifts['messages']
+                    ))),
+                ];
+
+                $allocation = app(ExpressGiftAllocationService::class)->allocate($order);
+                if (! $allocation['success']) {
+                    $released = app(ExpressGiftAllocationService::class)
+                        ->releaseInvoicedGifts($order, $isInventoryEnabled, $bodega ?? null);
+                    $giftAudit['messages'][] = $allocation['message'];
+                    $giftAudit['released_gift_rows'] = $released;
+                    $giftAudit['proration'] = $allocation['result'];
+                    session()->flash('express_gift_notice', $allocation['message']);
+                } elseif ($allocation['applied']) {
+                    $giftAudit['proration'] = $allocation['result'];
+                    $failedIds = $allocation['failed_ids'] ?? [];
+                    if ($failedIds !== []) {
+                        $released = app(ExpressGiftAllocationService::class)
+                            ->releaseInvoicedGifts($order, $isInventoryEnabled, $bodega ?? null, $failedIds);
+                        $giftAudit['released_gift_rows'] = $released;
+                        $giftAudit['messages'][] = $allocation['message'];
+                    }
+                    $notice = array_filter(array_merge(
+                        $expressGiftPlan['messages'],
+                        $failedIds !== [] ? [$allocation['message']] : []
+                    ));
+                    if ($notice !== []) {
+                        session()->flash('express_gift_notice', implode(' ', $notice));
+                    }
+                } elseif (! empty($expressGiftPlan['messages'])) {
+                    session()->flash('express_gift_notice', implode(' ', $expressGiftPlan['messages']));
+                }
+
+                $order->update(['express_gift_audit' => $giftAudit]);
+            }
+
             // Record coupon usage for ALL winning coupons
             if (! empty($winningCoupons) && $couponDiscount > 0) {
                 $couponService = app(CouponService::class);
@@ -1813,6 +1920,7 @@ class CartController extends Controller
             }
 
             DB::commit();
+            ExpressGiftContext::deactivate();
 
             //if env production
             if (app()->environment('production')) {
@@ -1854,6 +1962,7 @@ class CartController extends Controller
             return redirect()->route('orders.thank-you', $order->id);
         } catch (\Exception $e) {
             DB::rollBack();
+            ExpressGiftContext::deactivate();
             Log::error('Error creating order: '.$e->getMessage(), [
                 'exception' => $e,
                 'user_id' => $user_id ?? null,
@@ -2158,6 +2267,81 @@ class CartController extends Controller
     }
 
     /**
+     * @param  array<int, int>  $productQuantities
+     * @param  array<string, mixed>|null  $expressGiftPlan
+     */
+    private function attachSummedBonifications(Order $order, array $productQuantities, ?array $expressGiftPlan, bool $isInventoryEnabled, ?string $bodega)
+    {
+        $grants = BonificationCheckoutService::summedGrants($productQuantities);
+        if ($expressGiftPlan !== null) {
+            $grants = array_values(array_filter($grants, function (array $grant) use ($expressGiftPlan) {
+                $id = (int) $grant['bonification']->id;
+                if (! empty($expressGiftPlan['denied_sums'][$id]) || ! empty($expressGiftPlan['failed_gift_keys']['sum:'.$id])) {
+                    return false;
+                }
+
+                return ! empty($expressGiftPlan['granted_sums'][$id]);
+            }));
+        }
+
+        foreach ($grants as $grant) {
+            $bonification = $grant['bonification'];
+            $catalog = Product::with(['items', 'categories'])->find($bonification->product_id);
+            $anchor = OrderProduct::query()
+                ->where('order_id', $order->id)
+                ->whereIn('product_id', $grant['product_ids'])
+                ->orderBy('id')
+                ->first();
+            if (! $catalog || ! $anchor) {
+                continue;
+            }
+
+            $qty = (int) $grant['quantity'];
+            $variationItemId = BonificationCheckoutService::resolveGiftVariationItemId(
+                $catalog,
+                (int) $order->id,
+                $isInventoryEnabled ? $bodega : null,
+                $qty
+            );
+
+            if ($isInventoryEnabled && $bodega && $catalog->isInventoryManaged()) {
+                $inventory = $catalog->inventoryQueryForBodega($bodega, $variationItemId)?->lockForUpdate()->first();
+                $available = (int) ($inventory?->available ?? 0);
+                if (! BonificationCheckoutService::hasEnoughStockForRequestedUnits($available, $catalog, $qty)) {
+                    Log::warning('Order rollback: insufficient stock for summed bonification gift', [
+                        'order_id' => $order->id,
+                        'bonification_id' => $bonification->id,
+                        'requested' => $qty,
+                        'available' => $available,
+                    ]);
+                    DB::rollBack();
+
+                    return back()->with(
+                        'error',
+                        BonificationCheckoutService::insufficientGiftStockMessage($catalog, $available, $qty)
+                    );
+                }
+                if ($inventory) {
+                    $inventory->update(['available' => $available - $qty]);
+                }
+            }
+
+            OrderProductBonification::create([
+                'bonification_id' => $bonification->id,
+                'order_product_id' => $anchor->id,
+                'product_id' => $catalog->id,
+                'variation_item_id' => $variationItemId,
+                'quantity' => $qty,
+                'order_id' => $order->id,
+                'invoice_unit_value' => $expressGiftPlan !== null ? $bonification->giftInvoiceUnitValue() : null,
+                'proration_scope' => $expressGiftPlan !== null ? $bonification->giftProrationScope() : null,
+            ]);
+        }
+
+        return null;
+    }
+
+    /**
      * Build cart bonification preview grouped by parent product_id.
      *
      * Product variations share product_id in cart rows, so quantities are aggregated
@@ -2215,6 +2399,9 @@ class CartController extends Controller
             }
 
             foreach ($triggerProduct->bonifications as $bonification) {
+                if ($bonification->sumsProducts()) {
+                    continue;
+                }
                 $buy = (int) ($bonification->buy ?? 0);
                 $get = (int) ($bonification->get ?? 0);
                 if ($buy <= 0 || $get <= 0) {
@@ -2242,6 +2429,23 @@ class CartController extends Controller
                     'gift_quantity' => $giftQuantity,
                 ];
             }
+        }
+
+        foreach (BonificationCheckoutService::summedGrants($productQuantities) as $grant) {
+            $bonification = $grant['bonification'];
+            $names = $bonification->products
+                ->whereIn('id', $grant['product_ids'])
+                ->pluck('name')
+                ->implode(', ');
+            $preview[] = [
+                'bonification_name' => $bonification->name,
+                'trigger_product_name' => $names !== '' ? $names : 'Productos asociados',
+                'gift_product_name' => $bonification->product?->name,
+                'buy' => (int) $bonification->buy,
+                'get' => (int) $bonification->get,
+                'aggregated_items' => $grant['units'],
+                'gift_quantity' => $grant['quantity'],
+            ];
         }
 
         return $preview;

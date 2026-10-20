@@ -60,6 +60,7 @@
                         'tags'=>'Etiquetas de Productos',
                         'variations'=>'Variaciones', 
                         'bonifications'=>'Bonificaciones',
+                        'spending-gifts'=>'Obsequios por monto',
                         'coupons'=>'Cupones',
                         'coupon-tests.index'=>'Pruebas de Cupones',
                         'admin.retentions.index'=>'Retenciones',

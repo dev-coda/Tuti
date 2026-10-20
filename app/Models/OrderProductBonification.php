@@ -12,11 +12,28 @@ class OrderProductBonification extends Model
     protected $fillable = [
         'order_product_id',
         'bonification_id',
+        'spending_gift_id',
         'product_id',
         'variation_item_id',
         'quantity',
         'order_id',
+        'invoice_unit_value',
+        'invoice_total_value',
+        'proration_scope',
     ];
+
+    public function prorationScope(): string
+    {
+        return $this->proration_scope === Bonification::PRORATION_TRIGGER
+            ? Bonification::PRORATION_TRIGGER
+            : Bonification::PRORATION_CART;
+    }
+
+    /** True when the gift is invoiced with a value (Express) instead of being a $0 obsequio order. */
+    public function isInvoiced(): bool
+    {
+        return $this->invoice_unit_value !== null;
+    }
 
     public function product(){
         return $this->belongsTo(Product::class);
@@ -40,6 +57,11 @@ class OrderProductBonification extends Model
 
     public function bonification(){
         return $this->belongsTo(Bonification::class);
+    }
+
+    public function spendingGift()
+    {
+        return $this->belongsTo(SpendingGift::class);
     }
 
     /**

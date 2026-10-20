@@ -25,6 +25,19 @@
 
                 {{ Aire::input('max', "Cantidad maxima bonificada")->value(old('max',1))->groupClass('col-span-3')->helpText('Cantidad de veces que se da la bonificación') }}
 
+                {{ Aire::input('gift_invoice_unit_value', "Valor mínimo facturable del obsequio (Express)")->groupClass('col-span-3')->helpText('Valor neto por unidad (sin IVA) con el que se factura el obsequio en pedidos Express. Vacío = valor por defecto (' . number_format((float) config('express_gifts.default_min_unit_value'), 2) . ').') }}
+
+                {{ Aire::select(['cart' => 'Todo el carrito sin descuento', 'trigger' => 'Solo los productos que activan esta bonificación'], 'gift_proration_scope', 'Alcance del prorrateo (Express)')->value(old('gift_proration_scope', 'cart'))->groupClass('col-span-6')->helpText('En pedidos Express, el valor del obsequio se descuenta de los productos sin descuento. Elige si ese descuento se reparte en todo el carrito o solo en los productos que activan esta bonificación.') }}
+
+                <div class="col-span-6">
+                    <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                        <input type="hidden" name="sum_products" value="0">
+                        <input type="checkbox" name="sum_products" value="1" class="rounded border-gray-300" @checked(filter_var(old('sum_products', '0'), FILTER_VALIDATE_BOOLEAN))>
+                        Sumar las cantidades de los productos asociados
+                    </label>
+                    <p class="mt-1 text-sm text-gray-600">6 de azúcar y 4 de café cuentan como 10 y entregan el obsequio. Si está apagado, cada producto tiene que completar la cantidad por su cuenta.</p>
+                </div>
+
                 <div class="col-span-6">
                     <div class="flex items-center">
                         {{ Aire::checkbox('allow_discounts', 'Permitir descuentos y cupones')->value(1) }}

@@ -190,7 +190,7 @@
                     @foreach ($order->bonifications as $gift)
                         <div class="p-3 bg-orange-50 border border-orange-100 rounded-lg">
                             <p class="text-sm text-gray-800">
-                                <span class="font-semibold">{{ $gift->bonification->name ?? 'Bonificación' }}</span>:
+                                <span class="font-semibold">{{ $gift->spendingGift->name ?? $gift->bonification->name ?? 'Bonificación' }}</span>:
                                 {{ $gift->quantity }} {{ $gift->quantity === 1 ? 'unidad' : 'unidades' }} de
                                 <span class="font-semibold">{{ $gift->product->name ?? 'Obsequio' }}</span>.
                             </p>
