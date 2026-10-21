@@ -49,16 +49,25 @@ Un cupón es un código que el cliente ingresa en el carrito para obtener un des
    - **Solo primera compra**: Solo usuarios sin órdenes previas
    - **Cualquier compra**: Todos los usuarios
 
-3. **Productos Elegibles**
-   - **Todos los productos**: Aplica a todo el carrito
-   - **Productos específicos**: Solo productos seleccionados
-   - **Categorías específicas**: Solo productos de categorías seleccionadas
-   - **Marcas específicas**: Solo productos de marcas seleccionadas
+3. **Ámbito de aplicación (`applies_to`)**
+   - **Carrito (`cart`)**: aplica al carrito; al guardar en este modo se **limpian** IDs de productos/categorías/etc. previos
+   - **Producto / categoría / marca / proveedor (`vendor`)**: solo ítems seleccionados
+   - **Cliente / tipo de cliente**: restringe por usuario o tipo de cliente
+   - Los selectores de IDs usan casillas; al guardar, si no se envía ninguna, los arrays se **vacían** (no se dejan valores viejos)
 
 4. **Exclusiones**
    - **Productos excluidos**: Productos que NO aplican
    - **Categorías excluidas**: Categorías que NO aplican
    - **Marcas excluidas**: Marcas que NO aplican
+
+5. **Restricción por zona / ruta**
+   - Se pueden limitar zonas (IDs), códigos de zona o rutas
+   - En crear/editar, la búsqueda de zonas es **AJAX** (`coupons.search-zones`): no se renderiza la tabla completa de zonas (evita timeouts/500 en formularios grandes)
+   - Si no se elige ninguna restricción, el cupón aplica en cualquier zona/ruta del cliente
+
+6. **Acumulación con descuentos de marca/proveedor**
+   - Por defecto el cupón compite por el **mejor descuento** frente a descuentos de marca/proveedor
+   - Opción *aplicar sobre descuentos de marca/proveedor* (`apply_on_brand_vendor_discounts`): si está activa, el cupón **se suma** encima de esos descuentos
 
 ### Paso 4: Límites de Uso
 
@@ -263,9 +272,10 @@ Descuento por Producto = (Precio del producto / Total productos elegibles) * Des
 
 ### Editar Cupón
 
-- Cambiar configuración
-- Activar/desactivar
-- Modificar límites
+- Cambiar configuración, límites, zonas/rutas y ámbito
+- **Activo**: el checkbox se guarda de forma explícita (marcar/desmarcar actualiza el estado; no deja un valor “fantasma”)
+- Al pasar a ámbito **carrito**, se borran los `applies_to_ids` anteriores
+- Al quitar todas las zonas/rutas del formulario, las restricciones quedan vacías (el cupón deja de estar limitado geográficamente)
 
 ⚠️ **Nota**: Cambiar un cupón no afecta órdenes ya creadas.
 
@@ -293,17 +303,18 @@ Descuento por Producto = (Precio del producto / Total productos elegibles) * Des
 
 ## 🔄 Integración con Descuentos
 
-### Cupones y Descuentos Tradicionales
+### Cupones y descuentos de marca / proveedor
 
-Los cupones se aplican **ADICIONALMENTE** a los descuentos tradicionales:
+Comportamiento por defecto: el sistema elige el **mejor** entre cupón y descuento de marca/proveedor (no siempre se suman).
 
-1. Se aplican descuentos de producto/marca/proveedor
-2. Se calcula subtotal con descuentos
-3. Se aplica cupón sobre el subtotal descontado
+Si en el cupón activás **aplicar sobre descuentos de marca/proveedor**:
 
-**Ejemplo**:
+1. Se aplican descuentos de marca/proveedor
+2. El cupón se calcula **encima** de ese subtotal
+
+**Ejemplo** (solo con el toggle activo):
 - Producto: $100,000
-- Descuento producto: 10% → $90,000
+- Descuento marca/proveedor: 10% → $90,000
 - Cupón: 10% sobre $90,000 → $9,000
 - Total: $81,000
 

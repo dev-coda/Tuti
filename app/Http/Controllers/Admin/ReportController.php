@@ -2,13 +2,19 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Exports\VendorSalesExport;
 use App\Http\Controllers\Controller;
-use App\Models\Report;
 use App\Jobs\GenerateUserEmailReport;
+use App\Jobs\GenerateVendorSalesExport;
+use App\Models\ExportFile;
+use App\Models\Report;
+use App\Models\Vendor;
 use App\Reports\UserEmailReport;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Maatwebsite\Excel\Facades\Excel;
 
 class ReportController extends Controller
 {
@@ -307,5 +313,113 @@ class ReportController extends Controller
             new \App\Exports\DailySalesExport($dateFrom, $dateTo, $region, $sellerId),
             $filename
         );
+    }
+
+    /**
+     * Sales by vendor for a date range, including bonification gifts.
+     */
+    public function vendorSales(Request $request)
+    {
+        [$dateFrom, $dateTo, $vendorIds, $vendors] = $this->vendorSalesFilters($request);
+
+        return view('admin.reports.vendor-sales', [
+            'vendors' => $vendors,
+            'dateFrom' => $dateFrom,
+            'dateTo' => $dateTo,
+            'selectedVendorIds' => $vendorIds,
+            'exports' => ExportFile::forUser(auth()->id())
+                ->where('type', 'vendor_sales')
+                ->recent(30)
+                ->orderByDesc('created_at')
+                ->limit(15)
+                ->get(),
+        ]);
+    }
+
+    /**
+     * Queue vendor sales Excel (paid lines, bonifications, and full orders).
+     */
+    public function exportVendorSales(Request $request)
+    {
+        $validated = $request->validate([
+            'vendor_ids' => 'required|array|min:1',
+            'vendor_ids.*' => 'integer|exists:vendors,id',
+            'date_from' => 'required|date',
+            'date_to' => 'required|date|after_or_equal:date_from',
+        ]);
+
+        $dateFrom = $validated['date_from'];
+        $dateTo = $validated['date_to'];
+        $vendorIds = array_values(array_map('intval', $validated['vendor_ids']));
+        $vendorNames = Vendor::query()->whereIn('id', $vendorIds)->orderBy('name')->pluck('name')->all();
+
+        $filename = 'ventas_proveedor_'
+            .Carbon::parse($dateFrom)->format('Ymd')
+            .'_'
+            .Carbon::parse($dateTo)->format('Ymd')
+            .'_'
+            .time()
+            .'.xlsx';
+
+        $exportFile = ExportFile::create([
+            'user_id' => auth()->id(),
+            'type' => 'vendor_sales',
+            'filename' => $filename,
+            'file_path' => 'exports/vendor-sales/'.$filename,
+            'status' => ExportFile::STATUS_PENDING,
+            'params' => [
+                'label' => 'Ventas '.$dateFrom.' a '.$dateTo.' — '.implode(', ', $vendorNames),
+                'date_from' => $dateFrom,
+                'date_to' => $dateTo,
+                'vendor_ids' => $vendorIds,
+                'vendor_names' => $vendorNames,
+            ],
+        ]);
+
+        GenerateVendorSalesExport::dispatch($exportFile->id);
+
+        return redirect()
+            ->route('admin.reports.vendor-sales', [
+                'date_from' => $dateFrom,
+                'date_to' => $dateTo,
+                'vendor_ids' => $vendorIds,
+            ])
+            ->with('success', 'El reporte se está generando en segundo plano. Descárgalo aquí cuando esté listo.');
+    }
+
+    /**
+     * @return array{0: string, 1: string, 2: array<int, int>, 3?: \Illuminate\Support\Collection}
+     */
+    private function vendorSalesFilters(Request $request): array
+    {
+        $lastMonth = now(VendorSalesExport::reportTimezone())->subMonthNoOverflow();
+        $dateFrom = $request->input('date_from', $lastMonth->copy()->startOfMonth()->format('Y-m-d'));
+        $dateTo = $request->input('date_to', $lastMonth->copy()->endOfMonth()->format('Y-m-d'));
+
+        $vendors = Vendor::query()->orderBy('name')->get(['id', 'name']);
+
+        $vendorIds = array_values(array_filter(array_map('intval', (array) $request->input('vendor_ids', []))));
+        if ($vendorIds === [] && ! $request->has('vendor_ids')) {
+            $vendorIds = $this->defaultEternaVendorIds($vendors);
+        }
+
+        return [$dateFrom, $dateTo, $vendorIds, $vendors];
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, Vendor>  $vendors
+     * @return array<int, int>
+     */
+    private function defaultEternaVendorIds($vendors): array
+    {
+        $exact = $vendors->filter(fn (Vendor $vendor) => strcasecmp(trim($vendor->name), 'ETERNA') === 0);
+        if ($exact->isNotEmpty()) {
+            return $exact->pluck('id')->all();
+        }
+
+        return $vendors
+            ->filter(fn (Vendor $vendor) => stripos($vendor->name, 'eterna') !== false)
+            ->pluck('id')
+            ->all();
     }
 }

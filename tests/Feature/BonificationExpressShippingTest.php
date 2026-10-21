@@ -101,6 +101,8 @@ it('detects when the cart qualifies for a bonification', function () {
 });
 
 it('rejects express checkout when the cart has qualifying bonifications', function () {
+    config(['express_gifts.enabled' => false]);
+
     ['client' => $client, 'zone' => $zone, 'product' => $product] = bonificationExpressFixtures();
 
     actingAs($client)

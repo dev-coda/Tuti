@@ -18,6 +18,7 @@ use App\Http\Controllers\Admin\PromocionesController;
 use App\Http\Controllers\Admin\PromocionController;
 use App\Http\Controllers\Admin\FvIntegrationController;
 use App\Http\Controllers\Admin\SettingController;
+use App\Http\Controllers\Admin\SpendingGiftController;
 use App\Http\Controllers\Admin\TaxController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\VariationController;
@@ -129,6 +130,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::resource('tags', TagController::class);
     Route::resource('vendors', VendorController::class);
     Route::resource('bonifications', BonificationController::class);
+    Route::resource('spending-gifts', SpendingGiftController::class);
     // Custom coupon routes must be defined before resource routes to avoid conflicts
     Route::get('coupons/export', [CouponController::class, 'export'])->name('coupons.export');
     Route::get('coupons/search-products', [CouponController::class, 'searchProducts'])->name('coupons.search-products');
@@ -343,6 +345,10 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
         // Daily Sales Report
         Route::get('/daily-sales', [App\Http\Controllers\Admin\ReportController::class, 'dailySales'])->name('daily-sales');
         Route::get('/daily-sales/export', [App\Http\Controllers\Admin\ReportController::class, 'exportDailySales'])->name('daily-sales.export');
+
+        // Vendor sales (includes bonifications)
+        Route::get('/vendor-sales', [App\Http\Controllers\Admin\ReportController::class, 'vendorSales'])->name('vendor-sales');
+        Route::post('/vendor-sales/export', [App\Http\Controllers\Admin\ReportController::class, 'exportVendorSales'])->name('vendor-sales.export');
     });
     Route::resource('sellers', SellerController::class);
     Route::resource('supervisors', SupervisorController::class);

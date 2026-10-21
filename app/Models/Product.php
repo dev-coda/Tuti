@@ -311,6 +311,26 @@ class Product extends Model
     }
 
     /**
+     * Whether this product's bonifications remove its discounts.
+     *
+     * Classic rule: every bonification has allow_discounts = false.
+     * Express gift checkout: decided per product by ExpressGiftPlanner (discount OR gift).
+     */
+    protected function bonificationsBlockDiscounts(): bool
+    {
+        if ($this->bonifications->isEmpty()) {
+            return false;
+        }
+
+        $express = \App\Services\ExpressGifts\ExpressGiftContext::blocksDiscountsFor((int) $this->id);
+        if ($express !== null) {
+            return $express;
+        }
+
+        return $this->bonifications->every(fn ($b) => ! $b->allow_discounts);
+    }
+
+    /**
      * Tags for this product
      */
     public function tags()
@@ -394,11 +414,8 @@ class Product extends Model
      */
     protected function discountAppliesFromSources(bool $includeVendor): bool
     {
-        if ($this->bonifications->count() > 0) {
-            $allBlockDiscounts = $this->bonifications->every(fn ($b) => ! $b->allow_discounts);
-            if ($allBlockDiscounts) {
-                return false;
-            }
+        if ($this->bonificationsBlockDiscounts()) {
+            return false;
         }
 
         if ($this->discount > 0) {
@@ -640,17 +657,10 @@ class Product extends Model
 
         // Bonifications override all discounts ONLY if ALL bonifications have allow_discounts = false
         // If at least one bonification allows discounts, then discounts can apply
-        if ($this->bonifications->count() > 0) {
-            $allBlockDiscounts = $this->bonifications->every(function ($bonification) {
-                return ! $bonification->allow_discounts;
-            });
-
-            if ($allBlockDiscounts) {
-                // All bonifications block discounts, so remove discounts
-                $discount_on = false;
-                $discount = 0;
-            }
-            // If at least one bonification allows discounts, keep the calculated discount
+        if ($this->bonificationsBlockDiscounts()) {
+            // Bonifications block discounts (classic rule or Express gift decision)
+            $discount_on = false;
+            $discount = 0;
         }
 
         $price = $this->resolveUnitBasePrice($variationItemId);

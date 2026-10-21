@@ -28,6 +28,15 @@ Cubre el uso de **KPIs**, generación y descarga de **reportes**, **exportes men
 
 > La lista exacta de *tipos* de reporte depende de [ReportController](../../app/Http/Controllers/Admin/ReportController.php).
 
+## Ventas por proveedor (vendor sales)
+
+- **Pantalla:** `GET` `admin.reports.vendor-sales` — filtros por rango de fechas y proveedor(es).
+- **Exportación:** `POST`/`export` encola el job `GenerateVendorSalesExport` (Horizon / cola de exports); no descarga síncrona pesada.
+- El Excel incluye hojas de **ventas** y **bonificaciones** (obsequios) asociadas a las órdenes del periodo.
+- Revisar listado de exports recientes en la misma pantalla (`ExportFile` tipo `vendor_sales`) y descargar cuando el estado esté listo.
+
+**Caso de uso:** liquidación o análisis por proveedor sin bloquear el navegador en rangos grandes.
+
 ## Ventas del día (daily sales)
 
 - `GET` `admin.reports.daily-sales` — visualización o JSON según el controlador.
@@ -77,8 +86,8 @@ Más en [carrito-ordenes.md](./carrito-ordenes.md) y [../ORDER_RETRY_QUICK_START
 ## Errores y referencias
 
 - Un exporte **stuck** en *processing*: revisar colas, logs y espacio en disco; ver [../tecnica/colas-y-horizon.md](../tecnica/colas-y-horizon.md).
-- Cifras que no cuadran con contabilidad: alinear *timezone*, **fecha de corte** del *daily sales* y validar que no haya *órdenes canceladas* o en **espera** (para lo cual ver filtros y estados de orden en el listado *orders*).
+- Cifras que no cuadran con contabilidad: alinear *timezone*, **fecha de corte** del *daily sales* / *vendor sales* y validar órdenes canceladas o en espera.
 
 ---
 
-**Revisado:** Abril 2026
+**Revisado:** septiembre 2026

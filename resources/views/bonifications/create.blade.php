@@ -25,6 +25,10 @@
 
                 {{ Aire::input('max', "Cantidad maxima bonificada")->value(old('max',1))->groupClass('col-span-3')->helpText('Cantidad de veces que se da la bonificación') }}
 
+                {{ Aire::input('gift_invoice_unit_value', "Valor mínimo facturable del obsequio (Express)")->groupClass('col-span-3')->helpText('Valor neto por unidad (sin IVA) con el que se factura el obsequio en pedidos Express. Vacío = valor por defecto (' . number_format((float) config('express_gifts.default_min_unit_value'), 2) . ').') }}
+
+                {{ Aire::select(['cart' => 'Todo el carrito sin descuento', 'trigger' => 'Solo los productos que activan esta bonificación'], 'gift_proration_scope', 'Alcance del prorrateo (Express)')->value(old('gift_proration_scope', 'cart'))->groupClass('col-span-6')->helpText('En pedidos Express, el valor del obsequio se descuenta de los productos sin descuento. Elige si ese descuento se reparte en todo el carrito o solo en los productos que activan esta bonificación.') }}
+
                 <div class="col-span-6">
                     <div class="flex items-center">
                         {{ Aire::checkbox('allow_discounts', 'Permitir descuentos y cupones')->value(1) }}
