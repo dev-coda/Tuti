@@ -17,6 +17,8 @@ class Zone extends Model
      */
     private static ?bool $sucursalUidColumnExists = null;
 
+    private static ?bool $isPlaceholderColumnExists = null;
+
     protected $fillable = [
         'route',
         'zone',
@@ -30,12 +32,14 @@ class Zone extends Model
         'fulfillment_provider_48h',
         'shipping_standard_enabled',
         'shipping_express_enabled',
+        'is_placeholder',
         'user_id',
     ];
 
     protected $casts = [
         'shipping_standard_enabled' => 'boolean',
         'shipping_express_enabled' => 'boolean',
+        'is_placeholder' => 'boolean',
     ];
 
     public const FULFILLMENT_PROVIDER_COORDINADORA = 'coordinadora';
@@ -72,6 +76,31 @@ class Zone extends Model
         }
 
         return self::$sucursalUidColumnExists;
+    }
+
+    public static function supportsIsPlaceholder(): bool
+    {
+        if (self::$isPlaceholderColumnExists === true) {
+            return true;
+        }
+
+        try {
+            self::$isPlaceholderColumnExists = Schema::hasColumn('zones', 'is_placeholder');
+        } catch (\Throwable $e) {
+            return false;
+        }
+
+        return self::$isPlaceholderColumnExists;
+    }
+
+    public function isPlaceholder(): bool
+    {
+        if (self::supportsIsPlaceholder() && $this->is_placeholder) {
+            return true;
+        }
+
+        return trim((string) $this->zone) === '000'
+            || str_starts_with((string) $this->code, 'PH-');
     }
 
     /**

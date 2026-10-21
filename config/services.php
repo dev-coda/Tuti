@@ -73,7 +73,7 @@ return [
     'fv' => [
         'endpoint' => env('FV_SOAP_ENDPOINT'),
         // Azure AD audience when FV lives on a different host than MICROSOFT_RESOURCE_URL.
-        // Defaults to the host of FV_SOAP_ENDPOINT (e.g. https://dev03ppac.operations.dynamics.com/).
+        // Defaults to the host of FV_SOAP_ENDPOINT (e.g. https://uattrx.sandbox.operations.dynamics.com/).
         'token_resource' => env('FV_TOKEN_RESOURCE'),
         'soap_action' => env('FV_SOAP_ACTION', 'http://tempuri.org/DWSSalesForce/CreateSalesOrder'),
         // Defaults below match the Dynamics CreateSalesOrder demo envelope.
@@ -90,7 +90,7 @@ return [
         'transportadora' => env('FV_TRANSPORTADORA', 'COORDINADORA'),
         'default_warehouse' => env('FV_DEFAULT_WAREHOUSE'),
         // Flete line SKU on FV CreateSalesOrder. Empty string omits the line.
-        'shipping_item_id' => env('FV_SHIPPING_ITEM_ID', 'FL0001'),
+        'shipping_item_id' => env('FV_SHIPPING_ITEM_ID', 'FL00001'),
         // Financial dimensions / party codes — demo defaults when order data is missing.
         'drive' => env('FV_DRIVE', '9000'),
         'resource' => env('FV_RESOURCE', '9999'),

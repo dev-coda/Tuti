@@ -14,11 +14,13 @@ class ShippingMethod extends Model
         'name',
         'description',
         'enabled',
+        'restrict_cities',
         'sort_order',
     ];
 
     protected $casts = [
         'enabled' => 'boolean',
+        'restrict_cities' => 'boolean',
         'sort_order' => 'integer',
     ];
 
@@ -56,25 +58,76 @@ class ShippingMethod extends Model
     }
 
     /**
-     * Whether this method is offered in a city. Missing override = allowed.
+     * Whether this method is offered in a city.
+     *
+     * restrict_cities = false (opt-out): missing row = allowed.
+     * restrict_cities = true (allowlist / pilot): only explicit enabled rows.
      */
     public function isAllowedForCity(?int $cityId): bool
     {
+        if ($this->restrict_cities) {
+            if ($cityId === null) {
+                return false;
+            }
+
+            $override = $this->cityOverride($cityId);
+
+            return $override !== null && self::pivotEnabled($override->pivot->enabled);
+        }
+
         if ($cityId === null) {
             return true;
         }
 
-        $override = $this->cities()
-            ->where('cities.id', $cityId)
-            ->first();
-
+        $override = $this->cityOverride($cityId);
         if (! $override) {
             return true;
         }
 
-        return $override->pivot->enabled !== false
-            && $override->pivot->enabled !== 0
-            && $override->pivot->enabled !== '0';
+        return self::pivotEnabled($override->pivot->enabled);
+    }
+
+    /**
+     * Turn this method on/off for a single city without rewriting other cities.
+     *
+     * Allowlist mode: attach (on) or detach (off).
+     * Opt-out mode: detach (on / default) or attach enabled=false (off).
+     */
+    public function setCityEnabled(int $cityId, bool $enabled): void
+    {
+        if ($this->restrict_cities) {
+            if ($enabled) {
+                $this->cities()->syncWithoutDetaching([
+                    $cityId => ['enabled' => true],
+                ]);
+            } else {
+                $this->cities()->detach($cityId);
+            }
+
+            return;
+        }
+
+        if ($enabled) {
+            $this->cities()->detach($cityId);
+
+            return;
+        }
+
+        $this->cities()->syncWithoutDetaching([
+            $cityId => ['enabled' => false],
+        ]);
+    }
+
+    private function cityOverride(int $cityId): ?City
+    {
+        return $this->cities()
+            ->where('cities.id', $cityId)
+            ->first();
+    }
+
+    private static function pivotEnabled(mixed $enabled): bool
+    {
+        return $enabled !== false && $enabled !== 0 && $enabled !== '0';
     }
 
     /**

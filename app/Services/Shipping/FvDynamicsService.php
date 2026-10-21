@@ -35,7 +35,7 @@ class FvDynamicsService
         $soapAction = (string) config('services.fv.soap_action');
         $body = $this->buildRequestXml($order);
         // FV often lives on a different Dynamics host than Tronex SOAP
-        // (e.g. dev03ppac vs uattrx.sandbox). Mint a token whose audience
+        // (e.g. uattrx.sandbox vs a separate FV host). Mint a token whose audience
         // matches the FV endpoint or CreateSalesOrder returns opaque 500s.
         $tokenResource = $this->resolveTokenResource($endpoint);
         $token = MicrosoftTokenService::currentOrRefresh($tokenResource);
@@ -157,12 +157,13 @@ class FvDynamicsService
 
         // "El número externo del pedido se toma de la posición 3" (docs/fv.pdf):
         // the third whitespace-separated token of observationsCust must be the
-        // external order number.
+        // external order number (alphanumeric consecutive, e.g. TEST123 in stage).
+        $soapConsecutive = $order->soapConsecutive();
         $observationsCust = sprintf(
-            'Pedido Tuti %d - ConsecVta %s-%d - %s',
-            $order->id,
+            'Pedido Tuti %s - ConsecVta %s-%s - %s',
+            $soapConsecutive,
             $zonePayload['zone'] !== '' ? $zonePayload['zone'] : '0',
-            $order->id,
+            $soapConsecutive,
             ($order->created_at ?? now())->format('Y/m/d')
         );
 
@@ -181,7 +182,7 @@ class FvDynamicsService
             'custId' => $custId,
             'dateInvoice' => now()->format('Y-m-d'),
             'deliveryMode' => (string) config('services.fv.delivery_mode'),
-            'detail' => (string) $order->id,
+            'detail' => $soapConsecutive,
             'docType' => (string) config('services.fv.doc_type'),
             'drive' => $this->valueOrDefault(config('services.fv.drive'), '9000'),
             'locationInvoice' => (string) config('services.fv.location_invoice'),
@@ -334,9 +335,9 @@ class FvDynamicsService
             return '';
         }
 
-        // FV env may not have Tronex's FL0001 flete item. Empty FV_SHIPPING_ITEM_ID
+        // FV flete line SKU (default FL00001). Empty FV_SHIPPING_ITEM_ID
         // omits the line (shipping still stored on the Tuti order / Coordinadora quote).
-        $itemId = trim((string) config('services.fv.shipping_item_id', 'FL0001'));
+        $itemId = trim((string) config('services.fv.shipping_item_id', 'FL00001'));
         if ($itemId === '') {
             Log::channel('soap')->warning('FV shipping line omitted — FV_SHIPPING_ITEM_ID is empty', [
                 'order_id' => $order->id,

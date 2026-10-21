@@ -556,6 +556,36 @@
                             </button>
                             @endforeach
                         </div>
+                        <p id="express-bonification-block" class="mt-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-3 {{ !empty($cartHasBonifications) ? '' : 'hidden' }}">
+                            {{ \App\Services\BonificationCheckoutService::expressBlockedByBonificationsMessage() }}
+                        </p>
+                        @if(!empty($expressVisibilityDebug) && auth()->user()?->hasRole('admin'))
+                            <details class="mt-3 rounded-lg border border-slate-300 bg-slate-50 p-3 text-xs text-slate-800">
+                                <summary class="cursor-pointer font-semibold text-slate-900">
+                                    Admin · diagnóstico Entrega Especial
+                                    ({{ $expressVisibilityDebug['visible'] ? 'VISIBLE' : 'OCULTO' }}
+                                    @if($expressVisibilityDebug['city_name'] ?? null)
+                                        · {{ $expressVisibilityDebug['city_name'] }}
+                                    @endif
+                                    @if($expressVisibilityDebug['city_code'] ?? null)
+                                        · code {{ $expressVisibilityDebug['city_code'] }}
+                                    @endif)
+                                </summary>
+                                @if($expressVisibilityDebug['city_source'] ?? null)
+                                    <p class="mt-1 text-[11px] text-slate-500">Fuente ciudad: {{ $expressVisibilityDebug['city_source'] }}</p>
+                                @endif
+                                <ul class="mt-2 space-y-1.5">
+                                    @foreach($expressVisibilityDebug['checks'] as $check)
+                                        <li>
+                                            <span class="font-mono">{{ $check['ok'] ? '[OK]' : '[FAIL]' }}</span>
+                                            <strong>{{ $check['label'] }}</strong>
+                                            — {{ $check['detail'] }}
+                                            <span class="text-slate-400">({{ $check['key'] }})</span>
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            </details>
+                        @endif
                         <input type="hidden" name="delivery_method" id="delivery_method" value="{{ $shippingMethods->first()->code ?? 'tronex' }}">
                         <input type="hidden" name="shipping_quote_amount" id="shipping_quote_amount" value="0">
                     </div>
@@ -1216,22 +1246,24 @@
         
         function getSelectedZoneShippingFlags() {
             const cityFlags = @json($cityShippingFlags ?? ['standard' => true, 'express' => true]);
+            const cartHasBonifications = {{ !empty($cartHasBonifications) ? 'true' : 'false' }};
             if (!zoneSelect) {
                 return {
                     standard: cityFlags.standard !== false,
-                    express: cityFlags.express !== false,
+                    express: cityFlags.express !== false && !cartHasBonifications,
                 };
             }
             const opt = zoneSelect.options[zoneSelect.selectedIndex];
             return {
                 standard: (!opt || opt.getAttribute('data-shipping-standard') !== '0') && cityFlags.standard !== false,
-                express: (!opt || opt.getAttribute('data-shipping-express') !== '0') && cityFlags.express !== false,
+                express: (!opt || opt.getAttribute('data-shipping-express') !== '0') && cityFlags.express !== false && !cartHasBonifications,
             };
         }
 
         function syncZoneShippingMethods(preferredMethod) {
             const flags = getSelectedZoneShippingFlags();
             const available = [];
+            const cartHasBonifications = {{ !empty($cartHasBonifications) ? 'true' : 'false' }};
 
             deliveryOptions.forEach((option) => {
                 const code = option.getAttribute('data-method');
@@ -1242,6 +1274,11 @@
                     available.push(code);
                 }
             });
+
+            const bonifMsg = document.getElementById('express-bonification-block');
+            if (bonifMsg) {
+                bonifMsg.classList.toggle('hidden', !cartHasBonifications);
+            }
 
             const grid = document.getElementById('delivery-options-grid');
             let emptyMsg = document.getElementById('delivery-options-empty');

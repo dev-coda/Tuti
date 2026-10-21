@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\City;
 use App\Models\User;
+use App\Services\DepartmentPlaceholderZoneService;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 
@@ -86,6 +87,10 @@ class PendingClientProvisioningService
             $this->ensureProspectPlaceholderZone($user, $validated);
         } else {
             $this->syncPlaceholderZone($user, $validated);
+        }
+
+        if ($user->zones()->count() === 0) {
+            app(DepartmentPlaceholderZoneService::class)->ensureZoneForUser($user->fresh('city'));
         }
 
         return $user->fresh(['zones']);
@@ -253,6 +258,19 @@ class PendingClientProvisioningService
             return;
         }
 
+        $fromCatalog = app(DepartmentPlaceholderZoneService::class)
+            ->ensureZoneForUser($user->fresh(['city.state']));
+        if ($fromCatalog) {
+            if (! empty($payload['Direccion']) || ! empty($payload['Barrio'])) {
+                $address = trim(((string) ($payload['Direccion'] ?? '')).' '.((string) ($payload['Barrio'] ?? '')));
+                if ($address !== '') {
+                    $fromCatalog->update(['address' => $address]);
+                }
+            }
+
+            return;
+        }
+
         $address = trim(((string) ($payload['Direccion'] ?? '')).' '.((string) ($payload['Barrio'] ?? '')));
 
         $user->zones()->create([
@@ -261,6 +279,7 @@ class PendingClientProvisioningService
             'day' => '',
             'address' => $address !== '' ? $address : 'Dirección prospecto pendiente de validación',
             'code' => null,
+            'is_placeholder' => true,
         ]);
     }
 }

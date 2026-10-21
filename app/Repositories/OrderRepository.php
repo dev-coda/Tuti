@@ -124,7 +124,7 @@ class OrderRepository
             return '';
         }
         $delivery_date = $order->delivery_date;
-        $forceDeliveryDate = Setting::getByKey('force_delivery_date_enabled') == '1';
+        $forceDeliveryDate = Setting::isForceDeliveryDateEnabledForOrder($order);
         if ($forceDeliveryDate) {
             $delivery_date = self::getBusinessDay(0);
         }
@@ -133,7 +133,7 @@ class OrderRepository
         $route = $zonePayload['route'] ?? '';
         $code = $zonePayload['code'] ?? '';
         $zoneNum = $zonePayload['zone'] ?? '';
-        $order_id = $order->id;
+        $order_id = $order->soapConsecutive();
         $transactionDate = $order->created_at ? $order->created_at->format('Y-m-d') : now()->format('Y-m-d');
 
         $productIds = $products->pluck('product_id')->toArray();
@@ -429,7 +429,7 @@ class OrderRepository
         $delivery_date = $order->delivery_date;
 
         // Check if force delivery date is enabled (emergency override)
-        $forceDeliveryDate = Setting::getByKey('force_delivery_date_enabled') == '1';
+        $forceDeliveryDate = Setting::isForceDeliveryDateEnabledForOrder($order);
         if ($forceDeliveryDate) {
             // Override with next business day
             $nextBusinessDay = self::getBusinessDay(0);
@@ -615,7 +615,7 @@ class OrderRepository
         $productList = self::renderListDetailsXml($lines);
         $productList .= self::buildShippingServiceXmlLine($order, (int) $bonification);
 
-        $order_id = $order->id;
+        $order_id = $order->soapConsecutive();
         $transactionDate = $order->created_at->format('Y-m-d');
 
         $body = '<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:dat="http://schemas.microsoft.com/dynamics/2013/01/datacontracts" xmlns:tem="http://tempuri.org" xmlns:dyn="http://schemas.datacontract.org/2004/07/Dynamics.AX.Application">

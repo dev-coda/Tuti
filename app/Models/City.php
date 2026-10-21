@@ -14,11 +14,13 @@ class City extends Model
         'state_id',
         'active',
         'is_preferred',
+        'force_delivery_date_enabled',
     ];
 
     protected $casts = [
         'active' => 'boolean',
         'is_preferred' => 'boolean',
+        'force_delivery_date_enabled' => 'boolean',
     ];
 
     // Query Scopes for safe city filtering
@@ -47,6 +49,51 @@ class City extends Model
         return $this->belongsToMany(ShippingMethod::class, 'city_shipping_method')
             ->withPivot('enabled')
             ->withTimestamps();
+    }
+
+    public function allowsForceDeliveryDate(): bool
+    {
+        return $this->force_delivery_date_enabled !== false
+            && $this->force_delivery_date_enabled !== 0
+            && $this->force_delivery_date_enabled !== '0';
+    }
+
+    /**
+     * Map a Dynamics/DANE city_code (e.g. "05001") to a cities.id via states.csv.
+     * Almost all rutero clients store city_code, not city_id.
+     */
+    public static function findIdByDaneCode(?string $cityCode): ?int
+    {
+        $normalized = \App\Services\Shipping\DaneCodeService::normalize($cityCode);
+        if ($normalized === null) {
+            return null;
+        }
+
+        $fiveDigit = substr($normalized, 0, 5);
+        $map = self::daneCodeToIdMap();
+
+        return $map[$fiveDigit] ?? null;
+    }
+
+    /**
+     * @return array<string, int> 5-digit divipola => cities.id
+     */
+    private static function daneCodeToIdMap(): array
+    {
+        $map = [];
+        foreach (static::query()->with('state')->get() as $city) {
+            $dane = \App\Services\Shipping\DaneCodeService::forCity($city->name, $city->state?->name);
+            if ($dane === null) {
+                continue;
+            }
+
+            $fiveDigit = substr($dane, 0, 5);
+            if (! isset($map[$fiveDigit]) || $city->is_preferred) {
+                $map[$fiveDigit] = (int) $city->id;
+            }
+        }
+
+        return $map;
     }
 
     /**
