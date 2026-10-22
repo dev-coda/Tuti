@@ -160,6 +160,12 @@ php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 php artisan optimize
+# Artisan runs as root during deploy and recreates cache/view files as root.
+# PHP-FPM (www-data) then 500s on cache writes (throttling, settings, views).
+print_step "Restoring web-user ownership after cache rebuild..."
+mkdir -p storage/framework/cache/data storage/framework/views storage/framework/sessions bootstrap/cache
+chown -R "$WEB_USER:$WEB_USER" storage bootstrap/cache public/storage 2>/dev/null || print_warning "Could not change ownership (may need sudo)"
+chmod -R 775 storage bootstrap/cache
 print_success "Caches rebuilt"
 
 # 11. Signal queue workers to pick up new job/schedule code
