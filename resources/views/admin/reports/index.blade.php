@@ -73,6 +73,25 @@
                 </a>
             </div>
 
+            <!-- Vendor Sales Report Card -->
+            <div class="bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200 rounded-lg p-6 hover:shadow-lg transition-shadow">
+                <div class="flex items-start justify-between mb-4">
+                    <div class="flex-shrink-0">
+                        <div class="w-12 h-12 bg-amber-600 rounded-lg flex items-center justify-center">
+                            @svg('heroicon-o-building-storefront', 'w-6 h-6 text-white')
+                        </div>
+                    </div>
+                    <span class="px-2 py-1 text-xs font-semibold text-amber-800 bg-amber-200 rounded">Proveedor</span>
+                </div>
+                <h3 class="text-lg font-semibold text-gray-900 mb-2">Ventas por proveedor</h3>
+                <p class="text-sm text-gray-600 mb-4">Ventas por rango de fechas, con bonificaciones. Por defecto el mes anterior y ETERNA.</p>
+                <a href="{{ route('admin.reports.vendor-sales') }}"
+                   class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 focus:ring-4 focus:ring-amber-300 transition-colors">
+                    Generar reporte
+                    @svg('heroicon-o-arrow-right', 'w-4 h-4 ml-2')
+                </a>
+            </div>
+
             <!-- KPI Report Card -->
             <div class="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-6 hover:shadow-lg transition-shadow">
                 <div class="flex items-start justify-between mb-4">

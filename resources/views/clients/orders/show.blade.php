@@ -190,7 +190,7 @@
                     @foreach ($order->bonifications as $gift)
                         <div class="p-3 bg-orange-50 border border-orange-100 rounded-lg">
                             <p class="text-sm text-gray-800">
-                                <span class="font-semibold">{{ $gift->bonification->name ?? 'Bonificación' }}</span>:
+                                <span class="font-semibold">{{ $gift->spendingGift->name ?? $gift->bonification->name ?? 'Bonificación' }}</span>:
                                 {{ $gift->quantity }} {{ $gift->quantity === 1 ? 'unidad' : 'unidades' }} de
                                 <span class="font-semibold">{{ $gift->product->name ?? 'Obsequio' }}</span>.
                             </p>
@@ -222,7 +222,7 @@
                     <div>
                         <p class="text-base font-semibold text-gray-900">{{ ucwords(strtolower($order->delivery_method)) }}</p>
                         @if($order->delivery_date)
-                            <p class="text-sm text-orange-600 font-medium mt-1">{{ ucwords(\Carbon\Carbon::parse($order->delivery_date)->locale('es')->translatedFormat('l d \d\e F')) }}</p>
+                            <p class="text-sm text-orange-600 font-medium mt-1">{{ ucwords(\App\Repositories\OrderRepository::parseBusinessDate($order->delivery_date)->locale('es')->translatedFormat('l d \d\e F')) }}</p>
                         @endif
                     </div>
                 </div>

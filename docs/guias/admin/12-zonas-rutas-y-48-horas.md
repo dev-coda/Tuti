@@ -232,3 +232,23 @@ Panel Admin → Usuarios → Editar Usuario → Botón "Sincronizar Rutas".
 
 Si no tiene órdenes, se elimina. Si tiene órdenes, se mantiene para historial.
 
+## 🚚 Métodos de envío por zona y Coordinadora 48h
+
+Cada zona puede habilitar o deshabilitar de forma independiente:
+
+- **Entrega Standard** (`shipping_standard_enabled`)
+- **Entrega Especial** (`shipping_express_enabled`)
+
+Si un método está desactivado en la zona (o en la ciudad del cliente), no aparece en el carrito aunque el método exista a nivel global.
+
+### Express 48h / Coordinadora
+
+- Ajuste global Express 48h en Configuración.
+- Zonas con fulfillment Coordinadora usan cotización y guías 48h cuando el cliente elige **Entrega Especial**.
+- Umbral de envío gratis (si está activo) se configura en Ajustes (`express_free_shipping_*`).
+- Detalle comprador: [05 plazos](../b2b-tienda/05-plazos-entrega-vista-comprador.md). Admin métodos/ciudades: [18](./18-festivos-impuestos-envio-y-retenciones.md).
+
+---
+
+**Revisado:** septiembre 2026
+

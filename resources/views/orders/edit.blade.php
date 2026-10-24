@@ -312,7 +312,7 @@
                                             {{ $bonification->product->name }}
                                         </td>
                                         <td class="px-4 py-2  font-normal text-gray-500 whitespace-nowrap">
-                                            {{ $bonification->bonification->name }}
+                                            {{ $bonification->bonification->name ?? $bonification->spendingGift->name ?? 'Obsequio' }}
                                         </td>
                                         <td class="px-4 py-2  font-normal text-gray-500 whitespace-nowrap">
                                             {{ $bonification->quantity }}

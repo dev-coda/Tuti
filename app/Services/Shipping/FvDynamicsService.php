@@ -6,6 +6,7 @@ use App\Models\Order;
 use App\Models\Product;
 use App\Models\ZoneWarehouse;
 use App\Repositories\OrderRepository;
+use App\Services\ExpressGifts\ExpressGiftAllocationService;
 use App\Services\MicrosoftTokenService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -283,6 +284,12 @@ class FvDynamicsService
             $unitPrice = $pricing['unit_price'];
             $discountPercent = $pricing['discount_percentage'];
 
+            // Express gifts: the invoiced value of the gift is prorated out of discount-free lines.
+            $giftDeduction = (float) ($orderProduct->gift_deduction_per_unit ?? 0);
+            if ($giftDeduction > 0 && (float) $discountPercent <= 0) {
+                $unitPrice = parseCurrency(max(0.01, (float) $unitPrice - $giftDeduction));
+            }
+
             $packageQty = $orderProduct->package_quantity ?? 1;
             $qty = $productData->calculate_package_price
                 ? $orderProduct->quantity * $packageQty
@@ -298,6 +305,17 @@ class FvDynamicsService
                 qty: (string) $qty,
                 taxValue: parseCurrency($taxValue),
                 unitPrice: (string) $unitPrice
+            );
+        }
+
+        foreach (app(ExpressGiftAllocationService::class)->invoiceLines($order) as $giftLine) {
+            $linesXml .= $this->buildLineXml(
+                warehouse: $warehouse,
+                discountPercent: '0',
+                itemId: $giftLine['sku'],
+                qty: (string) $giftLine['qty'],
+                taxValue: parseCurrency($giftLine['tax_value']),
+                unitPrice: parseCurrency($giftLine['unit_price'])
             );
         }
 

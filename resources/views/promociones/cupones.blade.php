@@ -59,7 +59,9 @@
                                 @forelse($coupons as $coupon)
                                     <tr>
                                         <td class="px-6 py-4 whitespace-nowrap">
-                                            <div class="text-sm font-mono font-medium text-gray-900">{{ $coupon->code }}</div>
+                                            <a href="{{ route('coupons.edit', $coupon) }}" class="text-sm font-mono font-medium text-indigo-700 hover:text-indigo-900 hover:underline">
+                                                {{ $coupon->code }}
+                                            </a>
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap">
                                             <div class="text-sm font-medium text-gray-900">{{ $coupon->name }}</div>
@@ -122,25 +124,25 @@
                                                 </span>
                                             @endif
                                         </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                            <div class="flex space-x-2">
-                                                <a href="{{ route('coupons.edit', $coupon) }}" 
-                                                   class="text-indigo-600 hover:text-indigo-900">
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium sticky right-0 bg-white">
+                                            <div class="flex flex-wrap items-center gap-3">
+                                                <a href="{{ route('coupons.edit', $coupon) }}"
+                                                   class="inline-flex items-center px-3 py-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700">
                                                     Editar
                                                 </a>
                                                 <form method="POST" action="{{ route('coupons.toggle', $coupon) }}" class="inline">
                                                     @csrf
-                                                    <button type="submit" 
-                                                            class="text-{{ $coupon->active ? 'yellow' : 'green' }}-600 hover:text-{{ $coupon->active ? 'yellow' : 'green' }}-900">
+                                                    <button type="submit"
+                                                            class="text-sm {{ $coupon->active ? 'text-yellow-700 hover:text-yellow-900' : 'text-green-700 hover:text-green-900' }}">
                                                         {{ $coupon->active ? 'Desactivar' : 'Activar' }}
                                                     </button>
                                                 </form>
                                                 <form method="POST" action="{{ route('coupons.destroy', $coupon) }}"
-                                                      class="inline" 
+                                                      class="inline"
                                                       onsubmit="return confirm('¿Estás seguro de que quieres eliminar este cupón?')">
                                                     @csrf
                                                     @method('DELETE')
-                                                    <button type="submit" class="text-red-600 hover:text-red-900">
+                                                    <button type="submit" class="text-sm text-red-600 hover:text-red-900">
                                                         Eliminar
                                                     </button>
                                                 </form>

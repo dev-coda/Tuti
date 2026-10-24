@@ -17,9 +17,14 @@ use App\Models\ZoneWarehouse;
 use App\Repositories\OrderRepository;
 use App\Repositories\UserRepository;
 use App\Services\BonificationCheckoutService;
+use App\Services\ExpressGifts\ExpressGiftAllocationService;
+use App\Services\ExpressGifts\ExpressGiftContext;
+use App\Services\ExpressGifts\ExpressGiftPlanner;
+use App\Services\ExpressGifts\SpendingGiftService;
 use App\Services\CouponService;
 use App\Services\DraftOrderReconciliationService;
 use App\Services\Shipping\CoordinadoraQuoteService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -119,6 +124,7 @@ class CartController extends Controller
 
     public function cart()
     {
+        ExpressGiftContext::deactivate();
 
         // session()->forget('cart');
         // back();
@@ -390,7 +396,10 @@ class CartController extends Controller
         );
 
         $bonificationPreview = $this->buildCartBonificationPreview($cart);
-        $cartHasBonifications = BonificationCheckoutService::cartHasQualifyingBonifications($cart);
+        // Stage blocks Entrega Especial when a buy-X-get-Y gift qualifies.
+        // With invoiced Express gifts that rule is replaced by discount-or-gift.
+        $cartHasBonifications = ! ExpressGiftPlanner::isEnabled()
+            && BonificationCheckoutService::cartHasQualifyingBonifications($cart);
 
         $checkoutCityId = $targetUser->resolvedCityId();
         $cityShippingFlags = \App\Models\ShippingMethod::cityAvailabilityFlags($checkoutCityId);
@@ -696,6 +705,9 @@ class CartController extends Controller
 
     public function processOrder(Request $request)
     {
+        // Express gift context lives only for one checkout; never leak a stale one.
+        ExpressGiftContext::deactivate();
+
         // Check vacation mode (active based on date range)
         $vacationInfo = Setting::getVacationModeInfo();
 
@@ -860,14 +872,14 @@ class CartController extends Controller
         $delivery_method = $request->input('delivery_method', 'tronex');
 
         // Prospect draft orders: auto-assign Coordinadora 48h (entrega especial / ciudades principales).
-        // Skip when the cart already qualifies for bonifications (incompatible with express by default).
+        // Without invoiced Express gifts, skip when a bonification already qualifies.
         if (
             $isDraftClientCheckout
             && $actingUser->isProspectClient()
             && Setting::isExpress48hEnabled()
             && $zone
             && $zone->usesCoordinadoraFor48h()
-            && ! BonificationCheckoutService::cartHasQualifyingBonifications($cart)
+            && (ExpressGiftPlanner::isEnabled() || ! BonificationCheckoutService::cartHasQualifyingBonifications($cart))
         ) {
             $delivery_method = Order::DELIVERY_METHOD_EXPRESS;
             Log::info('Prospect draft checkout forced to Coordinadora 48h promise', [
@@ -886,6 +898,7 @@ class CartController extends Controller
 
         if (
             $delivery_method === Order::DELIVERY_METHOD_EXPRESS
+            && ! ExpressGiftPlanner::isEnabled()
             && BonificationCheckoutService::cartHasQualifyingBonifications($cart)
         ) {
             Log::warning('Express blocked: cart has qualifying bonifications', [
@@ -974,9 +987,14 @@ class CartController extends Controller
             $sellerVisitDate = OrderRepository::getTronexSellerVisitDate($zone);
         }
 
+        // Sellers/supervisors placing orders (e.g. Mi Ruta) transmit immediately — they are
+        // already on the visit. Waiting applies only to client self-service orders.
+        // Use auth()->user() (the seller), not $actingUser (the client being ordered for).
+        $placedBySeller = auth()->check() && auth()->user()->hasAnyRole(['seller', 'supervisor']);
+
         // Only set waiting status if force delivery is NOT active
-        if ($delivery_method === Order::DELIVERY_METHOD_TRONEX && $zone && ! $forceDeliveryDate && $sellerVisitDate) {
-            $today = now();
+        if ($delivery_method === Order::DELIVERY_METHOD_TRONEX && $zone && ! $forceDeliveryDate && $sellerVisitDate && ! $placedBySeller) {
+            $today = Carbon::now(OrderRepository::businessTimezone())->startOfDay();
             $isTodaySellerVisitDay = $today->format('Y-m-d') === $sellerVisitDate->format('Y-m-d');
 
             if (! $isTodaySellerVisitDay) {
@@ -1057,8 +1075,8 @@ class CartController extends Controller
                     ]);
 
                     $errorMsg = ($safety > 0)
-                        ? "{$product->name} está por debajo del stock de seguridad."
-                        : "El producto {$product->name} tiene inventario insuficiente en su zona (mínimo: {$globalMinInventory} unidades).";
+                        ? "{$product->name} está por debajo del stock de seguridad ({$available} disponibles, mínimo: {$safety})."
+                        : "El producto {$product->name} tiene inventario insuficiente en su zona ({$available} disponibles, mínimo: {$globalMinInventory} unidades).";
 
                     return back()->with('error', $errorMsg);
                 }
@@ -1075,7 +1093,7 @@ class CartController extends Controller
                         'bodega' => $bodega,
                     ]);
 
-                    return back()->with('error', "La cantidad solicitada de {$product->name} excede el inventario disponible en su zona.");
+                    return back()->with('error', "La cantidad solicitada de {$product->name} excede el inventario disponible en su zona ({$cartItem['quantity']} solicitadas, {$available} disponibles).");
                 }
             }
         }
@@ -1137,6 +1155,25 @@ class CartController extends Controller
         // Check if user has previous orders (only if first order discount is enabled)
         $firstOrderDiscountEnabled = config('app.first_order_discount_enabled', true);
         $has_orders = $firstOrderDiscountEnabled ? Order::where('user_id', $user_id)->exists() : false;
+
+        // Express orders (Coordinadora 48h / FV, includes Ultima milla): each product gets the
+        // discount OR the gift, whichever is better for the customer; the gift is invoiced and
+        // its value prorated across discount-free lines (see App\Services\ExpressGifts).
+        $expressGiftPlan = null;
+        if (
+            $delivery_method === Order::DELIVERY_METHOD_EXPRESS
+            && ExpressGiftPlanner::isEnabled()
+        ) {
+            $expressGiftPlan = app(ExpressGiftPlanner::class)->plan($cart, $has_orders);
+            ExpressGiftContext::activate(ExpressGiftContext::MODE_ACTIVE, $expressGiftPlan['blocked']);
+            Log::info('Express gift plan resolved', [
+                'user_id' => $user_id,
+                'blocked_product_ids' => array_keys($expressGiftPlan['blocked']),
+                'denied_product_ids' => array_keys($expressGiftPlan['denied']),
+                'granted_product_ids' => array_keys($expressGiftPlan['granted']),
+                'decisions' => $expressGiftPlan['decisions'],
+            ]);
+        }
 
         // Check for applied coupons and calculate proper discounts
         $couponDiscount = 0;
@@ -1484,7 +1521,14 @@ class CartController extends Controller
                         ]);
                         DB::rollBack();
 
-                        return back()->with('error', "Inventario insuficiente para {$p->name} en su zona.");
+                        return back()->with(
+                            'error',
+                            BonificationCheckoutService::insufficientPaidLineStockMessage(
+                                $p,
+                                $current,
+                                (int) $row['quantity']
+                            )
+                        );
                     }
                     if ($inventory) {
                         $inventory->update(['available' => $current - (int) $row['quantity']]);
@@ -1513,6 +1557,14 @@ class CartController extends Controller
                 // IMPORTANT: For products with variations, bonifications are checked at the
                 // product level and quantities are aggregated across all variation lines.
                 $bonificationsToCheck = $p->bonifications;
+                if ($expressGiftPlan !== null && isset($expressGiftPlan['denied'][$id])) {
+                    // Express: the discount is more favorable (or the gift cannot be prorated).
+                    $bonificationsToCheck = collect();
+                } elseif ($expressGiftPlan !== null && ! empty($expressGiftPlan['failed_gift_keys'])) {
+                    $bonificationsToCheck = $bonificationsToCheck->reject(
+                        fn ($bonification) => isset($expressGiftPlan['failed_gift_keys'][$id.':'.$bonification->id])
+                    );
+                }
                 if ($bonificationsToCheck->isNotEmpty() && ($lastCartKeyByProductId[$id] ?? $key) === $key) {
                     $plannedBonifications = [];
                     $giftProductStockPlan = []; // stock key => ['catalog_product', 'inventory', 'requested_total']
@@ -1585,6 +1637,15 @@ class CartController extends Controller
                             $requestedTotal
                         );
                         if (! $hasEnoughForAll) {
+                            $variationLabel = null;
+                            if (str_contains($stockKey, ':') && ! str_ends_with($stockKey, ':base')) {
+                                $variationId = (int) substr($stockKey, strrpos($stockKey, ':') + 1);
+                                $catalogProduct->loadMissing('items');
+                                $variationLabel = $catalogProduct->items
+                                    ->firstWhere('id', $variationId)
+                                    ?->name;
+                            }
+
                             Log::warning('Order rollback: insufficient stock for bonification gift', [
                                 'order_id' => $order->id,
                                 'trigger_product_id' => $id,
@@ -1592,13 +1653,24 @@ class CartController extends Controller
                                 'stock_key' => $stockKey,
                                 'requested_total' => $requestedTotal,
                                 'available' => $disponible,
+                                'inventory_floor' => BonificationCheckoutService::effectiveInventoryFloor($catalogProduct),
+                                'max_givable' => BonificationCheckoutService::minRequestedUnitsGivenAvailable(
+                                    $disponible,
+                                    $catalogProduct,
+                                    $requestedTotal
+                                ),
                                 'bodega' => $bodega,
                             ]);
                             DB::rollBack();
 
                             return back()->with(
                                 'error',
-                                "Inventario insuficiente para entregar la bonificación de {$catalogProduct->name} en su zona."
+                                BonificationCheckoutService::insufficientGiftStockMessage(
+                                    $catalogProduct,
+                                    $disponible,
+                                    $requestedTotal,
+                                    $variationLabel
+                                )
                             );
                         }
                     }
@@ -1622,6 +1694,13 @@ class CartController extends Controller
                             'variation_item_id' => $planned['variation_item_id'],
                             'quantity' => (int) $planned['quantity'],
                             'order_id' => $order->id,
+                            // Express: gift is invoiced with a minimum value (prorated later).
+                            'invoice_unit_value' => $expressGiftPlan !== null
+                                ? $planned['bonification']->giftInvoiceUnitValue()
+                                : null,
+                            'proration_scope' => $expressGiftPlan !== null
+                                ? $planned['bonification']->giftProrationScope()
+                                : null,
                         ]);
 
                         if (! isset($consumedByGiftProduct[$stockKey])) {
@@ -1787,6 +1866,57 @@ class CartController extends Controller
                 'retention_total' => $retentionCalc['retention_total'],
             ]);
 
+            // Express gifts: prorate the invoiced gift value across discount-free lines so the
+            // FV invoice total matches the order total. If it cannot be done (a line would end
+            // up at zero or below the floor) the gift is removed and the customer is told.
+            if ($expressGiftPlan !== null) {
+                $spendingGifts = app(SpendingGiftService::class)->attachToOrder(
+                    $order,
+                    is_array($cart) ? $cart : [],
+                    (bool) $has_orders,
+                    (bool) $isInventoryEnabled,
+                    $bodega ?? null
+                );
+
+                $giftAudit = [
+                    'decisions' => $expressGiftPlan['decisions'],
+                    'messages' => array_values(array_filter(array_merge(
+                        $expressGiftPlan['messages'],
+                        $spendingGifts['messages']
+                    ))),
+                ];
+
+                $allocation = app(ExpressGiftAllocationService::class)->allocate($order);
+                if (! $allocation['success']) {
+                    $released = app(ExpressGiftAllocationService::class)
+                        ->releaseInvoicedGifts($order, $isInventoryEnabled, $bodega ?? null);
+                    $giftAudit['messages'][] = $allocation['message'];
+                    $giftAudit['released_gift_rows'] = $released;
+                    $giftAudit['proration'] = $allocation['result'];
+                    session()->flash('express_gift_notice', $allocation['message']);
+                } elseif ($allocation['applied']) {
+                    $giftAudit['proration'] = $allocation['result'];
+                    $failedIds = $allocation['failed_ids'] ?? [];
+                    if ($failedIds !== []) {
+                        $released = app(ExpressGiftAllocationService::class)
+                            ->releaseInvoicedGifts($order, $isInventoryEnabled, $bodega ?? null, $failedIds);
+                        $giftAudit['released_gift_rows'] = $released;
+                        $giftAudit['messages'][] = $allocation['message'];
+                    }
+                    $notice = array_filter(array_merge(
+                        $expressGiftPlan['messages'],
+                        $failedIds !== [] ? [$allocation['message']] : []
+                    ));
+                    if ($notice !== []) {
+                        session()->flash('express_gift_notice', implode(' ', $notice));
+                    }
+                } elseif (! empty($expressGiftPlan['messages'])) {
+                    session()->flash('express_gift_notice', implode(' ', $expressGiftPlan['messages']));
+                }
+
+                $order->update(['express_gift_audit' => $giftAudit]);
+            }
+
             // Record coupon usage for ALL winning coupons
             if (! empty($winningCoupons) && $couponDiscount > 0) {
                 $couponService = app(CouponService::class);
@@ -1823,6 +1953,7 @@ class CartController extends Controller
             }
 
             DB::commit();
+            ExpressGiftContext::deactivate();
 
             //if env production
             if (app()->environment('production')) {
@@ -1864,6 +1995,7 @@ class CartController extends Controller
             return redirect()->route('orders.thank-you', $order->id);
         } catch (\Exception $e) {
             DB::rollBack();
+            ExpressGiftContext::deactivate();
             Log::error('Error creating order: '.$e->getMessage(), [
                 'exception' => $e,
                 'user_id' => $user_id ?? null,

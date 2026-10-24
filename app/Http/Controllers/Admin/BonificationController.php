@@ -45,11 +45,17 @@ class BonificationController extends Controller
             'get' => 'required|integer|lte:buy',
             'max'=>   'required|integer|min:1',
             'product_id'=>'required|exists:products,id',
-            'allow_discounts' => 'boolean'
+            'allow_discounts' => 'boolean',
+            'gift_invoice_unit_value' => 'nullable|numeric|min:0.01|max:99999999',
+            'gift_proration_scope' => 'nullable|in:cart,trigger',
         ]);
 
         // Handle checkbox: if not present, set to false
         $validate['allow_discounts'] = $request->has('allow_discounts') ? (bool)$request->input('allow_discounts') : false;
+        $validate['gift_invoice_unit_value'] = $request->filled('gift_invoice_unit_value')
+            ? $request->input('gift_invoice_unit_value')
+            : null;
+        $validate['gift_proration_scope'] = $request->input('gift_proration_scope') === 'trigger' ? 'trigger' : 'cart';
 
         $bonification = Bonification::create($validate);
 
@@ -89,11 +95,17 @@ class BonificationController extends Controller
             'get' => 'required|integer|lte:buy',
             'max'=>   'required|integer|min:1',
             'product_id'=>'required|exists:products,id',
-            'allow_discounts' => 'boolean'
+            'allow_discounts' => 'boolean',
+            'gift_invoice_unit_value' => 'nullable|numeric|min:0.01|max:99999999',
+            'gift_proration_scope' => 'nullable|in:cart,trigger',
         ]);
 
         // Handle checkbox: if not present, set to false
         $validate['allow_discounts'] = $request->has('allow_discounts') ? (bool)$request->input('allow_discounts') : false;
+        $validate['gift_invoice_unit_value'] = $request->filled('gift_invoice_unit_value')
+            ? $request->input('gift_invoice_unit_value')
+            : null;
+        $validate['gift_proration_scope'] = $request->input('gift_proration_scope') === 'trigger' ? 'trigger' : 'cart';
 
         $bonification->update($validate);
 

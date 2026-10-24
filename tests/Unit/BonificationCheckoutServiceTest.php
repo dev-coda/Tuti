@@ -112,6 +112,187 @@ describe('inventory and obsequio line resolution', function () {
             ->and($notEnough)->toBeFalse();
     });
 
+    it('explains when the gift fails because of the global inventory floor', function () {
+        $p = Product::factory()
+            ->for(BrandFactory::new())
+            ->state(['name' => 'Obsequio Piso', 'safety_stock' => 0, 'inventory_opt_out' => false])
+            ->create();
+        $p->setRelation('categories', collect([]));
+
+        $message = BonificationCheckoutService::insufficientGiftStockMessage($p, 11, 7);
+
+        expect($message)
+            ->toContain('No se puede aplicar la bonificación')
+            ->toContain('Obsequio Piso')
+            ->toContain('requiere 7')
+            ->toContain('hay 11 disponible')
+            ->toContain('mínimo global')
+            ->toContain('deja solo 6');
+    });
+
+    it('explains when the gift has no inventory in the zone bodega', function () {
+        $p = Product::factory()
+            ->for(BrandFactory::new())
+            ->state(['name' => 'Obsequio Vacío', 'safety_stock' => 0, 'inventory_opt_out' => false])
+            ->create();
+
+        $message = BonificationCheckoutService::insufficientGiftStockMessage($p, 0, 3, 'Caja');
+
+        expect($message)
+            ->toContain('Obsequio Vacío')
+            ->toContain('variación: Caja')
+            ->toContain('no tiene inventario disponible')
+            ->toContain('producto de regalo');
+    });
+
+    it('explains paid-line shortages with available and floor numbers', function () {
+        $p = Product::factory()
+            ->for(BrandFactory::new())
+            ->state(['name' => 'Producto Pago', 'safety_stock' => 0, 'inventory_opt_out' => false])
+            ->create();
+        $p->setRelation('categories', collect([]));
+
+        $message = BonificationCheckoutService::insufficientPaidLineStockMessage($p, 8, 4);
+
+        expect($message)
+            ->toContain('Producto Pago')
+            ->toContain('solicitas 4')
+            ->toContain('hay 8 disponible')
+            ->toContain('mínimo global');
+    });
+
+    it('pre-validates combined gift demand against zone stock after cart demand', function () {
+        $trigger = Product::factory()
+            ->for(BrandFactory::new())
+            ->state(['package_quantity' => 1, 'inventory_opt_out' => false, 'safety_stock' => 0])
+            ->create();
+        $gift = Product::factory()
+            ->for(BrandFactory::new())
+            ->state([
+                'name' => 'Gift Precheck',
+                'package_quantity' => 1,
+                'inventory_opt_out' => false,
+                'safety_stock' => 0,
+            ])
+            ->create();
+        $bonification = Bonification::create([
+            'name' => 'Buy 1 get 3',
+            'buy' => 1,
+            'get' => 3,
+            'product_id' => $gift->id,
+            'max' => 100,
+        ]);
+        $trigger->bonifications()->attach($bonification->id);
+
+        \App\Models\ProductInventory::query()->create([
+            'product_id' => $gift->id,
+            'bodega_code' => 'BOD-PRE',
+            'available' => 11,
+            'physical' => 11,
+            'reserved' => 0,
+        ]);
+
+        // available 11, floor 5 => max givable 6; requesting 3+4 via two rules would fail,
+        // here single rule buy1 get3 with qty 1 => request 3, should pass.
+        $ok = BonificationCheckoutService::validateCartGiftStock([
+            ['product_id' => $trigger->id, 'quantity' => 1, 'variation_id' => null],
+        ], 'BOD-PRE');
+        expect($ok)->toBeNull();
+
+        // Request 7 gift units (buy 1 get 7) against max givable 6.
+        $bonification->update(['get' => 7]);
+        $trigger->unsetRelation('bonifications');
+        $fail = BonificationCheckoutService::validateCartGiftStock([
+            ['product_id' => $trigger->id, 'quantity' => 1, 'variation_id' => null],
+        ], 'BOD-PRE');
+        expect($fail)
+            ->toBeString()
+            ->toContain('Gift Precheck')
+            ->toContain('No se puede aplicar la bonificación');
+    });
+
+    it('pre-check uses the cart gift variation so it matches checkout OrderProduct lock-in', function () {
+        $variation = Variation::query()->create(['name' => 'Presentacion precheck']);
+        $viPaid = VariationItem::query()->create(['name' => 'Caja pagada', 'variation_id' => $variation->id]);
+        $viOther = VariationItem::query()->create(['name' => 'Caja otra', 'variation_id' => $variation->id]);
+
+        $trigger = Product::factory()
+            ->for(BrandFactory::new())
+            ->state(['package_quantity' => 1, 'inventory_opt_out' => false, 'safety_stock' => 0])
+            ->create();
+        $gift = Product::factory()
+            ->for(BrandFactory::new())
+            ->state([
+                'name' => 'Gift In Cart',
+                'sku' => 'GIFT-PARENT-PRE',
+                'variation_id' => $variation->id,
+                'package_quantity' => 1,
+                'inventory_opt_out' => false,
+                'safety_stock' => 0,
+            ])
+            ->create();
+        $gift->items()->sync([
+            $viPaid->id => ['price' => 0, 'enabled' => 1, 'sku' => 'GIFT-PAID-SKU'],
+            $viOther->id => ['price' => 0, 'enabled' => 1, 'sku' => 'GIFT-OTHER-SKU'],
+        ]);
+
+        $bonification = Bonification::create([
+            'name' => 'Buy 1 get 2 same gift',
+            'buy' => 1,
+            'get' => 2,
+            'product_id' => $gift->id,
+            'max' => 100,
+        ]);
+        $trigger->bonifications()->attach($bonification->id);
+
+        // Parent / other variation look stocked; paid variation only has enough for cart+gift after floor.
+        \App\Models\ProductInventory::query()->create([
+            'product_id' => $gift->id,
+            'bodega_code' => 'BOD-VAR',
+            'available' => 50,
+            'physical' => 50,
+            'reserved' => 0,
+        ]);
+        \App\Models\ProductInventory::query()->create([
+            'product_id' => $gift->id,
+            'variation_item_id' => $viOther->id,
+            'source_sku' => 'GIFT-OTHER-SKU',
+            'bodega_code' => 'BOD-VAR',
+            'available' => 50,
+            'physical' => 50,
+            'reserved' => 0,
+        ]);
+        \App\Models\ProductInventory::query()->create([
+            'product_id' => $gift->id,
+            'variation_item_id' => $viPaid->id,
+            'source_sku' => 'GIFT-PAID-SKU',
+            'bodega_code' => 'BOD-VAR',
+            'available' => 8, // floor 5 => max givable from remaining after buying 1 = 2
+            'physical' => 8,
+            'reserved' => 0,
+        ]);
+
+        $cart = [
+            ['product_id' => $trigger->id, 'quantity' => 1, 'variation_id' => null],
+            ['product_id' => $gift->id, 'quantity' => 1, 'variation_id' => $viPaid->id],
+        ];
+
+        expect(BonificationCheckoutService::firstCartVariationItemIdForProduct($cart, (int) $gift->id))
+            ->toBe($viPaid->id);
+
+        // remaining after cart on paid variation: 8-1=7, gift needs 2, floor 5 => max givable 2 → OK
+        expect(BonificationCheckoutService::validateCartGiftStock($cart, 'BOD-VAR'))->toBeNull();
+
+        // If we ignored cart variation and checked parent (50), we'd wrongly pass even when paid var is exhausted.
+        $bonification->update(['get' => 4]); // need 4 gift; remaining 7, floor 5 => max 2 → fail
+        $trigger->unsetRelation('bonifications');
+        $fail = BonificationCheckoutService::validateCartGiftStock($cart, 'BOD-VAR');
+        expect($fail)
+            ->toBeString()
+            ->toContain('Gift In Cart')
+            ->toContain('Caja pagada');
+    });
+
     it('validates stock against combined bonification demand for the same gift product', function () {
         $gift = Product::factory()
             ->for(BrandFactory::new())

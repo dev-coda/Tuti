@@ -63,9 +63,11 @@ class Order extends Model
         'retention_fuente',
         'retention_iva',
         'retention_total',
+        'express_gift_audit',
     ];
 
     protected $casts = [
+        'express_gift_audit' => 'array',
         'last_processing_attempt' => 'datetime',
         'coordinadora_status_at' => 'datetime',
         'shipping_quote_amount' => 'decimal:2',

@@ -1,69 +1,52 @@
 # Guía: tienda pública y flujo de compra (cliente / tendero vía web)
 
-Esta guía describe la experiencia **comercial** de la plataforma: buscar, armar el carrito, aplicar promociones y dejar un pedido. Complementa [carrito-ordenes.md](./carrito-ordenes.md) y [catalogo-productos.md](./catalogo-productos.md).
+Esta guía describe la experiencia **comercial**: buscar, armar el carrito, aplicar promociones y dejar un pedido. Complementa [04-carrito…](./04-carrito-checkout-y-ordenes.md) y [02-catálogo…](./02-catalogo-producto-y-buscador.md).
 
 ## Rutas y pantallas principales
 
 | Ruta aprox. | Uso |
 |-------------|-----|
-| `/` | Página de inicio: categorías, banners, productos recientes |
-| `/busqueda/...` | Búsqueda y filtros (orden, categoría, marca según la URL) |
-| `/categoria-producto/...` | Categoría y subcategorías, listado de productos |
-| `/producto/{slug}` | Ficha de producto (variaciones, precio, “Lo quiero”, stock visible) |
-| `/proveedores` y `/proveedores/{marca}` | Listado y detalle de marcas |
-| `/etiqueta-producto/{slug}` | Listado por etiqueta |
-| `/carrito` | Carrito de compras, cupones, resumen (no `/cart`) |
-| `/formulario` | Registro de clientes; flujo de alta asociado al negocio |
-| `/ordenes` y `/ordenes/{id}` (autenticado) | Listado y detalle de mis pedidos |
-| `/ordenes/{id}/gracias` | Página de agradecimiento tras una compra (tras autenticar flujo) |
-
-> Las rutas exactas pueden ampliarse: revisar [web.php](../../routes/web.php) si añadís nuevas páginas.
+| `/` | Inicio: categorías, banners, productos |
+| `/busqueda/...` | Búsqueda y filtros |
+| `/categoria-producto/...` | Categoría y listado |
+| `/producto/{slug}` | Ficha (variaciones, precio, stock) |
+| `/proveedores` y `/proveedores/{marca}` | Marcas |
+| `/etiqueta-producto/{slug}` | Por etiqueta |
+| `/carrito` | Carrito, cupones, **Entrega Standard / Especial**, fechas |
+| `/formulario` | Alta / interesados B2B |
+| `/cliente-nuevo` | Alta autoservicio / vendedor / sucursal (ver [03](./03-registro-alta-cuenta-tronex-y-sesion.md)) |
+| `/ordenes` (autenticado) | Pedidos; **Mi Cuenta** con pestañas según rol |
 
 ## Contenido informativo
 
-- **Términos, privacidad, FAQ**: `/terminos-y-condiciones`, `/politicas-de-privacidad`, `/preguntas-frecuentes` (o equivalentes bajo [ContentController](../../app/Http/Controllers/Admin/ContentController.php)).
-- **Páginas dinámicas** (`/contenido/{slug}`): contenidos administrados en el panel (véase [contenido-banners-campanas.md](./contenido-banners-campanas.md)).
+- Términos, privacidad, FAQ: rutas públicas de contenido.
+- Páginas dinámicas `/contenido/{slug}`: [admin/11](../admin/11-contenido-banners-destacados-campanas-upsell.md).
 
-## Flujo de compra típico (casos de uso)
+## Flujo de compra típico
 
-### Caso 1: Navegar y comprar sin registro explícito previo (según reglas de negocio)
+1. Navegar / buscar → ficha → “Lo quiero”.
+2. Carrito: cantidades, cupón, método de entrega con fecha estimada.
+3. Validaciones de inventario (y obsequios de bonificación) al confirmar.
+4. Confirmación / gracias y correos según configuración.
 
-1. Elegir categoría o buscar.
-2. Entrar a la ficha, elegir variación si aplica y cantidad (respetar **empaque** y **paso de venta** del producto).
-3. Añadir con **“Lo quiero”**; el contador del carrito se actualiza.
-4. Abrir el **carrito** (`/carrito`); ajustar cantidades o quitar líneas; opcional: **cupón** (véase [cupones.md](./cupones.md)).
-5. Completar el pedido: el sistema aplica reglas de descuento, bonificaciones, impuestos y comprobará inventario/entregas. Si el registro es obligatorio, el flujo te llevará a **alta o inicio de sesión** (según la implementación actual; muchos B2B exigen formulario/validación previa).
-6. Tras confirmar, se muestra agradecimiento o detalle de orden, y recibes comunicaciones por correo según la configuración.
+Reordenar: desde detalle de pedido autenticado, sujeto a stock y precios vigentes.
 
-### Caso 2: Reordenar un pedido anterior (usuario autenticado)
+## Autenticación
 
-- En el detalle de un pedido existente, usar la acción de **reorden** (el backend expone reordenación de líneas) para llenar el carrito a partir de una orden previa, sujeto a stock y a precios/ promociones vigentes.
+- `GET login` puede redirigir a `/formulario`.
+- Contraseña, **código mágico** (6 dígitos) y reset: [03](./03-registro-alta-cuenta-tronex-y-sesion.md).
+- Vendedor/supervisor: [roles/01](../roles/01-vendedor-rol-seller.md), [roles/03 Mi Cuenta](../roles/03-mi-cuenta-pestanas-y-visibilidad.md).
 
-### Caso 3: Completar migración o perfil Tronex
+## Errores frecuentes
 
-- Algunos usuarios tienen un flujo dedicado: `/tronex/completar-perfil` (y pasos de migración `tronex` según ruta) para fijar correo y contraseña tras un alta migrada. Seguir indiciaciones en pantalla.
+- Cantidad no válida: empaque / paso de venta.
+- Stock / piso de seguridad: [04](./04-carrito-checkout-y-ordenes.md), [admin/05](../admin/05-inventario-bodegas-y-sincronizacion.md).
+- Fecha de entrega: [05](./05-plazos-entrega-vista-comprador.md).
 
-## Autenticación: enlaces frecuentes
+## Módulo tendero `/tendero`
 
-- `login` puede redirigir al flujo de **formulario**; confirmar con la pantalla real de tu entorno.
-- **Enlace mágico** o verificación: rutas bajo [auth.php](../../routes/auth.php) (magic link, `forgot-password`, `reset-password`).
-- Completar verificación de correo si el sistema la exige antes de acceder a `/ordenes`.
-
-## Cupones e impuestos
-
-- Aplicar y quitar cupón se hace en el carrito: envíos POST a rutas `cart.coupon.*` (véase [cupones.md](./cupones.md)).
-- Cálculo de **impuestos** y totales: descrito en [carrito-ordenes.md](./carrito-ordenes.md#cálculo-de-impuestos) y reglas de negocio de producto/marca.
-
-## Errores frecuentes (usuarios)
-
-- **“No deja en cantidad X”**: comprobar **múltiplo del empaque** y mínimo de venta; revisar ficha.
-- **Sin stock o inventario reservado**: [inventario.md](./inventario.md).
-- **Fecha de entrega inesperada**: [calendarios-entrega.md](./calendarios-entrega.md) y métodos de envío.
-
-## Público: tendero (interfaz `/tendero`…)
-
-Quien use el **módulo tendero** (prefijo de rutas bajo [Shopper\PageController](../../app/Http/Controllers/Shopper/PageController.php)) deberá leer además [tendero.md](./tendero.md) para inicio, productos, carrito, pedidos, contacto e informes.
+Ver [roles/02](../roles/02-tendero-interfaz-shopper.md).
 
 ---
 
-**Revisado:** Abril 2026
+**Revisado:** septiembre 2026

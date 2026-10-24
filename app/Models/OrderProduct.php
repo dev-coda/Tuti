@@ -21,6 +21,7 @@ class OrderProduct extends Model
         'package_quantity',
         'discount_type',
         'flat_discount_amount',
+        'gift_deduction_per_unit',
     ];
 
 

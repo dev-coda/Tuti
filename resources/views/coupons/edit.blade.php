@@ -428,8 +428,9 @@
             checkboxesContainer.innerHTML = '';
             const selectedIds = (currentCouponData.applies_to === appliesTo) ? currentCouponData.applies_to_ids || [] : [];
             
+            const selectedIdSet = new Set((selectedIds || []).map(String));
             selectionData[appliesTo].forEach(item => {
-                const isChecked = selectedIds.includes(item.id);
+                const isChecked = selectedIdSet.has(String(item.id));
                 checkboxesContainer.appendChild(createCheckboxItem(item, isChecked));
             });
 

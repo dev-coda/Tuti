@@ -125,6 +125,8 @@ class CouponController extends Controller
         $validated['total_usage_limit'] = !empty($validated['total_usage_limit']) ? (int) $validated['total_usage_limit'] : null;
 
         $validated['apply_on_brand_vendor_discounts'] = $request->boolean('apply_on_brand_vendor_discounts', false);
+        $validated['active'] = $request->boolean('active');
+        $validated = $this->normalizeCouponArrayFields($request, $validated);
 
         Coupon::create($validated);
 
@@ -276,6 +278,13 @@ class CouponController extends Controller
         $validated['total_usage_limit'] = !empty($validated['total_usage_limit']) ? (int) $validated['total_usage_limit'] : null;
 
         $validated['apply_on_brand_vendor_discounts'] = $request->boolean('apply_on_brand_vendor_discounts', false);
+        $validated['active'] = $request->boolean('active');
+        $validated = $this->normalizeCouponArrayFields($request, $validated);
+
+        // Switching to cart must clear prior target IDs (checkboxes are hidden and omitted).
+        if ($validated['applies_to'] === Coupon::APPLIES_TO_CART) {
+            $validated['applies_to_ids'] = null;
+        }
 
         $coupon->update($validated);
 
@@ -458,6 +467,28 @@ class CouponController extends Controller
             ]);
 
         return response()->json($zones);
+    }
+
+    /**
+     * Normalize optional multi-value fields so omitted checkbox/multi-selects clear on save
+     * instead of being left out of mass-assignment (which would silently keep old values).
+     */
+    private function normalizeCouponArrayFields(Request $request, array $validated): array
+    {
+        foreach (['allowed_zone_ids', 'allowed_zones', 'allowed_routes'] as $field) {
+            $values = array_values(array_filter(
+                $request->input($field, []) ?: [],
+                fn ($value) => $value !== null && $value !== ''
+            ));
+
+            if ($field === 'allowed_zone_ids') {
+                $values = array_map('intval', $values);
+            }
+
+            $validated[$field] = $values === [] ? null : $values;
+        }
+
+        return $validated;
     }
 
     /**
