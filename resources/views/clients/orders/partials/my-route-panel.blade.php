@@ -1,6 +1,8 @@
 @php
     $myRoute = $myRoute ?? [];
     $sellerZone = $myRoute['sellerZone'] ?? '';
+    $zoneOptions = $myRoute['zoneOptions'] ?? collect();
+    $coversAllZones = $myRoute['coversAllZones'] ?? false;
     $routeOptions = $myRoute['routeOptions'] ?? collect();
     $selectedRoute = $myRoute['selectedRoute'] ?? '';
     $searchTerm = $myRoute['searchTerm'] ?? '';
@@ -9,7 +11,31 @@
 @endphp
 
 <div class="space-y-6">
-    @if($sellerZone === '')
+    @if($coversAllZones && $sellerZone === '')
+        <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-4 sm:p-6">
+            <form method="GET" action="{{ route('clients.orders.index') }}">
+                <input type="hidden" name="tab" value="mi-ruta">
+                <div class="flex flex-col sm:flex-row sm:items-end gap-3">
+                    <div class="flex-1 min-w-0">
+                        <label for="mi-ruta-zona" class="block text-xs font-medium text-gray-500 mb-1">Zona</label>
+                        <select id="mi-ruta-zona" name="zona" data-orders-autosubmit
+                                class="w-full border-gray-300 rounded-lg text-sm px-3 py-2 focus:ring-orange-500 focus:border-orange-500">
+                            <option value="">Selecciona una zona</option>
+                            @foreach($zoneOptions as $zoneOption)
+                                <option value="{{ $zoneOption }}">{{ $zoneOption }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <p class="text-sm text-gray-500 sm:pb-2 whitespace-nowrap">
+                        Hoy: <span class="font-medium text-gray-700 capitalize">{{ $todayLabel }}</span>
+                    </p>
+                </div>
+            </form>
+        </div>
+        <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-6 text-center text-gray-500">
+            Selecciona una zona para ver sus rutas y los clientes con visita programada para hoy.
+        </div>
+    @elseif($sellerZone === '')
         <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-6 text-center text-gray-500">
             No tienes una zona asignada. Contacta al administrador para configurar tu zona.
         </div>
@@ -22,6 +48,18 @@
             <form method="GET" action="{{ route('clients.orders.index') }}">
                 <input type="hidden" name="tab" value="mi-ruta">
                 <div class="flex flex-col sm:flex-row sm:items-end gap-3">
+                    @if($coversAllZones)
+                    <div class="flex-1 min-w-0">
+                        <label for="mi-ruta-zona" class="block text-xs font-medium text-gray-500 mb-1">Zona</label>
+                        <select id="mi-ruta-zona" name="zona" data-orders-autosubmit
+                                class="w-full border-gray-300 rounded-lg text-sm px-3 py-2 focus:ring-orange-500 focus:border-orange-500">
+                            <option value="">Selecciona una zona</option>
+                            @foreach($zoneOptions as $zoneOption)
+                                <option value="{{ $zoneOption }}" @selected((string) $zoneOption === $sellerZone)>{{ $zoneOption }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    @endif
                     <div class="flex-1 min-w-0">
                         <label for="mi-ruta-select" class="block text-xs font-medium text-gray-500 mb-1">Ruta (zona {{ $sellerZone }})</label>
                         <select id="mi-ruta-select" name="ruta" data-orders-autosubmit
@@ -50,7 +88,7 @@
                                 Buscar
                             </button>
                             @if($searchTerm !== '')
-                                <a href="{{ route('clients.orders.index', ['tab' => 'mi-ruta', 'ruta' => $selectedRoute]) }}"
+                                <a href="{{ route('clients.orders.index', array_filter(['tab' => 'mi-ruta', 'zona' => $coversAllZones ? $sellerZone : null, 'ruta' => $selectedRoute])) }}"
                                    class="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors">
                                     Limpiar
                                 </a>
@@ -137,7 +175,7 @@
 
                         @if($client->document)
                             <div class="mt-4 pt-4 border-t border-gray-100 flex flex-col sm:flex-row sm:justify-end gap-2">
-                                <a href="{{ route('client-data-updates.edit', array_filter(['zone' => $clientZone->id, 'return_tab' => 'mi-ruta', 'ruta' => $selectedRoute, 'ruta_q' => $searchTerm])) }}"
+                                <a href="{{ route('client-data-updates.edit', array_filter(['zone' => $clientZone->id, 'return_tab' => 'mi-ruta', 'zona' => $coversAllZones ? $sellerZone : null, 'ruta' => $selectedRoute, 'ruta_q' => $searchTerm])) }}"
                                    class="px-3 py-2 border border-gray-300 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-50 transition-colors text-center">
                                     Actualizar datos
                                 </a>

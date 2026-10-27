@@ -29,8 +29,8 @@ class PageController extends Controller
         $categories = Category::active()->whereNull('parent_id')->with(['children' => function ($query) {
             $query->where('active', 1);
         }])->get();
-        $banners = Banner::whereTypeId(1)->orderBy('id')->get();
-        $lateral = Banner::whereTypeId(2)->orderBy('id')->get();
+        $banners = Banner::active()->whereTypeId(1)->orderBy('id')->get();
+        $lateral = Banner::active()->whereTypeId(2)->orderBy('id')->get();
         // Removed hardcoded featured categories - now using API
 
         $context = compact('products', 'categories', 'banners', 'lateral');
@@ -295,8 +295,8 @@ class PageController extends Controller
             }
         }
 
-        $lateral = Banner::whereTypeId(2)->orderBy('id')->get();
-        $intermedio = Banner::whereTypeId(3)->orderBy('id')->get();
+        $lateral = Banner::active()->whereTypeId(2)->orderBy('id')->get();
+        $intermedio = Banner::active()->whereTypeId(3)->orderBy('id')->get();
 
         // Determine user's mapped bodega code
         $bodegaCode = $this->getUserBodegaCode();

@@ -35,7 +35,7 @@ Vista de conjunto del back-office alineada con `routes/admin.php`. Detalle opera
 
 | Recurso | Uso | Guía |
 |---------|-----|------|
-| `users`, `sellers`, `admins` | Cuentas, 48h, zonas | [10](./10-usuarios-vendedores-y-accesos.md) |
+| `users`, `sellers`, `supervisors`, `supernumerarios`, `admins` | Cuentas, 48h, zonas; supernumerario cubre todas las zonas/rutas | [10](./10-usuarios-vendedores-y-accesos.md) |
 | `orders`, `exports` | Pedidos, reintentos XML/email, exportes | [04 b2b](../b2b-tienda/04-carrito-checkout-y-ordenes.md), [16](./16-reportes-kpi-y-exportes.md) |
 | `reports`, `reports/daily-sales`, `reports/vendor-sales` | Reportes bajo demanda, ventas día, **ventas por proveedor** (cola) | [16](./16-reportes-kpi-y-exportes.md) |
 | `contacts`, `kpi` | Leads / KPI | [16](./16-reportes-kpi-y-exportes.md) |

@@ -1039,6 +1039,8 @@ it('rejects guest self-service registration that would take over an existing cli
         $mock->shouldNotReceive('sendClientRegistrationInviteEmail');
     });
 
+    $expectedMessage = 'Este documento ya está registrado. Ya eres cliente: inicia sesión con el correo cliente.real@example.com y, si lo necesitas, actualiza tus datos desde tu cuenta.';
+
     $this->from(route('new-client.create'))
         ->post(route('new-client.store'), validNewClientPayload([
             'Documento' => '800111222',
@@ -1049,7 +1051,17 @@ it('rejects guest self-service registration that would take over an existing cli
             'Posicion' => null,
         ]))
         ->assertRedirect(route('new-client.create'))
-        ->assertSessionHasErrors('Documento');
+        ->assertSessionHasErrors(['Documento' => $expectedMessage])
+        ->assertSessionHas('existing_client', function (array $alert) use ($expectedMessage) {
+            return $alert['message'] === $expectedMessage
+                && $alert['email'] === 'cliente.real@example.com';
+        });
+
+    $this->get(route('new-client.create'))
+        ->assertOk()
+        ->assertSeeText($expectedMessage)
+        ->assertSeeText('Iniciar sesión')
+        ->assertSee(route('login'), false);
 
     $existing->refresh();
     expect($existing->email)->toBe('cliente.real@example.com')
@@ -1057,4 +1069,229 @@ it('rejects guest self-service registration that would take over an existing cli
         ->and((int) $existing->status_id)->toBe(User::ACTIVE);
 
     expect(Contact::query()->where('nit', '800111222')->exists())->toBeFalse();
+});
+
+it('matches an existing client by document digits only and ignores NIT hyphen or DV', function () {
+    \Illuminate\Support\Facades\Storage::fake('public');
+
+    User::factory()->create([
+        'document' => '800111222',
+        'email' => 'cliente.nit@example.com',
+        'client_status' => User::CLIENT_STATUS_CLIENTE,
+        'status_id' => User::ACTIVE,
+    ]);
+
+    $this->mock(NewClientService::class, function ($mock) {
+        $mock->shouldNotReceive('registerClient');
+    });
+
+    $this->mock(MailingService::class, function ($mock) {
+        $mock->shouldNotReceive('sendClientRegistrationInviteEmail');
+    });
+
+    $this->from(route('new-client.create'))
+        ->post(route('new-client.store'), validNewClientPayload([
+            'Documento' => '800111222-5',
+            'TipoDocumento' => 3,
+            'Correo' => 'otro.correo@example.com',
+            'Zona' => null,
+            'RutaZonaVentas' => null,
+            'DiaRecorrido' => null,
+            'Posicion' => null,
+        ]))
+        ->assertRedirect(route('new-client.create'))
+        ->assertSessionHasErrors('Documento')
+        ->assertSessionHas('existing_client', function (array $alert) {
+            return $alert['email'] === 'cliente.nit@example.com'
+                && str_contains($alert['message'], 'cliente.nit@example.com');
+        });
+
+    expect(User::query()->where('email', 'otro.correo@example.com')->exists())->toBeFalse();
+});
+
+it('does not leak placeholder tuti emails when an existing cliente has no public email', function () {
+    \Illuminate\Support\Facades\Storage::fake('public');
+
+    User::factory()->create([
+        'document' => '800111222',
+        'email' => 'cliente_800111222@tuti.com',
+        'client_status' => User::CLIENT_STATUS_CLIENTE,
+        'status_id' => User::ACTIVE,
+    ]);
+
+    $this->mock(NewClientService::class, function ($mock) {
+        $mock->shouldNotReceive('registerClient');
+    });
+
+    $this->mock(MailingService::class, function ($mock) {
+        $mock->shouldNotReceive('sendClientRegistrationInviteEmail');
+    });
+
+    $expectedMessage = 'Este documento ya está registrado. Ya eres cliente: inicia sesión con el correo registrado en tu cuenta y, si lo necesitas, actualiza tus datos desde allí.';
+
+    $this->from(route('new-client.create'))
+        ->post(route('new-client.store'), validNewClientPayload([
+            'Documento' => '800111222',
+            'Correo' => 'atacante@example.com',
+            'Zona' => null,
+            'RutaZonaVentas' => null,
+            'DiaRecorrido' => null,
+            'Posicion' => null,
+        ]))
+        ->assertRedirect(route('new-client.create'))
+        ->assertSessionHasErrors(['Documento' => $expectedMessage])
+        ->assertSessionHas('existing_client', function (array $alert) use ($expectedMessage) {
+            return $alert['message'] === $expectedMessage
+                && $alert['email'] === null;
+        });
+
+    $this->get(route('new-client.create'))
+        ->assertOk()
+        ->assertSeeText($expectedMessage)
+        ->assertDontSee('cliente_800111222@tuti.com')
+        ->assertSee(route('login'), false);
+});
+
+it('lets a guest complete self-service registration over a prospecto stub with placeholder email', function () {
+    \Illuminate\Support\Facades\Storage::fake('public');
+
+    $stub = User::factory()->create([
+        'document' => '800111222',
+        'email' => 'cliente_800111222@tuti.com',
+        'client_status' => User::CLIENT_STATUS_PROSPECTO,
+        'status_id' => User::PENDING,
+    ]);
+
+    $this->mock(NewClientService::class, function ($mock) {
+        $mock->shouldNotReceive('registerClient');
+        $mock->shouldNotReceive('uploadMedia');
+    });
+
+    $this->mock(MailingService::class, function ($mock) {
+        $mock->shouldReceive('sendClientRegistrationInviteEmail')
+            ->once()
+            ->withArgs(fn (User $user) => $user->email === 'prospecto.claim@example.com')
+            ->andReturn(true);
+    });
+
+    $this->post(route('new-client.store'), validNewClientPayload([
+        'Documento' => '800111222',
+        'Correo' => 'prospecto.claim@example.com',
+        'Zona' => null,
+        'RutaZonaVentas' => null,
+        'DiaRecorrido' => null,
+        'Posicion' => null,
+    ]))
+        ->assertRedirect(route('new-client.create'))
+        ->assertSessionHas('success')
+        ->assertSessionMissing('existing_client');
+
+    $stub->refresh();
+    expect($stub->email)->toBe('prospecto.claim@example.com')
+        ->and($stub->client_status)->toBe(User::CLIENT_STATUS_PROSPECTO);
+});
+
+it('blocks guest self-service when a prospecto already has a real login email', function () {
+    \Illuminate\Support\Facades\Storage::fake('public');
+
+    User::factory()->create([
+        'document' => '800111222',
+        'email' => 'prospecto.real@example.com',
+        'client_status' => User::CLIENT_STATUS_PROSPECTO,
+        'status_id' => User::PENDING,
+    ]);
+
+    $this->mock(NewClientService::class, function ($mock) {
+        $mock->shouldNotReceive('registerClient');
+    });
+
+    $this->mock(MailingService::class, function ($mock) {
+        $mock->shouldNotReceive('sendClientRegistrationInviteEmail');
+    });
+
+    $expectedMessage = 'Este documento ya está registrado. Inicia sesión con el correo prospecto.real@example.com y, si lo necesitas, actualiza tus datos desde tu cuenta.';
+
+    $this->from(route('new-client.create'))
+        ->post(route('new-client.store'), validNewClientPayload([
+            'Documento' => '800111222',
+            'Correo' => 'otro.prospecto@example.com',
+            'Zona' => null,
+            'RutaZonaVentas' => null,
+            'DiaRecorrido' => null,
+            'Posicion' => null,
+        ]))
+        ->assertRedirect(route('new-client.create'))
+        ->assertSessionHasErrors(['Documento' => $expectedMessage])
+        ->assertSessionHas('existing_client', function (array $alert) {
+            return $alert['email'] === 'prospecto.real@example.com';
+        });
+});
+
+it('blocks guest self-service when a pendiente already has a real login email', function () {
+    \Illuminate\Support\Facades\Storage::fake('public');
+
+    User::factory()->create([
+        'document' => '800111222',
+        'email' => 'pendiente.real@example.com',
+        'client_status' => User::CLIENT_STATUS_PENDIENTE,
+        'status_id' => User::PENDING,
+    ]);
+
+    $this->mock(NewClientService::class, function ($mock) {
+        $mock->shouldNotReceive('registerClient');
+    });
+
+    $this->mock(MailingService::class, function ($mock) {
+        $mock->shouldNotReceive('sendClientRegistrationInviteEmail');
+    });
+
+    $this->from(route('new-client.create'))
+        ->post(route('new-client.store'), validNewClientPayload([
+            'Documento' => '800111222',
+            'Correo' => 'otro.pendiente@example.com',
+            'Zona' => null,
+            'RutaZonaVentas' => null,
+            'DiaRecorrido' => null,
+            'Posicion' => null,
+        ]))
+        ->assertRedirect(route('new-client.create'))
+        ->assertSessionHasErrors('Documento')
+        ->assertSessionHas('existing_client', function (array $alert) {
+            return $alert['email'] === 'pendiente.real@example.com'
+                && str_contains($alert['message'], 'pendiente.real@example.com')
+                && ! str_contains($alert['message'], 'Ya eres cliente');
+        });
+});
+
+it('does not block seller registration of an existing document', function () {
+    \Illuminate\Support\Facades\Storage::fake('public');
+
+    User::factory()->create([
+        'document' => '900123456',
+        'email' => 'cliente.existente@example.com',
+        'client_status' => User::CLIENT_STATUS_CLIENTE,
+        'status_id' => User::ACTIVE,
+    ]);
+
+    $this->mock(NewClientService::class, function ($mock) {
+        $mock->shouldReceive('registerClient')->once()->andReturn([
+            'success' => true, 'id' => 91, 'codigo_cliente' => 'C-0091', 'message' => 'ok',
+        ]);
+        $mock->shouldReceive('uploadMedia')->once()->andReturn(['success' => true, 'message' => 'ok']);
+    });
+
+    $this->mock(DraftOrderReconciliationService::class, function ($mock) {
+        $mock->shouldReceive('syncUserFromRutero')->andReturn([
+            'success' => true, 'synced' => false, 'promoted' => false, 'message' => 'ok',
+        ]);
+    });
+
+    actingAs($this->seller)
+        ->post(route('new-client.store'), validNewClientPayload([
+            'Documento' => '900123456',
+            'Correo' => 'cliente.existente@example.com',
+        ]))
+        ->assertRedirect(route('new-client.create'))
+        ->assertSessionHas('success')
+        ->assertSessionMissing('existing_client');
 });

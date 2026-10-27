@@ -16,6 +16,7 @@
 
 
 
+@if($banners->isNotEmpty())
 <section class="w-full bg-gray-100 pt-4 sm:pt-6">
     <div class="max-w-6xl mx-auto px-4">
         <section id='banners' class="splide overflow-hidden rounded-xl">
@@ -33,6 +34,7 @@
         </section>
     </div>
 </section>
+@endif
 
 
 
@@ -45,6 +47,7 @@
     <div id="featured-products"></div>
 </section>
 
+@if($lateral->isNotEmpty())
 <section class="max-w-6xl mx-auto px-4 mt-6 sm:mt-8 pb-6 sm:pb-10">
     <div class="bg-gray-100 rounded-xl py-4 px-2 sm:px-4">
         <div id='ads' class="splide">
@@ -62,6 +65,7 @@
         </div>
     </div>
 </section>
+@endif
 
 
 
@@ -76,26 +80,30 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        new Splide('#banners', {
-            type: 'loop',
-            autoplay: true,
-            perPage: 1,
-            gap: '1rem',
-        }).mount();
+        if (document.getElementById('banners')) {
+            new Splide('#banners', {
+                type: 'loop',
+                autoplay: true,
+                perPage: 1,
+                gap: '1rem',
+            }).mount();
+        }
 
-        new Splide('#ads', {
-            type: 'loop',
-            autoplay: true,
-            perPage: 6,
-            gap: '1rem',
-            breakpoints: {
-                1280: { perPage: 5 },
-                1024: { perPage: 4 },
-                768: { perPage: 3 },
-                640: { perPage: 2 },
-                480: { perPage: 2 }
-            }
-        }).mount();
+        if (document.getElementById('ads')) {
+            new Splide('#ads', {
+                type: 'loop',
+                autoplay: true,
+                perPage: 6,
+                gap: '1rem',
+                breakpoints: {
+                    1280: { perPage: 5 },
+                    1024: { perPage: 4 },
+                    768: { perPage: 3 },
+                    640: { perPage: 2 },
+                    480: { perPage: 2 }
+                }
+            }).mount();
+        }
     });
 
 

@@ -12,6 +12,20 @@ class Banner extends Model
     protected $fillable = [
         'path',
         'url',
-        'type_id'
+        'type_id',
+        'is_active',
     ];
+
+    protected $attributes = [
+        'is_active' => true,
+    ];
+
+    protected $casts = [
+        'is_active' => 'boolean',
+    ];
+
+    public function scopeActive($query)
+    {
+        return $query->where('is_active', true);
+    }
 }

@@ -62,9 +62,29 @@ class NewClientController extends Controller
         $clasificacionOptions = self::CLASIFICACION_OPTIONS;
         $diaOptions = self::DIA_OPTIONS;
         $isSellerFlow = $this->isSellerFlow();
-        $sellerZone = $this->resolveSellerZone();
+        $coversAllZones = $isSellerFlow && auth()->user()?->coversAllZones();
+        $sellerZone = $coversAllZones ? null : $this->resolveSellerZone();
+        $availableZones = [];
+        $zoneRoutesByZone = [];
         $zoneRoutes = [];
-        if ($isSellerFlow && $sellerZone) {
+        if ($coversAllZones) {
+            $zoneRoutesByZone = ZoneRoute::query()
+                ->whereNotNull('zone')
+                ->where('zone', '!=', '')
+                ->whereNotNull('route')
+                ->where('route', '!=', '')
+                ->orderBy('zone')
+                ->orderBy('route')
+                ->get(['zone', 'route'])
+                ->groupBy(fn ($row) => trim((string) $row->zone))
+                ->map(fn ($rows) => $rows->pluck('route')->unique()->values()->all())
+                ->all();
+            $availableZones = array_keys($zoneRoutesByZone);
+            $selectedZone = old('Zona');
+            $zoneRoutes = is_string($selectedZone) && isset($zoneRoutesByZone[$selectedZone])
+                ? $zoneRoutesByZone[$selectedZone]
+                : [];
+        } elseif ($isSellerFlow && $sellerZone) {
             $zoneRoutes = ZoneRoute::query()
                 ->where('zone', $sellerZone)
                 ->orderBy('route')
@@ -101,7 +121,10 @@ class NewClientController extends Controller
             'diaOptions',
             'layout',
             'isSellerFlow',
+            'coversAllZones',
             'sellerZone',
+            'availableZones',
+            'zoneRoutesByZone',
             'zoneRoutes',
             'returnTo',
             'isSucursalMode',
@@ -179,7 +202,7 @@ class NewClientController extends Controller
             return false;
         }
 
-        if ($seller->hasRole('admin')) {
+        if ($seller->hasRole('admin') || $seller->coversAllZones()) {
             return true;
         }
 
@@ -216,11 +239,13 @@ class NewClientController extends Controller
     public function store(Request $request, NewClientService $service)
     {
         $isSellerFlow = $this->isSellerFlow();
-        $sellerZone = $isSellerFlow ? $this->resolveSellerZone() : null;
+        $coversAllZones = $isSellerFlow && auth()->user()?->coversAllZones();
+        $sellerZone = ($isSellerFlow && ! $coversAllZones) ? $this->resolveSellerZone() : null;
 
-        // Sellers/supervisors must always register into their assigned zone.
-        // Force it server-side so the API payload cannot omit or override it.
-        if ($isSellerFlow) {
+        // Regular sellers/supervisors must always register into their assigned zone.
+        // Supernumerarios may pick any zona. Force the assigned zone server-side
+        // so the API payload cannot omit or override it for locked users.
+        if ($isSellerFlow && ! $coversAllZones) {
             if ($sellerZone === null) {
                 return back()->withInput()->withErrors([
                     'Zona' => 'Tu usuario no tiene una zona asignada. Contacta a un administrador.',
@@ -231,8 +256,11 @@ class NewClientController extends Controller
 
         $rutaRules = [$isSellerFlow ? 'required' : 'nullable', 'string', 'regex:/^\d{4}$/'];
         if ($isSellerFlow) {
+            $rutaZone = $coversAllZones
+                ? strtoupper(trim((string) $request->input('Zona')))
+                : $sellerZone;
             $rutaRules[] = Rule::exists('zone_routes', 'route')
-                ->where(fn ($q) => $q->where('zone', $sellerZone));
+                ->where(fn ($q) => $q->where('zone', $rutaZone));
         }
 
         $validated = $request->validate([
@@ -290,7 +318,7 @@ class NewClientController extends Controller
             'privacy_accepted.accepted' => 'Debes aceptar la política de privacidad y tratamiento de datos personales.',
         ]);
 
-        if ($isSellerFlow) {
+        if ($isSellerFlow && ! $coversAllZones) {
             $validated['Zona'] = $sellerZone;
         } elseif (! empty($validated['Zona'])) {
             $validated['Zona'] = strtoupper(trim((string) $validated['Zona']));
@@ -309,14 +337,14 @@ class NewClientController extends Controller
         }
 
         // Self-service must never take over an existing real account.
-        // Placeholder @tuti emails (seller cart stubs) may still be claimed.
+        // Match only by document digits (ignore DV/hyphen). Seller flows handle
+        // existing documents / sucursales on their own and are not blocked here.
+        // Prospecto/pendiente/rechazado stubs with a placeholder @tuti email may
+        // still complete registration; a current client (cliente) cannot.
         if (! $isSellerFlow) {
-            $existingDocument = preg_replace('/\D+/', '', $validated['Documento']) ?: $validated['Documento'];
-            $existingUser = User::query()->where('document', $existingDocument)->first();
-            if ($existingUser && ($existingUser->isCliente() || ! User::isInvalidClientEmail($existingUser->email))) {
-                return back()->withInput()->withErrors([
-                    'Documento' => 'Este documento ya está registrado. Inicia sesión o recupera tu contraseña.',
-                ]);
+            $existingUser = $this->findUserByDocumentNumber($validated['Documento']);
+            if ($existingUser && $this->shouldBlockSelfServiceForExistingUser($existingUser)) {
+                return $this->redirectExistingSelfServiceClient($existingUser);
             }
         }
 
@@ -437,6 +465,60 @@ class NewClientController extends Controller
             : "Cliente registrado exitosamente. Código: {$result['codigo_cliente']}. Documento para pedidos: {$localClient->document}";
 
         return $this->redirectAfterSellerRegistration($request, $successMessage);
+    }
+
+    /**
+     * Current clients always block. Other statuses only block when they already
+     * have a real (non-placeholder) login email — those are existing accounts.
+     */
+    private function shouldBlockSelfServiceForExistingUser(User $existingUser): bool
+    {
+        return $existingUser->isCliente() || ! User::isInvalidClientEmail($existingUser->email);
+    }
+
+    /**
+     * Match NIT/cédula by digits only so "900123456-7" and "900123456" collide.
+     */
+    private function findUserByDocumentNumber(string $document): ?User
+    {
+        $normalized = preg_replace('/\D+/', '', $document) ?: $document;
+
+        return User::query()->where('document', $normalized)->first();
+    }
+
+    /**
+     * Prominent Spanish alert: already exists, log in with the public email,
+     * and update data from the account. Never leak @tuti placeholders.
+     */
+    private function redirectExistingSelfServiceClient(User $existingUser)
+    {
+        $message = $this->existingSelfServiceClientMessage($existingUser);
+
+        return back()->withInput()
+            ->withErrors(['Documento' => $message])
+            ->with('existing_client', [
+                'message' => $message,
+                'email' => $existingUser->clientDisplayEmail(),
+            ]);
+    }
+
+    private function existingSelfServiceClientMessage(User $existingUser): string
+    {
+        $email = $existingUser->clientDisplayEmail();
+
+        if ($existingUser->isCliente()) {
+            if ($email) {
+                return "Este documento ya está registrado. Ya eres cliente: inicia sesión con el correo {$email} y, si lo necesitas, actualiza tus datos desde tu cuenta.";
+            }
+
+            return 'Este documento ya está registrado. Ya eres cliente: inicia sesión con el correo registrado en tu cuenta y, si lo necesitas, actualiza tus datos desde allí.';
+        }
+
+        if ($email) {
+            return "Este documento ya está registrado. Inicia sesión con el correo {$email} y, si lo necesitas, actualiza tus datos desde tu cuenta.";
+        }
+
+        return 'Este documento ya está registrado. Inicia sesión con el correo registrado en tu cuenta y, si lo necesitas, actualiza tus datos desde allí.';
     }
 
     /**
@@ -885,7 +967,7 @@ class NewClientController extends Controller
     {
         $user = auth()->user();
 
-        return $user && $user->hasAnyRole(['seller', 'supervisor']);
+        return $user && $user->isStaffSeller();
     }
 
     private function resolveSellerZone(): ?string

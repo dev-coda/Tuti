@@ -23,7 +23,7 @@ class OrderController extends Controller
     public function index(Request $request)
     {
         $user = auth()->user();
-        $isSeller = $user->hasAnyRole(['seller', 'supervisor']);
+        $isSeller = $user->isStaffSeller();
         $isSupervisor = $user->hasRole('supervisor');
         $sellerDashToday = Carbon::now($this->sellerReportTimezone())->format('Y-m-d');
 
@@ -211,11 +211,32 @@ class OrderController extends Controller
      * Data for the seller "Mi Ruta" tab: routes available in the seller's zone and,
      * once a route is selected, the clients whose visit day matches today (Colombia).
      *
-     * @return array{sellerZone:string,routeOptions:\Illuminate\Support\Collection,selectedRoute:string,searchTerm:string,clients:\Illuminate\Support\Collection|null,todayLabel:string}
+     * @return array{sellerZone:string,zoneOptions:\Illuminate\Support\Collection,coversAllZones:bool,routeOptions:\Illuminate\Support\Collection,selectedRoute:string,searchTerm:string,clients:\Illuminate\Support\Collection|null,todayLabel:string}
      */
     private function buildMyRouteData(User $user, Request $request): array
     {
-        $sellerZone = trim((string) $user->zone);
+        $coversAllZones = $user->coversAllZones();
+        $zoneOptions = $coversAllZones
+            ? Zone::query()
+                ->whereNotNull('zone')
+                ->where('zone', '!=', '')
+                ->distinct()
+                ->orderBy('zone')
+                ->pluck('zone')
+                ->map(fn ($zone) => trim((string) $zone))
+                ->filter()
+                ->unique()
+                ->values()
+            : collect();
+
+        $sellerZone = $coversAllZones
+            ? trim((string) $request->input('zona', ''))
+            : trim((string) $user->zone);
+
+        if ($coversAllZones && ($sellerZone === '' || ! $zoneOptions->contains($sellerZone))) {
+            $sellerZone = '';
+        }
+
         $today = Carbon::now($this->sellerReportTimezone());
 
         $routeOptions = $sellerZone === ''
@@ -274,6 +295,8 @@ class OrderController extends Controller
 
         return [
             'sellerZone' => $sellerZone,
+            'zoneOptions' => $zoneOptions,
+            'coversAllZones' => $coversAllZones,
             'routeOptions' => $routeOptions,
             'selectedRoute' => $selectedRoute,
             'searchTerm' => $searchTerm,
@@ -285,7 +308,7 @@ class OrderController extends Controller
     public function export(Request $request)
     {
         $user = auth()->user();
-        $isSeller = $user->hasAnyRole(['seller', 'supervisor']);
+        $isSeller = $user->isStaffSeller();
         $tab = (string) $request->input('tab', 'orders');
         $isTodayTab = $tab === 'orders-today' && $isSeller;
         $isMisRutasTab = $tab === 'mis-rutas' && $user->hasRole('supervisor');
@@ -341,7 +364,11 @@ class OrderController extends Controller
      */
     private function applyOrderVisibilityScope($query, User $user): void
     {
-        $coverages = $user->hasAnyRole(['seller', 'supervisor']) ? $user->supervisedCoverages() : [];
+        if ($user->coversAllZones()) {
+            return;
+        }
+
+        $coverages = $user->isStaffSeller() ? $user->supervisedCoverages() : [];
 
         $query->where(function ($sub) use ($user, $coverages) {
             $sub->whereBelongsTo($user)
@@ -399,8 +426,12 @@ class OrderController extends Controller
      */
     private function orderInSellerZone(Order $order, User $user): bool
     {
-        if (!$user->hasAnyRole(['seller', 'supervisor'])) {
+        if (!$user->isStaffSeller()) {
             return false;
+        }
+
+        if ($user->coversAllZones()) {
+            return true;
         }
 
         $coverages = $user->supervisedCoverages();
@@ -551,7 +582,7 @@ class OrderController extends Controller
     {
         $user = auth()->user();
 
-        if (!$user || !$user->hasAnyRole(['seller', 'supervisor'])) {
+        if (!$user || !$user->isStaffSeller()) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
@@ -589,106 +620,94 @@ class OrderController extends Controller
             * (1 + COALESCE(taxes.tax, 0) / 100.0)
         ), 0) as total, COALESCE(SUM(order_products.quantity), 0) as quantity';
 
-        // Helper: sales total + unit quantity for products in given category IDs.
-        // product_id IN (subquery on category_product) counts each order line once; the id list includes
-        // descendant categories so pivot rows on child categories match without duplicating lines.
-        $salesByCategories = function (array $categoryIds) use ($baseConditions, $lineSalesSelect) {
-            if (empty($categoryIds)) return ['total' => 0, 'quantity' => 0];
-            $row = DB::table('orders')
-                ->join('order_products', 'orders.id', '=', 'order_products.order_id')
-                ->join('products', 'order_products.product_id', '=', 'products.id')
-                ->leftJoin('taxes', 'products.tax_id', '=', 'taxes.id')
-                ->where(fn ($q) => $baseConditions($q))
-                ->whereIn('order_products.product_id', function ($sub) use ($categoryIds) {
-                    $sub->select('product_id')
-                        ->from('category_product')
-                        ->whereIn('category_id', $categoryIds)
-                        ->distinct();
-                })
-                ->selectRaw($lineSalesSelect)
-                ->first();
-            return ['total' => (float) $row->total, 'quantity' => (int) $row->quantity];
+        $salesBy = function (callable $constrain) use ($baseConditions, $lineSalesSelect) {
+            return $this->summarizeSellerDashboardSales($baseConditions, $lineSalesSelect, $constrain);
         };
 
-        // Helper: sales total + unit quantity for products with given brand IDs
-        $salesByBrands = function (array $brandIds) use ($baseConditions, $lineSalesSelect) {
-            if (empty($brandIds)) return ['total' => 0, 'quantity' => 0];
-            $row = DB::table('orders')
-                ->join('order_products', 'orders.id', '=', 'order_products.order_id')
-                ->join('products', 'order_products.product_id', '=', 'products.id')
-                ->leftJoin('taxes', 'products.tax_id', '=', 'taxes.id')
-                ->where(fn ($q) => $baseConditions($q))
-                ->whereIn('products.brand_id', $brandIds)
-                ->selectRaw($lineSalesSelect)
-                ->first();
-            return ['total' => (float) $row->total, 'quantity' => (int) $row->quantity];
-        };
+        $emptyBucket = ['total' => 0.0, 'quantity' => 0];
 
-        // Helper: sales total + unit quantity for products whose brand belongs to given vendor IDs
-        $salesByVendors = function (array $vendorIds) use ($baseConditions, $lineSalesSelect) {
-            if (empty($vendorIds)) return ['total' => 0, 'quantity' => 0];
-            $row = DB::table('orders')
-                ->join('order_products', 'orders.id', '=', 'order_products.order_id')
-                ->join('products', 'order_products.product_id', '=', 'products.id')
-                ->leftJoin('taxes', 'products.tax_id', '=', 'taxes.id')
-                ->join('brands', 'products.brand_id', '=', 'brands.id')
-                ->where(fn ($q) => $baseConditions($q))
-                ->whereIn('brands.vendor_id', $vendorIds)
-                ->selectRaw($lineSalesSelect)
-                ->first();
-            return ['total' => (float) $row->total, 'quantity' => (int) $row->quantity];
-        };
+        // Name match (case/accent-insensitive). Settings category IDs are not used here:
+        // sellerDashboard already resolves buckets by catalog names, not seller_dashboard_categories.
+        $tronexBrandIds = $this->catalogIdsMatchingNames(Brand::class, ['Tronex']);
+        $encendedoresBrandIds = $this->catalogIdsMatchingNames(Brand::class, ['Swisslite', 'Swiss Lite', 'Clipper']);
+        $bombillosBrandIds = $this->catalogIdsMatchingNames(Brand::class, ['Santa Blanca']);
+        $otrosBrandIds = $this->catalogIdsMatchingNames(Brand::class, ['GP', 'GE', 'General Electric', 'Rocket']);
 
-        // Resolve IDs by name (case-insensitive) so it works across environments
-        $catIdsByName = fn (array $names) => Category::whereRaw(
-            'LOWER(name) IN (' . implode(',', array_fill(0, count($names), '?')) . ')',
-            array_map('strtolower', $names)
-        )->pluck('id')->toArray();
+        $tercerosNames = [
+            'Eterna', 'Prebel', 'Yass', 'Fegi', 'Produsa', 'Dromatic', 'Sense', 'Knight', 'Ingreo', 'MCM',
+        ];
+        $tercerosBrandIds = $this->catalogIdsMatchingNames(Brand::class, $tercerosNames);
+        $tercerosVendorIds = $this->catalogIdsMatchingNames(Vendor::class, $tercerosNames);
+        if ($tercerosVendorIds !== []) {
+            $tercerosBrandIds = array_values(array_unique(array_merge(
+                $tercerosBrandIds,
+                Brand::query()->whereIn('vendor_id', $tercerosVendorIds)->pluck('id')->map(fn ($id) => (int) $id)->all()
+            )));
+        }
 
-        $brandIdsByName = fn (array $names) => Brand::whereRaw(
-            'LOWER(name) IN (' . implode(',', array_fill(0, count($names), '?')) . ')',
-            array_map('strtolower', $names)
-        )->pluck('id')->toArray();
+        // Exclusive brand ownership so a line cannot land in two brand buckets.
+        $claimedBrandIds = array_values(array_unique(array_merge(
+            $tronexBrandIds,
+            $encendedoresBrandIds,
+            $bombillosBrandIds,
+            $otrosBrandIds
+        )));
+        $tercerosBrandIds = array_values(array_diff($tercerosBrandIds, $claimedBrandIds));
 
-        $vendorIdsByName = fn (array $names) => Vendor::whereRaw(
-            'LOWER(name) IN (' . implode(',', array_fill(0, count($names), '?')) . ')',
-            array_map('strtolower', $names)
-        )->pluck('id')->toArray();
+        // Alcalina / Alkalina and Manganeso category trees (plus descendants).
+        $alcalinaIds = $this->categoryIdsMatchingTokens(['alcalina', 'alkalina']);
+        $manganesoIds = $this->categoryIdsMatchingTokens(['manganeso']);
 
-        // 1–4: category roots (name match) + all descendant categories so products
-        // attached only to child categories still count (pivot uses leaf/junction ids).
-        $alcalinaIds = $this->categoryIdsWithDescendants($catIdsByName(['Alcalinas Tronex', 'Alcalinas GP']));
-        $manganesoIds = $this->categoryIdsWithDescendants($catIdsByName(['Manganeso Tronex', 'Manganeso GP']));
-        $encendedoresIds = $this->categoryIdsWithDescendants($catIdsByName(['Encendedores']));
-        $bombillosIds = $this->categoryIdsWithDescendants($catIdsByName(['Bombillos']));
+        $alcalinaSales = ($tronexBrandIds === [] || $alcalinaIds === [])
+            ? $emptyBucket
+            : $salesBy(function ($query) use ($tronexBrandIds, $alcalinaIds) {
+                $query->whereIn('products.brand_id', $tronexBrandIds);
+                $this->constrainSellerDashboardCategories($query, $alcalinaIds, true);
+            });
 
-        // 5. Tronex — brand Tronex (Pilas Moneda, Linternas, and other Tronex-brand lines)
-        $tronexBrandIds = $brandIdsByName(['Tronex']);
+        $manganesoSales = ($tronexBrandIds === [] || $manganesoIds === [])
+            ? $emptyBucket
+            : $salesBy(function ($query) use ($tronexBrandIds, $manganesoIds, $alcalinaIds) {
+                $query->whereIn('products.brand_id', $tronexBrandIds);
+                $this->constrainSellerDashboardCategories($query, $manganesoIds, true);
+                $this->constrainSellerDashboardCategories($query, $alcalinaIds, false);
+            });
 
-        // 6. Otros — brands GP, Mtek, General Electric (+ GE alias), ROCKET
-        $otrosBrandIds = $brandIdsByName(['GP', 'Gp', 'Mtek', 'General Electric', 'GE', 'ROCKET']);
+        $encendedoresSales = $encendedoresBrandIds === []
+            ? $emptyBucket
+            : $salesBy(fn ($query) => $query->whereIn('products.brand_id', $encendedoresBrandIds));
 
-        // 7. Terceros — vendors Eterna, Prebel, Yass, Produsa, Dromatic, Sense, Knight
-        $tercerosVendorIds = $vendorIdsByName([
-            'Eterna', 'Prebel', 'Yass', 'Produsa', 'Dromatic', 'Sense', 'Knight',
-        ]);
+        $bombillosSales = $bombillosBrandIds === []
+            ? $emptyBucket
+            : $salesBy(fn ($query) => $query->whereIn('products.brand_id', $bombillosBrandIds));
 
-        $alcalinaSales      = $salesByCategories($alcalinaIds);
-        $manganesoSales     = $salesByCategories($manganesoIds);
-        $encendedoresSales  = $salesByCategories($encendedoresIds);
-        $bombillosSales     = $salesByCategories($bombillosIds);
-        $tronexSales        = $salesByBrands($tronexBrandIds);
-        $otrosSales         = $salesByBrands($otrosBrandIds);
-        $tercerosSales      = $salesByVendors($tercerosVendorIds);
+        $tronexOtrosSales = $tronexBrandIds === []
+            ? $emptyBucket
+            : $salesBy(function ($query) use ($tronexBrandIds, $alcalinaIds, $manganesoIds) {
+                $query->whereIn('products.brand_id', $tronexBrandIds);
+                $this->constrainSellerDashboardCategories(
+                    $query,
+                    array_values(array_unique(array_merge($alcalinaIds, $manganesoIds))),
+                    false
+                );
+            });
+
+        $otrosSales = $otrosBrandIds === []
+            ? $emptyBucket
+            : $salesBy(fn ($query) => $query->whereIn('products.brand_id', $otrosBrandIds));
+
+        $tercerosSales = $tercerosBrandIds === []
+            ? $emptyBucket
+            : $salesBy(fn ($query) => $query->whereIn('products.brand_id', $tercerosBrandIds));
 
         $buckets = [
-            ['label' => 'Alcalina',      'total' => round($alcalinaSales['total'], 2),      'quantity' => $alcalinaSales['quantity']],
+            ['label' => 'Alkalina',      'total' => round($alcalinaSales['total'], 2),      'quantity' => $alcalinaSales['quantity']],
             ['label' => 'Manganeso',     'total' => round($manganesoSales['total'], 2),     'quantity' => $manganesoSales['quantity']],
             ['label' => 'Encendedores',  'total' => round($encendedoresSales['total'], 2),  'quantity' => $encendedoresSales['quantity']],
             ['label' => 'Bombillos',     'total' => round($bombillosSales['total'], 2),     'quantity' => $bombillosSales['quantity']],
-            ['label' => 'Tronex',        'total' => round($tronexSales['total'], 2),        'quantity' => $tronexSales['quantity']],
+            ['label' => 'TRONEX Otros',  'total' => round($tronexOtrosSales['total'], 2),   'quantity' => $tronexOtrosSales['quantity']],
             ['label' => 'Otros',         'total' => round($otrosSales['total'], 2),         'quantity' => $otrosSales['quantity']],
-            ['label' => 'Terceros',      'total' => round($tercerosSales['total'], 2),      'quantity' => $tercerosSales['quantity']],
+            ['label' => 'TERCEROS',      'total' => round($tercerosSales['total'], 2),      'quantity' => $tercerosSales['quantity']],
         ];
 
         return response()->json([
@@ -796,6 +815,167 @@ class OrderController extends Controller
         return $ids->unique()->values()->all();
     }
 
+    /**
+     * @param  callable(\Illuminate\Database\Query\Builder): void  $baseConditions
+     * @param  callable(\Illuminate\Database\Query\Builder): void  $constrain
+     * @return array{total: float, quantity: int}
+     */
+    private function summarizeSellerDashboardSales(callable $baseConditions, string $lineSalesSelect, callable $constrain): array
+    {
+        $query = DB::table('orders')
+            ->join('order_products', 'orders.id', '=', 'order_products.order_id')
+            ->join('products', 'order_products.product_id', '=', 'products.id')
+            ->leftJoin('taxes', 'products.tax_id', '=', 'taxes.id')
+            ->where(fn ($q) => $baseConditions($q));
+
+        $constrain($query);
+
+        $row = $query->selectRaw($lineSalesSelect)->first();
+
+        return ['total' => (float) $row->total, 'quantity' => (int) $row->quantity];
+    }
+
+    /**
+     * @param  array<int>  $categoryIds
+     */
+    private function constrainSellerDashboardCategories($query, array $categoryIds, bool $include): void
+    {
+        if ($categoryIds === []) {
+            if ($include) {
+                $query->whereRaw('0 = 1');
+            }
+
+            return;
+        }
+
+        $method = $include ? 'whereIn' : 'whereNotIn';
+        $query->{$method}('order_products.product_id', function ($sub) use ($categoryIds) {
+            $sub->select('product_id')
+                ->from('category_product')
+                ->whereIn('category_id', $categoryIds)
+                ->distinct();
+        });
+    }
+
+    /**
+     * Category IDs whose name contains any token, plus descendants.
+     *
+     * @param  array<int, string>  $tokens
+     * @return array<int>
+     */
+    private function categoryIdsMatchingTokens(array $tokens): array
+    {
+        $needles = $this->normalizedCatalogNeedles($tokens);
+        if ($needles === []) {
+            return [];
+        }
+
+        $ids = Category::query()->get(['id', 'name'])
+            ->filter(function ($category) use ($needles) {
+                $normalized = $this->normalizeCatalogName($category->name);
+                foreach ($needles as $needle) {
+                    if ($needle !== '' && str_contains($normalized, $needle)) {
+                        return true;
+                    }
+                }
+
+                return false;
+            })
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        return $this->categoryIdsWithDescendants($ids);
+    }
+
+    /**
+     * @param  class-string<\Illuminate\Database\Eloquent\Model>  $model
+     * @param  array<int, string>  $names
+     * @return array<int>
+     */
+    private function catalogIdsMatchingNames(string $model, array $names): array
+    {
+        $needles = $this->normalizedCatalogNeedles($names);
+        if ($needles === []) {
+            return [];
+        }
+
+        return $model::query()->get(['id', 'name'])
+            ->filter(fn ($row) => $this->catalogNameMatchesAny($this->normalizeCatalogName($row->name), $needles))
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<int, string>  $names
+     * @return array<int, string>
+     */
+    private function normalizedCatalogNeedles(array $names): array
+    {
+        return array_values(array_unique(array_filter(array_map(
+            fn ($name) => $this->normalizeCatalogName((string) $name),
+            $names
+        ))));
+    }
+
+    /**
+     * @param  array<int, string>  $needles
+     */
+    private function catalogNameMatchesAny(string $normalizedHaystack, array $needles): bool
+    {
+        foreach ($needles as $needle) {
+            if ($this->catalogNameMatches($normalizedHaystack, $needle)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function catalogNameMatches(string $haystack, string $needle): bool
+    {
+        if ($needle === '' || $haystack === '') {
+            return false;
+        }
+
+        if ($haystack === $needle) {
+            return true;
+        }
+
+        $haystackCompact = preg_replace('/[\s.\-]+/', '', $haystack) ?? $haystack;
+        $needleCompact = preg_replace('/[\s.\-]+/', '', $needle) ?? $needle;
+
+        if ($haystackCompact === $needleCompact) {
+            return true;
+        }
+
+        // Short codes (GP, GE, MCM) stay exact so "GE" does not swallow "General Electric".
+        if (mb_strlen($needleCompact) <= 3) {
+            return false;
+        }
+
+        return str_starts_with($haystack, $needle.' ')
+            || str_starts_with($haystack, $needle.'-')
+            || str_starts_with($haystack, $needle.'.');
+    }
+
+    private function normalizeCatalogName(?string $name): string
+    {
+        $normalized = mb_strtolower(trim((string) $name), 'UTF-8');
+
+        return strtr($normalized, [
+            'á' => 'a', 'à' => 'a', 'ä' => 'a', 'â' => 'a',
+            'é' => 'e', 'è' => 'e', 'ë' => 'e', 'ê' => 'e',
+            'í' => 'i', 'ì' => 'i', 'ï' => 'i', 'î' => 'i',
+            'ó' => 'o', 'ò' => 'o', 'ö' => 'o', 'ô' => 'o',
+            'ú' => 'u', 'ù' => 'u', 'ü' => 'u', 'û' => 'u',
+            'ñ' => 'n', 'ç' => 'c',
+        ]);
+    }
+
     public function show($id)
     {
         $user = auth()->user();
@@ -876,7 +1056,7 @@ class OrderController extends Controller
 
         // Preserve client and zone from the original order for confirmation step
         // If current user is a seller, set the acting client for the cart
-        if ($user->hasAnyRole(['seller', 'supervisor'])) {
+        if ($user->isStaffSeller()) {
             session()->put('user_id', $order->user_id);
 
             // Ensure client zones are available (run SOAP-backed sync if necessary)

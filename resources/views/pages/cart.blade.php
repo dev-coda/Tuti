@@ -32,7 +32,13 @@
                 <div class='grid grid-cols-1 gap-5'>
             
                     {{ Aire::input('document', 'Documento Cliente: Escribe el NIT sin dígito de verificación')->groupClass('mb-0') }} 
-                    <p class="text-sm text-gray-500 -mt-2">La zona se asigna automaticamente usando la zona del vendedor.</p>
+                    <p class="text-sm text-gray-500 -mt-2">
+                        @if(auth()->user()?->coversAllZones())
+                            El cliente se busca por documento en todas las zonas y rutas.
+                        @else
+                            La zona se asigna automaticamente usando la zona del vendedor.
+                        @endif
+                    </p>
                 </div>
 
             <div class="flex items-center  mt-4">

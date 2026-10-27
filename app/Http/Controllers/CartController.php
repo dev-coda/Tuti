@@ -144,7 +144,7 @@ class CartController extends Controller
 
         $set_user = false;
         $client = null;
-        if ($user->hasAnyRole(['seller', 'supervisor'])) {
+        if ($user->isStaffSeller()) {
             $user_id = session()->get('user_id');
             $set_user = true;
             if ($user_id) {
@@ -612,7 +612,7 @@ class CartController extends Controller
             if (! empty($validCoupons)) {
                 $user = auth()->user();
                 $targetUser = $user;
-                if ($user && $user->hasAnyRole(['seller', 'supervisor'])) {
+                if ($user && $user->isStaffSeller()) {
                     $clientId = session()->get('user_id');
                     $targetUser = $clientId ? User::find($clientId) : $user;
                 }
@@ -733,7 +733,7 @@ class CartController extends Controller
         $user_id = $user->id;
         $actingUser = $user;
 
-        if ($user->hasAnyRole(['seller', 'supervisor'])) {
+        if ($user->isStaffSeller()) {
             $seller_id = $user->id;
             $user_id = session()->get('user_id');
             $actingUser = User::find($user_id) ?: $user;
@@ -827,7 +827,7 @@ class CartController extends Controller
                     'zone' => $zone->zone,
                     'route' => $zone->route,
                 ] : null,
-                'is_seller' => $user->hasAnyRole(['seller', 'supervisor']),
+                'is_seller' => $user->isStaffSeller(),
                 'session_user_id' => session()->get('user_id'),
             ]);
 
@@ -978,7 +978,7 @@ class CartController extends Controller
         // Sellers/supervisors placing orders (e.g. Mi Ruta) transmit immediately — they are
         // already on the visit. Waiting applies only to client self-service orders.
         // Use auth()->user() (the seller), not $actingUser (the client being ordered for).
-        $placedBySeller = auth()->check() && auth()->user()->hasAnyRole(['seller', 'supervisor']);
+        $placedBySeller = auth()->check() && auth()->user()->isStaffSeller();
 
         // Only set waiting status if force delivery is NOT active
         if ($delivery_method === Order::DELIVERY_METHOD_TRONEX && $zone && ! $forceDeliveryDate && $sellerVisitDate && ! $placedBySeller) {
@@ -1947,7 +1947,7 @@ class CartController extends Controller
         if (! $user) {
             return null;
         }
-        if ($user->hasAnyRole(['seller', 'supervisor'])) {
+        if ($user->isStaffSeller()) {
             $clientId = session()->get('user_id');
 
             return $clientId ? User::find($clientId) : $user;
@@ -2129,7 +2129,7 @@ class CartController extends Controller
         // Verify the order belongs to the current user or their client (for sellers)
         $user = auth()->user();
 
-        if ($user->hasAnyRole(['seller', 'supervisor'])) {
+        if ($user->isStaffSeller()) {
             // Sellers can view orders they created for clients
             if ($order->seller_id !== $user->id) {
                 abort(403, 'No autorizado para ver este pedido.');

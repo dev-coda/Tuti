@@ -6,14 +6,14 @@ Solo se **carga el contenido de la pestaña activa** (evita timeouts en supervis
 
 ## Matriz de pestañas
 
-| Pestaña (UI) | Clave `tab` | Cliente / tendero | Vendedor (`seller`) | Supervisor |
-|--------------|-------------|-------------------|---------------------|------------|
-| Pedidos / historial | `orders` | Sí | Sí | Sí |
-| Pedidos del día | `orders-today` | No | Sí (por defecto) | Sí |
-| Mi Ruta | `mi-ruta` | **No** (oculto) | Sí | No (usa Mis Zonas) |
-| Mis Zonas | `mis-rutas` | No | No | Sí (por defecto; p. ej. tras magic link) |
-| Cuenta | `account` | Sí | Sí | Sí |
-| Direcciones | `addresses` | Sí | **No** (oculto) | **No** (oculto) |
+| Pestaña (UI) | Clave `tab` | Cliente / tendero | Vendedor (`seller`) | Supervisor | Supernumerario |
+|--------------|-------------|-------------------|---------------------|------------|----------------|
+| Pedidos / historial | `orders` | Sí | Sí | Sí | Sí (todas las zonas) |
+| Pedidos del día | `orders-today` | No | Sí (por defecto) | Sí | Sí (por defecto) |
+| Mi Ruta | `mi-ruta` | **No** (oculto) | Sí | No (usa Mis Zonas) | Sí (elige zona y luego ruta) |
+| Mis Zonas | `mis-rutas` | No | No | Sí (por defecto; p. ej. tras magic link) | No |
+| Cuenta | `account` | Sí | Sí | Sí | Sí |
+| Direcciones | `addresses` | Sí | **No** (oculto) | **No** (oculto) | **No** (oculto) |
 
 ## Origen del pedido (badges)
 

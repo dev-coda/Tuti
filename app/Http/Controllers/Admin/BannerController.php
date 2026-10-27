@@ -48,6 +48,7 @@ class BannerController extends Controller
             'path' => $path,
             'url' => $request->url,
             'type_id' => $request->type_id,
+            'is_active' => $request->boolean('is_active'),
         ]);
 
         return to_route('banners.index');
@@ -85,6 +86,7 @@ class BannerController extends Controller
         }
 
         $data = $request->only('url', 'type_id');
+        $data['is_active'] = $request->boolean('is_active');
 
         if ($request->hasFile('file')) {
             $request->validate([
@@ -97,6 +99,18 @@ class BannerController extends Controller
         $banner->update($data);
 
         return to_route('banners.index');
+    }
+
+    /**
+     * Toggle banner visibility on the storefront.
+     */
+    public function toggle(Banner $banner)
+    {
+        $banner->update(['is_active' => ! $banner->is_active]);
+
+        $status = $banner->is_active ? 'activado' : 'desactivado';
+
+        return back()->with('success', "Banner {$status}");
     }
 
     /**

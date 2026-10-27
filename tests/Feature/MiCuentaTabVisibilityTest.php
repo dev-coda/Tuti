@@ -8,6 +8,7 @@ use function Pest\Laravel\actingAs;
 beforeEach(function () {
     Role::firstOrCreate(['name' => 'seller', 'guard_name' => 'web']);
     Role::firstOrCreate(['name' => 'supervisor', 'guard_name' => 'web']);
+    Role::firstOrCreate(['name' => 'supernumerario', 'guard_name' => 'web']);
 });
 
 it('hides the mi ruta tab from client mi cuenta', function () {
@@ -30,6 +31,19 @@ it('hides the direcciones tab from seller mi cuenta', function () {
         ->get(route('clients.orders.index'))
         ->assertOk()
         ->assertSee('data-tab-trigger="mi-ruta"', false)
+        ->assertSee('Mi Ruta')
+        ->assertDontSee('data-tab-trigger="addresses"', false);
+});
+
+it('shows seller tabs and hides direcciones for supernumerario mi cuenta', function () {
+    $staff = User::factory()->create();
+    $staff->assignRole('supernumerario');
+
+    actingAs($staff)
+        ->get(route('clients.orders.index'))
+        ->assertOk()
+        ->assertSee('data-tab-trigger="mi-ruta"', false)
+        ->assertSee('data-tab-trigger="orders-today"', false)
         ->assertSee('Mi Ruta')
         ->assertDontSee('data-tab-trigger="addresses"', false);
 });

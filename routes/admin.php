@@ -43,10 +43,11 @@ use App\Http\Controllers\Admin\RetentionRuleController;
 use App\Http\Controllers\Admin\DocumentationController;
 use App\Http\Controllers\Admin\ZoneRouteController;
 use App\Http\Controllers\Admin\SupervisorController;
+use App\Http\Controllers\Admin\SupernumerarioController;
 use Illuminate\Support\Facades\Route;
 
 
-Route::middleware(['auth', 'role:seller|supervisor'])->group(function () {
+Route::middleware(['auth', 'role:seller|supervisor|supernumerario'])->group(function () {
     Route::post('/setclient', [SellerController::class, 'setclient'])->name('seller.setclient');
     Route::post('/removeclient', [SellerController::class, 'removeclient'])->name('seller.removeclient');
     Route::get('/actualizacion-datos/{zone}/editar', [\App\Http\Controllers\ClientDataUpdateController::class, 'edit'])->name('client-data-updates.edit');
@@ -287,6 +288,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
         }
     })->name('test.email');
     Route::resource('banners', BannerController::class);
+    Route::post('banners/{banner}/toggle', [BannerController::class, 'toggle'])->name('banners.toggle');
     Route::resource('featured-products', FeaturedProductController::class)->only(['index', 'store', 'destroy']);
     Route::get('featured-products/search', [FeaturedProductController::class, 'search'])->name('featured-products.search');
     Route::post('featured-products/toggle-most-sold', [FeaturedProductController::class, 'toggleMostSold'])->name('featured-products.toggle-most-sold');
@@ -350,6 +352,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     });
     Route::resource('sellers', SellerController::class);
     Route::resource('supervisors', SupervisorController::class);
+    Route::resource('supernumerarios', SupernumerarioController::class);
 
 
     Route::resource('orders', OrderController::class);

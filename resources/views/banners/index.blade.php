@@ -38,9 +38,9 @@
                              <th scope="col" class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
                                 Url
                             </th>
-                           
-                            
-                          
+                            <th scope="col" class="p-4 text-xs font-medium text-left text-gray-500 uppercase ">
+                                Estado
+                            </th>
                             <th scope="col" class="p-4 text-xs font-medium text-left text-gray-500 uppercase "></th>
                         </tr>
                     </thead>
@@ -69,8 +69,13 @@
                             <td class="p-4 text-sm font-normal text-gray-500 whitespace-nowrap">
                                 {{ $banner->url }}
                             </td>
-                           
-
+                            <td class="p-4 text-sm font-normal whitespace-nowrap">
+                                @if($banner->is_active)
+                                    <span class="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">Activo</span>
+                                @else
+                                    <span class="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800">Inactivo</span>
+                                @endif
+                            </td>
                             <td class="p-4 space-x-2 whitespace-nowrap text-end">
                                 <a href="{{ route('banners.edit', $banner) }}"
                                     class="inline-flex items-center px-3 py-2 text-sm font-medium text-center text-white rounded-lg bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 ">
@@ -85,7 +90,13 @@
                                     </svg>
                                     Editar
                                 </a>
-                              
+                                <form action="{{ route('banners.toggle', $banner) }}" method="POST" class="inline">
+                                    @csrf
+                                    <button type="submit"
+                                        class="inline-flex items-center px-3 py-2 text-sm font-medium text-center text-white rounded-lg {{ $banner->is_active ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-green-600 hover:bg-green-700' }} focus:ring-4 focus:ring-yellow-300">
+                                        {{ $banner->is_active ? 'Desactivar' : 'Activar' }}
+                                    </button>
+                                </form>
                             </td>
                         </tr>
 

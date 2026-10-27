@@ -17,6 +17,7 @@
                 {{ Aire::input('url', "Link")->groupClass('col-span-6') }}
                 {{Aire::select([1=>'Principal', 2=>'Lateral', 3=>'Intermedio'], 'type_id', 'Posición')->value(request()->get('type_id', 1))->groupClass('col-span-6')}}
                 {{ Aire::file('file', "Banner")->groupClass('col-span-6') }}
+                {{ Aire::checkbox('is_active', 'Activo')->value(1)->groupClass('col-span-6') }}
                
                 <div class="col-span-6 justify-between  items-center mt-5 space-x-2 flex">
                     <p class="flex space-x-2 items-center">

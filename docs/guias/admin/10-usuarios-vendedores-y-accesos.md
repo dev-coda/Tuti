@@ -20,7 +20,12 @@ La plataforma Tuti maneja tres tipos principales de usuarios:
 - Visualización de órdenes de sus clientes
 - Reportes de ventas
 
-### 3. Cliente (`shopper`)
+### 3. Supernumerario (`supernumerario`)
+- Mismas herramientas de vendedor
+- Acceso a **todas** las zonas y rutas (sin asignación previa)
+- Admin: menú **Supernumerarios** (`supernumerarios`)
+
+### 4. Cliente (`shopper`)
 - Acceso al catálogo de productos
 - Realización de compras
 - Gestión de perfil

@@ -1,6 +1,6 @@
 # Guía: vendedor (rol `seller`) y supervisor
 
-Los usuarios con rol **vendedor** atienden clientes y pueden asociar la sesión a un **cliente concreto** para colocar pedidos en su nombre. Los **supervisores** cubren zonas/rutas asignadas y operan principalmente desde **Mi Cuenta** (no el panel admin completo).
+Los usuarios con rol **vendedor** atienden clientes y pueden asociar la sesión a un **cliente concreto** para colocar pedidos en su nombre. Los **supervisores** cubren zonas/rutas asignadas y operan principalmente desde **Mi Cuenta** (no el panel admin completo). Los **supernumerarios** son vendedores especiales: mismas herramientas de vendedor, pero con acceso a **todas** las zonas y rutas (admin: `supernumerarios`).
 
 > Rutas de sesión vendedor en [web.php](../../routes/web.php) / middleware `auth` + rol. Detalle de pestañas: [03 — Mi Cuenta](./03-mi-cuenta-pestanas-y-visibilidad.md).
 
@@ -16,7 +16,7 @@ Los usuarios con rol **vendedor** atienden clientes y pueden asociar la sesión 
 ## Mi Cuenta (operación diaria)
 
 - **Pedidos del día** — listado filtrable del día (zona amplia para seller/supervisor cuando aplica cobertura).
-- **Mi Ruta** (solo seller) — clientes de la ruta/día, búsqueda, agregar sucursal.
+- **Mi Ruta** (seller y supernumerario) — clientes de la ruta/día, búsqueda, agregar sucursal. El supernumerario elige primero la zona.
 - **Mis Zonas** (solo supervisor) — asignaciones ruta/zona y pedidos de esa cobertura.
 - **Sin pestaña Direcciones** para seller/supervisor.
 - Badges **RUTA** / **Autónomo** en listados de pedidos.

@@ -126,6 +126,12 @@
                             </a>
                         </li>
                         <li>
+                            <a href="{{ route('supernumerarios.index') }}">
+                                @svg('heroicon-o-star', 'w-6 h-6 text-gray-500')
+                                <span class="ml-3" sidebar-toggle-item>Supernumerarios</span>
+                            </a>
+                        </li>
+                        <li>
                             <a href="{{ route('admins.index') }}">
                                 @svg('heroicon-o-lock-closed', 'w-6 h-6 text-gray-500')
                                 <span class="ml-3" sidebar-toggle-item>Administradores</span>

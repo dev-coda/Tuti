@@ -73,6 +73,8 @@ class User extends Authenticatable
     const CLIENT_STATUS_CLIENTE = 'cliente';
     const CLIENT_STATUS_RECHAZADO = 'rechazado';
 
+    public const STAFF_SELLER_ROLES = ['seller', 'supervisor', 'supernumerario'];
+
     private const INTERNAL_EMAIL_SUFFIXES = [
         '@tuti',
         '@tuti.com',
@@ -158,17 +160,31 @@ class User extends Authenticatable
         return $this->hasMany(SupervisorRoute::class)->orderBy('zone')->orderBy('route');
     }
 
+    public function isStaffSeller(): bool
+    {
+        return $this->hasAnyRole(self::STAFF_SELLER_ROLES);
+    }
+
+    public function coversAllZones(): bool
+    {
+        return $this->hasRole('supernumerario');
+    }
+
     /**
      * Zone/route pairs this staff user covers.
      *
      * `route` is null when the assignment (or the legacy users.zone value)
      * covers every ruta in that zona. A zone-wide row subsumes specific
-     * routes in the same zona.
+     * routes in the same zona. Supernumerarios cover every zona.
      *
      * @return array<int, array{zone: string, route: ?string}>
      */
     public function supervisedCoverages(): array
     {
+        if ($this->coversAllZones()) {
+            return $this->allZoneCoverages();
+        }
+
         $coverages = [];
         $assignments = $this->supervisorRoutes;
         $legacyZone = trim((string) $this->zone);
@@ -243,6 +259,32 @@ class User extends Authenticatable
             ->all();
     }
 
+    /**
+     * @return array<int, array{zone: string, route: ?string}>
+     */
+    private function allZoneCoverages(): array
+    {
+        return ZoneRoute::query()
+            ->whereNotNull('zone')
+            ->where('zone', '!=', '')
+            ->distinct()
+            ->pluck('zone')
+            ->merge(
+                Zone::query()
+                    ->whereNotNull('zone')
+                    ->where('zone', '!=', '')
+                    ->distinct()
+                    ->pluck('zone')
+            )
+            ->map(fn ($zone) => trim((string) $zone))
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values()
+            ->map(fn ($zone) => ['zone' => $zone, 'route' => null])
+            ->all();
+    }
+
     public function favoriteProducts()
     {
         return $this->belongsToMany(Product::class, 'user_favorite_products')
@@ -314,7 +356,7 @@ class User extends Authenticatable
 
     public function requiresClientEmailUpdate(): bool
     {
-        if ($this->hasAnyRole(['admin', 'seller', 'supervisor'])) {
+        if ($this->hasAnyRole(['admin', ...self::STAFF_SELLER_ROLES])) {
             return false;
         }
 
