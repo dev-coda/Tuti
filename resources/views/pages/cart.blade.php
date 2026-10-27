@@ -125,7 +125,7 @@
                 <svg class="w-6 h-6 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path>
                 </svg>
-                Productos
+                Resumen del Pedido
                 <span class="text-sm font-normal text-gray-500">({{ count($products) }} {{ count($products) == 1 ? 'artículo' : 'artículos' }})</span>
             </h2>
         </div>
@@ -430,7 +430,7 @@
                 <svg class="w-6 h-6 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
                 </svg>
-                Resumen del pedido
+                Método de Envío
             </h2>
         </div>
 
@@ -515,16 +515,9 @@
                     {{-- Delivery Method Selection --}}
                     @if($shippingMethods->isNotEmpty())
                     <div>
-                        <label class="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-700">
-                            <svg class="h-5 w-5 flex-shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                            </svg>
-                            Método de envío
-                        </label>
                         @php
                             $expressFreeShippingMin = \App\Models\Setting::expressFreeShippingMinimum();
                             $expressFreeShippingEnabled = \App\Models\Setting::isExpressFreeShippingEnabled();
-                            $freeShippingMessage = \App\Models\Setting::getByKey('free_shipping_message');
                         @endphp
                         <div class="grid grid-cols-1 gap-3 {{ $shippingMethods->count() >= 2 ? 'md:grid-cols-2' : '' }}" id="delivery-options-grid">
                             @foreach($shippingMethods as $method)
@@ -532,8 +525,8 @@
                                 $isExpress = $method->code === 'express';
                                 $displayName = $isExpress ? 'Entrega Especial' : 'Entrega Standard';
                                 $displayDescription = $isExpress
-                                    ? 'Realiza tu pedido de lunes a viernes antes de las 5:00 pm para recibir en 48 horas. Sábado y domingo realiza pedido las 24 horas y recíbelo en 48 horas del siguiente día hábil. Aplica para ciudades principales.'
-                                    : 'Envío gratis.';
+                                    ? '48 h en ciudades principales. Lun–vie: pide antes de las 5:00 pm. Fin de semana: 48 h desde el siguiente día hábil.'
+                                    : 'Según tu ruta programada.';
                             @endphp
                             <button type="button"
                                 class="delivery-option relative w-full rounded-xl border-2 border-gray-200 bg-white p-4 text-left transition-all duration-200 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-500"
@@ -559,15 +552,11 @@
                                             <span class="mt-1 block text-xs text-green-700">
                                                 Envío gratis desde ${{ number_format($expressFreeShippingMin, 0, ',', '.') }}
                                             </span>
-                                        @elseif(!$isExpress && filled($freeShippingMessage))
-                                            <span class="mt-1 block text-xs text-green-700">{{ $freeShippingMessage }}</span>
                                         @endif
-                                        @if(!$isForceEnabled)
-                                            <span class="delivery-date mt-2 block text-xs font-medium text-gray-400">
-                                                Fecha de entrega:
-                                                <span id="delivery-date-{{ $method->code }}">Calculando...</span>
-                                            </span>
-                                        @endif
+                                        <span class="delivery-date mt-2 block text-xs font-medium text-gray-400">
+                                            Fecha Entrega:
+                                            <span id="delivery-date-{{ $method->code }}">Calculando...</span>
+                                        </span>
                                     </span>
                                 </div>
                                 <span class="delivery-check pointer-events-none absolute hidden h-5 w-5 items-center justify-center rounded-full border-2 border-gray-300 bg-white" style="top: 0.75rem; right: 0.75rem;" aria-hidden="true">
@@ -627,10 +616,10 @@
                                   class="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all resize-none"></textarea>
                     </div>
 
-                    {{-- Payable total (includes freight after method selection) --}}
+                    {{-- Payable total after observations, before CTA (includes freight) --}}
                     <div class="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-3" id="checkout-payable-section">
                         <div class="flex justify-between text-gray-700" id="cart-shipping-row">
-                            <span id="cart-shipping-label">Flete</span>
+                            <span id="cart-shipping-label">Valor del envío</span>
                             <span class="font-medium text-right" id="cart-shipping">
                                 <span class="line-through text-gray-400" id="cart-shipping-struck">$0</span>
                                 <span class="ml-2 font-semibold text-green-700" id="cart-shipping-gratis">GRATIS</span>
@@ -639,7 +628,7 @@
                         <p class="text-xs text-red-600 hidden" id="cart-shipping-error"></p>
                         <div class="pt-3 border-t border-gray-200">
                             <div class="flex justify-between items-center">
-                                <span class="text-lg font-bold uppercase tracking-wide text-gray-900">Total a pagar</span>
+                                <span class="text-lg font-bold uppercase tracking-wide text-gray-900">TOTAL A PAGAR</span>
                                 <span class="text-2xl font-bold text-orange-600" id="checkout-total-payable">${{currency($finalTotal)}}</span>
                             </div>
                         </div>
@@ -915,9 +904,9 @@
 
             if (shippingLabelEl) {
                 if (loading) {
-                    shippingLabelEl.textContent = 'Flete (cotizando…)';
+                    shippingLabelEl.textContent = 'Valor del envío (cotizando…)';
                 } else {
-                    shippingLabelEl.textContent = 'Flete';
+                    shippingLabelEl.textContent = 'Valor del envío';
                 }
             }
 
@@ -1226,33 +1215,42 @@
         }
         
         function fetchDeliveryDate(method) {
-            // Skip fetching delivery dates if force delivery date is enabled
-            const forceDeliveryEnabled = {{ $isForceEnabled ? 'true' : 'false' }};
-            if (forceDeliveryEnabled) {
-                return; // Don't fetch or display delivery dates when force is active
-            }
-            
             const zoneId = zoneSelect ? zoneSelect.value : null;
             let url = `/api/delivery-date/${method}`;
             if (zoneId) {
                 url += `?zone_id=${zoneId}`;
             }
-            
+
+            const dateElement = document.getElementById(`delivery-date-${method}`);
+            if (dateElement) {
+                dateElement.textContent = 'Calculando...';
+            }
+
             fetch(url)
                 .then(response => response.json())
                 .then(data => {
-                    const dateElement = document.getElementById(`delivery-date-${method}`);
                     if (dateElement && data.date) {
                         dateElement.textContent = data.date;
                     }
                 })
                 .catch(error => {
                     console.error('Error fetching delivery date:', error);
-                    const dateElement = document.getElementById(`delivery-date-${method}`);
                     if (dateElement) {
                         dateElement.textContent = 'Error al calcular fecha';
                     }
                 });
+        }
+
+        function refreshVisibleDeliveryDates() {
+            deliveryOptions.forEach((option) => {
+                if (option.disabled || option.classList.contains('hidden')) {
+                    return;
+                }
+                const code = option.getAttribute('data-method');
+                if (code) {
+                    fetchDeliveryDate(code);
+                }
+            });
         }
         
         function getSelectedZoneShippingFlags() {
@@ -1335,6 +1333,7 @@
             zoneSelect.addEventListener('change', function() {
                 syncCheckoutSucursalCode();
                 syncZoneShippingMethods();
+                refreshVisibleDeliveryDates();
             });
         }
 
@@ -1345,9 +1344,7 @@
         // Initialize (only methods shown in checkout — no hard-coded express when 48h is off)
         if (shippingMethodCodes.length) {
             syncZoneShippingMethods(shippingMethodCodes[0]);
-            shippingMethodCodes.forEach(function(code) {
-                fetchDeliveryDate(code);
-            });
+            refreshVisibleDeliveryDates();
         } else {
             setShippingAmount(0, { freeShipping: true });
         }

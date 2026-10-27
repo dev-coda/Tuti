@@ -50,9 +50,15 @@ Agrupa **páginas fijas e informativas**, **contenido dinámico** por *slug*, **
 
 - *Resource* `retentions` bajo nombres `admin.retentions.*` (parámetros legales / retención en *facturación* según negocio; revisar nombres de *fields* en formulario *admin*).
 
-## Campañas (configuración agregada)
+## Campañas (hub de ajustes comerciales)
 
-- Prefijo `admin.campaigns` — *index* de campañas, `POST` de **ajustes** (activar ventana, mensajes, integración con módulo comercial, según implementación *CampaignController*).
+- Prefijo `admin.campaigns` — `CampaignController`.
+- **No** es un CRUD de “campañas” con ventana/mensajes sueltos: es un **panel** con estadísticas rápidas y **ajustes**:
+  - Etiqueta automática **NUEVO** (`auto_tag_nuevo_enabled`)
+  - Etiqueta automática **DESCUENTO** (`auto_tag_descuento_enabled`)
+  - Usar productos más vendidos en destacados (`use_most_sold_products`)
+  - Título de la sección de productos destacados (`featured_products_section_title`)
+- Relacionado: módulos `featured-products` / `featured-categories` y tags del catálogo.
 
 ## Plantillas de email
 
@@ -63,10 +69,10 @@ Agrupa **páginas fijas e informativas**, **contenido dinámico** por *slug*, **
 
 ## Relación con otras guías
 
-- [guia-tienda-y-compra.md](./guia-tienda-y-compra.md) — URLs públicas.
-- [catalogo-productos.md](./catalogo-productos.md) — productos, etiquetas.
-- [carrito-ordenes.md](./carrito-ordenes.md) — correos transaccionales de *orden* (si van por plantilla).
+- [b2b-tienda/01 — Visión general](../b2b-tienda/01-vision-general-rutas-y-flujos.md) — URLs públicas.
+- [01 — Catálogo](./01-gestion-de-catalogo-producto-y-medios.md) — productos, etiquetas.
+- [04 — Carrito (b2b)](../b2b-tienda/04-carrito-checkout-y-ordenes.md) — correos transaccionales de orden.
 
 ---
 
-**Revisado:** Abril 2026
+**Revisado:** septiembre 2026

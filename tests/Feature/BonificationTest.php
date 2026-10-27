@@ -732,7 +732,10 @@ it('blocks the order when stock cannot cover all gifted items involved', functio
     ]);
 
     $response->assertSessionHas('error');
-    expect((string) session('error'))->toContain('Inventario insuficiente');
+    expect((string) session('error'))
+        ->toContain('No se puede aplicar la bonificación')
+        ->toContain('Gift constrained')
+        ->toContain('mínimo global');
 
     expect(\App\Models\Order::query()->count())->toBe(0);
 
@@ -1250,7 +1253,9 @@ it('blocks the order when the selected variation stock cannot cover the bonifica
     ]);
 
     $response->assertSessionHas('error');
-    expect((string) session('error'))->toContain('Inventario insuficiente');
+    expect((string) session('error'))
+        ->toContain('No se puede aplicar la bonificación')
+        ->toContain('Gift parent abundant');
 
     expect(Order::query()->count())->toBe(0);
 

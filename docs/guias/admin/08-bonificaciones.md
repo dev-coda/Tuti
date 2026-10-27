@@ -253,16 +253,15 @@ Las bonificaciones se envían en una orden separada al ERP:
 
 ## 📊 Reportes y Análisis
 
-### Bonificaciones Aplicadas
+### Bonificaciones en ventas por proveedor
 
-- Panel Admin → Reportes → Bonificaciones
-- Muestra bonificaciones aplicadas por período
-- Incluye cantidad y valor
+- Panel Admin → Reportes → **Ventas por proveedor** (`admin.reports.vendor-sales`)
+- La exportación en cola incluye hoja(s) de **bonificaciones / obsequios** del periodo
+- Ver [16 — Reportes](./16-reportes-kpi-y-exportes.md)
 
 ### Productos Más Bonificados
 
-- Lista de productos que más generan bonificaciones
-- Útil para análisis de promociones
+- Análisis operativo a partir de exports / KPI según disponibilidad en el build; no hay un menú separado obligatorio “Bonificaciones” en reportes más allá del export de proveedor y datos en órdenes.
 
 ## ⚠️ Consideraciones Importantes
 
@@ -274,9 +273,23 @@ Las bonificaciones se envían en una orden separada al ERP:
 
 ### Bonificaciones y Inventario
 
-- Las bonificaciones también consumen inventario
-- Se valida disponibilidad antes de aplicar
-- Se decrementa stock al procesar orden
+- Las bonificaciones también consumen inventario del **producto de regalo** (no solo del comprado)
+- Se valida disponibilidad **antes** de crear la orden (pre-chequeo) y otra vez al descontar stock
+- Se decrementa stock al procesar la orden
+- Si el carrito ya reserva unidades del mismo SKU/variación de regalo, el sistema lo tiene en cuenta
+
+### Mensajes de error en checkout (soporte)
+
+Los fallos de stock de **obsequio** ya no se confunden con escasez de la línea pagada. El mensaje en español suele incluir:
+
+- Nombre del **producto de regalo** (y variación, si aplica)
+- Unidades solicitadas como obsequio vs. disponibles en la zona/bodega
+- El **piso** que bloquea: *stock de seguridad del producto* o *mínimo global de inventario*
+- Si el carrito ya reservó unidades del mismo regalo, una nota adicional
+
+Ejemplo de interpretación: «Inventario insuficiente para entregar la bonificación de …» → revisar stock del **regalo**, no del disparador.
+
+Los fallos de línea **pagada** también nombran disponibles, solicitadas y el piso aplicable.
 
 ### Bonificaciones Inactivas
 
@@ -292,7 +305,7 @@ Sí, un producto puede tener múltiples bonificaciones. Se aplican todas si se c
 
 ### ¿Las bonificaciones se acumulan con descuentos?
 
-Depende de la configuración. Si `allow_discounts = true`, sí. Si `allow_discounts = false`, se bloquean todos los descuentos.
+Depende de la configuración. Si `allow_discounts = true`, sí. Si `allow_discounts = false`, se bloquean todos los descuentos (incluye cupones).
 
 ### ¿Qué pasa si cambio una bonificación?
 
@@ -300,9 +313,13 @@ Los cambios afectan nuevas órdenes. Las órdenes existentes mantienen las bonif
 
 ### ¿Las bonificaciones consumen inventario?
 
-Sí, las bonificaciones también consumen inventario. Se valida disponibilidad antes de aplicar.
+Sí. El checkout valida el stock del producto de regalo (con stock de seguridad / mínimo global) antes y durante el pedido.
 
 ### ¿Puedo bonificar un producto diferente?
 
 Sí, puedes configurar que al comprar el Producto A, se bonifique el Producto B.
+
+### ¿Por qué el cliente ve un error de bonificación si el producto comprado sí tiene stock?
+
+Porque el bloqueo es del **obsequio**. Revisá inventario del producto regalado en la bodega de la zona del cliente.
 
