@@ -722,6 +722,60 @@ class SettingController extends Controller
     }
 
     /**
+     * Heuristic weights and overorder target for the seller suggested order.
+     */
+    public function pedidoSugerido()
+    {
+        $config = app(\App\Services\SuggestedOrderService::class)->config();
+
+        return view('settings.pedido-sugerido', compact('config'));
+    }
+
+    public function updatePedidoSugerido(Request $request)
+    {
+        $validated = $request->validate([
+            'enabled' => 'nullable|boolean',
+            'weight_history' => 'required|integer|min:0|max:100',
+            'weight_together' => 'required|integer|min:0|max:100',
+            'weight_bestseller' => 'required|integer|min:0|max:100',
+            'overorder_percent' => 'required|numeric|min:0|max:200',
+            'history_limit' => 'required|integer|min:1|max:50',
+            'max_lines' => 'required|integer|min:1|max:40',
+        ]);
+
+        $history = (int) $validated['weight_history'];
+        $together = (int) $validated['weight_together'];
+        $bestseller = (int) $validated['weight_bestseller'];
+        if ($history + $together + $bestseller < 1) {
+            return back()
+                ->withErrors(['weight_history' => 'Asigna prioridad a por lo menos una heurística.'])
+                ->withInput();
+        }
+
+        $enabled = $request->boolean('enabled') ? '1' : '0';
+        $values = [
+            'suggested_order_enabled' => [$enabled, 'Pedido sugerido activo'],
+            'suggested_order_weight_history' => [(string) $history, 'Pedido sugerido: prioridad pedidos anteriores'],
+            'suggested_order_weight_together' => [(string) $together, 'Pedido sugerido: prioridad comprados juntos'],
+            'suggested_order_weight_bestseller' => [(string) $bestseller, 'Pedido sugerido: prioridad más vendidos'],
+            'suggested_order_overorder_percent' => [(string) $validated['overorder_percent'], 'Pedido sugerido: sobrepedido (%)'],
+            'suggested_order_history_limit' => [(string) $validated['history_limit'], 'Pedido sugerido: pedidos de historial'],
+            'suggested_order_max_lines' => [(string) $validated['max_lines'], 'Pedido sugerido: máximo de productos'],
+        ];
+
+        foreach ($values as $key => [$value, $name]) {
+            Setting::updateOrCreate(
+                ['key' => $key],
+                ['name' => $name, 'value' => $value, 'show' => false]
+            );
+        }
+
+        \App\Services\SuggestedOrderService::forgetConfigCache();
+
+        return back()->with('success', 'Configuración de pedido sugerido actualizada.');
+    }
+
+    /**
      * Process all waiting orders created in the last 24 hours
      */
     public function processWaitingOrders(Request $request)

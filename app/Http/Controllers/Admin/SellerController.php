@@ -131,6 +131,7 @@ class SellerController extends Controller
 
                 session()->put('user_id', $user->id);
                 session()->forget('zone_id');
+                session()->forget('suggested_order');
 
                 return to_route('cart');
             } else {
@@ -142,6 +143,7 @@ class SellerController extends Controller
 
                 session()->put('user_id', $user->id);
                 session()->forget('zone_id');
+                session()->forget('suggested_order');
 
                 return to_route('cart')->with(
                     'success',
@@ -158,6 +160,7 @@ class SellerController extends Controller
 
             session()->put('user_id', $user->id);
             session()->forget('zone_id');
+            session()->forget('suggested_order');
 
             if ($user->isCliente()) {
                 return to_route('cart');
@@ -177,6 +180,7 @@ class SellerController extends Controller
     {
         session()->forget('user_id');
         session()->forget('zone_id');
+        session()->forget('suggested_order');
 
         return to_route('cart')->with('success', 'Cliente desvinculado');
     }

@@ -44,6 +44,7 @@ class OrderController extends Controller
         $requestedTab = (string) $request->input('tab', '');
         $defaultTab = $isSupervisor ? 'mis-rutas' : ($isSeller ? 'orders-today' : 'orders');
         $activeTab = in_array($requestedTab, $availableTabs, true) ? $requestedTab : $defaultTab;
+        $clientFilter = $this->authorizeClientHistory($request, $user, $isSeller, $activeTab);
 
         $recentFilters = $this->extractOrderFilters($request);
         $todayFilters = $this->extractOrderFilters($request, 'today_');
@@ -94,7 +95,8 @@ class OrderController extends Controller
             'todayFilters',
             'myRoute',
             'myRoutes',
-            'activeTab'
+            'activeTab',
+            'clientFilter'
         ));
     }
 
@@ -342,6 +344,7 @@ class OrderController extends Controller
             $filePrefix = 'pedidos-del-dia';
         } else {
             $filters = $this->extractOrderFilters($request);
+            $this->authorizeClientHistory($request, $user, $isSeller, 'orders');
         }
 
         $orders = $this->buildOrdersExportQuery($user, $filters, $request, $scope)
@@ -497,6 +500,9 @@ class OrderController extends Controller
             })
             ->when($filters['status_id'] !== '', function ($query) use ($filters) {
                 $query->where('status_id', (int) $filters['status_id']);
+            })
+            ->when($user->isStaffSeller() && ($filters['client_id'] ?? '') !== '', function ($query) use ($filters) {
+                $query->where('user_id', (int) $filters['client_id']);
             });
     }
 
@@ -534,11 +540,29 @@ class OrderController extends Controller
             })
             ->when($filters['status_id'] !== '', function ($query) use ($filters) {
                 $query->where('status_id', (int) $filters['status_id']);
+            })
+            ->when($user->isStaffSeller() && ($filters['client_id'] ?? '') !== '', function ($query) use ($filters) {
+                $query->where('user_id', (int) $filters['client_id']);
             });
     }
 
     /**
-     * @return array{q:string,order_id:string,from_date:string,to_date:string,status_id:string}
+     * Seller view of one client's past orders. Other tabs ignore the parameter.
+     */
+    private function authorizeClientHistory(Request $request, User $user, bool $isSeller, string $tab): ?User
+    {
+        if (! $isSeller || $tab !== 'orders' || ! $request->filled('client_id')) {
+            return null;
+        }
+
+        $client = User::query()->find((int) $request->input('client_id'));
+        abort_unless($client && $user->canServeClient($client), 403);
+
+        return $client;
+    }
+
+    /**
+     * @return array{q:string,order_id:string,from_date:string,to_date:string,status_id:string,client_id:string}
      */
     private function extractOrderFilters(Request $request, string $prefix = ''): array
     {
@@ -548,6 +572,7 @@ class OrderController extends Controller
             'from_date' => trim((string) $request->input($prefix . 'from_date', '')),
             'to_date' => trim((string) $request->input($prefix . 'to_date', '')),
             'status_id' => trim((string) $request->input($prefix . 'status_id', '')),
+            'client_id' => trim((string) $request->input($prefix . 'client_id', '')),
         ];
     }
 

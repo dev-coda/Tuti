@@ -198,6 +198,8 @@
                         'statuses' => $statuses,
                         'sellerDashToday' => $sellerDashToday,
                         'filters' => $recentFilters,
+                        'clientFilter' => $clientFilter ?? null,
+                        'emptyMessage' => !empty($clientFilter) ? 'Este cliente no tiene pedidos anteriores.' : 'No tienes pedidos recientes.',
                         'queryKeys' => [
                             'q' => 'q',
                             'order_id' => 'order_id',
@@ -205,7 +207,6 @@
                             'to_date' => 'to_date',
                             'status_id' => 'status_id',
                         ],
-                        'emptyMessage' => 'No tienes pedidos recientes.',
                     ])
                 @endif
             </div>

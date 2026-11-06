@@ -120,6 +120,44 @@
     {{-- Page Title --}}
     <h1 class="text-3xl font-bold text-gray-900 mb-8">Tu Carrito</h1>
 
+    @if(!empty($client) && !empty($suggestedOrderEnabled))
+        <div class="mb-6 p-4 bg-orange-50 border border-orange-200 rounded-xl" @if(!empty($suggestedOrder)) data-suggested-order-banner @endif>
+            <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                <div>
+                    <p class="text-sm font-semibold text-orange-900">Pedido sugerido</p>
+                    @if(!empty($suggestedOrder) && (int) ($suggestedOrder['order_count'] ?? 0) > 0)
+                        <p class="text-sm text-orange-800 mt-1">
+                            Basado en {{ $suggestedOrder['order_count'] }} {{ $suggestedOrder['order_count'] === 1 ? 'pedido anterior' : 'pedidos anteriores' }}.
+                            Ticket promedio ${{ number_format($suggestedOrder['average_order'], 0, ',', '.') }}.
+                            Con {{ 0 + $suggestedOrder['overorder_percent'] }}% de sobrepedido el objetivo es ${{ number_format($suggestedOrder['target'], 0, ',', '.') }}.
+                        </p>
+                    @elseif(!empty($suggestedOrder))
+                        <p class="text-sm text-orange-800 mt-1">
+                            Este cliente no tiene pedidos anteriores. La sugerencia usa los productos más vendidos.
+                        </p>
+                    @else
+                        <p class="text-sm text-orange-800 mt-1">
+                            Arma el pedido con el historial de {{ $client->business_name ?: $client->name }}, los productos que se compran juntos y los más vendidos.
+                        </p>
+                    @endif
+                </div>
+                <div class="flex flex-col sm:flex-row gap-2">
+                    <a href="{{ route('clients.orders.index', ['tab' => 'orders', 'client_id' => $client->id]) }}"
+                       class="px-3 py-2 border border-orange-300 text-orange-800 text-xs font-medium rounded-lg hover:bg-orange-100 transition-colors text-center">
+                        Pedidos anteriores
+                    </a>
+                    <form method="POST" action="{{ route('clients.suggested-order.store', $client) }}">
+                        @csrf
+                        <button type="submit"
+                                class="w-full sm:w-auto px-3 py-2 bg-orange-600 text-white text-xs font-medium rounded-lg hover:bg-orange-700 transition-colors">
+                            {{ !empty($suggestedOrder) ? 'Volver a calcular' : 'Cargar pedido sugerido' }}
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    @endif
+
     {{-- ============================================= --}}
     {{-- CARD 1: Products, Coupon & Total --}}
     {{-- ============================================= --}}

@@ -8,6 +8,7 @@
     $searchTerm = $myRoute['searchTerm'] ?? '';
     $routeClients = $myRoute['clients'] ?? null;
     $todayLabel = $myRoute['todayLabel'] ?? '';
+    $suggestedOrderEnabled = app(\App\Services\SuggestedOrderService::class)->config()['enabled'];
 @endphp
 
 <div class="space-y-6">
@@ -183,6 +184,21 @@
                                    class="px-3 py-2 border border-orange-300 text-orange-700 text-xs font-medium rounded-lg hover:bg-orange-50 transition-colors text-center">
                                     Agregar sucursal
                                 </a>
+                                <a href="{{ route('clients.orders.index', array_filter(['tab' => 'orders', 'client_id' => $client->id, 'return_ruta' => $selectedRoute, 'return_zona' => $coversAllZones ? $sellerZone : null, 'ruta_q' => $searchTerm !== '' ? $searchTerm : null])) }}"
+                                   data-client-orders
+                                   class="px-3 py-2 border border-gray-300 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-50 transition-colors text-center">
+                                    Pedidos anteriores
+                                </a>
+                                @if($suggestedOrderEnabled)
+                                <form method="POST" action="{{ route('clients.suggested-order.store', $client) }}">
+                                    @csrf
+                                    <button type="submit"
+                                            data-suggested-order
+                                            class="w-full sm:w-auto px-3 py-2 border border-orange-300 text-orange-700 text-xs font-medium rounded-lg hover:bg-orange-50 transition-colors">
+                                        Pedido sugerido
+                                    </button>
+                                </form>
+                                @endif
                                 <form method="POST" action="{{ route('seller.setclient') }}">
                                     @csrf
                                     <input type="hidden" name="document" value="{{ $client->document }}">

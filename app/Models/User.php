@@ -171,6 +171,38 @@ class User extends Authenticatable
     }
 
     /**
+     * Whether this staff seller can sell to the client from Mi Cuenta.
+     * Zone-wide coverage matches any ruta; a locked ruta must match.
+     */
+    public function canServeClient(User $client): bool
+    {
+        if (! $this->isStaffSeller()) {
+            return false;
+        }
+
+        if ($this->coversAllZones()) {
+            return true;
+        }
+
+        $client->loadMissing('zones');
+
+        foreach ($client->zones as $zone) {
+            $zoneCode = trim((string) $zone->zone);
+            $route = trim((string) $zone->route);
+            foreach ($this->supervisedCoverages() as $coverage) {
+                if ($coverage['zone'] !== $zoneCode) {
+                    continue;
+                }
+                if ($coverage['route'] === null || $coverage['route'] === '' || $coverage['route'] === $route) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Zone/route pairs this staff user covers.
      *
      * `route` is null when the assignment (or the legacy users.zone value)

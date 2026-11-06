@@ -104,6 +104,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/ordenes/export', [OrderController::class, 'export'])->name('clients.orders.export');
     Route::get('/ordenes/{order}', [OrderController::class, 'show'])->name('clients.orders.show');
     Route::post('/ordenes/{order}/reorder', [OrderController::class, 'reorder'])->name('clients.orders.reorder');
+    Route::post('/ordenes/pedido-sugerido/{user}', [\App\Http\Controllers\SuggestedOrderController::class, 'store'])->name('clients.suggested-order.store');
     
     // Seller mini-dashboard API
     Route::get('/api/seller-dashboard', [OrderController::class, 'sellerDashboard'])->name('api.seller.dashboard');

@@ -35,7 +35,8 @@
                                  str_ends_with($key, '.inventory-logs') ||
                                  str_ends_with($key, '.fv-integration') ||
                                  str_ends_with($key, '.zone-warehouses') ||
-                                 str_ends_with($key, '.ventas'))
+                                 str_ends_with($key, '.ventas') ||
+                                 str_ends_with($key, '.pedido-sugerido'))
                         ? $key 
                         : $key . '.index';
                 @endphp

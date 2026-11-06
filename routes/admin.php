@@ -188,6 +188,8 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::post('settings/mailer-config', [SettingController::class, 'updateMailer'])->name('settings.mailer.update');
     Route::get('settings/ventas', [SettingController::class, 'ventas'])->name('settings.ventas');
     Route::post('settings/ventas', [SettingController::class, 'updateVentas'])->name('settings.ventas.update');
+    Route::get('settings/pedido-sugerido', [SettingController::class, 'pedidoSugerido'])->name('settings.pedido-sugerido');
+    Route::post('settings/pedido-sugerido', [SettingController::class, 'updatePedidoSugerido'])->name('settings.pedido-sugerido.update');
     Route::get('settings/fv-integration', [FvIntegrationController::class, 'index'])->name('settings.fv-integration');
     Route::post('settings/fv-integration/test', [FvIntegrationController::class, 'testConnection'])->name('settings.fv-integration.test');
 

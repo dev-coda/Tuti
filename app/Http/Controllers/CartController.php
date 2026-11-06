@@ -408,7 +408,15 @@ class CartController extends Controller
                 ->forUser($targetUser);
         }
 
-        $context = compact('products', 'alertVendors', 'vendorDiscountAlerts', 'zoneOptions', 'set_user', 'client', 'alertTotal', 'min_amount', 'total_cart', 'has_orders', 'appliedCoupon', 'couponDiscount', 'couponMessage', 'shippingMethods', 'cartRetentions', 'bonificationPreview', 'cityShippingFlags', 'isForceEnabled', 'cartHasBonifications', 'expressVisibilityDebug');
+        $suggestedOrderConfig = app(\App\Services\SuggestedOrderService::class)->config();
+        $suggestedOrderEnabled = $suggestedOrderConfig['enabled'];
+        $suggestedOrderMeta = session('suggested_order');
+        $suggestedOrder = null;
+        if ($client && is_array($suggestedOrderMeta) && (int) ($suggestedOrderMeta['client_id'] ?? 0) === (int) $client->id) {
+            $suggestedOrder = $suggestedOrderMeta;
+        }
+
+        $context = compact('products', 'alertVendors', 'vendorDiscountAlerts', 'zoneOptions', 'set_user', 'client', 'alertTotal', 'min_amount', 'total_cart', 'has_orders', 'appliedCoupon', 'couponDiscount', 'couponMessage', 'shippingMethods', 'cartRetentions', 'bonificationPreview', 'cityShippingFlags', 'isForceEnabled', 'cartHasBonifications', 'expressVisibilityDebug', 'suggestedOrder', 'suggestedOrderEnabled');
 
         return view('pages.cart', $context);
     }

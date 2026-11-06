@@ -84,6 +84,7 @@
                             'settings.fv-integration'=>'Integración FV',
                             'package-types.index'=>'Tamaños de Empaque',
                             'settings.ventas'=>'Ventas',
+                            'settings.pedido-sugerido'=>'Pedido sugerido',
                             'holidays.index'=>'Festivos y Sabados',
                             'delivery-calendars.index'=>'Calendario de Entrega',
                             'route-cycles.index'=>'Ciclos de Rutas',
