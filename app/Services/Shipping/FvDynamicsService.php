@@ -170,16 +170,18 @@ class FvDynamicsService
 
         $linesXml = $this->buildLinesXml($order, $warehouse);
 
-        // Element names/order match the Dynamics CreateSalesOrder demo envelope.
-        // Config defaults cover generic values that never change; order/user data
-        // wins when present, otherwise demo placeholders (., 9999, etc.).
+        // Element names and order match the Dynamics CreateSalesOrder data contract.
+        // transportadora sits after third (before vendor). Order/user data wins
+        // when present; otherwise the contract placeholders (., 9999, NEXT, etc.).
+        // numInvoice stays NEXT. SOAP_ORDER_CONSECUTIVE_PREFIX applies to detail
+        // and the third token of observationsCust, not to numInvoice.
         $fields = [
             'TRO_E_obsequio' => '0',
             'approval' => (string) config('services.fv.approval'),
             'businessUnit' => (string) config('services.fv.business_unit'),
             'costCenter' => (string) config('services.fv.cost_center'),
             'custId' => $custId,
-            'dateInvoice' => now()->format('Y-m-d'),
+            'dateInvoice' => ($order->created_at ?? now())->format('Y-m-d'),
             'deliveryMode' => (string) config('services.fv.delivery_mode'),
             'detail' => $soapConsecutive,
             'docType' => (string) config('services.fv.doc_type'),
@@ -193,7 +195,6 @@ class FvDynamicsService
             'observationsCust' => $observationsCust,
             'orderType' => (string) config('services.fv.order_type'),
             'origenventa' => (string) config('services.fv.origen_venta'),
-            'transportadora' => (string) config('services.fv.transportadora'),
             'phone' => $this->valueOrPlaceholder($user?->mobile_phone ?: $user?->phone),
             'resource' => $this->valueOrDefault(config('services.fv.resource'), '9999'),
             'salesResponsible' => $this->valueOrDefault(
@@ -203,6 +204,7 @@ class FvDynamicsService
             'shapeDispatch' => '',
             'supervisor' => $this->valueOrDefault(config('services.fv.supervisor'), '9999'),
             'third' => $custId,
+            'transportadora' => $this->resolveTransportadora($order),
             'vendor' => $this->valueOrDefault(config('services.fv.vendor'), '9999'),
             'warehouse' => $warehouse,
         ];
@@ -379,6 +381,19 @@ class FvDynamicsService
         }
 
         return ['code' => $code, 'zone' => $zone];
+    }
+
+    /**
+     * COORDINADORA only when this order is actually shipped by that carrier.
+     * Any other provider leaves the element present but empty.
+     */
+    private function resolveTransportadora(Order $order): string
+    {
+        if ($order->shipping_provider !== Order::SHIPPING_PROVIDER_COORDINADORA) {
+            return '';
+        }
+
+        return $this->valueOrDefault(config('services.fv.transportadora'), 'COORDINADORA');
     }
 
     private function resolveWarehouse(string $zoneNumber): string
