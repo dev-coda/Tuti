@@ -74,18 +74,8 @@
 
         <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
             <div class="flex flex-col sm:flex-row">
-                @php $activeTab = $activeTab ?? (!empty($isSupervisor) ? 'mis-rutas' : (!empty($isSeller) ? 'orders-today' : 'orders')); @endphp
-                @if(!empty($isSeller))
-                <button type="button" data-tab-trigger="orders-today"
-                        class="flex-1 px-4 py-4 text-sm font-semibold {{ $activeTab === 'orders-today' ? 'text-orange-600 bg-orange-50 border-b-2 border-orange-500' : 'text-gray-700 hover:bg-gray-50 border-b border-gray-200' }}">
-                    <div class="flex items-center justify-center gap-2">
-                        <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10m-12 9h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v11a2 2 0 002 2z" />
-                        </svg>
-                        Pedidos del dia
-                    </div>
-                </button>
-                @if(empty($isSupervisor))
+                @php $activeTab = $activeTab ?? (!empty($isSupervisor) ? 'mis-rutas' : 'orders'); @endphp
+                @if(!empty($isSeller) && empty($isSupervisor))
                 <button type="button" data-tab-trigger="mi-ruta"
                         class="flex-1 px-4 py-4 text-sm font-semibold {{ $activeTab === 'mi-ruta' ? 'text-orange-600 bg-orange-50 border-b-2 border-orange-500' : 'text-gray-700 hover:bg-gray-50 border-b border-gray-200' }}">
                     <div class="flex items-center justify-center gap-2">
@@ -95,7 +85,6 @@
                         Mi Ruta
                     </div>
                 </button>
-                @endif
                 @endif
                 @if(!empty($isSupervisor))
                 <button type="button" data-tab-trigger="mis-rutas"
@@ -115,7 +104,7 @@
                         <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                         </svg>
-                        Pedidos Recientes
+                        {{ !empty($isSeller) ? 'Pedidos' : 'Pedidos Recientes' }}
                     </div>
                 </button>
                 <button type="button" data-tab-trigger="account"
@@ -143,37 +132,12 @@
         </div>
 
         <div class="mt-6">
-            @if(!empty($isSeller))
-            <div data-tab-panel="orders-today" class="{{ ($activeTab ?? '') === 'orders-today' ? '' : 'hidden' }}">
-                @if($dailyOrders)
-                    @include('clients.orders.partials.orders-tab-panel', [
-                        'tabKey' => 'orders-today',
-                        'pageParam' => 'today_page',
-                        'showFilters' => false,
-                        'showOrigin' => true,
-                        'orders' => $dailyOrders,
-                        'statuses' => $statuses,
-                        'sellerDashToday' => $sellerDashToday,
-                        'filters' => $todayFilters,
-                        'queryKeys' => [
-                            'q' => 'today_q',
-                            'order_id' => 'today_order_id',
-                            'from_date' => 'today_from_date',
-                            'to_date' => 'today_to_date',
-                            'status_id' => 'today_status_id',
-                        ],
-                        'emptyMessage' => 'No tienes pedidos para el rango seleccionado.',
-                    ])
-                @endif
-            </div>
-
-            @if(empty($isSupervisor))
+            @if(!empty($isSeller) && empty($isSupervisor))
             <div data-tab-panel="mi-ruta" class="{{ ($activeTab ?? '') === 'mi-ruta' ? '' : 'hidden' }}">
                 @if($myRoute)
                     @include('clients.orders.partials.my-route-panel', ['myRoute' => $myRoute])
                 @endif
             </div>
-            @endif
             @endif
 
             @if(!empty($isSupervisor))
@@ -199,7 +163,11 @@
                         'sellerDashToday' => $sellerDashToday,
                         'filters' => $recentFilters,
                         'clientFilter' => $clientFilter ?? null,
-                        'emptyMessage' => !empty($clientFilter) ? 'Este cliente no tiene pedidos anteriores.' : 'No tienes pedidos recientes.',
+                        'emptyMessage' => !empty($clientFilter)
+                            ? 'Este cliente no tiene pedidos anteriores.'
+                            : ((($recentFilters['from_date'] ?? '') !== '' || ($recentFilters['to_date'] ?? '') !== '')
+                                ? 'No tienes pedidos para el rango seleccionado.'
+                                : 'No tienes pedidos recientes.'),
                         'queryKeys' => [
                             'q' => 'q',
                             'order_id' => 'order_id',
@@ -490,7 +458,8 @@
 
             function renderBuckets(buckets) {
                 catCards.innerHTML = '';
-                (buckets || []).forEach(function(b) {
+                const list = buckets || [];
+                list.forEach(function(b) {
                     const qty = b.quantity != null ? Number(b.quantity).toLocaleString('es-CO') : '0';
                     const card = document.createElement('div');
                     card.className = 'bg-white border border-gray-200 rounded-2xl shadow-sm p-4 flex flex-col items-center justify-center text-center';
@@ -500,6 +469,16 @@
                         '<p class="text-xs text-gray-500 mt-0.5">' + qty + ' uds</p>';
                     catCards.appendChild(card);
                 });
+
+                const total = list.reduce(function(sum, b) { return sum + Number(b.total || 0); }, 0);
+                const qty = list.reduce(function(sum, b) { return sum + Number(b.quantity || 0); }, 0);
+                const totalCard = document.createElement('div');
+                totalCard.className = 'col-span-2 sm:col-span-3 bg-orange-50 border border-orange-200 rounded-2xl shadow-sm p-4 flex flex-col items-center justify-center text-center';
+                totalCard.innerHTML =
+                    '<p class="text-xs font-medium text-orange-700 uppercase tracking-wide leading-tight mb-1">Total</p>' +
+                    '<p class="text-lg font-bold text-orange-700">' + currency(total) + '</p>' +
+                    '<p class="text-xs text-orange-700 mt-0.5">' + Number(qty).toLocaleString('es-CO') + ' uds</p>';
+                catCards.appendChild(totalCard);
             }
 
             function fetchDashboard() {

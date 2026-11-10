@@ -8,7 +8,7 @@
     <div class="w-full mb-1">
         <div class="mb-4">
             <h1 class="text-xl font-semibold text-gray-900 sm:text-2xl ">Supernumerarios</h1>
-            <p class="mt-1 text-sm text-gray-500">Vendedores especiales con acceso a todas las zonas y rutas.</p>
+            <p class="mt-1 text-sm text-gray-500">Vendedores especiales. Pueden cubrir todas las zonas o una sola.</p>
         </div>
         <div class="items-center justify-between block sm:flex md:divide-x md:divide-gray-100 ">
             <div class="flex items-center mb-4 sm:mb-0">
@@ -53,8 +53,8 @@
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200 ">
 
-                        <tr class="hover:bg-gray-100">
                         @foreach ($users as $staff)
+                        <tr class="hover:bg-gray-100">
                             <td class="p-4 text-sm font-normal text-gray-500 whitespace-nowrap">
                                 <a class="flex flex-col text-gray-900  hover:text-blue-500" href="{{ route('supernumerarios.edit', $staff) }}">
                                     <span class="text-base font-semibold ">
@@ -69,7 +69,7 @@
                             </td>
 
                             <td class="p-4 text-base  text-gray-900 whitespace-nowra">
-                                Todas las zonas y rutas
+                                {{ $staff->coversAllZones() ? 'Todas las zonas y rutas' : 'Zona '.($staff->zone ?: '—') }}
                             </td>
 
                             <td class="p-4 space-x-2 whitespace-nowrap text-end">

@@ -37,6 +37,27 @@
     </div>
 @endif
 
+@php
+    $showOrderRangeToggle = auth()->user()?->isStaffSeller() && empty($clientFilter) && ($tabKey ?? '') === 'orders';
+    $isAllOrders = request()->boolean('all');
+    $isTodayOrders = $showOrderRangeToggle
+        && ! $isAllOrders
+        && ($filters['from_date'] ?? '') === ($sellerDashToday ?? '')
+        && ($filters['to_date'] ?? '') === ($sellerDashToday ?? '');
+@endphp
+@if($showOrderRangeToggle)
+    <div class="mb-4 flex flex-wrap gap-2">
+        <a href="{{ route('clients.orders.index', ['tab' => 'orders']) }}"
+           class="px-3 py-1.5 text-xs font-medium rounded-lg border {{ $isTodayOrders ? 'border-orange-500 bg-orange-50 text-orange-700' : 'border-gray-300 text-gray-700 hover:bg-gray-50' }}">
+            Hoy
+        </a>
+        <a href="{{ route('clients.orders.index', ['tab' => 'orders', 'all' => 1]) }}"
+           class="px-3 py-1.5 text-xs font-medium rounded-lg border {{ $isAllOrders ? 'border-orange-500 bg-orange-50 text-orange-700' : 'border-gray-300 text-gray-700 hover:bg-gray-50' }}">
+            Todos
+        </a>
+    </div>
+@endif
+
 <div class="flex justify-end mb-4">
     <a href="{{ $exportUrl }}" data-orders-export class="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors">
         Descargar Excel
@@ -47,6 +68,9 @@
 <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-4 sm:p-6 mb-6">
     <form method="GET" action="{{ route('clients.orders.index') }}" data-orders-form data-tab="{{ $tabKey }}" data-page-param="{{ $pageParam }}">
         <input type="hidden" name="tab" value="{{ $tabKey }}">
+        @if(request()->boolean('all'))
+            <input type="hidden" name="all" value="1">
+        @endif
         @if(!empty($clientFilter))
             <input type="hidden" name="client_id" value="{{ $clientFilter->id }}">
             @if(request('return_ruta'))

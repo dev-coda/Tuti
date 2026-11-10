@@ -45,6 +45,7 @@ class User extends Authenticatable
         'tronex_migration_pending',
         'terms_accepted',
         'zone',
+        'covers_all_zones',
         // New fields from getRuteros API
         'mobile_phone',
         'whatsapp',
@@ -167,7 +168,98 @@ class User extends Authenticatable
 
     public function coversAllZones(): bool
     {
-        return $this->hasRole('supernumerario');
+        if (! $this->hasRole('supernumerario')) {
+            return false;
+        }
+
+        // Missing attribute keeps the historical behavior: the role covers every zone.
+        // Admins turn it off per user with covers_all_zones = false.
+        $flag = $this->getAttributes()['covers_all_zones'] ?? null;
+        if ($flag === null || $flag === '') {
+            return true;
+        }
+
+        return filter_var($flag, FILTER_VALIDATE_BOOLEAN);
+    }
+
+    /**
+     * Warehouse whose stock this user should see in the catalog.
+     *
+     * A mapped sales zone that is not Medellín wins. Medellín (MDTAT) is only
+     * used when the domicile city is Medellín or there is no other signal —
+     * a Cúcuta profile must not fall through to the Medellín default.
+     */
+    public function catalogBodegaCode(): ?string
+    {
+        $candidates = [];
+
+        if ($this->hasRole('supervisor')) {
+            $candidates[] = $this->bodegaFromZoneCodes($this->supervisorRoutes()->pluck('zone')->all());
+        }
+
+        if (! $this->isStaffSeller()) {
+            $candidates[] = $this->bodegaFromZoneCodes($this->zones()->pluck('zone')->all());
+        }
+
+        $ownZone = trim((string) $this->zone);
+        if ($ownZone !== '') {
+            $candidates[] = ZoneWarehouse::getBodegaForZone($ownZone);
+        }
+
+        foreach ($candidates as $bodega) {
+            if (is_string($bodega) && $bodega !== '' && $bodega !== 'MDTAT') {
+                return $bodega;
+            }
+        }
+
+        $cityBodega = ZoneWarehouse::bodegaForCity($this->resolvedCity());
+        if (is_string($cityBodega) && $cityBodega !== '' && $cityBodega !== 'MDTAT') {
+            return $cityBodega;
+        }
+
+        foreach ($candidates as $bodega) {
+            if (is_string($bodega) && $bodega !== '') {
+                return $bodega;
+            }
+        }
+
+        return $cityBodega;
+    }
+
+    /**
+     * @param  array<int, mixed>  $zoneCodes
+     */
+    private function bodegaFromZoneCodes(array $zoneCodes): ?string
+    {
+        $bodegas = [];
+        foreach ($zoneCodes as $code) {
+            $code = trim((string) $code);
+            if ($code === '') {
+                continue;
+            }
+            $bodega = ZoneWarehouse::getBodegaForZone($code);
+            if (is_string($bodega) && $bodega !== '') {
+                $bodegas[] = $bodega;
+            }
+        }
+
+        $bodegas = array_values(array_unique($bodegas));
+        if ($bodegas === []) {
+            return null;
+        }
+
+        $cityBodega = ZoneWarehouse::bodegaForCity($this->resolvedCity());
+        if ($cityBodega && in_array($cityBodega, $bodegas, true)) {
+            return $cityBodega;
+        }
+
+        foreach ($bodegas as $bodega) {
+            if ($bodega !== 'MDTAT') {
+                return $bodega;
+            }
+        }
+
+        return $bodegas[0];
     }
 
     /**

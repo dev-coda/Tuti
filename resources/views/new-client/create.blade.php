@@ -397,7 +397,7 @@
 
         {{-- Submit --}}
         <div class="flex justify-end">
-            <button type="submit" id="submit-btn" class="px-8 py-3 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-lg shadow-sm transition-colors text-lg">
+            <button type="submit" id="submit-btn" class="px-8 py-3 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-lg shadow-sm transition-colors text-lg disabled:opacity-50 disabled:cursor-not-allowed">
                 {{ $isSellerFlow ? 'Registrar Cliente' : 'Enviar Solicitud' }}
             </button>
         </div>
@@ -669,8 +669,32 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Both opt-ins are required before the request can be sent.
+    const termsBox = document.querySelector('#new-client-form input[name="terms_accepted"]');
+    const privacyBox = document.querySelector('#new-client-form input[name="privacy_accepted"]');
+    const submitBtn = document.getElementById('submit-btn');
+
+    function optInsAccepted() {
+        return Boolean(termsBox && termsBox.checked && privacyBox && privacyBox.checked);
+    }
+
+    function syncOptInSubmit() {
+        if (!submitBtn) return;
+        submitBtn.disabled = !optInsAccepted();
+    }
+
+    if (termsBox) termsBox.addEventListener('change', syncOptInSubmit);
+    if (privacyBox) privacyBox.addEventListener('change', syncOptInSubmit);
+    syncOptInSubmit();
+
     // -- Form submission validation --
     document.getElementById('new-client-form').addEventListener('submit', function(e) {
+        if (!optInsAccepted()) {
+            e.preventDefault();
+            alert('Debes aceptar los términos y condiciones y la política de privacidad para enviar la solicitud.');
+            syncOptInSubmit();
+            return;
+        }
         // The signature is not a valid attachment: real documents are mandatory.
         if (!documentsInput || documentsInput.files.length === 0) {
             e.preventDefault();

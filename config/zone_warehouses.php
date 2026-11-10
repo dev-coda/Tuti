@@ -62,4 +62,20 @@ return [
         '945' => 'BG00',
         '946' => 'BG00',
     ],
+
+    /*
+     * City → bodega used when the user's domicile does not match a Medellín
+     * zone (MDTAT). Keys are lowercase and without accents.
+     */
+    'cities' => [
+        'bogota' => 'BG00',
+        'villavicencio' => 'VLL00',
+        'medellin' => 'MDTAT',
+        'monteria' => 'MT00',
+        'cali' => 'CL00',
+        'pereira' => 'PE00',
+        'cucuta' => 'CU00',
+        'bucaramanga' => 'BM00',
+        'barranquilla' => 'BQ00',
+    ],
 ];

@@ -31,7 +31,6 @@ class OrderController extends Controller
         // zone's pedidos + dashboard lists at once was timing out Mi Cuenta.
         $availableTabs = ['orders', 'account'];
         if ($isSeller) {
-            $availableTabs[] = 'orders-today';
             if ($isSupervisor) {
                 $availableTabs[] = 'mis-rutas';
             } else {
@@ -41,19 +40,21 @@ class OrderController extends Controller
             $availableTabs[] = 'addresses';
         }
 
+        // "Pedidos del día" and "Pedidos recientes" are one list. Old links keep working.
         $requestedTab = (string) $request->input('tab', '');
-        $defaultTab = $isSupervisor ? 'mis-rutas' : ($isSeller ? 'orders-today' : 'orders');
+        if ($requestedTab === 'orders-today') {
+            $requestedTab = 'orders';
+        }
+        $defaultTab = $isSupervisor ? 'mis-rutas' : 'orders';
         $activeTab = in_array($requestedTab, $availableTabs, true) ? $requestedTab : $defaultTab;
         $clientFilter = $this->authorizeClientHistory($request, $user, $isSeller, $activeTab);
 
         $recentFilters = $this->extractOrderFilters($request);
-        $todayFilters = $this->extractOrderFilters($request, 'today_');
-        if ($isSeller) {
-            $todayFilters = $this->normalizeDailyFilters($todayFilters, $sellerDashToday);
+        if ($activeTab === 'orders') {
+            $recentFilters = $this->applyStaffDefaultDateRange($recentFilters, $user, $request);
         }
 
         $orders = null;
-        $dailyOrders = null;
         $myRoute = null;
         $myRoutes = null;
 
@@ -61,11 +62,6 @@ class OrderController extends Controller
             $orders = $this->buildOrdersQuery($user, $recentFilters, $request)
                 ->orderByDesc('id')
                 ->paginate()
-                ->withQueryString();
-        } elseif ($activeTab === 'orders-today' && $isSeller) {
-            $dailyOrders = $this->buildOrdersQuery($user, $todayFilters, $request)
-                ->orderByDesc('id')
-                ->paginate(15, ['*'], 'today_page')
                 ->withQueryString();
         } elseif ($activeTab === 'mi-ruta' && $isSeller && ! $isSupervisor) {
             $myRoute = $this->buildMyRouteData($user, $request);
@@ -85,14 +81,12 @@ class OrderController extends Controller
 
         return view('clients.orders.index', compact(
             'orders',
-            'dailyOrders',
             'statuses',
             'accountUser',
             'isSeller',
             'isSupervisor',
             'sellerDashToday',
             'recentFilters',
-            'todayFilters',
             'myRoute',
             'myRoutes',
             'activeTab',
@@ -343,8 +337,9 @@ class OrderController extends Controller
             $filters = $this->normalizeDailyFilters($this->extractOrderFilters($request, 'today_'), $today);
             $filePrefix = 'pedidos-del-dia';
         } else {
-            $filters = $this->extractOrderFilters($request);
+            $filters = $this->applyStaffDefaultDateRange($this->extractOrderFilters($request), $user, $request);
             $this->authorizeClientHistory($request, $user, $isSeller, 'orders');
+            $filePrefix = 'pedidos';
         }
 
         $orders = $this->buildOrdersExportQuery($user, $filters, $request, $scope)
@@ -577,6 +572,28 @@ class OrderController extends Controller
     }
 
     /**
+     * Staff land on today's orders. "Todos" (all=1) and a client history link
+     * leave the range open so pedidos anteriores stay visible.
+     *
+     * @param  array{q:string,order_id:string,from_date:string,to_date:string,status_id:string,client_id?:string}  $filters
+     * @return array{q:string,order_id:string,from_date:string,to_date:string,status_id:string,client_id?:string}
+     */
+    private function applyStaffDefaultDateRange(array $filters, User $user, Request $request): array
+    {
+        if (! $user->isStaffSeller() || $request->boolean('all') || ($filters['client_id'] ?? '') !== '') {
+            return $filters;
+        }
+
+        if ($filters['from_date'] === '' && $filters['to_date'] === '') {
+            $today = Carbon::now($this->sellerReportTimezone())->format('Y-m-d');
+            $filters['from_date'] = $today;
+            $filters['to_date'] = $today;
+        }
+
+        return $filters;
+    }
+
+    /**
      * @param  array{q:string,order_id:string,from_date:string,to_date:string,status_id:string}  $filters
      * @return array{q:string,order_id:string,from_date:string,to_date:string,status_id:string}
      */
@@ -717,9 +734,18 @@ class OrderController extends Controller
                 );
             });
 
-        $otrosSales = $otrosBrandIds === []
-            ? $emptyBucket
-            : $salesBy(fn ($query) => $query->whereIn('products.brand_id', $otrosBrandIds));
+        // Named "Otros" brands plus anything that did not land in another bucket,
+        // so the category cards add up to Ventas totales.
+        $classifiedBrandIds = array_values(array_unique(array_merge($claimedBrandIds, $tercerosBrandIds)));
+        $otrosSales = $salesBy(function ($query) use ($otrosBrandIds, $classifiedBrandIds) {
+            if ($otrosBrandIds === [] && $classifiedBrandIds === []) {
+                return;
+            }
+
+            $query->where(function ($inner) use ($otrosBrandIds, $classifiedBrandIds) {
+                $this->whereOtrosOrUnclassifiedBrands($inner, $otrosBrandIds, $classifiedBrandIds);
+            });
+        });
 
         $tercerosSales = $tercerosBrandIds === []
             ? $emptyBucket
@@ -734,6 +760,17 @@ class OrderController extends Controller
             ['label' => 'Otros',         'total' => round($otrosSales['total'], 2),         'quantity' => $otrosSales['quantity']],
             ['label' => 'TERCEROS',      'total' => round($tercerosSales['total'], 2),      'quantity' => $tercerosSales['quantity']],
         ];
+
+        $bucketSum = round(array_sum(array_column($buckets, 'total')), 2);
+        $gap = round($ventasTotales - $bucketSum, 2);
+        if ($gap > 0.009) {
+            foreach ($buckets as &$bucket) {
+                if ($bucket['label'] === 'Otros') {
+                    $bucket['total'] = round($bucket['total'] + $gap, 2);
+                }
+            }
+            unset($bucket);
+        }
 
         return response()->json([
             'total_pedidos'    => $totalPedidos,
@@ -858,6 +895,37 @@ class OrderController extends Controller
         $row = $query->selectRaw($lineSalesSelect)->first();
 
         return ['total' => (float) $row->total, 'quantity' => (int) $row->quantity];
+    }
+
+    /**
+     * GP / GE / Rocket, plus brands that are not claimed by any other bucket.
+     *
+     * @param  array<int>  $otrosBrandIds
+     * @param  array<int>  $classifiedBrandIds
+     */
+    private function whereOtrosOrUnclassifiedBrands($query, array $otrosBrandIds, array $classifiedBrandIds): void
+    {
+        $unclassified = function ($inner) use ($classifiedBrandIds) {
+            if ($classifiedBrandIds === []) {
+                return;
+            }
+
+            $inner->where(function ($brand) use ($classifiedBrandIds) {
+                $brand->whereNotIn('products.brand_id', $classifiedBrandIds)
+                    ->orWhereNull('products.brand_id');
+            });
+        };
+
+        if ($otrosBrandIds !== []) {
+            $query->whereIn('products.brand_id', $otrosBrandIds);
+            if ($classifiedBrandIds !== []) {
+                $query->orWhere($unclassified);
+            }
+
+            return;
+        }
+
+        $unclassified($query);
     }
 
     /**

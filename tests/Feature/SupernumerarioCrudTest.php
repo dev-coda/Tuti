@@ -36,6 +36,36 @@ it('allows admin to create a supernumerario without a zone', function () {
         ->and($user->coversAllZones())->toBeTrue();
 });
 
+it('lets an admin limit a supernumerario to one zone', function () {
+    $admin = User::factory()->create();
+    $admin->assignRole('admin');
+
+    actingAs($admin);
+
+    post(route('supernumerarios.store'), [
+        'name' => 'Supernumerario Zona',
+        'email' => 'super.zone@example.com',
+        'password' => 'Password123!',
+        'password_confirmation' => 'Password123!',
+        'covers_all_zones' => '0',
+    ])->assertSessionHasErrors('zone');
+
+    post(route('supernumerarios.store'), [
+        'name' => 'Supernumerario Zona',
+        'email' => 'super.zone@example.com',
+        'password' => 'Password123!',
+        'password_confirmation' => 'Password123!',
+        'covers_all_zones' => '0',
+        'zone' => 409,
+    ])->assertRedirect(route('supernumerarios.index'));
+
+    $user = User::where('email', 'super.zone@example.com')->first();
+
+    expect($user)->not->toBeNull()
+        ->and($user->coversAllZones())->toBeFalse()
+        ->and((string) $user->zone)->toBe('409');
+});
+
 it('allows admin to update a supernumerario', function () {
     $admin = User::factory()->create();
     $admin->assignRole('admin');

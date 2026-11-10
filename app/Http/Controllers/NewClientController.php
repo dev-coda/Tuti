@@ -314,6 +314,8 @@ class NewClientController extends Controller
         ], [
             'documents.required' => 'Debes adjuntar al menos un documento. La firma no es válida como documento adjunto.',
             'documents.min' => 'Debes adjuntar al menos un documento. La firma no es válida como documento adjunto.',
+            'terms_accepted.required' => 'Debes aceptar los términos y condiciones.',
+            'terms_accepted.accepted' => 'Debes aceptar los términos y condiciones.',
             'privacy_accepted.required' => 'Debes aceptar la política de privacidad y tratamiento de datos personales.',
             'privacy_accepted.accepted' => 'Debes aceptar la política de privacidad y tratamiento de datos personales.',
         ]);

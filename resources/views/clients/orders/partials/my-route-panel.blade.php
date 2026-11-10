@@ -174,8 +174,13 @@
                             </div>
                         </div>
 
-                        @if($client->document)
-                            <div class="mt-4 pt-4 border-t border-gray-100 flex flex-col sm:flex-row sm:justify-end gap-2">
+                        <div class="mt-4 pt-4 border-t border-gray-100 flex flex-col sm:flex-row sm:justify-end gap-2">
+                            <a href="{{ route('clients.orders.index', array_filter(['tab' => 'orders', 'all' => 1, 'client_id' => $client->id, 'return_ruta' => $selectedRoute, 'return_zona' => $coversAllZones ? $sellerZone : null, 'ruta_q' => $searchTerm !== '' ? $searchTerm : null])) }}"
+                               data-client-orders
+                               class="px-3 py-2 border border-gray-300 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-50 transition-colors text-center">
+                                Pedidos anteriores
+                            </a>
+                            @if($client->document)
                                 <a href="{{ route('client-data-updates.edit', array_filter(['zone' => $clientZone->id, 'return_tab' => 'mi-ruta', 'zona' => $coversAllZones ? $sellerZone : null, 'ruta' => $selectedRoute, 'ruta_q' => $searchTerm])) }}"
                                    class="px-3 py-2 border border-gray-300 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-50 transition-colors text-center">
                                     Actualizar datos
@@ -183,11 +188,6 @@
                                 <a href="{{ route('new-client.create', ['mode' => 'sucursal', 'document' => $client->document, 'return' => 'mi-ruta']) }}"
                                    class="px-3 py-2 border border-orange-300 text-orange-700 text-xs font-medium rounded-lg hover:bg-orange-50 transition-colors text-center">
                                     Agregar sucursal
-                                </a>
-                                <a href="{{ route('clients.orders.index', array_filter(['tab' => 'orders', 'client_id' => $client->id, 'return_ruta' => $selectedRoute, 'return_zona' => $coversAllZones ? $sellerZone : null, 'ruta_q' => $searchTerm !== '' ? $searchTerm : null])) }}"
-                                   data-client-orders
-                                   class="px-3 py-2 border border-gray-300 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-50 transition-colors text-center">
-                                    Pedidos anteriores
                                 </a>
                                 @if($suggestedOrderEnabled)
                                 <form method="POST" action="{{ route('clients.suggested-order.store', $client) }}">
@@ -207,8 +207,8 @@
                                         Crear pedido
                                     </button>
                                 </form>
-                            </div>
-                        @endif
+                            @endif
+                        </div>
                     </div>
                 @endforeach
             </div>

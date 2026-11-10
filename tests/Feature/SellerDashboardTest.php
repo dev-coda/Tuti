@@ -265,14 +265,14 @@ it('maps seller dashboard buckets by TRONEX categories and intended brands witho
         ->and((int) $buckets['Bombillos']['quantity'])->toBe(1)
         ->and((float) $buckets['TRONEX Otros']['total'])->toBe(1100.0)
         ->and((int) $buckets['TRONEX Otros']['quantity'])->toBe(2)
-        ->and((float) $buckets['Otros']['total'])->toBe(2400.0)
-        ->and((int) $buckets['Otros']['quantity'])->toBe(3)
+        ->and((float) $buckets['Otros']['total'])->toBe(2450.0)
+        ->and((int) $buckets['Otros']['quantity'])->toBe(4)
         ->and((float) $buckets['TERCEROS']['total'])->toBe(6200.0)
         ->and((int) $buckets['TERCEROS']['quantity'])->toBe(4);
 
     $bucketTotal = $buckets->sum(fn ($bucket) => (float) $bucket['total']);
-    expect($bucketTotal)->toBe(14300.0)
-        ->and($bucketTotal)->toBeLessThan((float) $response->json('ventas_totales'));
+    expect($bucketTotal)->toBe(14350.0)
+        ->and($bucketTotal)->toBe((float) $response->json('ventas_totales'));
 
     Carbon::setTestNow();
 });
