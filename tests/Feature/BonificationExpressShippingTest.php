@@ -89,6 +89,30 @@ function bonificationExpressFixtures(): array
     return compact('client', 'zone', 'product', 'gift', 'bonification');
 }
 
+function fakeCoordinadoraExpressQuote(): void
+{
+    config([
+        'services.coordinadora.oauth_url' => 'https://coordinadora.test/oauth/token',
+        'services.coordinadora.base_url' => 'https://coordinadora.test',
+        'services.coordinadora.key' => 'k',
+        'services.coordinadora.secret' => 's',
+        'services.coordinadora.id_proceso' => '11577',
+        'services.coordinadora.nit' => '811025446',
+        'services.coordinadora.origin_dane' => '05001000',
+    ]);
+    Http::fake([
+        'https://coordinadora.test/oauth/token' => Http::response(['access_token' => 'token', 'expires_in' => 3600], 200),
+        'https://coordinadora.test/cotizador/nacional' => Http::response([
+            'isError' => false,
+            'data' => [
+                'flete_total' => 12900,
+                'valor_envio' => 12900,
+                'dias_entrega' => 1,
+            ],
+        ], 200),
+    ]);
+}
+
 it('detects when the cart qualifies for a bonification', function () {
     ['product' => $product] = bonificationExpressFixtures();
 
@@ -100,8 +124,18 @@ it('detects when the cart qualifies for a bonification', function () {
         ]))->toBeTrue();
 });
 
-it('rejects express checkout when the cart has qualifying bonifications', function () {
-    ['client' => $client, 'zone' => $zone, 'product' => $product] = bonificationExpressFixtures();
+it('allows express checkout when the cart has qualifying bonifications', function () {
+    ['client' => $client, 'zone' => $zone, 'product' => $product, 'bonification' => $bonification] = bonificationExpressFixtures();
+
+    $product->update([
+        'coordinadora_weight_kg' => 0.5,
+        'coordinadora_height_cm' => 10,
+        'coordinadora_width_cm' => 8,
+        'coordinadora_length_cm' => 12,
+    ]);
+    fakeCoordinadoraExpressQuote();
+
+    $blockedMessage = 'Tu carrito tiene productos no aptos para Entrega Especial por bonificaciones. Usa Entrega Standard o modifica el carrito.';
 
     actingAs($client)
         ->withSession([
@@ -111,8 +145,9 @@ it('rejects express checkout when the cart has qualifying bonifications', functi
         ])
         ->get(route('cart'))
         ->assertOk()
-        ->assertSee(BonificationCheckoutService::expressBlockedByBonificationsMessage(), false)
-        ->assertSee('cartHasBonifications = true', false);
+        ->assertDontSee($blockedMessage, false)
+        ->assertDontSee('cartHasBonifications', false)
+        ->assertSee('id="delivery-option-express"', false);
 
     actingAs($client)
         ->withSession([
@@ -125,7 +160,33 @@ it('rejects express checkout when the cart has qualifying bonifications', functi
             'delivery_method' => Order::DELIVERY_METHOD_EXPRESS,
             'observations' => '',
         ])
-        ->assertSessionHas('error', BonificationCheckoutService::expressBlockedByBonificationsMessage());
+        ->assertSessionMissing('error');
+
+    $order = Order::query()->first();
+    expect($order)->not->toBeNull()
+        ->and($order->delivery_method)->toBe(Order::DELIVERY_METHOD_EXPRESS)
+        ->and($order->bonifications()->where('bonification_id', $bonification->id)->count())->toBe(1);
+});
+
+it('still rejects express when the address does not allow it even with bonifications', function () {
+    ['client' => $client, 'zone' => $zone, 'product' => $product] = bonificationExpressFixtures();
+    $zone->update(['shipping_express_enabled' => false]);
+
+    actingAs($client)
+        ->withSession([
+            'cart' => [
+                ['product_id' => $product->id, 'quantity' => 10, 'variation_id' => null],
+            ],
+        ])
+        ->post(route('cart.process'), [
+            'zone_id' => $zone->id,
+            'delivery_method' => Order::DELIVERY_METHOD_EXPRESS,
+            'observations' => '',
+        ])
+        ->assertSessionHas(
+            'error',
+            'El método de envío seleccionado no está disponible para esta dirección. Elige otro método e intenta de nuevo.'
+        );
 
     expect(Order::query()->count())->toBe(0);
 });
@@ -159,27 +220,7 @@ it('allows express when the cart does not yet qualify for a bonification', funct
         'coordinadora_width_cm' => 8,
         'coordinadora_length_cm' => 12,
     ]);
-
-    config([
-        'services.coordinadora.oauth_url' => 'https://coordinadora.test/oauth/token',
-        'services.coordinadora.base_url' => 'https://coordinadora.test',
-        'services.coordinadora.key' => 'k',
-        'services.coordinadora.secret' => 's',
-        'services.coordinadora.id_proceso' => '11577',
-        'services.coordinadora.nit' => '811025446',
-        'services.coordinadora.origin_dane' => '05001000',
-    ]);
-    Http::fake([
-        'https://coordinadora.test/oauth/token' => Http::response(['access_token' => 'token', 'expires_in' => 3600], 200),
-        'https://coordinadora.test/cotizador/nacional' => Http::response([
-            'isError' => false,
-            'data' => [
-                'flete_total' => 12900,
-                'valor_envio' => 12900,
-                'dias_entrega' => 1,
-            ],
-        ], 200),
-    ]);
+    fakeCoordinadoraExpressQuote();
 
     actingAs($client)
         ->withSession([

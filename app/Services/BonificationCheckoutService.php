@@ -63,14 +63,6 @@ class BonificationCheckoutService
     }
 
     /**
-     * Spanish message when Entrega Especial is blocked by cart bonifications.
-     */
-    public static function expressBlockedByBonificationsMessage(): string
-    {
-        return 'Tu carrito tiene productos no aptos para Entrega Especial por bonificaciones. Usa Entrega Standard o modifica el carrito.';
-    }
-
-    /**
      * Whether the cart currently qualifies for at least one bonification gift.
      * Same buy/get/max rules as checkout and the cart preview.
      *

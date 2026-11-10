@@ -391,7 +391,6 @@ class CartController extends Controller
         );
 
         $bonificationPreview = $this->buildCartBonificationPreview($cart);
-        $cartHasBonifications = BonificationCheckoutService::cartHasQualifyingBonifications($cart);
 
         $checkoutCityId = $targetUser->resolvedCityId();
         $cityShippingFlags = \App\Models\ShippingMethod::cityAvailabilityFlags($checkoutCityId);
@@ -416,7 +415,7 @@ class CartController extends Controller
             $suggestedOrder = $suggestedOrderMeta;
         }
 
-        $context = compact('products', 'alertVendors', 'vendorDiscountAlerts', 'zoneOptions', 'set_user', 'client', 'alertTotal', 'min_amount', 'total_cart', 'has_orders', 'appliedCoupon', 'couponDiscount', 'couponMessage', 'shippingMethods', 'cartRetentions', 'bonificationPreview', 'cityShippingFlags', 'isForceEnabled', 'cartHasBonifications', 'expressVisibilityDebug', 'suggestedOrder', 'suggestedOrderEnabled');
+        $context = compact('products', 'alertVendors', 'vendorDiscountAlerts', 'zoneOptions', 'set_user', 'client', 'alertTotal', 'min_amount', 'total_cart', 'has_orders', 'appliedCoupon', 'couponDiscount', 'couponMessage', 'shippingMethods', 'cartRetentions', 'bonificationPreview', 'cityShippingFlags', 'isForceEnabled', 'expressVisibilityDebug', 'suggestedOrder', 'suggestedOrderEnabled');
 
         return view('pages.cart', $context);
     }
@@ -869,14 +868,12 @@ class CartController extends Controller
         $delivery_method = $request->input('delivery_method', 'tronex');
 
         // Prospect draft orders: auto-assign Coordinadora 48h (entrega especial / ciudades principales).
-        // Skip when the cart already qualifies for bonifications (incompatible with express by default).
         if (
             $isDraftClientCheckout
             && $actingUser->isProspectClient()
             && Setting::isExpress48hEnabled()
             && $zone
             && $zone->usesCoordinadoraFor48h()
-            && ! BonificationCheckoutService::cartHasQualifyingBonifications($cart)
         ) {
             $delivery_method = Order::DELIVERY_METHOD_EXPRESS;
             Log::info('Prospect draft checkout forced to Coordinadora 48h promise', [
@@ -891,18 +888,6 @@ class CartController extends Controller
                 'zone_id' => $zone?->id,
             ]);
             $delivery_method = Order::DELIVERY_METHOD_TRONEX;
-        }
-
-        if (
-            $delivery_method === Order::DELIVERY_METHOD_EXPRESS
-            && BonificationCheckoutService::cartHasQualifyingBonifications($cart)
-        ) {
-            Log::warning('Express blocked: cart has qualifying bonifications', [
-                'user_id' => $user_id,
-                'zone_id' => $zone?->id,
-            ]);
-
-            return back()->with('error', BonificationCheckoutService::expressBlockedByBonificationsMessage());
         }
 
         if ($zone && ! $zone->allowsShippingMethod($delivery_method)) {
