@@ -4,6 +4,7 @@ namespace App\Services\Shipping;
 
 use App\Models\Order;
 use App\Models\Product;
+use App\Models\Setting;
 use App\Models\ZoneWarehouse;
 use App\Repositories\OrderRepository;
 use App\Services\MicrosoftTokenService;
@@ -175,6 +176,9 @@ class FvDynamicsService
         // when present; otherwise the contract placeholders (., 9999, NEXT, etc.).
         // numInvoice stays NEXT. SOAP_ORDER_CONSECUTIVE_PREFIX applies to detail
         // and the third token of observationsCust, not to numInvoice.
+        // TRO_E_obsequio stays 0 on this sales invoice. Obsequios are extra
+        // LinesDetails (unit price 0), included only when the order's city allows it.
+        // The presales integration still sends gifts as a separate document with flag 1.
         $fields = [
             'TRO_E_obsequio' => '0',
             'approval' => (string) config('services.fv.approval'),
@@ -239,16 +243,29 @@ class FvDynamicsService
     private function buildLinesXml(Order $order, string $warehouse): string
     {
         $products = $order->products;
+        $order->loadMissing('bonifications');
+        $bonificationRows = $order->bonifications;
+        $includeBonifications = $bonificationRows->isNotEmpty()
+            && Setting::isFvBonificacionesEnabledForOrder($order);
 
-        $productIds = $products->pluck('product_id')->all();
+        if ($bonificationRows->isNotEmpty()) {
+            Log::channel('soap')->info('FV bonificaciones city gate', [
+                'order_id' => $order->id,
+                'city_key' => Setting::fvCityKeyForOrder($order),
+                'included' => $includeBonifications,
+            ]);
+        }
+
+        $lineSources = $includeBonifications ? $products->concat($bonificationRows) : $products;
+        $productIds = $lineSources->pluck('product_id')->filter()->unique()->all();
         $productsData = Product::whereIn('id', $productIds)->with(['brand.vendor', 'tax'])->get()->keyBy('id');
 
-        $variationIds = $products->pluck('variation_item_id')->filter()->all();
+        $variationIds = $lineSources->pluck('variation_item_id')->filter()->all();
         $variationSkus = [];
         if (!empty($variationIds)) {
             $variationSkuData = DB::table('product_item_variation')
                 ->whereIn('variation_item_id', $variationIds)
-                ->whereIn('product_id', $products->whereNotNull('variation_item_id')->pluck('product_id')->unique()->all())
+                ->whereIn('product_id', $lineSources->whereNotNull('variation_item_id')->pluck('product_id')->unique()->all())
                 ->select('product_id', 'variation_item_id', 'sku')
                 ->get();
             foreach ($variationSkuData as $item) {
@@ -268,12 +285,8 @@ class FvDynamicsService
                 continue;
             }
 
-            $sku = $productData->sku;
-            $variationKey = $orderProduct->product_id . '-' . $orderProduct->variation_item_id;
-            if ($orderProduct->variation_item_id && isset($variationSkus[$variationKey])) {
-                $sku = $variationSkus[$variationKey];
-            }
-            if (empty($sku)) {
+            $sku = $this->resolveLineSku($orderProduct, $productData, $variationSkus);
+            if ($sku === null) {
                 Log::channel('soap')->warning('FV line skipped - product without SKU', [
                     'order_id' => $order->id,
                     'product_id' => $orderProduct->product_id,
@@ -303,6 +316,10 @@ class FvDynamicsService
             );
         }
 
+        if ($includeBonifications) {
+            $linesXml .= $this->buildBonificationLinesXml($order, $warehouse, $productsData, $variationSkus);
+        }
+
         $linesXml .= $this->buildShippingLineXml($order, $warehouse);
 
         if ($linesXml === '') {
@@ -310,6 +327,87 @@ class FvDynamicsService
         }
 
         return $linesXml;
+    }
+
+    /**
+     * Gift lines use the same pricing as the presales obsequio document
+     * (unit price 0, discount 0, exact quantity, one line per SKU).
+     *
+     * @param  \Illuminate\Support\Collection<int, Product>  $productsData
+     * @param  array<string, string>  $variationSkus
+     */
+    private function buildBonificationLinesXml(Order $order, string $warehouse, $productsData, array $variationSkus): string
+    {
+        $bySku = [];
+
+        foreach ($order->bonifications as $gift) {
+            $productData = $productsData[$gift->product_id] ?? null;
+            if (!$productData) {
+                Log::channel('soap')->warning('FV bonificación skipped - product not found', [
+                    'order_id' => $order->id,
+                    'product_id' => $gift->product_id,
+                ]);
+                continue;
+            }
+
+            $sku = $this->resolveLineSku($gift, $productData, $variationSkus);
+            if ($sku === null) {
+                Log::channel('soap')->warning('FV bonificación skipped - product without SKU', [
+                    'order_id' => $order->id,
+                    'product_id' => $gift->product_id,
+                ]);
+                continue;
+            }
+
+            $pricing = OrderRepository::resolveXmlPricing($gift, $productData, 1, (int) $order->id, true);
+            $qty = (float) $gift->quantity;
+            if ($qty <= 0) {
+                continue;
+            }
+
+            if (!isset($bySku[$sku])) {
+                $bySku[$sku] = [
+                    'qty' => 0.0,
+                    'discount' => (string) $pricing['discount_percentage'],
+                    'unit_price' => parseCurrency($pricing['unit_price']),
+                ];
+            }
+
+            $bySku[$sku]['qty'] += $qty;
+        }
+
+        $linesXml = '';
+        foreach ($bySku as $sku => $line) {
+            $qty = $line['qty'];
+            $qtyText = fmod($qty, 1.0) === 0.0 ? (string) (int) $qty : (string) $qty;
+            $linesXml .= $this->buildLineXml(
+                warehouse: $warehouse,
+                discountPercent: $line['discount'],
+                itemId: (string) $sku,
+                qty: $qtyText,
+                taxValue: parseCurrency(0),
+                unitPrice: $line['unit_price']
+            );
+        }
+
+        return $linesXml;
+    }
+
+    /**
+     * @param  object  $line  Order product or bonificación row (product_id, variation_item_id)
+     * @param  array<string, string>  $variationSkus
+     */
+    private function resolveLineSku(object $line, Product $productData, array $variationSkus): ?string
+    {
+        $sku = $productData->sku;
+        $variationKey = $line->product_id . '-' . $line->variation_item_id;
+        if ($line->variation_item_id && isset($variationSkus[$variationKey])) {
+            $sku = $variationSkus[$variationKey];
+        }
+
+        $sku = trim((string) $sku);
+
+        return $sku !== '' ? $sku : null;
     }
 
     private function buildShippingLineXml(Order $order, string $warehouse): string

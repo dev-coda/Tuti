@@ -1,9 +1,14 @@
 <?php
 
+use App\Models\Bonification;
 use App\Models\Brand;
+use App\Models\City;
 use App\Models\Order;
 use App\Models\OrderProduct;
+use App\Models\OrderProductBonification;
 use App\Models\Product;
+use App\Models\Setting;
+use App\Models\State;
 use App\Models\Tax;
 use App\Models\User;
 use App\Models\Vendor;
@@ -12,6 +17,7 @@ use App\Models\ZoneWarehouse;
 use App\Services\Shipping\FvDynamicsService;
 use DOMDocument;
 use DOMElement;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 
 /**
@@ -438,4 +444,173 @@ it('keeps numInvoice NEXT when the stage consecutive prefix is applied or cleare
     expect(fvChildText($plainXml['salesOrder'], 'detail'))->toBe((string) $plain['order']->id);
     expect(fvChildText($plainXml['salesOrder'], 'numInvoice'))->toBe('NEXT');
     expect($plain['order']->soapConsecutive())->toBe((string) $plain['order']->id);
+});
+
+function fvForgetBonificacionSetting(): void
+{
+    Cache::forget('setting_'.Setting::FV_BONIFICACIONES_CITIES_KEY);
+}
+
+function fvEnableBonificaciones(array $enabledKeys): void
+{
+    $stored = [];
+    foreach (array_keys((array) config('zone_warehouses.cities', [])) as $key) {
+        $stored[$key] = in_array($key, $enabledKeys, true) ? '1' : '0';
+    }
+
+    Setting::updateOrCreate(
+        ['key' => Setting::FV_BONIFICACIONES_CITIES_KEY],
+        ['name' => 'Bonificaciones en FV por ciudad', 'value' => json_encode($stored), 'show' => false]
+    );
+    fvForgetBonificacionSetting();
+}
+
+function fvAssignCity(Order $order, string $cityName): void
+{
+    $state = State::create(['name' => 'Departamento '.uniqid()]);
+    $city = City::create([
+        'name' => $cityName,
+        'state_id' => $state->id,
+        'active' => true,
+        'is_preferred' => true,
+    ]);
+    $order->user->city_id = $city->id;
+    $order->user->city_code = null;
+    $order->user->save();
+}
+
+function fvAttachGift(Order $order, int $firstQty = 2, int $secondQty = 3): string
+{
+    $suffix = uniqid();
+    $paid = $order->products()->first();
+    $paidProduct = Product::findOrFail($paid->product_id);
+    $gift = Product::create([
+        'name' => 'Obsequio '.$suffix,
+        'slug' => 'obsequio-'.$suffix,
+        'description' => '',
+        'short_description' => '',
+        'sku' => 'GIFT-FV-'.$suffix,
+        'active' => 1,
+        'price' => 8000,
+        'delivery_days' => 1,
+        'discount' => 0,
+        'discount_type' => 'percentage',
+        'quantity_min' => 1,
+        'quantity_max' => 100,
+        'step' => 1,
+        'tax_id' => $paidProduct->tax_id,
+        'brand_id' => $paidProduct->brand_id,
+        'package_quantity' => 6,
+        'calculate_package_price' => true,
+    ]);
+    $bonification = Bonification::create([
+        'name' => 'Bonif '.$suffix,
+        'buy' => 2,
+        'get' => 1,
+        'product_id' => $gift->id,
+    ]);
+
+    foreach ([$firstQty, $secondQty] as $qty) {
+        OrderProductBonification::create([
+            'order_product_id' => $paid->id,
+            'bonification_id' => $bonification->id,
+            'product_id' => $gift->id,
+            'quantity' => $qty,
+            'order_id' => $order->id,
+        ]);
+    }
+
+    return $gift->sku;
+}
+
+it('includes consolidated bonificacion lines when the order city is enabled', function () {
+    fvSoapConfig();
+    fvForgetBonificacionSetting();
+    $fx = fvMakeSoapOrder();
+    fvAssignCity($fx['order'], 'Bogotá');
+    fvEnableBonificaciones(['bogota']);
+    $giftSku = fvAttachGift($fx['order']);
+
+    $parsed = fvAssertSalesOrderContract(fvBuildSoapXml($fx['order']->fresh()));
+    $salesOrder = $parsed['salesOrder'];
+    $lines = $parsed['lines'];
+
+    expect(array_map(fn (DOMElement $el) => $el->localName, fvDirectChildren($salesOrder)))->toBe(fvSalesOrderChildNames());
+    expect(fvChildText($salesOrder, 'TRO_E_obsequio'))->toBe('0');
+    expect($lines)->toHaveCount(3);
+
+    expect(fvChildText($lines[0], 'itemId'))->toBe($fx['sku']);
+
+    $giftLine = $lines[1];
+    expect(array_map(fn (DOMElement $el) => $el->localName, fvDirectChildren($giftLine)))->toBe(fvLineChildNames());
+    expect(fvChildText($giftLine, 'itemId'))->toBe($giftSku);
+    expect(fvChildText($giftLine, 'qty'))->toBe('5');
+    expect(fvChildText($giftLine, 'discountPercent'))->toBe('0');
+    expect(fvChildText($giftLine, 'unitPrice'))->toBe('0.00');
+    expect(fvChildText($giftLine, 'taxValue'))->toBe('0.00');
+    expect(fvChildText($giftLine, 'almacen'))->toBe($fx['bodega']);
+    expect(fvChildText($giftLine, 'lote'))->toBe('.');
+
+    expect(fvChildText($lines[2], 'itemId'))->toBe('FL00001');
+});
+
+it('includes bonificaciones from the zone warehouse when the client has no city', function () {
+    fvSoapConfig();
+    fvForgetBonificacionSetting();
+    $fx = fvMakeSoapOrder();
+    ZoneWarehouse::where('zone_code', $fx['zone_number'])->update(['bodega_code' => 'BG05']);
+    fvEnableBonificaciones(['bogota']);
+    $giftSku = fvAttachGift($fx['order']);
+
+    $parsed = fvAssertSalesOrderContract(fvBuildSoapXml($fx['order']->fresh()));
+
+    expect(fvChildText($parsed['lines'][1], 'itemId'))->toBe($giftSku);
+    expect(fvChildText($parsed['lines'][1], 'qty'))->toBe('5');
+    expect(fvChildText($parsed['lines'][1], 'unitPrice'))->toBe('0.00');
+    expect(fvChildText($parsed['salesOrder'], 'TRO_E_obsequio'))->toBe('0');
+    expect(array_map(fn (DOMElement $el) => $el->localName, fvDirectChildren($parsed['salesOrder'])))->toBe(fvSalesOrderChildNames());
+});
+
+it('excludes bonificaciones when the city is disabled', function () {
+    fvSoapConfig();
+    fvForgetBonificacionSetting();
+    $fx = fvMakeSoapOrder();
+    fvAssignCity($fx['order'], 'Medellín');
+    fvEnableBonificaciones(['bogota']);
+    $giftSku = fvAttachGift($fx['order']);
+
+    $xml = fvBuildSoapXml($fx['order']->fresh());
+    $parsed = fvAssertSalesOrderContract($xml);
+
+    expect($parsed['lines'])->toHaveCount(2);
+    expect($xml)->not->toContain($giftSku);
+    expect(fvChildText($parsed['salesOrder'], 'TRO_E_obsequio'))->toBe('0');
+    expect(fvChildText($parsed['lines'][0], 'itemId'))->toBe($fx['sku']);
+    expect(fvChildText($parsed['lines'][1], 'itemId'))->toBe('FL00001');
+});
+
+it('excludes bonificaciones for an unknown city and when the setting is missing', function () {
+    fvSoapConfig();
+    fvForgetBonificacionSetting();
+    $fx = fvMakeSoapOrder();
+    fvAssignCity($fx['order'], 'Bello');
+    fvEnableBonificaciones([
+        'bogota', 'villavicencio', 'medellin', 'monteria', 'cali', 'pereira', 'cucuta', 'bucaramanga', 'barranquilla',
+    ]);
+    $giftSku = fvAttachGift($fx['order']);
+
+    $xml = fvBuildSoapXml($fx['order']->fresh());
+    expect($xml)->not->toContain($giftSku);
+    expect(fvAssertSalesOrderContract($xml)['lines'])->toHaveCount(2);
+
+    fvForgetBonificacionSetting();
+    $plain = fvMakeSoapOrder();
+    $plainGift = fvAttachGift($plain['order']);
+    Setting::query()->where('key', Setting::FV_BONIFICACIONES_CITIES_KEY)->delete();
+    fvForgetBonificacionSetting();
+
+    $plainXml = fvBuildSoapXml($plain['order']->fresh());
+    expect($plainXml)->not->toContain($plainGift);
+    expect(fvAssertSalesOrderContract($plainXml)['lines'])->toHaveCount(2);
+    expect(fvChildText(fvAssertSalesOrderContract($plainXml)['salesOrder'], 'TRO_E_obsequio'))->toBe('0');
 });

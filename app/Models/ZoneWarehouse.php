@@ -105,13 +105,84 @@ class ZoneWarehouse extends Model
 
     public static function bodegaForCityName(?string $cityName): ?string
     {
-        $key = Str::lower(Str::ascii(trim((string) $cityName)));
-        if ($key === '') {
+        $key = self::cityKeyForName($cityName);
+        if ($key === null) {
             return null;
         }
 
         $bodega = config('zone_warehouses.cities.'.$key);
 
         return is_string($bodega) && $bodega !== '' ? $bodega : null;
+    }
+
+    /**
+     * Operational city key from config/zone_warehouses.php (bogota, medellin, …).
+     * Same normalization as bodegaForCityName. Names outside that list return null.
+     */
+    public static function cityKeyForName(?string $cityName): ?string
+    {
+        $key = Str::lower(Str::ascii(trim((string) $cityName)));
+        if ($key === '') {
+            return null;
+        }
+
+        $cities = (array) config('zone_warehouses.cities', []);
+
+        return array_key_exists($key, $cities) ? $key : null;
+    }
+
+    /**
+     * Operational city that owns a warehouse code (BG05 → bogota, BQ08 → barranquilla).
+     * Matches the city's configured bodega, or the same letter prefix when it is unique.
+     */
+    public static function cityKeyForBodega(?string $bodega): ?string
+    {
+        $bodega = strtoupper(trim((string) $bodega));
+        if ($bodega === '') {
+            return null;
+        }
+
+        $cities = (array) config('zone_warehouses.cities', []);
+        foreach ($cities as $key => $code) {
+            if (strtoupper(trim((string) $code)) === $bodega) {
+                return (string) $key;
+            }
+        }
+
+        $family = self::bodegaFamily($bodega);
+        $matches = [];
+        foreach ($cities as $key => $code) {
+            if (self::bodegaFamily((string) $code) === $family) {
+                $matches[] = (string) $key;
+            }
+        }
+
+        return count($matches) === 1 ? $matches[0] : null;
+    }
+
+    /**
+     * Display names for the operational cities, preferring the cities table.
+     *
+     * @return array<string, string> city key => label
+     */
+    public static function operationalCityLabels(): array
+    {
+        $labels = [];
+        foreach (City::query()->orderByDesc('is_preferred')->orderBy('id')->get(['name']) as $city) {
+            $key = self::cityKeyForName($city->name);
+            if ($key !== null && ! isset($labels[$key])) {
+                $labels[$key] = $city->name;
+            }
+        }
+
+        return $labels;
+    }
+
+    private static function bodegaFamily(string $bodega): string
+    {
+        $bodega = strtoupper(trim($bodega));
+        $stripped = preg_replace('/\d+$/', '', $bodega) ?? '';
+
+        return $stripped !== '' ? $stripped : $bodega;
     }
 }

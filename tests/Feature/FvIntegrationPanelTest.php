@@ -1,10 +1,13 @@
 <?php
 
+use App\Models\City;
 use App\Models\Order;
 use App\Models\Setting;
+use App\Models\State;
 use App\Models\User;
 use App\Models\Zone;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Spatie\Permission\Models\Role;
 
@@ -115,4 +118,48 @@ it('records a failed connectivity test when the endpoint errors', function () {
     $stored = json_decode((string) Setting::getByKey('fv_last_health_check'), true);
     expect($stored['ok'])->toBeFalse();
     expect($stored['http_status'])->toBe(503);
+});
+
+it('saves which cities send bonificaciones on the fv', function () {
+    $admin = makeFvPanelAdmin();
+    Cache::forget('setting_'.Setting::FV_BONIFICACIONES_CITIES_KEY);
+
+    $state = State::create(['name' => 'Cundinamarca']);
+    City::create([
+        'name' => 'Bogotá',
+        'state_id' => $state->id,
+        'active' => true,
+        'is_preferred' => true,
+    ]);
+
+    $this->actingAs($admin)
+        ->get(route('settings.fv-integration'))
+        ->assertOk()
+        ->assertSee('Bonificaciones en la FV')
+        ->assertSee('Bogotá')
+        ->assertSee('BG00')
+        ->assertSee('MDTAT');
+
+    $this->actingAs($admin)
+        ->post(route('settings.fv-integration.bonificaciones'), [
+            'fv_bonificaciones' => [
+                'bogota' => '1',
+                'medellin' => '0',
+            ],
+        ])
+        ->assertRedirect(route('settings.fv-integration'))
+        ->assertSessionHas('success');
+
+    $stored = json_decode((string) Setting::getByKey(Setting::FV_BONIFICACIONES_CITIES_KEY), true);
+    expect($stored['bogota'])->toBe('1')
+        ->and($stored['medellin'])->toBe('0')
+        ->and($stored['cali'])->toBe('0')
+        ->and($stored['barranquilla'])->toBe('0');
+
+    $guest = User::factory()->create();
+    $this->actingAs($guest)
+        ->post(route('settings.fv-integration.bonificaciones'), [
+            'fv_bonificaciones' => ['bogota' => '1'],
+        ])
+        ->assertRedirect();
 });

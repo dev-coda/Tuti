@@ -121,6 +121,40 @@
                 </div>
             </div>
 
+            <div class="border border-gray-200 rounded-lg p-4 mb-6">
+                <h2 class="text-base font-semibold text-gray-900">Bonificaciones en la FV</h2>
+                <p class="text-sm text-gray-500 mt-1 mb-4">
+                    Por defecto no se envían. Activa la ciudad para incluir las líneas de obsequio en CreateSalesOrder.
+                    Las ciudades que no están en esta lista siguen sin enviarse.
+                </p>
+                <form action="{{ route('settings.fv-integration.bonificaciones') }}" method="POST" class="space-y-3">
+                    @csrf
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                        @forelse ($bonificacionCities as $city)
+                            <label class="flex items-center justify-between gap-3 rounded-lg border border-gray-200 px-3 py-2">
+                                <span class="min-w-0">
+                                    <span class="block text-sm font-medium text-gray-900">{{ $city['label'] }}</span>
+                                    <span class="block text-xs text-gray-500">{{ $city['bodega'] }}</span>
+                                </span>
+                                <span class="flex items-center gap-2 shrink-0">
+                                    <span class="text-xs text-gray-500">Enviar</span>
+                                    <input type="hidden" name="fv_bonificaciones[{{ $city['key'] }}]" value="0">
+                                    <input type="checkbox" name="fv_bonificaciones[{{ $city['key'] }}]" value="1"
+                                           class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                           @checked($city['enabled'])>
+                                </span>
+                            </label>
+                        @empty
+                            <p class="text-sm text-gray-500">No hay ciudades operativas configuradas.</p>
+                        @endforelse
+                    </div>
+                    <button type="submit"
+                        class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-700 rounded-lg hover:bg-blue-800 focus:ring-4 focus:ring-blue-300">
+                        Guardar bonificaciones por ciudad
+                    </button>
+                </form>
+            </div>
+
             {{-- Stats --}}
             <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                 <div class="border border-gray-200 rounded-lg p-4">

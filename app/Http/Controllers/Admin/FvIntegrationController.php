@@ -75,7 +75,41 @@ class FvIntegrationController extends Controller
             'lastFvOrder' => $lastFvOrder,
             'orders' => $orders,
             'fileLogs' => $this->recentFvLogsFromFile(),
+            'bonificacionCities' => Setting::fvBonificacionesCityOptions(),
         ]);
+    }
+
+    /**
+     * Per-city switch for including bonificación lines on CreateSalesOrder.
+     * Missing cities stay off.
+     */
+    public function updateBonificaciones(Request $request)
+    {
+        $known = array_keys((array) config('zone_warehouses.cities', []));
+        $rules = [];
+        foreach ($known as $key) {
+            $rules['fv_bonificaciones.'.$key] = 'nullable|in:0,1';
+        }
+
+        $validated = $request->validate($rules);
+        $input = $validated['fv_bonificaciones'] ?? [];
+
+        $stored = [];
+        foreach ($known as $key) {
+            $stored[$key] = (($input[$key] ?? '0') === '1') ? '1' : '0';
+        }
+
+        Setting::updateOrCreate(
+            ['key' => Setting::FV_BONIFICACIONES_CITIES_KEY],
+            [
+                'name' => 'Bonificaciones en FV por ciudad',
+                'value' => json_encode($stored),
+                'show' => false,
+            ]
+        );
+
+        return redirect()->route('settings.fv-integration')
+            ->with('success', 'Bonificaciones en FV actualizadas por ciudad.');
     }
 
     /**

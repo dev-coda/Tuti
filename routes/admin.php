@@ -192,6 +192,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::post('settings/pedido-sugerido', [SettingController::class, 'updatePedidoSugerido'])->name('settings.pedido-sugerido.update');
     Route::get('settings/fv-integration', [FvIntegrationController::class, 'index'])->name('settings.fv-integration');
     Route::post('settings/fv-integration/test', [FvIntegrationController::class, 'testConnection'])->name('settings.fv-integration.test');
+    Route::post('settings/fv-integration/bonificaciones', [FvIntegrationController::class, 'updateBonificaciones'])->name('settings.fv-integration.bonificaciones');
 
     // Package types (tamaños de empaque) + product dimension sync
     Route::post('package-types/sync-dimensions', [\App\Http\Controllers\Admin\PackageTypeController::class, 'syncDimensions'])->name('package-types.sync-dimensions');

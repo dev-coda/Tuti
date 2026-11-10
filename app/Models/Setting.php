@@ -11,6 +11,8 @@ class Setting extends Model
 {
     use HasFactory;
 
+    public const FV_BONIFICACIONES_CITIES_KEY = 'fv_bonificaciones_cities';
+
     protected $fillable = ['key', 'name', 'value', 'show'];
 
     public static function getByKey($key)
@@ -94,6 +96,99 @@ class Setting extends Model
         $v = self::getByKeyWithDefault('express_free_shipping_min', '0');
 
         return max(0.0, (float) $v);
+    }
+
+    /**
+     * Send bonificación / obsequio lines on the FV for this operational city.
+     * Cities that are missing or not in config/zone_warehouses.php stay off,
+     * which is the previous always-excluded behavior.
+     */
+    public static function isFvBonificacionesEnabledForCityKey(?string $cityKey): bool
+    {
+        if ($cityKey === null || $cityKey === '') {
+            return false;
+        }
+
+        $known = (array) config('zone_warehouses.cities', []);
+        if (! array_key_exists($cityKey, $known)) {
+            return false;
+        }
+
+        $value = self::fvBonificacionesCityFlags()[$cityKey] ?? '0';
+
+        return $value === '1' || $value === 1 || $value === true;
+    }
+
+    public static function isFvBonificacionesEnabledForOrder(?Order $order): bool
+    {
+        if (! $order) {
+            return false;
+        }
+
+        return self::isFvBonificacionesEnabledForCityKey(self::fvCityKeyForOrder($order));
+    }
+
+    /**
+     * Client city first (users.city_id / city_code → cities.name). A catalog city
+     * that is not one of the operational keys stays unknown (off), with no
+     * warehouse fallback. Orders with no resolved city use the zone warehouse.
+     */
+    public static function fvCityKeyForOrder(?Order $order): ?string
+    {
+        if (! $order) {
+            return null;
+        }
+
+        $order->loadMissing(['user', 'zone']);
+        $city = $order->user?->resolvedCity();
+        if ($city) {
+            return ZoneWarehouse::cityKeyForName($city->name);
+        }
+
+        $snapshot = is_array($order->zone_snapshot) ? $order->zone_snapshot : [];
+        $zoneNumber = trim((string) ($snapshot['zone'] ?? ''));
+        if ($zoneNumber === '') {
+            $zoneNumber = trim((string) ($order->zone?->zone ?? ''));
+        }
+
+        $bodega = $zoneNumber !== '' ? ZoneWarehouse::getBodegaForZone($zoneNumber) : null;
+
+        return ZoneWarehouse::cityKeyForBodega($bodega);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function fvBonificacionesCityFlags(): array
+    {
+        $raw = self::getByKeyWithDefault(self::FV_BONIFICACIONES_CITIES_KEY, '{}');
+        $decoded = json_decode((string) $raw, true);
+
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    /**
+     * Checkbox rows for the operational cities in config/zone_warehouses.php.
+     *
+     * @return array<int, array{key: string, label: string, bodega: string, enabled: bool}>
+     */
+    public static function fvBonificacionesCityOptions(): array
+    {
+        $flags = self::fvBonificacionesCityFlags();
+        $labels = ZoneWarehouse::operationalCityLabels();
+        $options = [];
+
+        foreach ((array) config('zone_warehouses.cities', []) as $key => $bodega) {
+            $value = $flags[$key] ?? '0';
+            $options[] = [
+                'key' => (string) $key,
+                'label' => $labels[$key] ?? \Illuminate\Support\Str::title((string) $key),
+                'bodega' => (string) $bodega,
+                'enabled' => $value === '1' || $value === 1 || $value === true,
+            ];
+        }
+
+        return $options;
     }
 
     /**
