@@ -8,6 +8,7 @@ use App\Models\Setting;
 use App\Models\ZoneWarehouse;
 use App\Repositories\OrderRepository;
 use App\Services\MicrosoftTokenService;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -176,8 +177,9 @@ class FvDynamicsService
         // when present; otherwise the contract placeholders (., 9999, NEXT, etc.).
         // numInvoice stays NEXT. SOAP_ORDER_CONSECUTIVE_PREFIX applies to detail
         // and the third token of observationsCust, not to numInvoice.
-        // TRO_E_obsequio stays 0 on this sales invoice. Obsequios are extra
-        // LinesDetails (unit price 0), included only when the order's city allows it.
+        // TRO_E_obsequio stays 0. This invoice never opens a separate obsequio
+        // document. When the order's city allows bonificaciones, those units are
+        // merged onto the sales lines and the approved merchandise net is prorated.
         // The presales integration still sends gifts as a separate document with flag 1.
         $fields = [
             'TRO_E_obsequio' => '0',
@@ -262,26 +264,57 @@ class FvDynamicsService
 
         $variationIds = $lineSources->pluck('variation_item_id')->filter()->all();
         $variationSkus = [];
-        if (!empty($variationIds)) {
+        $variationPrices = [];
+        if (! empty($variationIds)) {
             $variationSkuData = DB::table('product_item_variation')
                 ->whereIn('variation_item_id', $variationIds)
                 ->whereIn('product_id', $lineSources->whereNotNull('variation_item_id')->pluck('product_id')->unique()->all())
-                ->select('product_id', 'variation_item_id', 'sku')
+                ->select('product_id', 'variation_item_id', 'sku', 'price')
                 ->get();
             foreach ($variationSkuData as $item) {
-                $variationSkus[$item->product_id . '-' . $item->variation_item_id] = $item->sku;
+                $variationKey = $item->product_id.'-'.$item->variation_item_id;
+                $variationSkus[$variationKey] = $item->sku;
+                $variationPrices[$variationKey] = (float) $item->price;
             }
         }
 
+        if ($includeBonifications) {
+            $proratedXml = $this->buildProratedProductLinesXml($order, $warehouse, $products, $productsData, $variationSkus, $variationPrices);
+        } else {
+            $proratedXml = null;
+        }
+
+        $linesXml = $proratedXml ?? $this->buildStandardPaidLinesXml($order, $warehouse, $products, $productsData, $variationSkus);
+        $linesXml .= $this->buildShippingLineXml($order, $warehouse);
+
+        if ($linesXml === '') {
+            throw new RuntimeException("Order {$order->id} has no valid lines for FV creation.");
+        }
+
+        return $linesXml;
+    }
+
+    /**
+     * Paid lines only, with the discount and unit price the presale already stored.
+     * Used when the city does not include bonificaciones, and when a city is on
+     * but every gift row was skipped (missing product or SKU).
+     *
+     * @param  Collection<int, mixed>  $products
+     * @param  Collection<int, Product>  $productsData
+     * @param  array<string, string>  $variationSkus
+     */
+    private function buildStandardPaidLinesXml(Order $order, string $warehouse, $products, $productsData, array $variationSkus): string
+    {
         $linesXml = '';
 
         foreach ($products as $orderProduct) {
             $productData = $productsData[$orderProduct->product_id] ?? null;
-            if (!$productData) {
+            if (! $productData) {
                 Log::channel('soap')->warning('FV line skipped - product not found', [
                     'order_id' => $order->id,
                     'product_id' => $orderProduct->product_id,
                 ]);
+
                 continue;
             }
 
@@ -291,6 +324,7 @@ class FvDynamicsService
                     'order_id' => $order->id,
                     'product_id' => $orderProduct->product_id,
                 ]);
+
                 continue;
             }
 
@@ -316,37 +350,54 @@ class FvDynamicsService
             );
         }
 
-        if ($includeBonifications) {
-            $linesXml .= $this->buildBonificationLinesXml($order, $warehouse, $productsData, $variationSkus);
-        }
-
-        $linesXml .= $this->buildShippingLineXml($order, $warehouse);
-
-        if ($linesXml === '') {
-            throw new RuntimeException("Order {$order->id} has no valid lines for FV creation.");
-        }
-
         return $linesXml;
     }
 
     /**
-     * Gift lines use the same pricing as the presales obsequio document
-     * (unit price 0, discount 0, exact quantity, one line per SKU).
+     * One line per SKU (paid quantity + bonificación quantity) priced so the
+     * merchandise net stays the total the client approved. Returns null when
+     * there is no sendable gift, so the caller keeps the standard paid lines.
      *
-     * @param  \Illuminate\Support\Collection<int, Product>  $productsData
+     * @param  Collection<int, mixed>  $products
+     * @param  Collection<int, Product>  $productsData
      * @param  array<string, string>  $variationSkus
+     * @param  array<string, float>  $variationPrices
      */
-    private function buildBonificationLinesXml(Order $order, string $warehouse, $productsData, array $variationSkus): string
-    {
-        $bySku = [];
+    private function buildProratedProductLinesXml(
+        Order $order,
+        string $warehouse,
+        $products,
+        $productsData,
+        array $variationSkus,
+        array $variationPrices
+    ): ?string {
+        $components = [];
 
+        foreach ($products as $orderProduct) {
+            $resolved = $this->resolvePricedComponent($order, $orderProduct, $productsData, $variationSkus);
+            if ($resolved === null) {
+                continue;
+            }
+
+            $components[] = $resolved;
+        }
+
+        $paidReferenceBySku = [];
+        foreach ($components as $component) {
+            if ($component['reference_unit_cents'] > 0 && ! isset($paidReferenceBySku[$component['sku']])) {
+                $paidReferenceBySku[$component['sku']] = $component['reference_unit_cents'];
+            }
+        }
+
+        $sawGift = false;
         foreach ($order->bonifications as $gift) {
             $productData = $productsData[$gift->product_id] ?? null;
-            if (!$productData) {
+            if (! $productData) {
                 Log::channel('soap')->warning('FV bonificación skipped - product not found', [
                     'order_id' => $order->id,
                     'product_id' => $gift->product_id,
                 ]);
+
                 continue;
             }
 
@@ -356,41 +407,227 @@ class FvDynamicsService
                     'order_id' => $order->id,
                     'product_id' => $gift->product_id,
                 ]);
+
                 continue;
             }
 
-            $pricing = OrderRepository::resolveXmlPricing($gift, $productData, 1, (int) $order->id, true);
             $qty = (float) $gift->quantity;
-            if ($qty <= 0) {
+            if ($qty == 0.0) {
                 continue;
             }
 
-            if (!isset($bySku[$sku])) {
-                $bySku[$sku] = [
-                    'qty' => 0.0,
-                    'discount' => (string) $pricing['discount_percentage'],
-                    'unit_price' => parseCurrency($pricing['unit_price']),
-                ];
+            $sawGift = true;
+            $wholeQty = $this->requireWholeQuantity($order, $qty, $sku);
+            $catalogCents = $this->bonificationCatalogUnitCents($productData, $gift->variation_item_id ? (int) $gift->variation_item_id : null, $variationPrices);
+            $referenceCents = FvLineProration::resolveReferenceUnitCents($catalogCents, $paidReferenceBySku[$sku] ?? null);
+            if ($referenceCents <= 0) {
+                $this->refuseProration(
+                    $order,
+                    "FV proration refused: SKU {$sku} has no usable reference price."
+                );
             }
 
-            $bySku[$sku]['qty'] += $qty;
+            if ($catalogCents <= 0) {
+                Log::channel('soap')->info('FV bonificación reference price fell back to the paid line for the same SKU', [
+                    'order_id' => $order->id,
+                    'sku' => $sku,
+                    'reference_unit_cents' => $referenceCents,
+                ]);
+            }
+
+            $components[] = [
+                'sku' => $sku,
+                'qty' => $wholeQty,
+                'reference_unit_cents' => $referenceCents,
+                'tax_rate' => (float) ($productData->tax->tax ?? 0),
+                'net_cents' => 0,
+            ];
         }
 
+        if (! $sawGift) {
+            return null;
+        }
+
+        $approvedCents = 0;
+        $merged = [];
+        $skuOrder = [];
+
+        foreach ($components as $component) {
+            $sku = $component['sku'];
+            if (! isset($merged[$sku])) {
+                $skuOrder[] = $sku;
+                $merged[$sku] = [
+                    'sku' => $sku,
+                    'qty' => 0,
+                    'weight_cents' => 0,
+                    'tax_rate' => $component['tax_rate'],
+                ];
+            } elseif (abs($merged[$sku]['tax_rate'] - $component['tax_rate']) > 0.0001) {
+                $this->refuseProration(
+                    $order,
+                    "FV proration refused: SKU {$sku} has conflicting tax rates."
+                );
+            }
+
+            if ($component['reference_unit_cents'] <= 0) {
+                $this->refuseProration(
+                    $order,
+                    "FV proration refused: SKU {$sku} has no usable reference price."
+                );
+            }
+
+            $merged[$sku]['qty'] += $component['qty'];
+            $merged[$sku]['weight_cents'] += $component['reference_unit_cents'] * $component['qty'];
+            $approvedCents += $component['net_cents'];
+        }
+
+        $lines = [];
+        foreach ($skuOrder as $sku) {
+            $row = $merged[$sku];
+            $cap = intdiv($row['weight_cents'], $row['qty']);
+            if ($cap < 1) {
+                $this->refuseProration(
+                    $order,
+                    "FV proration refused: SKU {$sku} reference unit price rounds below 0.01."
+                );
+            }
+
+            $lines[] = [
+                'sku' => $sku,
+                'qty' => $row['qty'],
+                'weight_cents' => $row['weight_cents'],
+                'cap_unit_cents' => $cap,
+                'tax_rate' => $row['tax_rate'],
+            ];
+        }
+
+        try {
+            $allocated = FvLineProration::allocate($approvedCents, $lines);
+        } catch (RuntimeException $e) {
+            $this->refuseProration($order, $e->getMessage());
+        }
+
+        Log::channel('soap')->info('FV bonificaciones prorated into sales lines', [
+            'order_id' => $order->id,
+            'approved_merchandise' => number_format($approvedCents / 100, 2, '.', ''),
+            'lines' => array_map(static function (array $line): array {
+                return [
+                    'sku' => $line['sku'],
+                    'qty' => $line['qty'],
+                    'unit_price' => number_format($line['unit_cents'] / 100, 2, '.', ''),
+                ];
+            }, $allocated),
+        ]);
+
         $linesXml = '';
-        foreach ($bySku as $sku => $line) {
-            $qty = $line['qty'];
-            $qtyText = fmod($qty, 1.0) === 0.0 ? (string) (int) $qty : (string) $qty;
+        foreach ($allocated as $line) {
             $linesXml .= $this->buildLineXml(
                 warehouse: $warehouse,
-                discountPercent: $line['discount'],
-                itemId: (string) $sku,
-                qty: $qtyText,
-                taxValue: parseCurrency(0),
-                unitPrice: $line['unit_price']
+                discountPercent: '0',
+                itemId: $line['sku'],
+                qty: (string) $line['qty'],
+                taxValue: $line['tax_value'],
+                unitPrice: parseCurrency($line['unit_cents'] / 100)
             );
         }
 
         return $linesXml;
+    }
+
+    /**
+     * @param  Collection<int, Product>  $productsData
+     * @param  array<string, string>  $variationSkus
+     * @return array{sku: string, qty: int, reference_unit_cents: int, tax_rate: float, net_cents: int}|null
+     */
+    private function resolvePricedComponent(Order $order, object $orderProduct, $productsData, array $variationSkus): ?array
+    {
+        $productData = $productsData[$orderProduct->product_id] ?? null;
+        if (! $productData) {
+            Log::channel('soap')->warning('FV line skipped - product not found', [
+                'order_id' => $order->id,
+                'product_id' => $orderProduct->product_id,
+            ]);
+
+            return null;
+        }
+
+        $sku = $this->resolveLineSku($orderProduct, $productData, $variationSkus);
+        if ($sku === null) {
+            Log::channel('soap')->warning('FV line skipped - product without SKU', [
+                'order_id' => $order->id,
+                'product_id' => $orderProduct->product_id,
+            ]);
+
+            return null;
+        }
+
+        $pricing = OrderRepository::resolveXmlPricing($orderProduct, $productData, 0, (int) $order->id, true);
+        $unitCents = (int) round(((float) $pricing['unit_price']) * 100);
+        $packageQty = $orderProduct->package_quantity ?? 1;
+        $rawQty = $productData->calculate_package_price
+            ? (float) $orderProduct->quantity * (float) $packageQty
+            : (float) $orderProduct->quantity;
+
+        if ($rawQty == 0.0) {
+            return null;
+        }
+
+        $qty = $this->requireWholeQuantity($order, $rawQty, $sku);
+        $discount = (int) $pricing['discount_percentage'];
+
+        return [
+            'sku' => $sku,
+            'qty' => $qty,
+            'reference_unit_cents' => $unitCents,
+            'tax_rate' => (float) ($productData->tax->tax ?? 0),
+            'net_cents' => FvLineProration::paidLineNetCents($qty, $unitCents, $discount),
+        ];
+    }
+
+    /**
+     * @param  array<string, float>  $variationPrices
+     */
+    private function bonificationCatalogUnitCents(Product $product, ?int $variationItemId, array $variationPrices): int
+    {
+        $price = null;
+        $variationKey = $product->id.'-'.$variationItemId;
+        if ($variationItemId && isset($variationPrices[$variationKey]) && $variationPrices[$variationKey] > 0) {
+            $price = $variationPrices[$variationKey];
+        } elseif ((float) $product->price > 0) {
+            $price = (float) $product->price;
+        }
+
+        if ($price === null) {
+            return 0;
+        }
+
+        return FvLineProration::referenceUnitCents(
+            $price,
+            (bool) $product->calculate_package_price,
+            (int) ($product->package_quantity ?: 1)
+        );
+    }
+
+    private function requireWholeQuantity(Order $order, float $qty, string $sku): int
+    {
+        if ($qty <= 0 || abs($qty - round($qty)) > 0.0000001) {
+            $this->refuseProration(
+                $order,
+                "FV proration refused: SKU {$sku} quantity must be a positive whole number."
+            );
+        }
+
+        return (int) round($qty);
+    }
+
+    private function refuseProration(Order $order, string $reason): never
+    {
+        Log::channel('soap')->error('FV bonificacion proration refused', [
+            'order_id' => $order->id,
+            'reason' => $reason,
+        ]);
+
+        throw new RuntimeException('Order '.$order->id.': '.$reason);
     }
 
     /**

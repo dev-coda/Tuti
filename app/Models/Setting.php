@@ -99,9 +99,10 @@ class Setting extends Model
     }
 
     /**
-     * Send bonificación / obsequio lines on the FV for this operational city.
-     * Cities that are missing or not in config/zone_warehouses.php stay off,
-     * which is the previous always-excluded behavior.
+     * Include bonificación quantities on the FV for this operational city.
+     * On prorates the approved merchandise total across paid and gift units.
+     * Off keeps the FV paid-lines-only. Cities missing from
+     * config/zone_warehouses.php stay off.
      */
     public static function isFvBonificacionesEnabledForCityKey(?string $cityKey): bool
     {

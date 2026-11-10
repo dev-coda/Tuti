@@ -14,17 +14,19 @@ use App\Models\User;
 use App\Models\Vendor;
 use App\Models\Zone;
 use App\Models\ZoneWarehouse;
+use App\Repositories\OrderRepository;
 use App\Services\Shipping\FvDynamicsService;
 use DOMDocument;
 use DOMElement;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use RuntimeException;
 
 /**
  * Locks the Dynamics CreateSalesOrder data contract: namespaces, element order,
  * order-data population, and "." defaults. Fixture values are not the sample order.
  */
-
 function fvSoapConfig(array $overrides = []): void
 {
     config(array_merge([
@@ -144,7 +146,7 @@ function fvAssertSalesOrderContract(string $xml): array
     $tem = 'http://tempuri.org';
     $dyn = 'http://schemas.datacontract.org/2004/07/Dynamics.AX.Application';
 
-    $doc = new DOMDocument();
+    $doc = new DOMDocument;
     expect($doc->loadXML($xml))->toBeTrue();
 
     $envelope = $doc->documentElement;
@@ -222,23 +224,23 @@ function fvMakeSoapOrder(array $overrides = []): array
     $suffix = uniqid();
     $in['zone_number'] .= $suffix;
     $in['bodega'] .= $suffix;
-    $tax = Tax::create(['name' => 'IVA ' . $in['tax_rate'] . ' ' . $suffix, 'tax' => $in['tax_rate']]);
+    $tax = Tax::create(['name' => 'IVA '.$in['tax_rate'].' '.$suffix, 'tax' => $in['tax_rate']]);
     $vendor = Vendor::create([
-        'name' => 'Vendor ' . $suffix,
-        'slug' => 'vendor-' . $suffix,
+        'name' => 'Vendor '.$suffix,
+        'slug' => 'vendor-'.$suffix,
         'vendor_type' => 'V',
         'minimum_purchase' => 0,
         'active' => 1,
     ]);
     $brand = Brand::create([
-        'name' => 'Brand ' . $suffix,
-        'slug' => 'brand-' . $suffix,
+        'name' => 'Brand '.$suffix,
+        'slug' => 'brand-'.$suffix,
         'vendor_id' => $vendor->id,
     ]);
-    $sku = 'ITEM-FV-' . $suffix;
+    $sku = 'ITEM-FV-'.$suffix;
     $product = Product::create([
-        'name' => 'Producto ' . $suffix,
-        'slug' => 'producto-' . $suffix,
+        'name' => 'Producto '.$suffix,
+        'slug' => 'producto-'.$suffix,
         'description' => '',
         'short_description' => '',
         'sku' => $sku,
@@ -270,7 +272,7 @@ function fvMakeSoapOrder(array $overrides = []): array
 
     $user = User::create([
         'name' => $in['name'] !== '' ? $in['name'] : 'pending',
-        'email' => 'fv-soap-' . $suffix . '@example.com',
+        'email' => 'fv-soap-'.$suffix.'@example.com',
         'password' => Hash::make('password123'),
         'document' => $in['document'],
         'account_num' => $in['account_num'],
@@ -285,8 +287,8 @@ function fvMakeSoapOrder(array $overrides = []): array
     $sellerId = null;
     if ($in['seller_document'] !== null) {
         $seller = User::create([
-            'name' => 'Vendedor ' . $suffix,
-            'email' => 'fv-seller-' . $suffix . '@example.com',
+            'name' => 'Vendedor '.$suffix,
+            'email' => 'fv-seller-'.$suffix.'@example.com',
             'password' => Hash::make('password123'),
             'document' => $in['seller_document'],
         ]);
@@ -340,7 +342,7 @@ it('builds CreateSalesOrder xml in contract order with order data', function () 
     $salesOrder = $parsed['salesOrder'];
     $lines = $parsed['lines'];
 
-    $consecutive = 'TEST' . $order->id;
+    $consecutive = 'TEST'.$order->id;
     expect($order->soapConsecutive())->toBe($consecutive);
 
     expect(fvChildText($salesOrder, 'TRO_E_obsequio'))->toBe('0');
@@ -430,7 +432,7 @@ it('keeps numInvoice NEXT when the stage consecutive prefix is applied or cleare
     fvSoapConfig(['microsoft.order_consecutive_prefix' => 'TEST']);
     $prefixed = fvMakeSoapOrder();
     $prefixedXml = fvAssertSalesOrderContract(fvBuildSoapXml($prefixed['order']));
-    $consecutive = 'TEST' . $prefixed['order']->id;
+    $consecutive = 'TEST'.$prefixed['order']->id;
 
     expect(fvChildText($prefixedXml['salesOrder'], 'detail'))->toBe($consecutive);
     expect(fvChildText($prefixedXml['salesOrder'], 'numInvoice'))->toBe('NEXT');
@@ -479,30 +481,40 @@ function fvAssignCity(Order $order, string $cityName): void
     $order->user->save();
 }
 
-function fvAttachGift(Order $order, int $firstQty = 2, int $secondQty = 3): string
+function fvAttachGift(Order $order, int $firstQty = 2, int $secondQty = 3, array $overrides = []): string
 {
     $suffix = uniqid();
     $paid = $order->products()->first();
     $paidProduct = Product::findOrFail($paid->product_id);
-    $gift = Product::create([
-        'name' => 'Obsequio '.$suffix,
-        'slug' => 'obsequio-'.$suffix,
-        'description' => '',
-        'short_description' => '',
-        'sku' => 'GIFT-FV-'.$suffix,
-        'active' => 1,
-        'price' => 8000,
-        'delivery_days' => 1,
-        'discount' => 0,
-        'discount_type' => 'percentage',
-        'quantity_min' => 1,
-        'quantity_max' => 100,
-        'step' => 1,
-        'tax_id' => $paidProduct->tax_id,
-        'brand_id' => $paidProduct->brand_id,
-        'package_quantity' => 6,
-        'calculate_package_price' => true,
-    ]);
+
+    if (! empty($overrides['use_paid_product'])) {
+        $gift = $paidProduct;
+        if (array_key_exists('price', $overrides)) {
+            $gift->price = $overrides['price'];
+            $gift->save();
+        }
+    } else {
+        $gift = Product::create([
+            'name' => 'Obsequio '.$suffix,
+            'slug' => 'obsequio-'.$suffix,
+            'description' => '',
+            'short_description' => '',
+            'sku' => $overrides['sku'] ?? ('GIFT-FV-'.$suffix),
+            'active' => 1,
+            'price' => $overrides['price'] ?? 8000,
+            'delivery_days' => 1,
+            'discount' => 0,
+            'discount_type' => 'percentage',
+            'quantity_min' => 1,
+            'quantity_max' => 100,
+            'step' => 1,
+            'tax_id' => $paidProduct->tax_id,
+            'brand_id' => $paidProduct->brand_id,
+            'package_quantity' => $overrides['package_quantity'] ?? 6,
+            'calculate_package_price' => $overrides['calculate_package_price'] ?? true,
+        ]);
+    }
+
     $bonification = Bonification::create([
         'name' => 'Bonif '.$suffix,
         'buy' => 2,
@@ -511,6 +523,9 @@ function fvAttachGift(Order $order, int $firstQty = 2, int $secondQty = 3): stri
     ]);
 
     foreach ([$firstQty, $secondQty] as $qty) {
+        if ($qty === 0) {
+            continue;
+        }
         OrderProductBonification::create([
             'order_product_id' => $paid->id,
             'bonification_id' => $bonification->id,
@@ -521,6 +536,20 @@ function fvAttachGift(Order $order, int $firstQty = 2, int $secondQty = 3): stri
     }
 
     return $gift->sku;
+}
+
+function fvProductMerchandiseCents(array $lines): int
+{
+    $cents = 0;
+    foreach ($lines as $line) {
+        if (fvChildText($line, 'itemId') === 'FL00001') {
+            continue;
+        }
+        $unitCents = (int) round((float) fvChildText($line, 'unitPrice') * 100);
+        $cents += $unitCents * (int) fvChildText($line, 'qty');
+    }
+
+    return $cents;
 }
 
 it('includes consolidated bonificacion lines when the order city is enabled', function () {
@@ -546,12 +575,23 @@ it('includes consolidated bonificacion lines when the order city is enabled', fu
     expect(fvChildText($giftLine, 'itemId'))->toBe($giftSku);
     expect(fvChildText($giftLine, 'qty'))->toBe('5');
     expect(fvChildText($giftLine, 'discountPercent'))->toBe('0');
-    expect(fvChildText($giftLine, 'unitPrice'))->toBe('0.00');
-    expect(fvChildText($giftLine, 'taxValue'))->toBe('0.00');
+    expect(fvChildText($giftLine, 'unitPrice'))->toBe('1117.64');
+    expect(fvChildText($giftLine, 'unitPrice'))->not->toBe('0.00');
+    expect(fvChildText($giftLine, 'taxValue'))->toBe('1061.76');
     expect(fvChildText($giftLine, 'almacen'))->toBe($fx['bodega']);
     expect(fvChildText($giftLine, 'lote'))->toBe('.');
 
+    expect(fvChildText($lines[0], 'qty'))->toBe('10');
+    expect(fvChildText($lines[0], 'discountPercent'))->toBe('0');
+    expect(fvChildText($lines[0], 'unitPrice'))->toBe('4191.18');
+    expect(fvChildText($lines[0], 'taxValue'))->toBe('7963.24');
+    expect(fvProductMerchandiseCents($lines))->toBe(4750000);
+    expect((float) fvChildText($lines[0], 'unitPrice'))->toBeLessThan(5000);
+    expect((float) fvChildText($giftLine, 'unitPrice'))->toBeLessThan(1333.33);
+
     expect(fvChildText($lines[2], 'itemId'))->toBe('FL00001');
+    expect(fvChildText($lines[2], 'unitPrice'))->toBe('1850.50');
+    expect(fvChildText($lines[2], 'qty'))->toBe('1');
 });
 
 it('includes bonificaciones from the zone warehouse when the client has no city', function () {
@@ -566,7 +606,9 @@ it('includes bonificaciones from the zone warehouse when the client has no city'
 
     expect(fvChildText($parsed['lines'][1], 'itemId'))->toBe($giftSku);
     expect(fvChildText($parsed['lines'][1], 'qty'))->toBe('5');
-    expect(fvChildText($parsed['lines'][1], 'unitPrice'))->toBe('0.00');
+    expect(fvChildText($parsed['lines'][1], 'unitPrice'))->toBe('1117.64');
+    expect(fvChildText($parsed['lines'][0], 'unitPrice'))->toBe('4191.18');
+    expect(fvProductMerchandiseCents($parsed['lines']))->toBe(4750000);
     expect(fvChildText($parsed['salesOrder'], 'TRO_E_obsequio'))->toBe('0');
     expect(array_map(fn (DOMElement $el) => $el->localName, fvDirectChildren($parsed['salesOrder'])))->toBe(fvSalesOrderChildNames());
 });
@@ -586,7 +628,11 @@ it('excludes bonificaciones when the city is disabled', function () {
     expect($xml)->not->toContain($giftSku);
     expect(fvChildText($parsed['salesOrder'], 'TRO_E_obsequio'))->toBe('0');
     expect(fvChildText($parsed['lines'][0], 'itemId'))->toBe($fx['sku']);
+    expect(fvChildText($parsed['lines'][0], 'qty'))->toBe('10');
+    expect(fvChildText($parsed['lines'][0], 'discountPercent'))->toBe('5');
+    expect(fvChildText($parsed['lines'][0], 'unitPrice'))->toBe('5000.00');
     expect(fvChildText($parsed['lines'][1], 'itemId'))->toBe('FL00001');
+    expect(fvChildText($parsed['lines'][1], 'unitPrice'))->toBe('1850.50');
 });
 
 it('excludes bonificaciones for an unknown city and when the setting is missing', function () {
@@ -613,4 +659,129 @@ it('excludes bonificaciones for an unknown city and when the setting is missing'
     expect($plainXml)->not->toContain($plainGift);
     expect(fvAssertSalesOrderContract($plainXml)['lines'])->toHaveCount(2);
     expect(fvChildText(fvAssertSalesOrderContract($plainXml)['salesOrder'], 'TRO_E_obsequio'))->toBe('0');
+});
+
+it('prorates mixed quantities by reference value and keeps freight off the product lines', function () {
+    fvSoapConfig();
+    fvForgetBonificacionSetting();
+    $fx = fvMakeSoapOrder([
+        'qty' => 2,
+        'price' => 100,
+        'percentage' => 0,
+        'tax_rate' => 19,
+        'shipping_amount' => 1850.5,
+    ]);
+    fvAssignCity($fx['order'], 'Bogotá');
+    fvEnableBonificaciones(['bogota']);
+    $giftSku = fvAttachGift($fx['order'], 1, 4, [
+        'price' => 40,
+        'package_quantity' => 1,
+        'calculate_package_price' => false,
+    ]);
+
+    $parsed = fvAssertSalesOrderContract(fvBuildSoapXml($fx['order']->fresh()));
+    $lines = $parsed['lines'];
+
+    expect(array_map(fn (DOMElement $el) => $el->localName, fvDirectChildren($parsed['salesOrder'])))->toBe(fvSalesOrderChildNames());
+    expect($lines)->toHaveCount(3);
+    expect(fvChildText($parsed['salesOrder'], 'TRO_E_obsequio'))->toBe('0');
+
+    expect(fvChildText($lines[0], 'itemId'))->toBe($fx['sku']);
+    expect(fvChildText($lines[0], 'qty'))->toBe('2');
+    expect(fvChildText($lines[0], 'discountPercent'))->toBe('0');
+    expect(fvChildText($lines[0], 'unitPrice'))->toBe('50.00');
+    expect(fvChildText($lines[0], 'taxValue'))->toBe('19.00');
+    expect(array_map(fn (DOMElement $el) => $el->localName, fvDirectChildren($lines[0])))->toBe(fvLineChildNames());
+
+    expect(fvChildText($lines[1], 'itemId'))->toBe($giftSku);
+    expect(fvChildText($lines[1], 'qty'))->toBe('5');
+    expect(fvChildText($lines[1], 'unitPrice'))->toBe('20.00');
+    expect(fvChildText($lines[1], 'unitPrice'))->not->toBe('0.00');
+    expect(fvChildText($lines[1], 'taxValue'))->toBe('19.00');
+    expect(fvChildText($lines[0], 'unitPrice'))->not->toBe(fvChildText($lines[1], 'unitPrice'));
+
+    expect(fvProductMerchandiseCents($lines))->toBe(20000);
+    expect(fvChildText($lines[2], 'itemId'))->toBe('FL00001');
+    expect(fvChildText($lines[2], 'qty'))->toBe('1');
+    expect(fvChildText($lines[2], 'unitPrice'))->toBe('1850.50');
+    expect(fvChildText($lines[2], 'taxValue'))->toBe('0');
+});
+
+it('consolidates the same sku and falls back to the paid reference when the gift catalog price is missing', function () {
+    fvSoapConfig();
+    fvForgetBonificacionSetting();
+    $fx = fvMakeSoapOrder([
+        'qty' => 2,
+        'price' => 100,
+        'percentage' => 0,
+        'tax_rate' => 0,
+        'shipping_amount' => 0,
+    ]);
+    fvAssignCity($fx['order'], 'Bogotá');
+    fvEnableBonificaciones(['bogota']);
+    fvAttachGift($fx['order'], 2, 0, [
+        'use_paid_product' => true,
+        'price' => 0,
+    ]);
+
+    $parsed = fvAssertSalesOrderContract(fvBuildSoapXml($fx['order']->fresh()));
+    $lines = $parsed['lines'];
+
+    expect($lines)->toHaveCount(1);
+    expect(fvChildText($lines[0], 'itemId'))->toBe($fx['sku']);
+    expect(fvChildText($lines[0], 'qty'))->toBe('4');
+    expect(fvChildText($lines[0], 'discountPercent'))->toBe('0');
+    expect(fvChildText($lines[0], 'unitPrice'))->toBe('50.00');
+    expect(fvChildText($lines[0], 'unitPrice'))->not->toBe('0.00');
+    expect(fvProductMerchandiseCents($lines))->toBe(20000);
+    expect(array_map(fn (DOMElement $el) => $el->localName, fvDirectChildren($lines[0])))->toBe(fvLineChildNames());
+});
+
+it('refuses a prorated fv when a bonificacion sku has no usable reference price', function () {
+    fvSoapConfig();
+    fvForgetBonificacionSetting();
+    $fx = fvMakeSoapOrder();
+    fvAssignCity($fx['order'], 'Bogotá');
+    fvEnableBonificaciones(['bogota']);
+    $giftSku = fvAttachGift($fx['order'], 1, 0, [
+        'price' => 0,
+        'package_quantity' => 1,
+        'calculate_package_price' => false,
+    ]);
+
+    $reasons = [];
+    Log::listen(function ($message) use (&$reasons) {
+        if ($message->level === 'error' && str_contains((string) $message->message, 'FV bonificacion proration refused')) {
+            $reasons[] = (string) ($message->context['reason'] ?? '');
+        }
+    });
+
+    expect(fn () => fvBuildSoapXml($fx['order']->fresh()))
+        ->toThrow(RuntimeException::class, 'no usable reference price');
+
+    expect($reasons)->toHaveCount(1)
+        ->and($reasons[0])->toContain($giftSku)
+        ->and($reasons[0])->toContain('no usable reference price');
+});
+
+it('keeps presale bonificaciones as a separate zero-price document', function () {
+    fvSoapConfig();
+    $fx = fvMakeSoapOrder();
+    $giftSku = fvAttachGift($fx['order']);
+    $order = $fx['order']->fresh(['zone', 'user', 'products', 'bonifications']);
+
+    $xml = OrderRepository::buildOrderXmlForDiagnostic($order, true);
+
+    expect($xml)->toContain('<dyn:TRO_E_obsequio>0</dyn:TRO_E_obsequio>')
+        ->and($xml)->toContain('<dyn:TRO_E_obsequio>1</dyn:TRO_E_obsequio>')
+        ->and($xml)->toContain('<dyn:unitPrice>5000.00</dyn:unitPrice>')
+        ->and($xml)->toContain('<dyn:discount>5</dyn:discount>')
+        ->and($xml)->toContain('<dyn:unitPrice>0</dyn:unitPrice>')
+        ->and($xml)->toContain('<dyn:itemId>'.$giftSku.'</dyn:itemId>')
+        ->and($xml)->toContain('<dyn:qty>5</dyn:qty>')
+        ->and($xml)->not->toContain('4191.18')
+        ->and($xml)->not->toContain('1117.64');
+
+    expect(substr_count($xml, '<dyn:itemId>'.$fx['sku'].'</dyn:itemId>'))->toBe(1);
+    expect(substr_count($xml, '<dyn:itemId>'.$giftSku.'</dyn:itemId>'))->toBe(1);
 });
