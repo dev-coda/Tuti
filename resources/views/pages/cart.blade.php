@@ -1006,6 +1006,113 @@
             return Math.max(0, totalWithoutShipping);
         }
 
+        // ---- Cotización: estado del botón de pedido + diagnóstico ----
+        // Sin cotización válida no se puede pedir: el botón se deshabilita
+        // (SubmitOrderButton escucha el evento + espejo en window) y, cuando
+        // la causa son los datos del usuario, se le avisa con un toast info.
+        let lastShippingQuoteToastKey = null;
+
+        function setOrderButtonDisabled(disabled, reason = '') {
+            window.__shippingQuoteOrderDisabled = { disabled: !!disabled, reason };
+            window.dispatchEvent(new CustomEvent('shipping-quote:order-button', {
+                detail: { disabled: !!disabled, reason },
+            }));
+            // Fallback directo por si el componente Vue aún no montó.
+            const btn = document.querySelector('#submit-order-button button');
+            if (btn) {
+                btn.disabled = !!disabled;
+                btn.setAttribute('aria-disabled', disabled ? 'true' : 'false');
+                if (disabled) {
+                    btn.title = reason || 'Cotización de envío no disponible';
+                } else {
+                    btn.removeAttribute('title');
+                }
+            }
+        }
+
+        function shippingQuoteFailureAction(category, data) {
+            switch (category) {
+                case 'user_data':
+                    return 'El usuario debe actualizar sus datos de entrega (dirección, ciudad y zona/código DANE) y volver a cotizar. Coordinadora ni siquiera fue contactada en los casos de datos faltantes.';
+                case 'server_configuration':
+                    return 'Esto NO es culpa del usuario: revisa las variables COORDINADORA_* del env de stage (ver diagnostics) y vuelve a desplegar/recargar la configuración.';
+                case 'product_data':
+                    return 'Completar en el catálogo el peso/dimensiones Coordinadora (coordinadora_weight_kg / height / width / length) o el precio de los SKU indicados en diagnostics.';
+                case 'external_service':
+                    return 'Coordinadora falló o rechazó la solicitud: revisa el http_status / cuerpo en diagnostics, las credenciales COORDINADORA_KEY/SECRET y la conectividad del ambiente.';
+                case 'cart':
+                    return 'Agregar productos válidos al carrito y volver a cotizar.';
+                default:
+                    return 'Buscar en laravel.log de stage la línea [COTIZACIÓN COORDINADORA FALLÓ] con este mismo error_code: ahí quedó la excepción completa.';
+            }
+        }
+
+        function logShippingQuoteFailure({ method, zoneId, url, httpStatus, data, networkError }) {
+            const reason = (data && (data.reason || data.message)) || (networkError ? networkError.message : 'Sin detalle del servidor');
+            const category = (data && data.failure_category) || (networkError ? 'external_service' : 'unknown');
+            const errorCode = (data && data.error_code) || (networkError ? 'network_error' : 'unknown_error');
+            const requiresUserUpdate = !!(data && data.requires_user_data_update);
+
+            console.error(
+                '%c[COTIZACIÓN DE ENVÍO 48H — FALLÓ]%c No es un error genérico: esta es la causa real.\n'
+                + '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
+                + 'QUÉ PASÓ:        GET ' + url + ' respondió ' + (httpStatus ? 'HTTP ' + httpStatus : 'sin respuesta (red/servidor caído)')
+                + (networkError ? ' — ' + networkError.message : '') + '\n'
+                + 'CAUSA RAÍZ:      ' + reason + '\n'
+                + 'CATEGORÍA:       ' + category + '\n'
+                + 'CÓDIGO:          ' + errorCode + '\n'
+                + '¿EL USUARIO DEBE ACTUALIZAR SUS DATOS?: ' + (requiresUserUpdate ? 'SÍ — por eso se le mostró el toast informativo y se deshabilitó el botón de pedido' : 'NO — no le pidas al usuario que actualice sus datos; la causa no está en sus datos') + '\n'
+                + 'QUÉ HACER:       ' + shippingQuoteFailureAction(category, data) + '\n'
+                + 'CONTEXTO:        método=' + method + ', zone_id=' + (zoneId || '(ninguna)') + '\n'
+                + 'EN EL SERVIDOR:  la misma falla quedó en laravel.log de stage como [COTIZACIÓN COORDINADORA FALLÓ] con error_code=' + errorCode + '\n'
+                + '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+                'background:#b91c1c;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px',
+                'color:inherit',
+                { respuesta_servidor: data || null, diagnostics: (data && data.diagnostics) || null, network_error: networkError || null }
+            );
+        }
+
+        function handleShippingQuoteFailure(failure) {
+            logShippingQuoteFailure(failure);
+            const data = failure.data || {};
+            const requiresUserUpdate = data.requires_user_data_update === true;
+
+            setShippingAmount(0, {
+                forceShow: true,
+                error: data.message || 'No se pudo cotizar el envío 48H. Revisa la zona o intenta de nuevo.',
+            });
+            setOrderButtonDisabled(true, data.reason || data.message || 'No se pudo cotizar el envío');
+
+            // Toast una sola vez por causa+zona: re-cotizar lo mismo no debe
+            // apilar avisos idénticos.
+            const toastKey = [data.error_code || 'unknown', failure.method, failure.zoneId].join('|');
+            if (lastShippingQuoteToastKey === toastKey) {
+                return;
+            }
+            lastShippingQuoteToastKey = toastKey;
+
+            if (window.showToast) {
+                if (requiresUserUpdate) {
+                    window.showToast(
+                        'Debes actualizar tus datos para poder realizar el pedido. Revisa tu dirección, ciudad y zona de entrega, actualízalos y vuelve a intentarlo.',
+                        'info',
+                        10000
+                    );
+                } else {
+                    window.showToast(
+                        'No se pudo cotizar el envío en este momento. El botón de pedido quedó deshabilitado; intenta de nuevo más tarde.',
+                        'error',
+                        8000
+                    );
+                }
+            }
+        }
+
+        function handleShippingQuoteSuccess() {
+            lastShippingQuoteToastKey = null;
+            setOrderButtonDisabled(false);
+        }
+
         function fetchShippingQuote(method) {
             const zoneId = zoneSelect ? zoneSelect.value : null;
             shippingQuoteRequestId += 1;
@@ -1018,10 +1125,35 @@
                 ? new AbortController()
                 : null;
 
-            if (!zoneId || method !== 'express') {
+            if (method !== 'express') {
+                // Standard/Tronex no cotiza con Coordinadora: flete $0 válido.
+                handleShippingQuoteSuccess();
                 setShippingAmount(0, { freeShipping: true, quotedShippingCost: 0 });
                 return;
             }
+
+            if (!zoneId) {
+                handleShippingQuoteFailure({
+                    method,
+                    zoneId,
+                    url: '/api/shipping-quote/' + method + ' (sin zone_id)',
+                    httpStatus: null,
+                    data: {
+                        success: false,
+                        message: 'Zona no válida para cotización: actualiza tu dirección de entrega.',
+                        reason: 'No hay ninguna zona/dirección de entrega seleccionada (el selector de dirección está vacío), así que no existe destino para cotizar con Coordinadora.',
+                        error_code: 'invalid_zone',
+                        failure_category: 'user_data',
+                        requires_user_data_update: true,
+                        diagnostics: { zone_id: null },
+                    },
+                });
+                return;
+            }
+
+            // Mientras se cotiza tampoco se puede pedir: el total aún no
+            // incluye un flete confirmado.
+            setOrderButtonDisabled(true, 'Cotizando el envío…');
 
             // Keep the shipping row visible while quoting so totals never
             // silently drop the estimated cost when express is selected.
@@ -1031,20 +1163,46 @@
             const url = `/api/shipping-quote/${method}?zone_id=${zoneId}&merchandise_total=${encodeURIComponent(merchandiseTotal.toFixed(2))}`;
 
             fetch(url, shippingQuoteAbortController ? { signal: shippingQuoteAbortController.signal } : undefined)
-                .then(response => response.json().then(data => ({ ok: response.ok, data })))
-                .then(({ ok, data }) => {
+                .then(async (response) => {
+                    const rawText = await response.text();
+                    let data = null;
+                    try {
+                        data = rawText ? JSON.parse(rawText) : null;
+                    } catch (parseError) {
+                        // Stage devolviendo HTML (500, pantalla de error, login)
+                        // también es una causa real: no la escondas tras un JSON roto.
+                        data = {
+                            success: false,
+                            message: 'No se pudo cotizar el envío en este momento.',
+                            reason: 'El servidor respondió HTTP ' + response.status + ' sin JSON válido (probable error 500 en stage). '
+                                + 'Inicio de la respuesta: ' + rawText.substring(0, 300) + ' — busca [COTIZACIÓN COORDINADORA FALLÓ] o el 500 en laravel.log de stage.',
+                            error_code: 'non_json_server_response',
+                            failure_category: 'external_service',
+                            requires_user_data_update: false,
+                            diagnostics: { http_status: response.status, response_start: rawText.substring(0, 300) },
+                        };
+                    }
+                    return { ok: response.ok, status: response.status, data };
+                })
+                .then(({ ok, status, data }) => {
                     if (requestId !== shippingQuoteRequestId) {
                         return;
                     }
 
-                    if (!ok || !data.success) {
-                        setShippingAmount(0, {
-                            forceShow: true,
-                            error: data.message || 'No se pudo cotizar el envío 48H. Revisa la zona o intenta de nuevo.',
-                        });
+                    if (!ok || !data || !data.success) {
+                        handleShippingQuoteFailure({ method, zoneId, url, httpStatus: status, data });
                         return;
                     }
 
+                    if (data.fallback && data.quote_warning) {
+                        console.warn(
+                            '[COTIZACIÓN DE ENVÍO 48H — FALLBACK $0] Esta zona es placeholder: se cobra $0, pero la cotización real falló por esto: '
+                            + data.quote_warning + ' (error_code=' + (data.error_code || '?') + ')',
+                            data
+                        );
+                    }
+
+                    handleShippingQuoteSuccess();
                     setShippingAmount(Number(data.shipping_cost || 0), {
                         forceShow: true,
                         freeShipping: !!data.free_shipping_applied,
@@ -1058,10 +1216,7 @@
                     if (requestId !== shippingQuoteRequestId) {
                         return;
                     }
-                    setShippingAmount(0, {
-                        forceShow: true,
-                        error: 'No se pudo cotizar el envío 48H. Revisa la zona o intenta de nuevo.',
-                    });
+                    handleShippingQuoteFailure({ method, zoneId, url, httpStatus: null, data: null, networkError: error });
                 });
         }
 
@@ -1339,6 +1494,12 @@
                 if (deliveryMethodInput) {
                     deliveryMethodInput.value = '';
                 }
+                console.error(
+                    '[COTIZACIÓN DE ENVÍO — SIN MÉTODOS DISPONIBLES] Ningún método de envío está habilitado para esta ciudad/dirección '
+                    + '(flags de la zona/ciudad: standard=' + flags.standard + ', express=' + flags.express + ', zone_id=' + (zoneSelect ? zoneSelect.value : '(ninguna)') + '). '
+                    + 'El botón de pedido quedó deshabilitado hasta que se elija una dirección con envío habilitado.'
+                );
+                setOrderButtonDisabled(true, 'No hay métodos de envío habilitados para esta dirección');
                 setShippingAmount(0, { freeShipping: true });
                 return available;
             }
@@ -1380,6 +1541,7 @@
             syncZoneShippingMethods(shippingMethodCodes[0]);
             refreshVisibleDeliveryDates();
         } else {
+            setOrderButtonDisabled(true, 'No hay métodos de envío disponibles');
             setShippingAmount(0, { freeShipping: true });
         }
     })

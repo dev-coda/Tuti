@@ -1,7 +1,8 @@
 <template>
     <button
         type="submit"
-        :disabled="isLoading || disabled"
+        :disabled="isLoading || disabled || quoteDisabled"
+        :title="quoteDisabled ? quoteDisabledReason : null"
         :class="buttonClasses"
     >
         <span v-if="!isLoading" class="flex items-center justify-center">
@@ -50,6 +51,10 @@ export default {
         return {
             isLoading: false,
             hasSubmitted: false,
+            // Disabled by the cart when the shipping quote (cotización) fails
+            // or is in flight — ordering without a valid quote is not allowed.
+            quoteDisabled: false,
+            quoteDisabledReason: "",
         };
     },
     computed: {
@@ -57,7 +62,7 @@ export default {
             const baseClasses =
                 "w-full rounded py-3 px-5 mt-5 block text-center transition-all duration-200";
 
-            if (this.isLoading || this.disabled) {
+            if (this.isLoading || this.disabled || this.quoteDisabled) {
                 return `${baseClasses} bg-gray-400 text-gray-200 cursor-not-allowed`;
             }
 
@@ -65,13 +70,36 @@ export default {
         },
     },
     mounted() {
+        // The cart publishes quote state on window (and mirrors it in
+        // window.__shippingQuoteOrderDisabled so a failure that happened
+        // before this component mounted is not lost).
+        this._onQuoteState = (event) => {
+            const detail = event.detail || {};
+            this.quoteDisabled = detail.disabled === true;
+            this.quoteDisabledReason = detail.reason || "";
+        };
+        window.addEventListener(
+            "shipping-quote:order-button",
+            this._onQuoteState
+        );
+        const initial = window.__shippingQuoteOrderDisabled;
+        if (initial && initial.disabled) {
+            this.quoteDisabled = true;
+            this.quoteDisabledReason = initial.reason || "";
+        }
+
         // Find the parent form and listen for submit event
         const form = this.$el.closest("form");
         if (form) {
             // Add submit event listener to the form
             form.addEventListener("submit", (e) => {
                 // If already loading or disabled, prevent submission
-                if (this.isLoading || this.hasSubmitted || this.disabled) {
+                if (
+                    this.isLoading ||
+                    this.hasSubmitted ||
+                    this.disabled ||
+                    this.quoteDisabled
+                ) {
                     e.preventDefault();
                     return false;
                 }
@@ -83,6 +111,14 @@ export default {
                 // Allow the form to submit
                 return true;
             });
+        }
+    },
+    beforeUnmount() {
+        if (this._onQuoteState) {
+            window.removeEventListener(
+                "shipping-quote:order-button",
+                this._onQuoteState
+            );
         }
     },
 };

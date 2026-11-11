@@ -671,3 +671,130 @@ it('fails the express quote when the zone has no dane destination', function () 
 
     Http::assertNothingSent();
 });
+
+it('explains exactly why the quote failed when the zone has no dane destination', function () {
+    Setting::updateOrCreate(
+        ['key' => 'express_48h_enabled'],
+        ['name' => 'Express 48h', 'value' => '1', 'show' => false]
+    );
+    Cache::forget('setting_express_48h_enabled');
+
+    $zone = Zone::create([
+        'route' => 'R1', 'zone' => 'Z1', 'day' => '1', 'address' => 'Calle 1', 'code' => 'N002',
+        'zip_code' => '110111', // postal code only; no DANE resolvable
+        'fulfillment_provider_48h' => 'coordinadora',
+    ]);
+    [, , $product] = makeTaxBrandProduct();
+
+    config([
+        'services.coordinadora.oauth_url' => 'https://coordinadora.test/oauth/token',
+        'services.coordinadora.base_url' => 'https://coordinadora.test',
+        'services.coordinadora.key' => 'k',
+        'services.coordinadora.secret' => 's',
+        'services.coordinadora.origin_dane' => '05001000',
+    ]);
+    Http::fake();
+
+    session()->put('cart', [
+        ['product_id' => $product->id, 'quantity' => 1, 'price' => 10000],
+    ]);
+
+    $response = $this->getJson('/api/shipping-quote/express?zone_id=' . $zone->id)
+        ->assertStatus(422)
+        ->assertJson([
+            'success' => false,
+            'error_code' => 'missing_destination_dane',
+            'failure_category' => 'user_data',
+            'requires_user_data_update' => true,
+        ]);
+
+    expect($response->json('reason'))->toContain('no tiene código DANE de destino');
+    expect($response->json('diagnostics.zone_id'))->toBe($zone->id);
+    // The cause is local data: Coordinadora must never be called.
+    Http::assertNothingSent();
+});
+
+it('does not blame the user when the origin dane is not configured in the environment', function () {
+    Setting::updateOrCreate(
+        ['key' => 'express_48h_enabled'],
+        ['name' => 'Express 48h', 'value' => '1', 'show' => false]
+    );
+    Cache::forget('setting_express_48h_enabled');
+
+    $zone = Zone::create([
+        'route' => 'R1', 'zone' => 'Z1', 'day' => '1', 'address' => 'Calle 1', 'code' => 'N003',
+        'dane_code' => '11001000',
+        'fulfillment_provider_48h' => 'coordinadora',
+    ]);
+    [, , $product] = makeTaxBrandProduct();
+
+    config([
+        'services.coordinadora.oauth_url' => 'https://coordinadora.test/oauth/token',
+        'services.coordinadora.base_url' => 'https://coordinadora.test',
+        'services.coordinadora.key' => 'k',
+        'services.coordinadora.secret' => 's',
+        'services.coordinadora.origin_dane' => null,
+    ]);
+    Http::fake();
+
+    session()->put('cart', [
+        ['product_id' => $product->id, 'quantity' => 1, 'price' => 10000],
+    ]);
+
+    $response = $this->getJson('/api/shipping-quote/express?zone_id=' . $zone->id)
+        ->assertStatus(422)
+        ->assertJson([
+            'success' => false,
+            'error_code' => 'missing_origin_dane',
+            'failure_category' => 'server_configuration',
+            'requires_user_data_update' => false,
+        ]);
+
+    expect($response->json('reason'))->toContain('COORDINADORA_ORIGIN_DANE');
+    Http::assertNothingSent();
+});
+
+it('surfaces the coordinadora http status and body when the quote is rejected', function () {
+    Setting::updateOrCreate(
+        ['key' => 'express_48h_enabled'],
+        ['name' => 'Express 48h', 'value' => '1', 'show' => false]
+    );
+    Cache::forget('setting_express_48h_enabled');
+
+    $zone = Zone::create([
+        'route' => 'R1', 'zone' => 'Z1', 'day' => '1', 'address' => 'Calle 1', 'code' => 'N004',
+        'dane_code' => '11001000',
+        'fulfillment_provider_48h' => 'coordinadora',
+    ]);
+    [, , $product] = makeTaxBrandProduct();
+
+    config([
+        'services.coordinadora.oauth_url' => 'https://coordinadora.test/oauth/token',
+        'services.coordinadora.base_url' => 'https://coordinadora.test',
+        'services.coordinadora.key' => 'k',
+        'services.coordinadora.secret' => 's',
+        'services.coordinadora.origin_dane' => '05001000',
+    ]);
+    Http::fake([
+        'https://coordinadora.test/oauth/token' => Http::response(['access_token' => 'token', 'expires_in' => 3600], 200),
+        'https://coordinadora.test/cotizador/nacional' => Http::response(['message' => 'destino sin cobertura'], 422),
+    ]);
+
+    session()->put('cart', [
+        ['product_id' => $product->id, 'quantity' => 1, 'price' => 10000],
+    ]);
+
+    $response = $this->getJson('/api/shipping-quote/express?zone_id=' . $zone->id)
+        ->assertStatus(422)
+        ->assertJson([
+            'success' => false,
+            'error_code' => 'coordinadora_http_error',
+            'failure_category' => 'external_service',
+            'requires_user_data_update' => false,
+        ]);
+
+    expect($response->json('reason'))->toContain('HTTP 422')->toContain('destino sin cobertura');
+    expect($response->json('diagnostics.http_status'))->toBe(422);
+    expect($response->json('diagnostics.destino_dane'))->toBe('11001000');
+    expect($response->json('diagnostics.items_with_missing_weight_or_dimensions'))->toBe([]);
+});

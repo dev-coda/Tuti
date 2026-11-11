@@ -19,6 +19,7 @@ use App\Repositories\UserRepository;
 use App\Services\BonificationCheckoutService;
 use App\Services\CouponService;
 use App\Services\DraftOrderReconciliationService;
+use App\Services\Shipping\CoordinadoraQuoteException;
 use App\Services\Shipping\CoordinadoraQuoteService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -931,10 +932,18 @@ class CartController extends Controller
                 // (see applyExpressFreeShipping below after $finalTotal is calculated).
                 $shippingQuoteQuoted = $shippingQuoteAmount;
             } catch (\Throwable $e) {
-                Log::warning('Coordinadora quote failed during checkout', [
+                // Same classified cause the cart quote endpoint returns: log
+                // the real reason, and only blame the user's data when the
+                // failure category says so.
+                $requiresUserDataUpdate = $e instanceof CoordinadoraQuoteException && $e->requiresUserDataUpdate;
+                Log::error('[COTIZACIÓN COORDINADORA FALLÓ] ' . $e->getMessage(), [
+                    'error_code' => $e instanceof CoordinadoraQuoteException ? $e->errorCode : 'unexpected_quote_error',
+                    'failure_category' => $e instanceof CoordinadoraQuoteException ? $e->failureCategory : 'unknown',
+                    'requires_user_data_update' => $requiresUserDataUpdate,
+                    'diagnostics' => $e instanceof CoordinadoraQuoteException ? $e->diagnostics : [],
                     'zone_id' => $zone?->id,
                     'user_id' => $user_id,
-                    'message' => $e->getMessage(),
+                    'exception' => $e::class,
                     'prospect_draft' => $isDraftClientCheckout && $actingUser->isProspectClient(),
                 ]);
 
@@ -943,7 +952,9 @@ class CartController extends Controller
                 $allowQuoteFallback = ($isDraftClientCheckout && $actingUser->isProspectClient())
                     || $zone?->isPlaceholder();
                 if (! $allowQuoteFallback) {
-                    return back()->with('error', 'No pudimos cotizar el envío Coordinadora para esta dirección. Verifica el código postal o intenta de nuevo.');
+                    return back()->with('error', $requiresUserDataUpdate
+                        ? 'No pudimos cotizar el envío: debes actualizar tus datos de entrega (dirección, ciudad y zona) antes de realizar el pedido.'
+                        : 'No pudimos cotizar el envío Coordinadora para esta dirección. Intenta de nuevo en unos minutos.');
                 }
 
                 $shippingQuoteAmount = 0.0;

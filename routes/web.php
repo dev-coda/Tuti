@@ -187,11 +187,43 @@ Route::get('/api/shipping-quote/{method}', function (\Illuminate\Http\Request $r
         $zone = \App\Models\Zone::find((int) session()->get('zone_id'));
     }
 
-    if (!$zone) {
+    // Every quote failure returns the real, classified cause (error_code +
+    // failure_category + requires_user_data_update + reason) so the cart can
+    // console-log an exact explanation, disable the order button, and only
+    // tell the shopper to update their data when that is actually the cause.
+    $quoteFailure = function (string $errorCode, string $category, bool $requiresUserDataUpdate, string $reason, string $message, array $diagnostics = []) use ($method) {
+        \Illuminate\Support\Facades\Log::warning('[COTIZACIÓN COORDINADORA FALLÓ] ' . $reason, [
+            'error_code' => $errorCode,
+            'failure_category' => $category,
+            'requires_user_data_update' => $requiresUserDataUpdate,
+            'method' => $method,
+            'diagnostics' => $diagnostics,
+        ]);
+
         return response()->json([
             'success' => false,
-            'message' => 'Zona no válida para cotización.',
+            'provider' => \App\Models\Order::SHIPPING_PROVIDER_COORDINADORA,
+            'message' => $message,
+            'reason' => $reason,
+            'error_code' => $errorCode,
+            'failure_category' => $category,
+            'requires_user_data_update' => $requiresUserDataUpdate,
+            'diagnostics' => $diagnostics,
         ], 422);
+    };
+
+    if (!$zone) {
+        return $quoteFailure(
+            'invalid_zone',
+            'user_data',
+            true,
+            'La zona de entrega seleccionada (zone_id=' . var_export($request->input('zone_id'), true)
+            . ', session zone_id=' . var_export(session()->get('zone_id'), true)
+            . ') no existe en la base de datos, así que no hay dirección de destino para cotizar. '
+            . 'Coordinadora no fue contactada. El usuario debe seleccionar/actualizar su dirección de entrega.',
+            'Zona no válida para cotización: actualiza tu dirección de entrega.',
+            ['zone_id' => $request->input('zone_id')],
+        );
     }
 
     if ($method === \App\Models\Order::DELIVERY_METHOD_EXPRESS && !\App\Models\Setting::isExpress48hEnabled()) {
@@ -207,10 +239,23 @@ Route::get('/api/shipping-quote/{method}', function (\Illuminate\Http\Request $r
     $quoteUser = $zone->user ?? auth()->user();
     $quoteCityId = $quoteUser?->resolvedCityId();
     if (! \App\Models\ShippingMethod::isCodeAllowedForCity($method, $quoteCityId)) {
-        return response()->json([
-            'success' => false,
-            'message' => 'El método de envío no está disponible para esta ciudad.',
-        ], 422);
+        return $quoteFailure(
+            'method_not_allowed_for_city',
+            'user_data',
+            true,
+            'El método "' . $method . '" no está habilitado para la ciudad del cliente (city_id='
+            . var_export($quoteCityId, true) . ', city_code=' . var_export($quoteUser?->city_code, true)
+            . ', usuario #' . ($quoteUser?->id ?? 'sin usuario') . ' — dueño de la zona #' . $zone->id . '). '
+            . 'La ciudad del usuario/zona no tiene este envío activo; Coordinadora no fue contactada. '
+            . 'El usuario debe actualizar su ciudad/dirección de entrega o elegir otro método de envío.',
+            'El método de envío no está disponible para tu ciudad: actualiza tus datos de entrega o elige otro método.',
+            [
+                'zone_id' => $zone->id,
+                'quote_user_id' => $quoteUser?->id,
+                'quote_city_id' => $quoteCityId,
+                'quote_city_code' => $quoteUser?->city_code,
+            ],
+        );
     }
 
     if ($method !== \App\Models\Order::DELIVERY_METHOD_EXPRESS) {
@@ -231,11 +276,14 @@ Route::get('/api/shipping-quote/{method}', function (\Illuminate\Http\Request $r
 
     $cart = collect(session()->get('cart', []));
     if ($cart->isEmpty()) {
-        return response()->json([
-            'success' => false,
-            'provider' => \App\Models\Order::SHIPPING_PROVIDER_COORDINADORA,
-            'message' => 'El carrito está vacío; no se puede cotizar el envío.',
-        ], 422);
+        return $quoteFailure(
+            'empty_cart',
+            'cart',
+            false,
+            'El carrito de la sesión está vacío, así que no hay productos, peso ni valor declarado para cotizar con Coordinadora.',
+            'El carrito está vacío; no se puede cotizar el envío.',
+            ['zone_id' => $zone->id],
+        );
     }
 
     try {
@@ -268,10 +316,36 @@ Route::get('/api/shipping-quote/{method}', function (\Illuminate\Http\Request $r
             'delivery_estimate' => $quote['delivery_estimate'] ?? null,
         ]);
     } catch (\Throwable $e) {
-        \Illuminate\Support\Facades\Log::warning('Coordinadora shipping quote failed', [
+        // Classify the real cause. CoordinadoraQuoteService already throws a
+        // typed exception for every known failure; anything else is wrapped
+        // here with its exception class + message so the reason is never lost
+        // behind the old generic "No se pudo cotizar…" text.
+        $failure = $e instanceof \App\Services\Shipping\CoordinadoraQuoteException
+            ? $e->toResponseArray()
+            : [
+                'success' => false,
+                'provider' => \App\Models\Order::SHIPPING_PROVIDER_COORDINADORA,
+                'message' => 'No se pudo cotizar el envío en este momento.',
+                'reason' => 'Error inesperado al cotizar (' . $e::class . '): ' . $e->getMessage(),
+                'error_code' => 'unexpected_quote_error',
+                'failure_category' => 'unknown',
+                'requires_user_data_update' => false,
+                'diagnostics' => [
+                    'exception' => $e::class,
+                    'zone_id' => $zone->id,
+                    'destino_dane' => $zone->coordinadoraDaneCode(),
+                    'cart_count' => $cart->count(),
+                ],
+            ];
+
+        \Illuminate\Support\Facades\Log::error('[COTIZACIÓN COORDINADORA FALLÓ] ' . $failure['reason'], [
+            'error_code' => $failure['error_code'],
+            'failure_category' => $failure['failure_category'],
+            'requires_user_data_update' => $failure['requires_user_data_update'],
             'zone_id' => $zone->id,
             'cart_count' => $cart->count(),
-            'message' => $e->getMessage(),
+            'diagnostics' => $failure['diagnostics'],
+            'exception' => $e::class,
         ]);
 
         if ($zone->isPlaceholder()) {
@@ -283,14 +357,15 @@ Route::get('/api/shipping-quote/{method}', function (\Illuminate\Http\Request $r
                 'free_shipping_applied' => true,
                 'fallback' => true,
                 'message' => 'Cotización Coordinadora no disponible; se usa flete $0 temporalmente.',
+                // Placeholder zones still quote at $0, but the real cause
+                // travels along so the console can explain the fallback.
+                'quote_warning' => $failure['reason'],
+                'error_code' => $failure['error_code'],
+                'failure_category' => $failure['failure_category'],
             ]);
         }
 
-        return response()->json([
-            'success' => false,
-            'provider' => \App\Models\Order::SHIPPING_PROVIDER_COORDINADORA,
-            'message' => 'No se pudo cotizar el envío en este momento.',
-        ], 422);
+        return response()->json($failure, 422);
     }
 })->name('api.shipping-quote');
 
