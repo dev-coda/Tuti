@@ -470,12 +470,15 @@
 
                 const total = list.reduce(function(sum, b) { return sum + Number(b.total || 0); }, 0);
                 const qty = list.reduce(function(sum, b) { return sum + Number(b.quantity || 0); }, 0);
+                const showDescriptions = {{ !empty($isAdmin) ? 'true' : 'false' }};
                 const totalCard = document.createElement('div');
                 totalCard.className = 'col-span-2 sm:col-span-3 bg-orange-50 border border-orange-200 rounded-2xl shadow-sm p-4 flex flex-col items-center justify-center text-center';
-                totalCard.title = 'Suma de todas las líneas del reporte';
+                if (showDescriptions) {
+                    totalCard.title = 'Suma de todas las líneas del reporte';
+                }
                 totalCard.innerHTML =
                     '<p class="text-xs font-medium text-orange-700 uppercase tracking-wide leading-tight mb-1">Total</p>' +
-                    '<p class="text-[11px] text-orange-600 leading-tight mb-1">Suma de todas las líneas</p>' +
+                    (showDescriptions ? '<p class="text-[11px] text-orange-600 leading-tight mb-1">Suma de todas las líneas</p>' : '') +
                     '<p class="text-lg font-bold text-orange-700">' + currency(total) + '</p>' +
                     '<p class="text-xs text-orange-700 mt-0.5">' + Number(qty).toLocaleString('es-CO') + ' uds</p>';
                 catCards.appendChild(totalCard);

@@ -118,17 +118,27 @@ it('blocks out-of-coverage client history and data update for zone-bound profile
         ->assertForbidden();
 })->with(['seller', 'supervisor']);
 
-it('seller report buckets carry a visible explanation of what each line reports', function () {
+it('seller report line explanations are visible only to admins', function () {
     $seller = User::factory()->create(['zone' => '301']);
     $seller->assignRole('seller');
 
     $response = actingAs($seller)->getJson(route('api.seller.dashboard'));
     $response->assertOk();
     foreach ($response->json('sales_buckets') as $bucket) {
+        expect($bucket['description'] ?? null)->toBeNull();
+    }
+
+    $admin = User::factory()->create(['zone' => '301']);
+    $admin->assignRole(['seller', 'admin']);
+
+    $response = actingAs($admin)->getJson(route('api.seller.dashboard'));
+    $response->assertOk();
+    foreach ($response->json('sales_buckets') as $bucket) {
         expect($bucket['description'] ?? '')->not->toBe('');
     }
     expect(collect($response->json('sales_buckets'))->firstWhere('label', 'Otros')['description'])
-        ->toContain('sin clasificar');
+        ->toContain('sin clasificar')
+        ->toContain('diferencia a favor vs ventas totales');
 });
 
 function bodegaProduct(): Product

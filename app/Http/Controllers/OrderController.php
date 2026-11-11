@@ -741,15 +741,18 @@ class OrderController extends Controller
         $otrosSales         = $this->salesOtrosOrUnclassified($baseConditions, $lineSalesSelect, $otrosBrandIds, $classifiedBrandIds, $salesByBrands);
         $tercerosSales      = $salesByVendors($tercerosVendorIds);
 
-        // Each line explains what it reports so support can share the breakdown.
+        // Line explanations (what each bucket reports) are admin-only; sellers
+        // see labels and amounts without the internal breakdown.
+        $showDescriptions = $user->hasRole('admin');
+        $describe = fn (string $text) => $showDescriptions ? $text : null;
         $buckets = [
-            ['label' => 'Alcalina',      'description' => 'Categorías Alcalinas (Tronex/GP)', 'total' => round($alcalinaSales['total'], 2),      'quantity' => $alcalinaSales['quantity']],
-            ['label' => 'Manganeso',     'description' => 'Categorías Manganeso (Tronex/GP)', 'total' => round($manganesoSales['total'], 2),     'quantity' => $manganesoSales['quantity']],
-            ['label' => 'Encendedores',  'description' => 'Categoría Encendedores', 'total' => round($encendedoresSales['total'], 2),  'quantity' => $encendedoresSales['quantity']],
-            ['label' => 'Bombillos',     'description' => 'Categoría Bombillos', 'total' => round($bombillosSales['total'], 2),     'quantity' => $bombillosSales['quantity']],
-            ['label' => 'Tronex',        'description' => 'Marca Tronex (otras líneas)', 'total' => round($tronexSales['total'], 2),        'quantity' => $tronexSales['quantity']],
-            ['label' => 'Otros',         'description' => 'Marcas GP, Mtek, GE y Rocket, marcas sin clasificar y diferencia a favor vs ventas totales', 'total' => round($otrosSales['total'], 2),         'quantity' => $otrosSales['quantity']],
-            ['label' => 'Terceros',      'description' => 'Proveedores terceros (Eterna, Prebel, Yass, Produsa, Dromatic, Sense, Knight)', 'total' => round($tercerosSales['total'], 2),      'quantity' => $tercerosSales['quantity']],
+            ['label' => 'Alcalina',      'description' => $describe('Categorías Alcalinas (Tronex/GP)'), 'total' => round($alcalinaSales['total'], 2),      'quantity' => $alcalinaSales['quantity']],
+            ['label' => 'Manganeso',     'description' => $describe('Categorías Manganeso (Tronex/GP)'), 'total' => round($manganesoSales['total'], 2),     'quantity' => $manganesoSales['quantity']],
+            ['label' => 'Encendedores',  'description' => $describe('Categoría Encendedores'), 'total' => round($encendedoresSales['total'], 2),  'quantity' => $encendedoresSales['quantity']],
+            ['label' => 'Bombillos',     'description' => $describe('Categoría Bombillos'), 'total' => round($bombillosSales['total'], 2),     'quantity' => $bombillosSales['quantity']],
+            ['label' => 'Tronex',        'description' => $describe('Marca Tronex (otras líneas)'), 'total' => round($tronexSales['total'], 2),        'quantity' => $tronexSales['quantity']],
+            ['label' => 'Otros',         'description' => $describe('Marcas GP, Mtek, GE y Rocket, marcas sin clasificar y diferencia a favor vs ventas totales'), 'total' => round($otrosSales['total'], 2),         'quantity' => $otrosSales['quantity']],
+            ['label' => 'Terceros',      'description' => $describe('Proveedores terceros (Eterna, Prebel, Yass, Produsa, Dromatic, Sense, Knight)'), 'total' => round($tercerosSales['total'], 2),      'quantity' => $tercerosSales['quantity']],
         ];
 
         $bucketSum = round(array_sum(array_column($buckets, 'total')), 2);
