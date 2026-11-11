@@ -7,6 +7,9 @@
 @section('content')
 @php
     $isSucursalMode = $isSucursalMode ?? false;
+    $coversAllZones = $coversAllZones ?? false;
+    $availableZones = $availableZones ?? [];
+    $zoneRoutesByZone = $zoneRoutesByZone ?? [];
     $prefillClient = $prefillClient ?? null;
     $prefillError = $prefillError ?? null;
     $returnTo = $returnTo ?? null;
@@ -267,8 +270,17 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label for="ZonaDisplay" class="block text-sm font-medium text-gray-700 mb-1">Zona *</label>
-                    <input type="text" id="ZonaDisplay" value="{{ old('Zona', $sellerZone) }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700" readonly>
-                    <input type="hidden" name="Zona" value="{{ old('Zona', $sellerZone) }}">
+                    @if($coversAllZones)
+                        <select name="Zona" id="ZonaDisplay" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500" required>
+                            <option value="">Seleccione zona...</option>
+                            @foreach($availableZones as $zoneOption)
+                                <option value="{{ $zoneOption }}" @selected((string) old('Zona') === (string) $zoneOption)>{{ $zoneOption }}</option>
+                            @endforeach
+                        </select>
+                    @else
+                        <input type="text" id="ZonaDisplay" value="{{ old('Zona', $sellerZone) }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700" readonly>
+                        <input type="hidden" name="Zona" value="{{ old('Zona', $sellerZone) }}">
+                    @endif
                     @error('Zona') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                 </div>
                 <div>
@@ -280,7 +292,7 @@
                         @endforeach
                     </select>
                     @error('RutaZonaVentas') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
-                    @if(empty($zoneRoutes))
+                    @if(empty($zoneRoutes) && ! $coversAllZones)
                         <p class="text-xs text-amber-700 mt-1">No hay rutas configuradas para esta zona. Un administrador debe crearlas en "Rutas por Zona".</p>
                     @endif
                 </div>
@@ -682,6 +694,30 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('submit-btn').disabled = true;
         document.getElementById('submit-btn').textContent = 'Enviando...';
     });
+
+    const zoneRoutesByZone = @json($zoneRoutesByZone ?? []);
+    const zoneSelect = document.getElementById('ZonaDisplay');
+    const routeSelect = document.getElementById('RutaZonaVentas');
+    if (zoneSelect && routeSelect && zoneSelect.tagName === 'SELECT') {
+        const selectedRoute = @json(old('RutaZonaVentas'));
+        const fillRoutes = (zone, keepSelected) => {
+            const routes = zoneRoutesByZone[zone] || [];
+            routeSelect.innerHTML = '<option value="">Seleccione ruta...</option>';
+            routes.forEach((route) => {
+                const option = document.createElement('option');
+                option.value = route;
+                option.textContent = route;
+                if (keepSelected && route === selectedRoute) {
+                    option.selected = true;
+                }
+                routeSelect.appendChild(option);
+            });
+        };
+        fillRoutes(zoneSelect.value, true);
+        zoneSelect.addEventListener('change', function () {
+            fillRoutes(this.value, false);
+        });
+    }
 });
 </script>
 @endsection

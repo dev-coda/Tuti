@@ -62,9 +62,29 @@ class NewClientController extends Controller
         $clasificacionOptions = self::CLASIFICACION_OPTIONS;
         $diaOptions = self::DIA_OPTIONS;
         $isSellerFlow = $this->isSellerFlow();
-        $sellerZone = $this->resolveSellerZone();
+        $coversAllZones = $isSellerFlow && auth()->user()?->coversAllZones();
+        $sellerZone = $coversAllZones ? null : $this->resolveSellerZone();
+        $availableZones = [];
+        $zoneRoutesByZone = [];
         $zoneRoutes = [];
-        if ($isSellerFlow && $sellerZone) {
+        if ($coversAllZones) {
+            $zoneRoutesByZone = ZoneRoute::query()
+                ->whereNotNull('zone')
+                ->where('zone', '!=', '')
+                ->whereNotNull('route')
+                ->where('route', '!=', '')
+                ->orderBy('zone')
+                ->orderBy('route')
+                ->get(['zone', 'route'])
+                ->groupBy(fn ($row) => trim((string) $row->zone))
+                ->map(fn ($rows) => $rows->pluck('route')->unique()->values()->all())
+                ->all();
+            $availableZones = array_keys($zoneRoutesByZone);
+            $selectedZone = old('Zona');
+            $zoneRoutes = is_string($selectedZone) && isset($zoneRoutesByZone[$selectedZone])
+                ? $zoneRoutesByZone[$selectedZone]
+                : [];
+        } elseif ($isSellerFlow && $sellerZone) {
             $zoneRoutes = ZoneRoute::query()
                 ->where('zone', $sellerZone)
                 ->orderBy('route')
@@ -101,7 +121,10 @@ class NewClientController extends Controller
             'diaOptions',
             'layout',
             'isSellerFlow',
+            'coversAllZones',
             'sellerZone',
+            'availableZones',
+            'zoneRoutesByZone',
             'zoneRoutes',
             'returnTo',
             'isSucursalMode',
@@ -179,7 +202,7 @@ class NewClientController extends Controller
             return false;
         }
 
-        if ($seller->hasRole('admin')) {
+        if ($seller->hasRole('admin') || $seller->coversAllZones()) {
             return true;
         }
 
@@ -216,11 +239,13 @@ class NewClientController extends Controller
     public function store(Request $request, NewClientService $service)
     {
         $isSellerFlow = $this->isSellerFlow();
-        $sellerZone = $isSellerFlow ? $this->resolveSellerZone() : null;
+        $coversAllZones = $isSellerFlow && auth()->user()?->coversAllZones();
+        $sellerZone = ($isSellerFlow && ! $coversAllZones) ? $this->resolveSellerZone() : null;
 
-        // Sellers/supervisors must always register into their assigned zone.
-        // Force it server-side so the API payload cannot omit or override it.
-        if ($isSellerFlow) {
+        // Regular sellers/supervisors must always register into their assigned zone.
+        // Supernumerarios covering every zone may pick any zona. Force the assigned
+        // zone server-side so the API payload cannot omit or override it for locked users.
+        if ($isSellerFlow && ! $coversAllZones) {
             if ($sellerZone === null) {
                 return back()->withInput()->withErrors([
                     'Zona' => 'Tu usuario no tiene una zona asignada. Contacta a un administrador.',
@@ -231,8 +256,11 @@ class NewClientController extends Controller
 
         $rutaRules = [$isSellerFlow ? 'required' : 'nullable', 'string', 'regex:/^\d{4}$/'];
         if ($isSellerFlow) {
+            $rutaZone = $coversAllZones
+                ? strtoupper(trim((string) $request->input('Zona')))
+                : $sellerZone;
             $rutaRules[] = Rule::exists('zone_routes', 'route')
-                ->where(fn ($q) => $q->where('zone', $sellerZone));
+                ->where(fn ($q) => $q->where('zone', $rutaZone));
         }
 
         $validated = $request->validate([
@@ -292,7 +320,7 @@ class NewClientController extends Controller
             'privacy_accepted.accepted' => 'Debes aceptar la política de privacidad y tratamiento de datos personales.',
         ]);
 
-        if ($isSellerFlow) {
+        if ($isSellerFlow && ! $coversAllZones) {
             $validated['Zona'] = $sellerZone;
         } elseif (! empty($validated['Zona'])) {
             $validated['Zona'] = strtoupper(trim((string) $validated['Zona']));
@@ -887,7 +915,7 @@ class NewClientController extends Controller
     {
         $user = auth()->user();
 
-        return $user && $user->hasAnyRole(['seller', 'supervisor']);
+        return $user && $user->isStaffSeller();
     }
 
     private function resolveSellerZone(): ?string

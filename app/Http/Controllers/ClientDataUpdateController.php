@@ -275,7 +275,7 @@ class ClientDataUpdateController extends Controller
     {
         $seller = auth()->user();
 
-        if (!$seller || !$seller->hasAnyRole(['seller', 'supervisor', 'admin'])) {
+        if (!$seller || !($seller->hasRole('admin') || $seller->isStaffSeller())) {
             abort(403);
         }
 
@@ -283,7 +283,7 @@ class ClientDataUpdateController extends Controller
             abort(404);
         }
 
-        if ($seller->hasRole('admin')) {
+        if ($seller->hasRole('admin') || $seller->coversAllZones()) {
             return;
         }
 

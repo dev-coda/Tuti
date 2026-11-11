@@ -453,7 +453,7 @@ class User extends Authenticatable
 
     public function requiresClientEmailUpdate(): bool
     {
-        if ($this->hasAnyRole(['admin', 'seller', 'supervisor'])) {
+        if ($this->hasAnyRole(['admin', ...self::STAFF_SELLER_ROLES])) {
             return false;
         }
 
