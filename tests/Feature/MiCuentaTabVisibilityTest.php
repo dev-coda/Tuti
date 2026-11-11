@@ -30,7 +30,11 @@ it('hides the direcciones tab from seller mi cuenta', function () {
         ->get(route('clients.orders.index'))
         ->assertOk()
         ->assertSee('data-tab-trigger="mi-ruta"', false)
+        ->assertSee('data-tab-trigger="orders"', false)
+        ->assertDontSee('data-tab-trigger="orders-today"', false)
         ->assertSee('Mi Ruta')
+        ->assertSee('Pedidos')
+        ->assertDontSee('Pedidos del dia')
         ->assertDontSee('data-tab-trigger="addresses"', false);
 });
 

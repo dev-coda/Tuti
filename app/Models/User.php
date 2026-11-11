@@ -45,6 +45,7 @@ class User extends Authenticatable
         'tronex_migration_pending',
         'terms_accepted',
         'zone',
+        'covers_all_zones',
         // New fields from getRuteros API
         'mobile_phone',
         'whatsapp',
@@ -131,6 +132,167 @@ class User extends Authenticatable
         return $this->hasMany(SupervisorRoute::class)->orderBy('zone')->orderBy('route');
     }
 
+    public const STAFF_SELLER_ROLES = ['seller', 'supervisor', 'supernumerario'];
+
+    public function resolvedCity(): ?City
+    {
+        // Prod adaptation: stage maps city_code (DANE) via City::findIdByDaneCode,
+        // which does not exist on master. city_id relation is the prod signal.
+        return $this->city;
+    }
+
+    public function isStaffSeller(): bool
+    {
+        return $this->hasAnyRole(self::STAFF_SELLER_ROLES);
+    }
+
+    public function coversAllZones(): bool
+    {
+        if (! $this->hasRole('supernumerario')) {
+            return false;
+        }
+
+        // Missing attribute keeps the historical behavior: the role covers every zone.
+        $flag = $this->getAttributes()['covers_all_zones'] ?? null;
+        if ($flag === null || $flag === '') {
+            return true;
+        }
+
+        return filter_var($flag, FILTER_VALIDATE_BOOLEAN);
+    }
+
+    public function canServeClient(User $client): bool
+    {
+        if (! $this->isStaffSeller()) {
+            return false;
+        }
+
+        if ($this->coversAllZones()) {
+            return true;
+        }
+
+        $client->loadMissing('zones');
+
+        foreach ($client->zones as $zone) {
+            $zoneCode = trim((string) $zone->zone);
+            $route = trim((string) $zone->route);
+            foreach ($this->supervisedCoverages() as $coverage) {
+                if ($coverage['zone'] !== $zoneCode) {
+                    continue;
+                }
+                if ($coverage['route'] === null || $coverage['route'] === '' || $coverage['route'] === $route) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Warehouse whose stock this user should see in the catalog.
+     * A mapped sales zone that is not Medellín wins; Cúcuta (CU00 zones
+     * 409/411/413) must not fall through to the Medellín MDTAT default.
+     */
+    public function catalogBodegaCode(): ?string
+    {
+        $candidates = [];
+
+        if ($this->hasRole('supervisor')) {
+            $candidates[] = $this->bodegaFromZoneCodes($this->supervisorRoutes()->pluck('zone')->all());
+        }
+
+        if (! $this->isStaffSeller()) {
+            $candidates[] = $this->bodegaFromZoneCodes($this->zones()->pluck('zone')->all());
+        }
+
+        $ownZone = trim((string) $this->zone);
+        if ($ownZone !== '') {
+            $candidates[] = ZoneWarehouse::getBodegaForZone($ownZone);
+        }
+
+        foreach ($candidates as $bodega) {
+            if (is_string($bodega) && $bodega !== '' && $bodega !== 'MDTAT') {
+                return $bodega;
+            }
+        }
+
+        $cityBodega = ZoneWarehouse::bodegaForCity($this->resolvedCity());
+        if (is_string($cityBodega) && $cityBodega !== '' && $cityBodega !== 'MDTAT') {
+            return $cityBodega;
+        }
+
+        foreach ($candidates as $bodega) {
+            if (is_string($bodega) && $bodega !== '') {
+                return $bodega;
+            }
+        }
+
+        return $cityBodega;
+    }
+
+    /**
+     * @param  array<int, mixed>  $zoneCodes
+     */
+    private function bodegaFromZoneCodes(array $zoneCodes): ?string
+    {
+        $bodegas = [];
+        foreach ($zoneCodes as $code) {
+            $code = trim((string) $code);
+            if ($code === '') {
+                continue;
+            }
+            $bodega = ZoneWarehouse::getBodegaForZone($code);
+            if (is_string($bodega) && $bodega !== '') {
+                $bodegas[] = $bodega;
+            }
+        }
+
+        $bodegas = array_values(array_unique($bodegas));
+        if ($bodegas === []) {
+            return null;
+        }
+
+        $cityBodega = ZoneWarehouse::bodegaForCity($this->resolvedCity());
+        if ($cityBodega && in_array($cityBodega, $bodegas, true)) {
+            return $cityBodega;
+        }
+
+        foreach ($bodegas as $bodega) {
+            if ($bodega !== 'MDTAT') {
+                return $bodega;
+            }
+        }
+
+        return $bodegas[0];
+    }
+
+    /**
+     * @return array<int, array{zone: string, route: ?string}>
+     */
+    private function allZoneCoverages(): array
+    {
+        return ZoneRoute::query()
+            ->whereNotNull('zone')
+            ->where('zone', '!=', '')
+            ->distinct()
+            ->pluck('zone')
+            ->merge(
+                Zone::query()
+                    ->whereNotNull('zone')
+                    ->where('zone', '!=', '')
+                    ->distinct()
+                    ->pluck('zone')
+            )
+            ->map(fn ($zone) => trim((string) $zone))
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values()
+            ->map(fn ($zone) => ['zone' => $zone, 'route' => null])
+            ->all();
+    }
+
     /**
      * Zone/route pairs this staff user covers.
      *
@@ -142,6 +304,10 @@ class User extends Authenticatable
      */
     public function supervisedCoverages(): array
     {
+        if ($this->coversAllZones()) {
+            return $this->allZoneCoverages();
+        }
+
         $coverages = [];
         $assignments = $this->supervisorRoutes;
         $legacyZone = trim((string) $this->zone);

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 
 class ZoneWarehouse extends Model
 {
@@ -92,5 +93,25 @@ class ZoneWarehouse extends Model
         ]);
 
         return null;
+    }
+
+    /**
+     * Warehouse that serves a catalog city (Cúcuta → CU00, Medellín → MDTAT, …).
+     */
+    public static function bodegaForCity(?City $city): ?string
+    {
+        return self::bodegaForCityName($city?->name);
+    }
+
+    public static function bodegaForCityName(?string $cityName): ?string
+    {
+        $key = Str::lower(Str::ascii(trim((string) $cityName)));
+        if ($key === '') {
+            return null;
+        }
+
+        $bodega = config('zone_warehouses.cities.'.$key);
+
+        return is_string($bodega) && $bodega !== '' ? $bodega : null;
     }
 }

@@ -142,3 +142,38 @@ it('includes a Tronex brand sales bucket on the seller dashboard', function () {
 
     Carbon::setTestNow();
 });
+
+it('folds unclassified brands into Otros so buckets add up to ventas totales', function () {
+    Carbon::setTestNow(Carbon::parse('2026-07-29 15:00:00', 'America/Bogota'));
+
+    $seller = User::factory()->create();
+    $seller->assignRole('seller');
+    $client = User::factory()->create();
+
+    $tax = Tax::create(['name' => 'IVA otros', 'tax' => 0]);
+    $vendor = Vendor::create(['name' => 'Vendor otros', 'slug' => 'vendor-otros', 'minimum_purchase' => 0, 'active' => 1]);
+    $brand = Brand::create(['name' => 'Marca Sin Clasificar', 'slug' => 'marca-sin-clasificar', 'vendor_id' => $vendor->id]);
+    $category = Category::create(['name' => 'Categoria Neutra', 'slug' => 'categoria-neutra-otros']);
+    $product = Product::create([
+        'name' => 'Producto Sin Clasificar', 'description' => 'd', 'short_description' => 'd',
+        'sku' => 'UNCLASS-1', 'slug' => 'producto-sin-clasificar', 'active' => 1, 'price' => 700,
+        'delivery_days' => 1, 'discount' => 0, 'quantity_min' => 1, 'quantity_max' => 100, 'step' => 1,
+        'tax_id' => $tax->id, 'brand_id' => $brand->id, 'package_quantity' => 1,
+    ]);
+    $product->categories()->attach($category->id);
+
+    $order = Order::create(['user_id' => $client->id, 'seller_id' => $seller->id, 'status_id' => Order::STATUS_PENDING, 'total' => 700, 'discount' => 0]);
+    OrderProduct::create(['order_id' => $order->id, 'product_id' => $product->id, 'quantity' => 1, 'price' => 700, 'discount' => 0, 'package_quantity' => 1]);
+
+    actingAs($seller);
+    $response = getJson(route('api.seller.dashboard', ['from_date' => '2026-07-29', 'to_date' => '2026-07-29']));
+    $response->assertOk();
+
+    $buckets = collect($response->json('sales_buckets'));
+    $otros = $buckets->firstWhere('label', 'Otros');
+    expect((float) $otros['total'])->toBe(700.0)
+        ->and((int) $otros['quantity'])->toBe(1)
+        ->and((float) $buckets->sum(fn ($b) => (float) $b['total']))->toBe((float) $response->json('ventas_totales'));
+
+    Carbon::setTestNow();
+});

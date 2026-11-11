@@ -7,7 +7,6 @@ use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Label;
 use App\Models\Product;
-use App\Models\ZoneWarehouse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Transliterator;
@@ -612,23 +611,20 @@ class PageController extends Controller
             return null;
         }
 
+        /** @var User $user */
         $user = Auth::user();
 
-        // Try explicit user->zone first (commonly set for sellers)
-        $zoneCode = $user->zone ?? null;
-
-        // Fallback to first related zone's zone field (actual zone number)
-        // Note: code field contains CustRuteroID and should NOT be used for zone determination
-        if (!$zoneCode) {
-            $zoneCode = $user->zones()->orderBy('id')->value('zone');
+        // A seller building an order sees the selected client's warehouse,
+        // not the staff member's own city.
+        $clientId = session()->get('user_id');
+        if ($clientId && (int) $clientId !== (int) $user->id && $user->isStaffSeller()) {
+            $client = User::query()->find((int) $clientId);
+            if ($client) {
+                return $client->catalogBodegaCode();
+            }
         }
 
-        if (!$zoneCode) {
-            return null;
-        }
-
-        // Use centralized lookup method
-        return ZoneWarehouse::getBodegaForZone($zoneCode);
+        return $user->catalogBodegaCode();
     }
 
     /**

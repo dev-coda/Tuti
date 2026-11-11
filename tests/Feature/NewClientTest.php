@@ -552,6 +552,16 @@ it('rejects registration without correo', function () {
         ->assertSessionHasErrors('Correo');
 });
 
+it('requires accepting the terms before the registration can be sent', function () {
+    $this->mock(NewClientService::class, function ($mock) {
+        $mock->shouldNotReceive('registerClient');
+    });
+
+    actingAs($this->seller)
+        ->post(route('new-client.store'), validNewClientPayload(['terms_accepted' => null]))
+        ->assertSessionHasErrors('terms_accepted');
+});
+
 it('requires accepting the privacy policy (habeas data)', function () {
     $this->mock(NewClientService::class, function ($mock) {
         $mock->shouldNotReceive('registerClient');

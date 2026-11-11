@@ -23,7 +23,7 @@ class OrderController extends Controller
     public function index(Request $request)
     {
         $user = auth()->user();
-        $isSeller = $user->hasAnyRole(['seller', 'supervisor']);
+        $isSeller = $user->isStaffSeller();
         $isSupervisor = $user->hasRole('supervisor');
         $sellerDashToday = Carbon::now($this->sellerReportTimezone())->format('Y-m-d');
 
@@ -31,7 +31,6 @@ class OrderController extends Controller
         // zone's pedidos + dashboard lists at once was timing out Mi Cuenta.
         $availableTabs = ['orders', 'account'];
         if ($isSeller) {
-            $availableTabs[] = 'orders-today';
             if ($isSupervisor) {
                 $availableTabs[] = 'mis-rutas';
             } else {
@@ -41,18 +40,21 @@ class OrderController extends Controller
             $availableTabs[] = 'addresses';
         }
 
+        // "Pedidos del día" and "Pedidos recientes" are one list. Old links keep working.
         $requestedTab = (string) $request->input('tab', '');
-        $defaultTab = $isSupervisor ? 'mis-rutas' : ($isSeller ? 'orders-today' : 'orders');
+        if ($requestedTab === 'orders-today') {
+            $requestedTab = 'orders';
+        }
+        $defaultTab = $isSupervisor ? 'mis-rutas' : 'orders';
         $activeTab = in_array($requestedTab, $availableTabs, true) ? $requestedTab : $defaultTab;
+        $clientFilter = $this->authorizeClientHistory($request, $user, $isSeller, $activeTab);
 
         $recentFilters = $this->extractOrderFilters($request);
-        $todayFilters = $this->extractOrderFilters($request, 'today_');
-        if ($isSeller) {
-            $todayFilters = $this->normalizeDailyFilters($todayFilters, $sellerDashToday);
+        if ($activeTab === 'orders') {
+            $recentFilters = $this->applyStaffDefaultDateRange($recentFilters, $user, $request);
         }
 
         $orders = null;
-        $dailyOrders = null;
         $myRoute = null;
         $myRoutes = null;
 
@@ -60,11 +62,6 @@ class OrderController extends Controller
             $orders = $this->buildOrdersQuery($user, $recentFilters, $request)
                 ->orderByDesc('id')
                 ->paginate()
-                ->withQueryString();
-        } elseif ($activeTab === 'orders-today' && $isSeller) {
-            $dailyOrders = $this->buildOrdersQuery($user, $todayFilters, $request)
-                ->orderByDesc('id')
-                ->paginate(15, ['*'], 'today_page')
                 ->withQueryString();
         } elseif ($activeTab === 'mi-ruta' && $isSeller && ! $isSupervisor) {
             $myRoute = $this->buildMyRouteData($user, $request);
@@ -84,17 +81,16 @@ class OrderController extends Controller
 
         return view('clients.orders.index', compact(
             'orders',
-            'dailyOrders',
             'statuses',
             'accountUser',
             'isSeller',
             'isSupervisor',
             'sellerDashToday',
             'recentFilters',
-            'todayFilters',
             'myRoute',
             'myRoutes',
-            'activeTab'
+            'activeTab',
+            'clientFilter'
         ));
     }
 
@@ -215,7 +211,14 @@ class OrderController extends Controller
      */
     private function buildMyRouteData(User $user, Request $request): array
     {
-        $sellerZone = trim((string) $user->zone);
+        $coversAllZones = $user->coversAllZones();
+        $zoneOptions = $coversAllZones
+            ? Zone::query()->whereNotNull('zone')->where('zone', '!=', '')->distinct()->orderBy('zone')->pluck('zone')->map(fn ($zone) => trim((string) $zone))->filter()->unique()->values()
+            : collect();
+        $sellerZone = $coversAllZones ? trim((string) $request->input('zona', '')) : trim((string) $user->zone);
+        if ($coversAllZones && ($sellerZone === '' || ! $zoneOptions->contains($sellerZone))) {
+            $sellerZone = '';
+        }
         $today = Carbon::now($this->sellerReportTimezone());
 
         $routeOptions = $sellerZone === ''
@@ -274,6 +277,8 @@ class OrderController extends Controller
 
         return [
             'sellerZone' => $sellerZone,
+            'zoneOptions' => $zoneOptions,
+            'coversAllZones' => $coversAllZones,
             'routeOptions' => $routeOptions,
             'selectedRoute' => $selectedRoute,
             'searchTerm' => $searchTerm,
@@ -285,7 +290,7 @@ class OrderController extends Controller
     public function export(Request $request)
     {
         $user = auth()->user();
-        $isSeller = $user->hasAnyRole(['seller', 'supervisor']);
+        $isSeller = $user->isStaffSeller();
         $tab = (string) $request->input('tab', 'orders');
         $isTodayTab = $tab === 'orders-today' && $isSeller;
         $isMisRutasTab = $tab === 'mis-rutas' && $user->hasRole('supervisor');
@@ -318,7 +323,9 @@ class OrderController extends Controller
             $filters = $this->normalizeDailyFilters($this->extractOrderFilters($request, 'today_'), $today);
             $filePrefix = 'pedidos-del-dia';
         } else {
-            $filters = $this->extractOrderFilters($request);
+            $filters = $this->applyStaffDefaultDateRange($this->extractOrderFilters($request), $user, $request);
+            $this->authorizeClientHistory($request, $user, $isSeller, 'orders');
+            $filePrefix = 'pedidos';
         }
 
         $orders = $this->buildOrdersExportQuery($user, $filters, $request, $scope)
@@ -341,7 +348,11 @@ class OrderController extends Controller
      */
     private function applyOrderVisibilityScope($query, User $user): void
     {
-        $coverages = $user->hasAnyRole(['seller', 'supervisor']) ? $user->supervisedCoverages() : [];
+        if ($user->coversAllZones()) {
+            return;
+        }
+
+        $coverages = $user->isStaffSeller() ? $user->supervisedCoverages() : [];
 
         $query->where(function ($sub) use ($user, $coverages) {
             $sub->whereBelongsTo($user)
@@ -399,8 +410,12 @@ class OrderController extends Controller
      */
     private function orderInSellerZone(Order $order, User $user): bool
     {
-        if (!$user->hasAnyRole(['seller', 'supervisor'])) {
+        if (! $user->isStaffSeller()) {
             return false;
+        }
+
+        if ($user->coversAllZones()) {
+            return true;
         }
 
         $coverages = $user->supervisedCoverages();
@@ -466,6 +481,9 @@ class OrderController extends Controller
             })
             ->when($filters['status_id'] !== '', function ($query) use ($filters) {
                 $query->where('status_id', (int) $filters['status_id']);
+            })
+            ->when($user->isStaffSeller() && ($filters['client_id'] ?? '') !== '', function ($query) use ($filters) {
+                $query->where('user_id', (int) $filters['client_id']);
             });
     }
 
@@ -503,6 +521,9 @@ class OrderController extends Controller
             })
             ->when($filters['status_id'] !== '', function ($query) use ($filters) {
                 $query->where('status_id', (int) $filters['status_id']);
+            })
+            ->when($user->isStaffSeller() && ($filters['client_id'] ?? '') !== '', function ($query) use ($filters) {
+                $query->where('user_id', (int) $filters['client_id']);
             });
     }
 
@@ -517,7 +538,35 @@ class OrderController extends Controller
             'from_date' => trim((string) $request->input($prefix . 'from_date', '')),
             'to_date' => trim((string) $request->input($prefix . 'to_date', '')),
             'status_id' => trim((string) $request->input($prefix . 'status_id', '')),
+            'client_id' => trim((string) $request->input($prefix . 'client_id', '')),
         ];
+    }
+
+    private function authorizeClientHistory(Request $request, User $user, bool $isSeller, string $tab): ?User
+    {
+        if (! $isSeller || $tab !== 'orders' || ! $request->filled('client_id')) {
+            return null;
+        }
+
+        $client = User::query()->find((int) $request->input('client_id'));
+        abort_unless($client && $user->canServeClient($client), 403);
+
+        return $client;
+    }
+
+    private function applyStaffDefaultDateRange(array $filters, User $user, Request $request): array
+    {
+        if (! $user->isStaffSeller() || $request->boolean('all') || ($filters['client_id'] ?? '') !== '') {
+            return $filters;
+        }
+
+        if ($filters['from_date'] === '' && $filters['to_date'] === '') {
+            $today = Carbon::now($this->sellerReportTimezone())->format('Y-m-d');
+            $filters['from_date'] = $today;
+            $filters['to_date'] = $today;
+        }
+
+        return $filters;
     }
 
     /**
@@ -551,7 +600,7 @@ class OrderController extends Controller
     {
         $user = auth()->user();
 
-        if (!$user || !$user->hasAnyRole(['seller', 'supervisor'])) {
+        if (! $user || ! $user->isStaffSeller()) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
@@ -673,12 +722,16 @@ class OrderController extends Controller
             'Eterna', 'Prebel', 'Yass', 'Produsa', 'Dromatic', 'Sense', 'Knight',
         ]);
 
+        // Brands claimed by name-based buckets; anything else folds into Otros.
+        $tercerosBrandIds = $tercerosVendorIds === [] ? [] : Brand::whereIn('vendor_id', $tercerosVendorIds)->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $classifiedBrandIds = array_values(array_unique(array_merge($tronexBrandIds, $tercerosBrandIds, $otrosBrandIds)));
+
         $alcalinaSales      = $salesByCategories($alcalinaIds);
         $manganesoSales     = $salesByCategories($manganesoIds);
         $encendedoresSales  = $salesByCategories($encendedoresIds);
         $bombillosSales     = $salesByCategories($bombillosIds);
         $tronexSales        = $salesByBrands($tronexBrandIds);
-        $otrosSales         = $salesByBrands($otrosBrandIds);
+        $otrosSales         = $this->salesOtrosOrUnclassified($baseConditions, $lineSalesSelect, $otrosBrandIds, $classifiedBrandIds, $salesByBrands);
         $tercerosSales      = $salesByVendors($tercerosVendorIds);
 
         $buckets = [
@@ -690,6 +743,17 @@ class OrderController extends Controller
             ['label' => 'Otros',         'total' => round($otrosSales['total'], 2),         'quantity' => $otrosSales['quantity']],
             ['label' => 'Terceros',      'total' => round($tercerosSales['total'], 2),      'quantity' => $tercerosSales['quantity']],
         ];
+
+        $bucketSum = round(array_sum(array_column($buckets, 'total')), 2);
+        $gap = round($ventasTotales - $bucketSum, 2);
+        if ($gap > 0.009) {
+            foreach ($buckets as &$bucket) {
+                if ($bucket['label'] === 'Otros') {
+                    $bucket['total'] = round($bucket['total'] + $gap, 2);
+                }
+            }
+            unset($bucket);
+        }
 
         return response()->json([
             'total_pedidos'    => $totalPedidos,
@@ -763,6 +827,38 @@ class OrderController extends Controller
     private function sellerReportTimezone(): string
     {
         return (string) config('app.seller_dashboard_timezone', 'America/Bogota');
+    }
+
+    private function salesOtrosOrUnclassified(callable $baseConditions, string $lineSalesSelect, array $otrosBrandIds, array $classifiedBrandIds, callable $salesByBrands): array
+    {
+        if ($classifiedBrandIds === []) {
+            // Nothing is classified yet, so every line is unclassified → Otros.
+            $row = DB::table('orders')
+                ->join('order_products', 'orders.id', '=', 'order_products.order_id')
+                ->join('products', 'order_products.product_id', '=', 'products.id')
+                ->leftJoin('taxes', 'products.tax_id', '=', 'taxes.id')
+                ->where(fn ($q) => $baseConditions($q))
+                ->selectRaw($lineSalesSelect)
+                ->first();
+            return ['total' => (float) $row->total, 'quantity' => (int) $row->quantity];
+        }
+        $row = DB::table('orders')
+            ->join('order_products', 'orders.id', '=', 'order_products.order_id')
+            ->join('products', 'order_products.product_id', '=', 'products.id')
+            ->leftJoin('taxes', 'products.tax_id', '=', 'taxes.id')
+            ->where(fn ($q) => $baseConditions($q))
+            ->where(function ($q) use ($otrosBrandIds, $classifiedBrandIds) {
+                if ($otrosBrandIds !== []) {
+                    $q->whereIn('products.brand_id', $otrosBrandIds)->orWhere(function ($inner) use ($classifiedBrandIds) {
+                        $inner->whereNotIn('products.brand_id', $classifiedBrandIds)->orWhereNull('products.brand_id');
+                    });
+                } else {
+                    $q->whereNotIn('products.brand_id', $classifiedBrandIds)->orWhereNull('products.brand_id');
+                }
+            })
+            ->selectRaw($lineSalesSelect)
+            ->first();
+        return ['total' => (float) $row->total, 'quantity' => (int) $row->quantity];
     }
 
     /**
@@ -876,7 +972,7 @@ class OrderController extends Controller
 
         // Preserve client and zone from the original order for confirmation step
         // If current user is a seller, set the acting client for the cart
-        if ($user->hasAnyRole(['seller', 'supervisor'])) {
+        if ($user->isStaffSeller()) {
             session()->put('user_id', $order->user_id);
 
             // Ensure client zones are available (run SOAP-backed sync if necessary)

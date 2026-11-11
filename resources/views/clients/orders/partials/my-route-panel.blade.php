@@ -6,9 +6,25 @@
     $searchTerm = $myRoute['searchTerm'] ?? '';
     $routeClients = $myRoute['clients'] ?? null;
     $todayLabel = $myRoute['todayLabel'] ?? '';
+    $coversAllZones = $myRoute['coversAllZones'] ?? false;
+    $zoneOptions = $myRoute['zoneOptions'] ?? collect();
 @endphp
 
 <div class="space-y-6">
+    @if($coversAllZones)
+        <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-4 sm:p-6">
+            <form method="GET" action="{{ route('clients.orders.index') }}">
+                <input type="hidden" name="tab" value="mi-ruta">
+                <label class="block text-xs font-medium text-gray-500 mb-1">Zona</label>
+                <select name="zona" data-orders-autosubmit class="w-full border-gray-300 rounded-lg text-sm px-3 py-2">
+                    <option value="">Selecciona una zona</option>
+                    @foreach($zoneOptions as $zoneOption)
+                        <option value="{{ $zoneOption }}" @selected((string) $zoneOption === $sellerZone)>{{ $zoneOption }}</option>
+                    @endforeach
+                </select>
+            </form>
+        </div>
+    @endif
     @if($sellerZone === '')
         <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-6 text-center text-gray-500">
             No tienes una zona asignada. Contacta al administrador para configurar tu zona.
@@ -21,6 +37,9 @@
         <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-4 sm:p-6">
             <form method="GET" action="{{ route('clients.orders.index') }}">
                 <input type="hidden" name="tab" value="mi-ruta">
+                @if($coversAllZones)
+                    <input type="hidden" name="zona" value="{{ $sellerZone }}">
+                @endif
                 <div class="flex flex-col sm:flex-row sm:items-end gap-3">
                     <div class="flex-1 min-w-0">
                         <label for="mi-ruta-select" class="block text-xs font-medium text-gray-500 mb-1">Ruta (zona {{ $sellerZone }})</label>
@@ -135,8 +154,13 @@
                             </div>
                         </div>
 
+                        <div class="mt-4 pt-4 border-t border-gray-100 flex flex-col sm:flex-row sm:justify-end gap-2">
+                                <a href="{{ route('clients.orders.index', array_filter(['tab' => 'orders', 'all' => 1, 'client_id' => $client->id, 'return_ruta' => $selectedRoute, 'return_zona' => $coversAllZones ? $sellerZone : null, 'ruta_q' => $searchTerm !== '' ? $searchTerm : null])) }}"
+                                   data-client-orders
+                                   class="px-3 py-2 border border-gray-300 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-50 transition-colors text-center">
+                                    Pedidos anteriores
+                                </a>
                         @if($client->document)
-                            <div class="mt-4 pt-4 border-t border-gray-100 flex flex-col sm:flex-row sm:justify-end gap-2">
                                 <a href="{{ route('client-data-updates.edit', array_filter(['zone' => $clientZone->id, 'return_tab' => 'mi-ruta', 'ruta' => $selectedRoute, 'ruta_q' => $searchTerm])) }}"
                                    class="px-3 py-2 border border-gray-300 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-50 transition-colors text-center">
                                     Actualizar datos
@@ -153,8 +177,8 @@
                                         Crear pedido
                                     </button>
                                 </form>
-                            </div>
                         @endif
+                        </div>
                     </div>
                 @endforeach
             </div>
