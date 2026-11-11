@@ -38,7 +38,7 @@ it('hides the direcciones tab from seller mi cuenta', function () {
         ->assertDontSee('data-tab-trigger="addresses"', false);
 });
 
-it('hides mi ruta and direcciones tabs from supervisor mi cuenta', function () {
+it('shows mi ruta and mis zonas but not direcciones to supervisor mi cuenta', function () {
     $supervisor = User::factory()->create();
     $supervisor->assignRole('supervisor');
 
@@ -46,6 +46,6 @@ it('hides mi ruta and direcciones tabs from supervisor mi cuenta', function () {
         ->get(route('clients.orders.index'))
         ->assertOk()
         ->assertSee('data-tab-trigger="mis-rutas"', false)
-        ->assertDontSee('data-tab-trigger="mi-ruta"', false)
+        ->assertSee('data-tab-trigger="mi-ruta"', false)
         ->assertDontSee('data-tab-trigger="addresses"', false);
 });

@@ -75,7 +75,7 @@
         <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
             <div class="flex flex-col sm:flex-row">
                 @php $activeTab = $activeTab ?? (!empty($isSupervisor) ? 'mis-rutas' : 'orders'); @endphp
-                @if(!empty($isSeller) && empty($isSupervisor))
+                @if(!empty($isSeller) || !empty($isAdmin))
                 <button type="button" data-tab-trigger="mi-ruta"
                         class="flex-1 px-4 py-4 text-sm font-semibold {{ $activeTab === 'mi-ruta' ? 'text-orange-600 bg-orange-50 border-b-2 border-orange-500' : 'text-gray-700 hover:bg-gray-50 border-b border-gray-200' }}">
                     <div class="flex items-center justify-center gap-2">
@@ -132,7 +132,7 @@
         </div>
 
         <div class="mt-6">
-            @if(!empty($isSeller) && empty($isSupervisor))
+            @if(!empty($isSeller) || !empty($isAdmin))
             <div data-tab-panel="mi-ruta" class="{{ ($activeTab ?? '') === 'mi-ruta' ? '' : 'hidden' }}">
                 @if($myRoute)
                     @include('clients.orders.partials.my-route-panel', ['myRoute' => $myRoute])
@@ -459,8 +459,10 @@
                     const qty = b.quantity != null ? Number(b.quantity).toLocaleString('es-CO') : '0';
                     const card = document.createElement('div');
                     card.className = 'bg-white border border-gray-200 rounded-2xl shadow-sm p-4 flex flex-col items-center justify-center text-center';
+                    card.title = b.description || b.label;
                     card.innerHTML =
                         '<p class="text-xs font-medium text-gray-500 uppercase tracking-wide leading-tight mb-1">' + b.label + '</p>' +
+                        (b.description ? '<p class="text-[11px] text-gray-400 leading-tight mb-1">' + b.description + '</p>' : '') +
                         '<p class="text-lg font-bold text-gray-900">' + currency(b.total) + '</p>' +
                         '<p class="text-xs text-gray-500 mt-0.5">' + qty + ' uds</p>';
                     catCards.appendChild(card);
@@ -470,8 +472,10 @@
                 const qty = list.reduce(function(sum, b) { return sum + Number(b.quantity || 0); }, 0);
                 const totalCard = document.createElement('div');
                 totalCard.className = 'col-span-2 sm:col-span-3 bg-orange-50 border border-orange-200 rounded-2xl shadow-sm p-4 flex flex-col items-center justify-center text-center';
+                totalCard.title = 'Suma de todas las líneas del reporte';
                 totalCard.innerHTML =
                     '<p class="text-xs font-medium text-orange-700 uppercase tracking-wide leading-tight mb-1">Total</p>' +
+                    '<p class="text-[11px] text-orange-600 leading-tight mb-1">Suma de todas las líneas</p>' +
                     '<p class="text-lg font-bold text-orange-700">' + currency(total) + '</p>' +
                     '<p class="text-xs text-orange-700 mt-0.5">' + Number(qty).toLocaleString('es-CO') + ' uds</p>';
                 catCards.appendChild(totalCard);

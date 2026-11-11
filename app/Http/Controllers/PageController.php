@@ -614,10 +614,14 @@ class PageController extends Controller
         /** @var User $user */
         $user = Auth::user();
 
-        // A seller building an order sees the selected client's warehouse,
-        // not the staff member's own city.
+        // Any signed-in profile building an order for a selected client
+        // (seller, supervisor, supernumerario or admin) sees that client's
+        // warehouse, not the viewer's own city. Guests have no client
+        // context: getUserBodegaCode() returns null and callers default to
+        // MDTAT explicitly — that default must never apply when a client
+        // is selected.
         $clientId = session()->get('user_id');
-        if ($clientId && (int) $clientId !== (int) $user->id && $user->isStaffSeller()) {
+        if ($clientId && (int) $clientId !== (int) $user->id && ($user->isStaffSeller() || $user->hasRole('admin'))) {
             $client = User::query()->find((int) $clientId);
             if ($client) {
                 return $client->catalogBodegaCode();

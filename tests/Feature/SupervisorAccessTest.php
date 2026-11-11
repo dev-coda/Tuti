@@ -187,7 +187,8 @@ it('shows mis zonas tab with all orders for the selected assigned zone', functio
         ->assertSee('Pedidos de la Zona 101')
         ->assertSee('2 pedidos')
         ->assertSee('Cliente Ruta Asignada')
-        ->assertDontSee('data-tab-trigger="mi-ruta"', false);
+        // Supervisors also get the Mi Ruta client card (cases 2/8); Mis Zonas stays their landing tab.
+        ->assertSee('data-tab-trigger="mi-ruta"', false);
 
     $misRutasPanel = Str::between(
         $response->getContent(),

@@ -327,3 +327,18 @@ it('uses a 4-attempt job backoff that ends at one hour', function () {
     expect($job->tries)->toBe(4)
         ->and($job->backoff)->toBe([60, 300, SyncProductInventory::HOURLY_RETRY_SECONDS]);
 });
+
+it('next-day scenario: a SKU absent from the next Dynamics snapshot is zeroed for that bodega only', function () {
+    configureInventorySyncJob('BOD-NEXTDAY');
+    Log::spy();
+    $product = inventorySyncProduct('NEXTDAY-SKU');
+    ProductInventory::create(['product_id' => $product->id, 'bodega_code' => 'BOD-NEXTDAY', 'available' => 30, 'physical' => 30, 'reserved' => 0]);
+    ProductInventory::create(['product_id' => $product->id, 'bodega_code' => 'OTHER-BODEGA', 'available' => 30, 'physical' => 30, 'reserved' => 0]);
+    inventorySyncProduct('PRESENT-SKU');
+    Http::fake(['*' => Http::response(inventorySyncSoapResponse([
+        ['sku' => 'PRESENT-SKU', 'available' => 5, 'physical' => 5, 'reserved' => 0],
+    ]), 200)]);
+    (new SyncProductInventory())->handle();
+    expect((int) ProductInventory::where('product_id', $product->id)->where('bodega_code', 'BOD-NEXTDAY')->value('available'))->toBe(0)
+        ->and((int) ProductInventory::where('product_id', $product->id)->where('bodega_code', 'OTHER-BODEGA')->value('available'))->toBe(30);
+});

@@ -29,13 +29,15 @@ class OrderController extends Controller
 
         // Only hydrate the active tab. Supervisors land on Mis Zonas; loading every
         // zone's pedidos + dashboard lists at once was timing out Mi Cuenta.
+        $isAdmin = $user->hasRole('admin');
         $availableTabs = ['orders', 'account'];
         if ($isSeller) {
+            $availableTabs[] = 'mi-ruta';
             if ($isSupervisor) {
                 $availableTabs[] = 'mis-rutas';
-            } else {
-                $availableTabs[] = 'mi-ruta';
             }
+        } elseif ($isAdmin) {
+            $availableTabs[] = 'mi-ruta';
         } else {
             $availableTabs[] = 'addresses';
         }
@@ -63,7 +65,7 @@ class OrderController extends Controller
                 ->orderByDesc('id')
                 ->paginate()
                 ->withQueryString();
-        } elseif ($activeTab === 'mi-ruta' && $isSeller && ! $isSupervisor) {
+        } elseif ($activeTab === 'mi-ruta' && ($isSeller || $isAdmin)) {
             $myRoute = $this->buildMyRouteData($user, $request);
         } elseif ($activeTab === 'mis-rutas' && $isSupervisor) {
             $myRoutes = $this->buildMyRoutesData($user, $request);
@@ -84,6 +86,7 @@ class OrderController extends Controller
             'statuses',
             'accountUser',
             'isSeller',
+            'isAdmin',
             'isSupervisor',
             'sellerDashToday',
             'recentFilters',
@@ -211,11 +214,14 @@ class OrderController extends Controller
      */
     private function buildMyRouteData(User $user, Request $request): array
     {
-        $coversAllZones = $user->coversAllZones();
+        $coversAllZones = $user->canBrowseAllZones();
         $zoneOptions = $coversAllZones
             ? Zone::query()->whereNotNull('zone')->where('zone', '!=', '')->distinct()->orderBy('zone')->pluck('zone')->map(fn ($zone) => trim((string) $zone))->filter()->unique()->values()
             : collect();
         $sellerZone = $coversAllZones ? trim((string) $request->input('zona', '')) : trim((string) $user->zone);
+        if (! $coversAllZones && $sellerZone === '' && $user->hasRole('supervisor')) {
+            $sellerZone = (string) ($user->supervisedCoverages()[0]['zone'] ?? '');
+        }
         if ($coversAllZones && ($sellerZone === '' || ! $zoneOptions->contains($sellerZone))) {
             $sellerZone = '';
         }
@@ -348,7 +354,8 @@ class OrderController extends Controller
      */
     private function applyOrderVisibilityScope($query, User $user): void
     {
-        if ($user->coversAllZones()) {
+        // Admins and all-zones supernumerarios see every order (read scope).
+        if ($user->hasRole('admin') || $user->coversAllZones()) {
             return;
         }
 
@@ -482,7 +489,7 @@ class OrderController extends Controller
             ->when($filters['status_id'] !== '', function ($query) use ($filters) {
                 $query->where('status_id', (int) $filters['status_id']);
             })
-            ->when($user->isStaffSeller() && ($filters['client_id'] ?? '') !== '', function ($query) use ($filters) {
+            ->when(($user->isStaffSeller() || $user->hasRole('admin')) && ($filters['client_id'] ?? '') !== '', function ($query) use ($filters) {
                 $query->where('user_id', (int) $filters['client_id']);
             });
     }
@@ -522,7 +529,7 @@ class OrderController extends Controller
             ->when($filters['status_id'] !== '', function ($query) use ($filters) {
                 $query->where('status_id', (int) $filters['status_id']);
             })
-            ->when($user->isStaffSeller() && ($filters['client_id'] ?? '') !== '', function ($query) use ($filters) {
+            ->when(($user->isStaffSeller() || $user->hasRole('admin')) && ($filters['client_id'] ?? '') !== '', function ($query) use ($filters) {
                 $query->where('user_id', (int) $filters['client_id']);
             });
     }
@@ -544,7 +551,7 @@ class OrderController extends Controller
 
     private function authorizeClientHistory(Request $request, User $user, bool $isSeller, string $tab): ?User
     {
-        if (! $isSeller || $tab !== 'orders' || ! $request->filled('client_id')) {
+        if ((! $isSeller && ! $user->hasRole('admin')) || $tab !== 'orders' || ! $request->filled('client_id')) {
             return null;
         }
 
@@ -734,14 +741,15 @@ class OrderController extends Controller
         $otrosSales         = $this->salesOtrosOrUnclassified($baseConditions, $lineSalesSelect, $otrosBrandIds, $classifiedBrandIds, $salesByBrands);
         $tercerosSales      = $salesByVendors($tercerosVendorIds);
 
+        // Each line explains what it reports so support can share the breakdown.
         $buckets = [
-            ['label' => 'Alcalina',      'total' => round($alcalinaSales['total'], 2),      'quantity' => $alcalinaSales['quantity']],
-            ['label' => 'Manganeso',     'total' => round($manganesoSales['total'], 2),     'quantity' => $manganesoSales['quantity']],
-            ['label' => 'Encendedores',  'total' => round($encendedoresSales['total'], 2),  'quantity' => $encendedoresSales['quantity']],
-            ['label' => 'Bombillos',     'total' => round($bombillosSales['total'], 2),     'quantity' => $bombillosSales['quantity']],
-            ['label' => 'Tronex',        'total' => round($tronexSales['total'], 2),        'quantity' => $tronexSales['quantity']],
-            ['label' => 'Otros',         'total' => round($otrosSales['total'], 2),         'quantity' => $otrosSales['quantity']],
-            ['label' => 'Terceros',      'total' => round($tercerosSales['total'], 2),      'quantity' => $tercerosSales['quantity']],
+            ['label' => 'Alcalina',      'description' => 'Categorías Alcalinas (Tronex/GP)', 'total' => round($alcalinaSales['total'], 2),      'quantity' => $alcalinaSales['quantity']],
+            ['label' => 'Manganeso',     'description' => 'Categorías Manganeso (Tronex/GP)', 'total' => round($manganesoSales['total'], 2),     'quantity' => $manganesoSales['quantity']],
+            ['label' => 'Encendedores',  'description' => 'Categoría Encendedores', 'total' => round($encendedoresSales['total'], 2),  'quantity' => $encendedoresSales['quantity']],
+            ['label' => 'Bombillos',     'description' => 'Categoría Bombillos', 'total' => round($bombillosSales['total'], 2),     'quantity' => $bombillosSales['quantity']],
+            ['label' => 'Tronex',        'description' => 'Marca Tronex (otras líneas)', 'total' => round($tronexSales['total'], 2),        'quantity' => $tronexSales['quantity']],
+            ['label' => 'Otros',         'description' => 'Marcas GP, Mtek, GE y Rocket, marcas sin clasificar y diferencia a favor vs ventas totales', 'total' => round($otrosSales['total'], 2),         'quantity' => $otrosSales['quantity']],
+            ['label' => 'Terceros',      'description' => 'Proveedores terceros (Eterna, Prebel, Yass, Produsa, Dromatic, Sense, Knight)', 'total' => round($tercerosSales['total'], 2),      'quantity' => $tercerosSales['quantity']],
         ];
 
         $bucketSum = round(array_sum(array_column($buckets, 'total')), 2);

@@ -47,7 +47,7 @@ use App\Http\Controllers\Admin\SupernumerarioController;
 use Illuminate\Support\Facades\Route;
 
 
-Route::middleware(['auth', 'role:seller|supervisor|supernumerario'])->group(function () {
+Route::middleware(['auth', 'role:seller|supervisor|supernumerario|admin'])->group(function () {
     Route::post('/setclient', [SellerController::class, 'setclient'])->name('seller.setclient');
     Route::post('/removeclient', [SellerController::class, 'removeclient'])->name('seller.removeclient');
     Route::get('/actualizacion-datos/{zone}/editar', [\App\Http\Controllers\ClientDataUpdateController::class, 'edit'])->name('client-data-updates.edit');

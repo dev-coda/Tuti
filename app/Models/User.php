@@ -146,6 +146,12 @@ class User extends Authenticatable
         return $this->hasAnyRole(self::STAFF_SELLER_ROLES);
     }
 
+    /** Whether this user may browse client cards in any zone (admin or all-zones supernumerario). */
+    public function canBrowseAllZones(): bool
+    {
+        return $this->hasRole('admin') || $this->coversAllZones();
+    }
+
     public function coversAllZones(): bool
     {
         if (! $this->hasRole('supernumerario')) {
@@ -161,8 +167,13 @@ class User extends Authenticatable
         return filter_var($flag, FILTER_VALIDATE_BOOLEAN);
     }
 
+    /** Admins cover every client; staff sellers cover only their zones/routes (or all zones when flagged). */
     public function canServeClient(User $client): bool
     {
+        if ($this->hasRole('admin')) {
+            return true;
+        }
+
         if (! $this->isStaffSeller()) {
             return false;
         }

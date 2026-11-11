@@ -62,7 +62,7 @@ class NewClientController extends Controller
         $clasificacionOptions = self::CLASIFICACION_OPTIONS;
         $diaOptions = self::DIA_OPTIONS;
         $isSellerFlow = $this->isSellerFlow();
-        $coversAllZones = $isSellerFlow && auth()->user()?->coversAllZones();
+        $coversAllZones = $isSellerFlow && auth()->user()?->canBrowseAllZones();
         $sellerZone = $coversAllZones ? null : $this->resolveSellerZone();
         $availableZones = [];
         $zoneRoutesByZone = [];
@@ -239,7 +239,7 @@ class NewClientController extends Controller
     public function store(Request $request, NewClientService $service)
     {
         $isSellerFlow = $this->isSellerFlow();
-        $coversAllZones = $isSellerFlow && auth()->user()?->coversAllZones();
+        $coversAllZones = $isSellerFlow && auth()->user()?->canBrowseAllZones();
         $sellerZone = ($isSellerFlow && ! $coversAllZones) ? $this->resolveSellerZone() : null;
 
         // Regular sellers/supervisors must always register into their assigned zone.
@@ -915,7 +915,7 @@ class NewClientController extends Controller
     {
         $user = auth()->user();
 
-        return $user && $user->isStaffSeller();
+        return $user && ($user->isStaffSeller() || $user->hasRole('admin'));
     }
 
     private function resolveSellerZone(): ?string
