@@ -61,6 +61,7 @@ class BrandController extends Controller
             return back()->withErrors(['discount' => 'El descuento porcentual no puede ser mayor a 100%']);
         }
 
+        $validate = Vendor::applyInheritedDiscount($validate);
 
         $slug =  Str::slug($request->name);
 
@@ -117,6 +118,8 @@ class BrandController extends Controller
         if ($validate['discount_type'] === 'percentage' && $validate['discount'] > 100) {
             return back()->withErrors(['discount' => 'El descuento porcentual no puede ser mayor a 100%']);
         }
+
+        $validate = Vendor::applyInheritedDiscount($validate);
 
         //save file
         if ($request->hasFile('image_file')) {

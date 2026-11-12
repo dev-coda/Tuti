@@ -187,6 +187,24 @@ class Product extends Model
         return $inv?->available ?? 0;
     }
 
+    /**
+     * Units to take from bodega stock for a cart quantity.
+     * Package-priced products sell as individual units (the quantity Dynamics receives).
+     * Other products sell the line quantity as one unit each.
+     */
+    public function inventoryUnitsForQuantity(int $quantity, ?int $packageQuantity = null): int
+    {
+        $quantity = max(0, $quantity);
+        $calculatesPackagePrice = filter_var($this->calculate_package_price, FILTER_VALIDATE_BOOLEAN);
+        if (! $calculatesPackagePrice) {
+            return $quantity;
+        }
+
+        $packageQuantity = max(1, (int) ($packageQuantity ?? $this->package_quantity ?? 1));
+
+        return $quantity * $packageQuantity;
+    }
+
     public function inventoryForBodega(?string $bodegaCode, ?int $variationItemId = null): ?ProductInventory
     {
         return $this->inventoryQueryForBodega($bodegaCode, $variationItemId)?->first();

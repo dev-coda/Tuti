@@ -995,6 +995,7 @@ class CartController extends Controller
                 $available = (int) ($inventory?->available ?? 0);
                 $reserved = (int) ($inventory?->reserved ?? 0);
                 $safety = (int) $product->getEffectiveSafetyStock();
+                $salesUnits = $product->inventoryUnitsForQuantity((int) $cartItem['quantity']);
 
                 // Get global minimum inventory setting (default 5 if not configured)
                 $globalMinInventory = (int) (\App\Models\Setting::getByKey('global_minimum_inventory') ?? 5);
@@ -1028,17 +1029,18 @@ class CartController extends Controller
                 // Check against available (disponible) only - it already accounts for reservations!
                 // disponible = físico - reservado (calculated in DB)
                 // Do NOT subtract reserved again here - that would be double-counting
-                if ($cartItem['quantity'] > $available) {
+                if ($salesUnits > $available) {
                     \Log::warning('Order blocked: quantity exceeds available (disponible)', [
                         'product_id' => $product->id,
                         'product_name' => $product->name,
-                        'requested' => $cartItem['quantity'],
+                        'requested' => $salesUnits,
+                        'cart_quantity' => $cartItem['quantity'],
                         'disponible' => $available,
                         'reservado' => $reserved,
                         'bodega' => $bodega,
                     ]);
 
-                    return back()->with('error', "La cantidad solicitada de {$product->name} excede el inventario disponible en su zona ({$cartItem['quantity']} solicitadas, {$available} disponibles).");
+                    return back()->with('error', "La cantidad solicitada de {$product->name} excede el inventario disponible en su zona ({$salesUnits} solicitadas, {$available} disponibles).");
                 }
             }
         }
@@ -1418,6 +1420,7 @@ class CartController extends Controller
                     $current = (int) ($inventory?->available ?? 0);
                     $reserved = (int) ($inventory?->reserved ?? 0);
                     $safety = (int) $p->getEffectiveSafetyStock();
+                    $salesUnits = $p->inventoryUnitsForQuantity((int) $row['quantity']);
 
                     // Get global minimum inventory setting (default 5 if not configured)
                     $globalMinInventory = (int) (\App\Models\Setting::getByKey('global_minimum_inventory') ?? 5);
@@ -1427,8 +1430,9 @@ class CartController extends Controller
 
                     // Check against current (disponible) only - it already accounts for reservations!
                     // disponible = físico - reservado (calculated in DB)
-                    // Ensure after decrement, available won't go below the effective minimum
-                    if ($current <= $effectiveMinimum || ($current - (int) $row['quantity']) < $effectiveMinimum || $row['quantity'] > $current) {
+                    // Ensure after decrement, available won't go below the effective minimum.
+                    // Sales units match the quantity sent to Dynamics, not the cart package count.
+                    if ($current <= $effectiveMinimum || ($current - $salesUnits) < $effectiveMinimum || $salesUnits > $current) {
                         $reason = ($safety > 0) ? 'product safety stock' : 'global minimum inventory';
                         \Log::error('Order rollback: inventory insufficient during final check', [
                             'product_id' => $p->id,
@@ -1436,7 +1440,8 @@ class CartController extends Controller
                             'product_name' => $p->name,
                             'has_variation' => ! is_null($p->variation_id),
                             'variation_item_selected' => $row['variation_id'] ?? null,
-                            'requested' => $row['quantity'],
+                            'requested' => $salesUnits,
+                            'cart_quantity' => $row['quantity'],
                             'disponible' => $current,
                             'reservado' => $reserved,
                             'product_safety_stock' => $safety,
@@ -1452,25 +1457,26 @@ class CartController extends Controller
                             BonificationCheckoutService::insufficientPaidLineStockMessage(
                                 $p,
                                 $current,
-                                (int) $row['quantity']
+                                $salesUnits
                             )
                         );
                     }
                     if ($inventory) {
-                        $inventory->update(['available' => $current - (int) $row['quantity']]);
+                        $inventory->update(['available' => $current - $salesUnits]);
                     } else {
                         // shouldn't happen, but guard
                         \Log::warning('Creating new inventory record during order', [
                             'product_id' => $p->id,
                             'bodega' => $bodega,
-                            'quantity_ordered' => $row['quantity'],
+                            'quantity_ordered' => $salesUnits,
+                            'cart_quantity' => $row['quantity'],
                         ]);
                         ProductInventory::create([
                             'product_id' => $p->id,
                             'variation_item_id' => $variationItemId,
                             'source_sku' => BonificationCheckoutService::selectedVariationSku($p, $variationItemId),
                             'bodega_code' => $bodega,
-                            'available' => max(0, $current - (int) $row['quantity']),
+                            'available' => max(0, $current - $salesUnits),
                             'physical' => 0,
                             'reserved' => $reserved,
                         ]);

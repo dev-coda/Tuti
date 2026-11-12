@@ -70,7 +70,8 @@ class VendorController extends Controller
             $validate['banner'] = $request->banner_file->store('/vendors', 'public');
         }
 
-        Vendor::create($validate);
+        $vendor = Vendor::create($validate);
+        $vendor->propagateDiscountToBrands();
 
         return to_route('vendors.index')->with('success', 'Vendor creado correctamente');
     }
@@ -131,6 +132,7 @@ class VendorController extends Controller
         $validate['slug'] =  Str::slug($request->slug);
 
         $vendor->update($validate);
+        $vendor->propagateDiscountToBrands();
 
         return to_route('vendors.index')->with('success', 'Vendor actualizado');
     }
