@@ -6,6 +6,7 @@
     $searchTerm = $myRoute['searchTerm'] ?? '';
     $routeClients = $myRoute['clients'] ?? null;
     $todayLabel = $myRoute['todayLabel'] ?? '';
+    $deliveryLabel = $myRoute['deliveryLabel'] ?? '';
     $coversAllZones = $myRoute['coversAllZones'] ?? false;
     $zoneOptions = $myRoute['zoneOptions'] ?? collect();
 @endphp
@@ -53,6 +54,10 @@
                     </div>
                     <p class="text-sm text-gray-500 sm:pb-2 whitespace-nowrap">
                         Hoy: <span class="font-medium text-gray-700 capitalize">{{ $todayLabel }}</span>
+                        @if($deliveryLabel !== '')
+                            <span class="mx-1">·</span>
+                            Entrega: <span class="font-medium text-gray-700">{{ $deliveryLabel }}</span>
+                        @endif
                     </p>
                 </div>
                 @if($selectedRoute !== '')
@@ -119,7 +124,7 @@
                                 @endif
                             </div>
                             <span class="self-start text-xs font-medium text-orange-600 bg-orange-50 rounded-full px-2.5 py-1 whitespace-nowrap">
-                                {{ \App\Models\Zone::visitWeekdayLabelFromDay($clientZone->day) ?? $clientZone->day }}
+                                {{ \App\Models\Zone::weekdayLabelFromDay($clientZone->day) ?? $clientZone->day }}
                             </span>
                         </div>
 

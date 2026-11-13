@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Schema;
@@ -155,17 +156,21 @@ class Zone extends Model
     }
 
     /**
-     * Visit weekday for a rutero day. The vendor walks the route the day after
-     * the stored weekday and delivers the day after that visit.
+     * Rutero weekday the vendor delivers for a visit on $visit.
+     *
+     * Production seller orders follow this nominal week (1=lunes … 5=viernes):
+     * Monday delivers Tuesday, …, Thursday delivers Friday, Friday delivers Monday.
+     * Saturday and Sunday also resolve to Monday, the next route delivery.
      */
-    public static function visitWeekdayLabelFromDay(?string $day): ?string
+    public static function deliveryDayOfWeekForVisitOn(Carbon $visit): int
     {
-        $dow = self::carbonDayOfWeekFromDay($day);
-        if ($dow === null) {
-            return null;
-        }
-
-        return self::weekdayLabelFromDay((string) (($dow + 1) % 7));
+        return match ($visit->dayOfWeek) {
+            Carbon::MONDAY => Carbon::TUESDAY,
+            Carbon::TUESDAY => Carbon::WEDNESDAY,
+            Carbon::WEDNESDAY => Carbon::THURSDAY,
+            Carbon::THURSDAY => Carbon::FRIDAY,
+            default => Carbon::MONDAY,
+        };
     }
 
     public function usesCoordinadoraFor48h(): bool

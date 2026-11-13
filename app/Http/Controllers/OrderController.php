@@ -208,10 +208,10 @@ class OrderController extends Controller
 
     /**
      * Data for the seller "Mi Ruta" tab: routes available in the seller's zone and,
-     * once a route is selected, the clients the vendor visits today and delivers tomorrow.
-     * The rutero weekday is the day before that visit, so today's list matches yesterday.
+     * once a route is selected, the clients the vendor visits today. Their rutero
+     * day is the delivery weekday (next Mon–Fri), so Friday lists Monday clients.
      *
-     * @return array{sellerZone:string,routeOptions:\Illuminate\Support\Collection,selectedRoute:string,searchTerm:string,clients:\Illuminate\Support\Collection|null,todayLabel:string}
+     * @return array{sellerZone:string,routeOptions:\Illuminate\Support\Collection,selectedRoute:string,searchTerm:string,clients:\Illuminate\Support\Collection|null,todayLabel:string,deliveryLabel:?string}
      */
     private function buildMyRouteData(User $user, Request $request): array
     {
@@ -247,9 +247,7 @@ class OrderController extends Controller
 
         $clients = null;
         if ($selectedRoute !== '') {
-            // Visit is the day after the rutero weekday; delivery is the day after the visit.
-            // Matching today would list tomorrow's visits (delivered the day after that).
-            $visitTodayDow = $today->copy()->subDay()->dayOfWeek;
+            $deliveryDow = Zone::deliveryDayOfWeekForVisitOn($today);
 
             $clients = Zone::query()
                 ->with([
@@ -260,7 +258,7 @@ class OrderController extends Controller
                 ->where('route', $selectedRoute)
                 ->get()
                 ->filter(fn (Zone $zone) => $zone->user !== null
-                    && Zone::carbonDayOfWeekFromDay($zone->day) === $visitTodayDow)
+                    && Zone::carbonDayOfWeekFromDay($zone->day) === $deliveryDow)
                 ->sortBy(function (Zone $zone) {
                     // Visit order (aOrden) first when available, then name.
                     $sequence = (int) ($zone->user->order_sequence ?? 0);
@@ -293,6 +291,7 @@ class OrderController extends Controller
             'searchTerm' => $searchTerm,
             'clients' => $clients,
             'todayLabel' => $today->locale('es')->isoFormat('dddd D [de] MMMM'),
+            'deliveryLabel' => Zone::weekdayLabelFromDay((string) Zone::deliveryDayOfWeekForVisitOn($today)),
         ];
     }
 

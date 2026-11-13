@@ -10,6 +10,10 @@ use function Pest\Laravel\actingAs;
 
 uses(RefreshDatabase::class);
 
+afterEach(function () {
+    Carbon::setTestNow();
+});
+
 it('parses rutero day values into carbon day of week', function () {
     expect(Zone::carbonDayOfWeekFromDay('5'))->toBe(5)
         ->and(Zone::carbonDayOfWeekFromDay('5-Viernes'))->toBe(5)
@@ -19,9 +23,9 @@ it('parses rutero day values into carbon day of week', function () {
         ->and(Zone::carbonDayOfWeekFromDay('7'))->toBe(0)
         ->and(Zone::carbonDayOfWeekFromDay(''))->toBeNull()
         ->and(Zone::carbonDayOfWeekFromDay(null))->toBeNull()
-        ->and(Zone::visitWeekdayLabelFromDay('5'))->toBe('Sábado')
-        ->and(Zone::visitWeekdayLabelFromDay('6'))->toBe('Domingo')
-        ->and(Zone::visitWeekdayLabelFromDay('7'))->toBe('Lunes');
+        ->and(Zone::deliveryDayOfWeekForVisitOn(Carbon::parse('2026-11-12', 'America/Bogota')))->toBe(Carbon::FRIDAY)
+        ->and(Zone::deliveryDayOfWeekForVisitOn(Carbon::parse('2026-11-13', 'America/Bogota')))->toBe(Carbon::MONDAY)
+        ->and(Zone::deliveryDayOfWeekForVisitOn(Carbon::parse('2026-11-09', 'America/Bogota')))->toBe(Carbon::TUESDAY);
 });
 
 it('shows route clients the vendor visits today and delivers tomorrow', function () {
@@ -30,10 +34,9 @@ it('shows route clients the vendor visits today and delivers tomorrow', function
     $seller = User::factory()->create(['zone' => '301']);
     $seller->assignRole('seller');
 
-    $todayDow = Carbon::now('America/Bogota')->dayOfWeek;
-    // Rutero weekday is the day before the visit. Today's rutero day is tomorrow's visit.
-    $visitTodayDow = ($todayDow + 6) % 7;
-    $otherDow = $todayDow;
+    Carbon::setTestNow(Carbon::parse('2026-11-13 09:00:00', 'America/Bogota'));
+    $deliveryDow = Zone::deliveryDayOfWeekForVisitOn(Carbon::now('America/Bogota'));
+    $otherDow = Carbon::FRIDAY;
 
     $clientToday = User::factory()->create([
         'name' => 'Cliente Visita Hoy',
@@ -48,7 +51,7 @@ it('shows route clients the vendor visits today and delivers tomorrow', function
         'user_id' => $clientToday->id,
         'zone' => '301',
         'route' => 'R100',
-        'day' => (string) $visitTodayDow,
+        'day' => (string) $deliveryDow,
         'address' => 'Calle 1 # 2-3',
         'code' => 'RUT-HOY',
     ]);
@@ -68,7 +71,7 @@ it('shows route clients the vendor visits today and delivers tomorrow', function
         'user_id' => $clientOtherRoute->id,
         'zone' => '301',
         'route' => 'R200',
-        'day' => (string) $visitTodayDow,
+        'day' => (string) $deliveryDow,
         'address' => 'Calle 7 # 8-9',
         'code' => 'RUT-OTRA-RUTA',
     ]);
@@ -85,10 +88,21 @@ it('shows route clients the vendor visits today and delivers tomorrow', function
         ->assertSee('3007654321')
         ->assertSee('tienda@example.com')
         ->assertSee('Calle 1 # 2-3')
-        ->assertSee(['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][$todayDow])
-        ->assertDontSee(['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][$visitTodayDow])
+        ->assertSee('Entrega:')
+        ->assertSee('Lunes')
         ->assertDontSee('Cliente Otro Dia')
         ->assertDontSee('Cliente Otra Ruta');
+
+    Carbon::setTestNow(Carbon::parse('2026-11-12 09:00:00', 'America/Bogota'));
+
+    actingAs($seller)->get('/ordenes?tab=mi-ruta&ruta=R100')
+        ->assertOk()
+        ->assertSee('Cliente Otro Dia')
+        ->assertSee('Entrega:')
+        ->assertSee('Viernes')
+        ->assertDontSee('Cliente Visita Hoy');
+
+    Carbon::setTestNow();
 });
 
 it('filters mi ruta clients by name or document', function () {
@@ -97,7 +111,8 @@ it('filters mi ruta clients by name or document', function () {
     $seller = User::factory()->create(['zone' => '301']);
     $seller->assignRole('seller');
 
-    $visitTodayDow = (Carbon::now('America/Bogota')->dayOfWeek + 6) % 7;
+    Carbon::setTestNow(Carbon::parse('2026-11-13 09:00:00', 'America/Bogota'));
+    $deliveryDow = (string) Zone::deliveryDayOfWeekForVisitOn(Carbon::now('America/Bogota'));
 
     $clientA = User::factory()->create([
         'name' => 'Maria Lopez',
@@ -108,7 +123,7 @@ it('filters mi ruta clients by name or document', function () {
         'user_id' => $clientA->id,
         'zone' => '301',
         'route' => 'R100',
-        'day' => (string) $visitTodayDow,
+        'day' => $deliveryDow,
         'address' => 'Calle 1 # 2-3',
         'code' => 'RUT-A',
     ]);
@@ -122,7 +137,7 @@ it('filters mi ruta clients by name or document', function () {
         'user_id' => $clientB->id,
         'zone' => '301',
         'route' => 'R100',
-        'day' => (string) $visitTodayDow,
+        'day' => $deliveryDow,
         'address' => 'Calle 4 # 5-6',
         'code' => 'RUT-B',
     ]);

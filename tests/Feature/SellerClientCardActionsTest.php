@@ -18,7 +18,7 @@ beforeEach(function () {
 
 function clientCardFixture(User $staff, string $zoneCode, string $route): array
 {
-    $visitTodayDow = (Carbon::now('America/Bogota')->dayOfWeek + 6) % 7;
+    $deliveryDow = Zone::deliveryDayOfWeekForVisitOn(Carbon::now('America/Bogota'));
     $client = User::factory()->create([
         'name' => 'Cliente Tarjeta',
         'document' => '901234567',
@@ -29,7 +29,7 @@ function clientCardFixture(User $staff, string $zoneCode, string $route): array
         'user_id' => $client->id,
         'zone' => $zoneCode,
         'route' => $route,
-        'day' => (string) $visitTodayDow,
+        'day' => (string) $deliveryDow,
         'address' => 'Calle 1 # 2-3',
         'code' => 'RUT-CARD',
     ]);
