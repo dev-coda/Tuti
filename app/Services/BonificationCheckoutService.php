@@ -52,7 +52,7 @@ class BonificationCheckoutService
                 }
 
                 $bonificationQuantity = floor($aggregatedIndividualItems / $buy * $bonification->get);
-                if ($bonificationQuantity > 0 && ! $bonification->allow_discounts) {
+                if ($bonificationQuantity > 0 && $product->bonificationSuppressesDiscounts($bonification)) {
                     $blocked[$productId] = true;
                     break;
                 }

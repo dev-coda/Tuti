@@ -18,7 +18,7 @@ beforeEach(function () {
 
 function clientCardFixture(User $staff, string $zoneCode, string $route): array
 {
-    $todayDow = Carbon::now('America/Bogota')->dayOfWeek;
+    $visitTodayDow = (Carbon::now('America/Bogota')->dayOfWeek + 6) % 7;
     $client = User::factory()->create([
         'name' => 'Cliente Tarjeta',
         'document' => '901234567',
@@ -29,13 +29,39 @@ function clientCardFixture(User $staff, string $zoneCode, string $route): array
         'user_id' => $client->id,
         'zone' => $zoneCode,
         'route' => $route,
-        'day' => (string) $todayDow,
+        'day' => (string) $visitTodayDow,
         'address' => 'Calle 1 # 2-3',
         'code' => 'RUT-CARD',
     ]);
 
     return [$client, $zone];
 }
+
+it('offers the create client workflow to sellers and supervisors', function () {
+    $this->withoutVite();
+
+    $seller = User::factory()->create(['zone' => '301']);
+    $seller->assignRole('seller');
+
+    actingAs($seller)->get('/ordenes')
+        ->assertOk()
+        ->assertSee('Cliente nuevo')
+        ->assertSee(route('new-client.create'), false);
+
+    $supervisor = User::factory()->create(['zone' => '301']);
+    $supervisor->assignRole('supervisor');
+
+    actingAs($supervisor)->get('/ordenes')
+        ->assertOk()
+        ->assertSee('Cliente nuevo')
+        ->assertSee(route('new-client.create'), false);
+
+    $client = User::factory()->create();
+
+    actingAs($client)->get('/ordenes')
+        ->assertOk()
+        ->assertDontSee('Cliente nuevo');
+});
 
 it('shows the three client card actions to a seller in mi ruta', function () {
     $seller = User::factory()->create(['zone' => '301']);

@@ -154,6 +154,20 @@ class Zone extends Model
         return ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][$dow] ?? null;
     }
 
+    /**
+     * Visit weekday for a rutero day. The vendor walks the route the day after
+     * the stored weekday and delivers the day after that visit.
+     */
+    public static function visitWeekdayLabelFromDay(?string $day): ?string
+    {
+        $dow = self::carbonDayOfWeekFromDay($day);
+        if ($dow === null) {
+            return null;
+        }
+
+        return self::weekdayLabelFromDay((string) (($dow + 1) % 7));
+    }
+
     public function usesCoordinadoraFor48h(): bool
     {
         return ($this->fulfillment_provider_48h ?? self::FULFILLMENT_PROVIDER_COORDINADORA) === self::FULFILLMENT_PROVIDER_COORDINADORA;

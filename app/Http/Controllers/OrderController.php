@@ -208,7 +208,8 @@ class OrderController extends Controller
 
     /**
      * Data for the seller "Mi Ruta" tab: routes available in the seller's zone and,
-     * once a route is selected, the clients whose visit day matches today (Colombia).
+     * once a route is selected, the clients the vendor visits today and delivers tomorrow.
+     * The rutero weekday is the day before that visit, so today's list matches yesterday.
      *
      * @return array{sellerZone:string,routeOptions:\Illuminate\Support\Collection,selectedRoute:string,searchTerm:string,clients:\Illuminate\Support\Collection|null,todayLabel:string}
      */
@@ -246,7 +247,9 @@ class OrderController extends Controller
 
         $clients = null;
         if ($selectedRoute !== '') {
-            $todayDow = $today->dayOfWeek;
+            // Visit is the day after the rutero weekday; delivery is the day after the visit.
+            // Matching today would list tomorrow's visits (delivered the day after that).
+            $visitTodayDow = $today->copy()->subDay()->dayOfWeek;
 
             $clients = Zone::query()
                 ->with([
@@ -257,7 +260,7 @@ class OrderController extends Controller
                 ->where('route', $selectedRoute)
                 ->get()
                 ->filter(fn (Zone $zone) => $zone->user !== null
-                    && Zone::carbonDayOfWeekFromDay($zone->day) === $todayDow)
+                    && Zone::carbonDayOfWeekFromDay($zone->day) === $visitTodayDow)
                 ->sortBy(function (Zone $zone) {
                     // Visit order (aOrden) first when available, then name.
                     $sequence = (int) ($zone->user->order_sequence ?? 0);

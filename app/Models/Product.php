@@ -329,6 +329,53 @@ class Product extends Model
     }
 
     /**
+     * Bonifications that clear this product's price. Shared with another product
+     * of the same SKU, they do not count. One that allows discounts keeps the price.
+     */
+    public function bonificationsThatSuppressDiscounts()
+    {
+        $this->loadMissing('bonifications');
+
+        $applicable = $this->bonifications->reject(function ($bonification) {
+            return $this->sharesBonificationWithSkuSibling($bonification);
+        });
+
+        if ($applicable->isEmpty() || $applicable->contains(fn ($bonification) => $bonification->allow_discounts)) {
+            return collect();
+        }
+
+        return $applicable->values();
+    }
+
+    /**
+     * A bonification removes this product's discounts only when it belongs to this
+     * product alone. Another product row with the same SKU keeps its own price.
+     */
+    public function bonificationSuppressesDiscounts(Bonification $bonification): bool
+    {
+        if ($bonification->allow_discounts) {
+            return false;
+        }
+
+        return ! $this->sharesBonificationWithSkuSibling($bonification);
+    }
+
+    public function sharesBonificationWithSkuSibling(Bonification $bonification): bool
+    {
+        $sku = trim((string) $this->sku);
+        if ($sku === '') {
+            return false;
+        }
+
+        $bonification->loadMissing('products');
+
+        return $bonification->products->contains(function ($other) use ($sku) {
+            return (int) $other->id !== (int) $this->id
+                && trim((string) $other->sku) === $sku;
+        });
+    }
+
+    /**
      * Tags for this product
      */
     public function tags()
@@ -412,11 +459,8 @@ class Product extends Model
      */
     protected function discountAppliesFromSources(bool $includeVendor): bool
     {
-        if ($this->bonifications->count() > 0) {
-            $allBlockDiscounts = $this->bonifications->every(fn ($b) => ! $b->allow_discounts);
-            if ($allBlockDiscounts) {
-                return false;
-            }
+        if ($this->bonificationsThatSuppressDiscounts()->isNotEmpty()) {
+            return false;
         }
 
         if ($this->discount > 0) {
@@ -656,19 +700,12 @@ class Product extends Model
             }
         }
 
-        // Bonifications override all discounts ONLY if ALL bonifications have allow_discounts = false
-        // If at least one bonification allows discounts, then discounts can apply
-        if ($this->bonifications->count() > 0) {
-            $allBlockDiscounts = $this->bonifications->every(function ($bonification) {
-                return ! $bonification->allow_discounts;
-            });
-
-            if ($allBlockDiscounts) {
-                // All bonifications block discounts, so remove discounts
-                $discount_on = false;
-                $discount = 0;
-            }
-            // If at least one bonification allows discounts, keep the calculated discount
+        // A bonification clears the discount only when every bonification on this product
+        // row suppresses discounts. A bonification shared with another product of the
+        // same SKU does not. One bonification that allows discounts keeps the price.
+        if ($this->bonificationsThatSuppressDiscounts()->isNotEmpty()) {
+            $discount_on = false;
+            $discount = 0;
         }
 
         $price = $this->resolveUnitBasePrice($variationItemId);

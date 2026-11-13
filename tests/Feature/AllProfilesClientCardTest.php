@@ -36,7 +36,7 @@ function allProfilesClient(string $zoneCode = '301', string $route = 'R100'): ar
         'user_id' => $client->id,
         'zone' => $zoneCode,
         'route' => $route,
-        'day' => (string) Carbon::now('America/Bogota')->dayOfWeek,
+        'day' => (string) ((Carbon::now('America/Bogota')->dayOfWeek + 6) % 7),
         'address' => 'Calle 1 # 2-3',
         'code' => 'RUT-MATRIZ-'.$zoneCode,
     ]);
