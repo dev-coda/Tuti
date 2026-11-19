@@ -286,6 +286,11 @@ export default {
                 
                 const data = await response.json();
                 console.log('[FeaturedProducts] Response data:', data);
+
+                if (data.redirect) {
+                    window.location.href = data.redirect;
+                    return;
+                }
                 
                 if (response.ok && data.success) {
                     console.log('[FeaturedProducts] Product added successfully');

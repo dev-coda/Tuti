@@ -111,6 +111,11 @@
             }
             
             const data = await response.json();
+
+            if (data.redirect) {
+                window.location.href = data.redirect;
+                return;
+            }
             
             if (response.ok && data.success) {
                 // Show success toast

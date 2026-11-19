@@ -268,20 +268,22 @@
             @endphp
             
             @if($showInventory && $isManaged)
-                <div class="mt-2">
-                    <p id="pdp-stock-available" class="text-sm text-gray-600 {{ $orderableStock > 0 ? '' : 'hidden' }}">
-                        <span class="font-medium text-gray-900">Disponibilidad:</span>
-                        <span id="pdp-stock-count" class="font-semibold {{ $orderableStock < 10 ? 'text-orange-600' : 'text-green-600' }}">
-                            @auth
-                                {{ number_format($orderableStock) }} unidades
-                            @else
-                                Disponible
-                            @endauth
-                        </span>
+                @guest
+                    <p class="text-xs text-gray-500 mt-2">
+                        <a href="{{ route('form') }}" class="hover:underline">Registrate para conocer disponibilidad</a>
                     </p>
-                    <span id="pdp-stock-low" class="inline-flex items-center text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-700 mt-1 w-fit {{ ($orderableStock > 0 && $orderableStock < 10) ? '' : 'hidden' }}">últimas unidades disponibles</span>
-                    <p id="pdp-stock-unavailable" class="text-sm text-orange-500 {{ $orderableStock > 0 ? 'hidden' : '' }}">Producto no disponible para tu ubicación</p>
-                </div>
+                @else
+                    <div class="mt-2">
+                        <p id="pdp-stock-available" class="text-sm text-gray-600 {{ $orderableStock > 0 ? '' : 'hidden' }}">
+                            <span class="font-medium text-gray-900">Disponibilidad:</span>
+                            <span id="pdp-stock-count" class="font-semibold {{ $orderableStock < 10 ? 'text-orange-600' : 'text-green-600' }}">
+                                {{ number_format($orderableStock) }} unidades
+                            </span>
+                        </p>
+                        <span id="pdp-stock-low" class="inline-flex items-center text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-700 mt-1 w-fit {{ ($orderableStock > 0 && $orderableStock < 10) ? '' : 'hidden' }}">últimas unidades disponibles</span>
+                        <p id="pdp-stock-unavailable" class="text-sm text-orange-500 {{ $orderableStock > 0 ? 'hidden' : '' }}">Producto no disponible para tu ubicación</p>
+                    </div>
+                @endguest
             @endif
 
             <!-- Short Description Box -->
@@ -341,7 +343,7 @@
                     data-price-old="{{ $fpVar['old'] }}"
                     data-has-discount="{{ $fpVar['has_discount'] ? '1' : '0' }}"
                     data-per-item="{{ $fpVar['perItemPrice'] ?? '' }}"
-                    data-orderable-stock="{{ $itemOrderableStock }}"
+                    @auth data-orderable-stock="{{ $itemOrderableStock }}" @endauth
                     data-variation-image="{{ $variationImageByItem->get($item->id, '') }}"
                     @selected((int) $item->id === (int) $preferredVariationItemId)
                 >{{ $item->name }}</option>
@@ -763,6 +765,7 @@
                 if ($wrap.length && per !== undefined && per !== '') {
                     $('#pdp-per-item-val').text(formatPdpMoney(per));
                 }
+                @auth
                 var stock = Number($opt.data('orderable-stock') || 0);
                 var $available = $('#pdp-stock-available');
                 var $unavailable = $('#pdp-stock-unavailable');
@@ -782,6 +785,7 @@
                         $low.addClass('hidden');
                     }
                 }
+                @endauth
 
                 applyVariationImages($(this).val());
             });
