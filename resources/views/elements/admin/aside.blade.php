@@ -65,6 +65,16 @@
                         'admin.retentions.index'=>'Retenciones',
                         ]" />
 
+                    <x-dropdown
+                        title='Inventario'
+                        icon='heroicon-o-cube'
+                        :menu="[
+                            'admin.inventory.index'=>'Control',
+                            'admin.inventory.intelligence'=>'Inteligencia',
+                            'admin.inventory.agent'=>'Agente',
+                            'settings.inventory-logs'=>'Logs de sincronización',
+                        ]" />
+
                     <x-dropdown title='Contenido'
                         icon='heroicon-o-document-text'
                         :menu="[

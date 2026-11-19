@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\ContentController;
 use App\Http\Controllers\Admin\ContentPageController;
 use App\Http\Controllers\Admin\CouponController;
 use App\Http\Controllers\Admin\HolidayController;
+use App\Http\Controllers\Admin\InventoryIntelligenceController;
 use App\Http\Controllers\Admin\KpiController;
 use App\Http\Controllers\Admin\LabelController;
 use App\Http\Controllers\Admin\OrderController;
@@ -78,6 +79,14 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::prefix('kpi')->name('admin.kpi.')->group(function () {
         Route::get('/', [KpiController::class, 'index'])->name('index');
         Route::get('/export', [KpiController::class, 'export'])->name('export');
+    });
+
+    Route::prefix('inventario')->name('admin.inventory.')->group(function () {
+        Route::get('/', [InventoryIntelligenceController::class, 'index'])->name('index');
+        Route::get('/inteligencia', [InventoryIntelligenceController::class, 'intelligence'])->name('intelligence');
+        Route::get('/agente', [InventoryIntelligenceController::class, 'agent'])->name('agent');
+        Route::post('/agente', [InventoryIntelligenceController::class, 'ask'])->middleware('throttle:30,1')->name('ask');
+        Route::delete('/agente', [InventoryIntelligenceController::class, 'clearAgent'])->name('agent.clear');
     });
 
 
