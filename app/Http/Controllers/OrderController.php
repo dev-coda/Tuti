@@ -51,9 +51,6 @@ class OrderController extends Controller
         $defaultTab = $isSupervisor ? 'mis-rutas' : 'orders';
         $activeTab = in_array($requestedTab, $availableTabs, true) ? $requestedTab : $defaultTab;
         $clientFilter = $this->authorizeClientHistory($request, $user, $isSeller, $activeTab);
-        $clientRouteZone = $clientFilter
-            ? $clientFilter->zones()->with(['user.city'])->orderBy('id')->first()
-            : null;
 
         $recentFilters = $this->extractOrderFilters($request);
         if ($activeTab === 'orders') {
@@ -98,8 +95,7 @@ class OrderController extends Controller
             'myRoute',
             'myRoutes',
             'activeTab',
-            'clientFilter',
-            'clientRouteZone'
+            'clientFilter'
         ));
     }
 

@@ -16,7 +16,27 @@
     unset($exportParams['page'], $exportParams['today_page'], $exportParams[$pageParam]);
     $exportParams['tab'] = $tabKey;
     $exportUrl = route('clients.orders.export', $exportParams);
+    $suggestedOrderEnabled = false;
 @endphp
+
+@if(!empty($clientFilter))
+    <div class="mb-4 bg-white border border-gray-200 rounded-2xl shadow-sm p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3" data-client-orders-banner>
+        <div>
+            <p class="text-sm font-semibold text-gray-900">Pedidos anteriores</p>
+            <p class="text-sm text-gray-600 mt-0.5">{{ $clientFilter->business_name ?: $clientFilter->name }}</p>
+        </div>
+        <div class="flex flex-col sm:flex-row gap-2">
+            <a href="{{ route('clients.orders.index', array_filter(['tab' => 'mi-ruta', 'ruta' => request('return_ruta'), 'zona' => request('return_zona'), 'ruta_q' => request('ruta_q')])) }}"
+               class="px-3 py-2 border border-gray-300 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-50 transition-colors text-center">
+                Volver a Mi Ruta
+            </a>
+            <a href="{{ route('clients.orders.index', ['tab' => 'orders']) }}"
+               class="px-3 py-2 border border-gray-300 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-50 transition-colors text-center">
+                Ver todos los pedidos
+            </a>
+        </div>
+    </div>
+@endif
 
 @php
     $showOrderRangeToggle = auth()->user()?->isStaffSeller() && empty($clientFilter) && ($tabKey ?? '') === 'orders';
@@ -56,6 +76,9 @@
             <input type="hidden" name="client_id" value="{{ $clientFilter->id }}">
             @if(request('return_ruta'))
                 <input type="hidden" name="return_ruta" value="{{ request('return_ruta') }}">
+            @endif
+            @if(request('return_zona'))
+                <input type="hidden" name="return_zona" value="{{ request('return_zona') }}">
             @endif
         @endif
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 items-end">
@@ -118,59 +141,72 @@
 </div>
 @endif
 
-@if(!empty($clientRouteZone))
-    <div class="mb-4">
-        @include('clients.orders.partials.route-client-card', [
-            'clientZone' => $clientRouteZone,
-            'selectedRoute' => request('return_ruta', ''),
-            'sellerZone' => request('return_zona', ''),
-            'coversAllZones' => request()->filled('return_zona'),
-            'searchTerm' => request('ruta_q', ''),
-        ])
-    </div>
-@endif
-
 <div class="space-y-4">
     @forelse ($orders as $order)
-        <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-4">
-            <div class="flex-1">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p class="text-sm font-semibold text-gray-900">Pedido #{{ $order->id }}</p>
-                        <p class="text-xs text-gray-600 mt-0.5">{{ $order->user->name }}</p>
-                        <p class="text-xs text-gray-500">{{ $order->created_at->subHour(5)->format('d M Y') }}</p>
-                    </div>
-                    <div class="text-right">
-                        <p class="text-sm font-semibold text-orange-600">${{ number_format($order->totalWithTax()) }}</p>
-                        <p class="text-xs text-gray-500">{{ $order->products_sum_quantity ?? 0 }} artículos</p>
-                    </div>
-                </div>
-                <div class="mt-2 flex items-center gap-3">
+        @php
+            $client = $order->user;
+            $clientZone = $order->zone;
+            $zoneSnapshot = is_array($order->zone_snapshot) ? $order->zone_snapshot : [];
+            $showClientTools = auth()->user()?->isStaffSeller() && $client;
+            $clientSubtitle = $client
+                ? (($client->business_name ?: $client->name).' · '.$order->created_at->subHour(5)->format('d M Y'))
+                : $order->created_at->subHour(5)->format('d M Y');
+        @endphp
+        <x-account-record-card :title="'Pedido #'.$order->id" :subtitle="$clientSubtitle">
+            <x-slot:badge>
+                <div class="flex flex-wrap items-center gap-2">
                     <x-order-status :status="$order->status_id" />
                     @if($showOrigin)
                         <x-order-origin :order="$order" />
                     @endif
                 </div>
-                @if($order->shipping_provider === \App\Models\Order::SHIPPING_PROVIDER_COORDINADORA)
-                    <div class="mt-2 text-xs text-gray-600">
+            </x-slot:badge>
+            <x-slot:body>
+                <x-account-record-field label="Total">
+                    <span class="text-orange-600">${{ number_format($order->totalWithTax()) }}</span>
+                </x-account-record-field>
+                <x-account-record-field label="Artículos">{{ $order->products_sum_quantity ?? 0 }}</x-account-record-field>
+                @if($showClientTools)
+                    @include('clients.orders.partials.client-card-fields', [
+                        'client' => $client,
+                        'clientZone' => $clientZone,
+                        'addressFallback' => $zoneSnapshot['address'] ?? null,
+                    ])
+                @endif
+            </x-slot:body>
+            @if($order->shipping_provider === \App\Models\Order::SHIPPING_PROVIDER_COORDINADORA)
+                <x-slot:extra>
+                    <div class="mt-4 text-xs text-gray-600">
                         <span class="font-semibold">Coordinadora:</span>
                         {{ $order->coordinadora_status_text ?? 'Pendiente de guía' }}
                         @if($order->coordinadora_guide_number)
                             · Guía {{ $order->coordinadora_guide_number }}
                         @endif
                     </div>
+                </x-slot:extra>
+            @endif
+            <x-slot:actions>
+                @if($showClientTools)
+                    @include('clients.orders.partials.client-card-actions', [
+                        'client' => $client,
+                        'clientZone' => $clientZone,
+                        'returnTab' => $tabKey,
+                        'returnRoute' => request('return_ruta') ?: request('ruta') ?: ($zoneSnapshot['route'] ?? null),
+                        'returnZona' => request('return_zona') ?: request('zona') ?: ($zoneSnapshot['zone'] ?? null),
+                        'returnSearch' => request('ruta_q') ?: null,
+                        'showPreviousOrders' => empty($clientFilter) || (int) $clientFilter->id !== (int) $client->id,
+                        'suggestedOrderEnabled' => $suggestedOrderEnabled,
+                    ])
                 @endif
-            </div>
-            <div class="flex flex-col sm:items-end gap-2">
-                <a href="{{ route('clients.orders.show', $order) }}" class="text-sm text-orange-600 hover:text-orange-700 font-medium">
+                <x-account-record-action :href="route('clients.orders.show', $order)" :variant="$showClientTools ? 'secondary' : 'primary'">
                     Ver detalles
-                </a>
-                <form action="{{ route('clients.orders.reorder', $order) }}" method="POST">
+                </x-account-record-action>
+                <form action="{{ route('clients.orders.reorder', $order) }}" method="POST" class="w-full sm:w-auto">
                     @csrf
-                    <button class="text-sm text-gray-600 hover:text-gray-800 font-medium">Volver a pedir</button>
+                    <x-account-record-action>Volver a pedir</x-account-record-action>
                 </form>
-            </div>
-        </div>
+            </x-slot:actions>
+        </x-account-record-card>
     @empty
         <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-6 text-center text-gray-500">
             {{ $emptyMessage }}

@@ -172,7 +172,6 @@
                         'sellerDashToday' => $sellerDashToday,
                         'filters' => $recentFilters,
                         'clientFilter' => $clientFilter ?? null,
-                        'clientRouteZone' => $clientRouteZone ?? null,
                         'emptyMessage' => !empty($clientFilter) ? 'Este cliente no tiene pedidos anteriores.' : ((($recentFilters['from_date'] ?? '') !== '' || ($recentFilters['to_date'] ?? '') !== '') ? 'No tienes pedidos para el rango seleccionado.' : 'No tienes pedidos recientes.'),
                         'queryKeys' => [
                             'q' => 'q',
