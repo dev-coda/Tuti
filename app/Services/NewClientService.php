@@ -3,9 +3,11 @@
 namespace App\Services;
 
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 class NewClientService
@@ -94,34 +96,64 @@ class NewClientService
     }
 
     /**
-     * Step 2: Upload signature PDF and all registration attachments.
+     * Step 2: Upload the signature PDF and registration photos.
      *
-     * Activity's cargaArchivos accepts one `pdf` (signature / primary) plus
-     * zero or more `imagenes[]` multipart files. Non-signature PDFs and images
-     * from registration are both sent as `imagenes[]` so Activity receives every attachment.
+     * Production AuthMediaClienteNuevo/cargaArchivos accepts one `pdf` plus
+     * at most three `imagenes[]` (jpeg/png). More than three images, or sending
+     * the `imagenes` field when there are none, rejects the whole request —
+     * including the signature — with HTTP 406. Document PDFs stay in TUTI;
+     * this endpoint does not store them.
      *
-     * @param  UploadedFile[]  $attachments  Registration files (jpg/png/pdf), excluding the signature PDF.
-     * @return array{success: bool, message: string, raw?: array}
+     * @param  UploadedFile[]  $attachments  Registration files, excluding the signature PDF.
+     * @return array{success: bool, message: string, warning?: string, skipped?: array<int, string>, raw?: array}
      */
     public function uploadMedia(int $clientId, UploadedFile $pdf, array $attachments = []): array
     {
+        try {
+            $pdfContents = $pdf->getContent();
+            $pdfName = $this->activityFilename($pdf, 'firma');
+            [$images, $skipped] = $this->activityImages($attachments);
+        } catch (\Throwable $e) {
+            Log::error('NewClientService: media upload exception', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'success' => false,
+                'message' => 'Error de conexión al subir archivos: '.$e->getMessage(),
+            ];
+        }
+
         Log::info('NewClientService: uploading media', [
             'client_id' => $clientId,
-            'attachments_count' => count($attachments),
+            'images_count' => count($images),
+            'skipped' => $skipped,
         ]);
 
         try {
-            $response = $this->sendWithTokenRetry(function (string $token) use ($pdf, $attachments, $clientId) {
+            $response = $this->sendWithTokenRetry(function (string $token) use ($pdfContents, $pdfName, $images, $clientId) {
+                // Expect: 100-continue breaks uploads larger than 1MB on the
+                // production Activity host. Strict redirects keep the multipart
+                // body when that host answers with an http/https redirect.
                 $request = Http::withHeaders([
                     'Tokenconectat' => $token,
+                ])->withOptions([
+                    'expect' => false,
+                    'allow_redirects' => [
+                        'max' => 5,
+                        'strict' => true,
+                        'referer' => false,
+                        'protocols' => ['http', 'https'],
+                    ],
                 ])->timeout(60)
-                    ->attach('pdf', $pdf->getContent(), $pdf->getClientOriginalName());
+                    ->attach('pdf', $pdfContents, $pdfName, ['Content-Type' => 'application/pdf']);
 
-                foreach ($attachments as $attachment) {
+                foreach ($images as $image) {
                     $request = $request->attach(
                         'imagenes[]',
-                        $attachment->getContent(),
-                        $attachment->getClientOriginalName()
+                        $image['contents'],
+                        $image['filename'],
+                        ['Content-Type' => $image['mime']]
                     );
                 }
 
@@ -130,26 +162,41 @@ class NewClientService
                 ]);
             });
 
-            $body = $response->json() ?? [];
+            $decoded = $response->json();
+            $body = is_array($decoded) ? $decoded : [];
+            $problems = $this->mediaProblemMessages($body);
+            $skippedWarning = $this->skippedFilesWarning($skipped);
+            $warning = $this->joinWarnings($skippedWarning, $problems);
 
-            if ($response->successful() && ($body['Success'] ?? '') === 'OK') {
+            if ($response->successful() && ($body['Success'] ?? '') === 'OK' && $this->pdfWasStored($body)) {
                 return [
                     'success' => true,
                     'message' => 'Archivos cargados exitosamente.',
+                    'warning' => $warning,
+                    'skipped' => $skipped,
                     'raw' => $body,
                 ];
             }
 
             $errorMessage = $body['Mensaje'] ?? $body['message'] ?? $response->body();
+            if (! $this->pdfWasStored($body) && ($body['Success'] ?? '') === 'OK') {
+                $errorMessage = 'El servicio externo no guardó el PDF de la firma.';
+            }
+            if ($warning) {
+                $errorMessage = trim($errorMessage.' '.$warning);
+            }
 
             Log::warning('NewClientService: media upload failed', [
                 'status' => $response->status(),
                 'body' => $response->body(),
+                'skipped' => $skipped,
             ]);
 
             return [
                 'success' => false,
                 'message' => "Error al subir archivos ({$response->status()}): {$errorMessage}",
+                'skipped' => $skipped,
+                'raw' => $body,
             ];
         } catch (\Throwable $e) {
             Log::error('NewClientService: media upload exception', [
@@ -161,6 +208,159 @@ class NewClientService
                 'message' => 'Error de conexión al subir archivos: '.$e->getMessage(),
             ];
         }
+    }
+
+    /**
+     * @param  UploadedFile[]  $attachments
+     * @return array{0: array<int, array{contents: string, filename: string, mime: string}>, 1: array<int, string>}
+     */
+    private function activityImages(array $attachments): array
+    {
+        $images = [];
+        $skipped = [];
+
+        foreach ($attachments as $attachment) {
+            if (! $attachment instanceof UploadedFile) {
+                continue;
+            }
+
+            $originalName = $attachment->getClientOriginalName() ?: 'archivo';
+            if (! $this->isActivityImage($attachment)) {
+                $skipped[] = $originalName;
+
+                continue;
+            }
+
+            if (count($images) >= 3) {
+                $skipped[] = $originalName;
+
+                continue;
+            }
+
+            try {
+                $contents = $attachment->getContent();
+            } catch (\Throwable $e) {
+                Log::warning('NewClientService: skipping unreadable image', [
+                    'name' => $originalName,
+                    'error' => $e->getMessage(),
+                ]);
+                $skipped[] = $originalName;
+
+                continue;
+            }
+
+            $images[] = [
+                'contents' => $contents,
+                'filename' => $this->activityFilename($attachment, 'imagen'.(count($images) + 1)),
+                'mime' => $this->activityImageMime($attachment),
+            ];
+        }
+
+        return [$images, $skipped];
+    }
+
+    private function isActivityImage(UploadedFile $file): bool
+    {
+        $extension = strtolower($file->getClientOriginalExtension() ?: $file->extension() ?: '');
+        if (! in_array($extension, ['jpg', 'jpeg', 'png'], true)) {
+            return false;
+        }
+
+        $mime = strtolower((string) $file->getMimeType());
+
+        return in_array($mime, ['image/jpeg', 'image/jpg', 'image/png', 'image/pjpeg'], true);
+    }
+
+    private function activityImageMime(UploadedFile $file): string
+    {
+        $extension = strtolower($file->getClientOriginalExtension() ?: $file->extension() ?: '');
+
+        return $extension === 'png' ? 'image/png' : 'image/jpeg';
+    }
+
+    private function activityFilename(UploadedFile $file, string $fallbackBase): string
+    {
+        $extension = strtolower($file->getClientOriginalExtension() ?: $file->extension() ?: 'bin');
+        $extension = preg_replace('/[^a-z0-9]+/', '', $extension) ?: 'bin';
+        $base = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+        $base = Str::ascii((string) $base);
+        $base = preg_replace('/[^A-Za-z0-9._-]+/', '_', $base) ?? '';
+        $base = trim((string) $base, '._-');
+        if ($base === '') {
+            $base = $fallbackBase;
+        }
+
+        return $base.'.'.$extension;
+    }
+
+    /**
+     * @param  array<int, string>  $skipped
+     */
+    private function skippedFilesWarning(array $skipped): ?string
+    {
+        if ($skipped === []) {
+            return null;
+        }
+
+        return 'El servicio de Cliente Nuevo solo recibe el PDF de la firma y máximo 3 imágenes JPG o PNG. Estos archivos quedaron guardados en TUTI: '.implode(', ', $skipped).'.';
+    }
+
+    /**
+     * @param  array<int, string>  $problems
+     */
+    private function joinWarnings(?string $skippedWarning, array $problems): ?string
+    {
+        $parts = [];
+        if ($skippedWarning) {
+            $parts[] = $skippedWarning;
+        }
+        if ($problems !== []) {
+            $parts[] = 'El servicio externo reportó: '.implode(' ', $problems);
+        }
+
+        return $parts === [] ? null : implode(' ', $parts);
+    }
+
+    private function pdfWasStored(array $body): bool
+    {
+        if (! array_key_exists('bdPdf', $body)) {
+            return true;
+        }
+
+        $value = $body['bdPdf'];
+        if (is_bool($value)) {
+            return $value;
+        }
+        if (is_string($value)) {
+            return ! in_array(strtolower(trim($value)), ['false', '0', 'no', ''], true);
+        }
+
+        return (bool) $value;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function mediaProblemMessages(array $body): array
+    {
+        $imagenes = data_get($body, 'imagenes', []);
+        if (! is_array($imagenes)) {
+            return [];
+        }
+
+        $messages = [];
+        foreach ($imagenes as $key => $value) {
+            if ($key === 'guardado') {
+                continue;
+            }
+            foreach (Arr::wrap($value) as $item) {
+                if (is_string($item) && trim($item) !== '') {
+                    $messages[] = trim($item);
+                }
+            }
+        }
+
+        return $messages;
     }
 
     private function buildClientXml(array $data): string

@@ -93,7 +93,9 @@ class NewClientController extends Controller
         }
 
         $layout = $this->resolveLayout();
-        $returnTo = $request->query('return') === 'mi-ruta' ? 'mi-ruta' : null;
+        $returnTo = in_array($request->query('return'), ['mi-ruta', 'orders', 'mis-rutas'], true)
+            ? (string) $request->query('return')
+            : null;
         $isSucursalMode = $isSellerFlow && (
             $request->query('mode') === 'sucursal'
             || old('is_sucursal') === '1'
@@ -402,7 +404,40 @@ class NewClientController extends Controller
         // Persist signature + uploads so admins can view them on the client details screen.
         $documentPaths = $this->storeSignatureForContact($signaturePdf, $storedDocumentPaths);
 
-        // Step 1: Register client
+        // Copy the uploads before the external registration call. PHP can drop
+        // the original temp files during that round trip, and cargaArchivos
+        // would then go out without the documents.
+        $attachments = $this->snapshotRegistrationFiles($request->file('documents') ?? []);
+
+        try {
+            return $this->registerSellerClient(
+                $request,
+                $service,
+                $validated,
+                $documentPaths,
+                $signaturePdf,
+                $attachments,
+                $isSucursal
+            );
+        } finally {
+            $this->deleteSnapshotFiles($attachments);
+            @unlink($signaturePdf->getPathname());
+        }
+    }
+
+    /**
+     * @param  array<int, string>  $documentPaths
+     * @param  array<int, UploadedFile>  $attachments
+     */
+    private function registerSellerClient(
+        Request $request,
+        NewClientService $service,
+        array $validated,
+        array $documentPaths,
+        UploadedFile $signaturePdf,
+        array $attachments,
+        bool $isSucursal
+    ) {
         $result = $service->registerClient($validated);
 
         if (! $result['success']) {
@@ -413,14 +448,8 @@ class NewClientController extends Controller
 
         $clientId = $result['id'];
 
-        // Step 2: Upload signature PDF + all registration attachments (images and PDFs).
-        $attachments = array_values(array_filter(
-            $request->file('documents') ?? [],
-            fn ($file) => in_array(strtolower($file->getClientOriginalExtension()), ['jpg', 'jpeg', 'png', 'pdf'], true)
-        ));
+        // Production cargaArchivos keeps the signature PDF and up to 3 images.
         $mediaResult = $service->uploadMedia($clientId, $signaturePdf, $attachments);
-
-        @unlink($signaturePdf->getPathname());
 
         $this->persistSellerRegistrationDocuments(
             $validated,
@@ -466,22 +495,30 @@ class NewClientController extends Controller
             ? "Sucursal registrada exitosamente. Código: {$result['codigo_cliente']}. Documento del cliente: {$localClient->document}"
             : "Cliente registrado exitosamente. Código: {$result['codigo_cliente']}. Documento para pedidos: {$localClient->document}";
 
-        return $this->redirectAfterSellerRegistration($request, $successMessage);
+        return $this->redirectAfterSellerRegistration(
+            $request,
+            $successMessage,
+            warning: $mediaResult['warning'] ?? null
+        );
     }
 
     /**
      * After seller registration, optionally return to Mi Cuenta → Mi Ruta
      * when the form was opened from that surface.
      */
-    private function redirectAfterSellerRegistration(Request $request, string $message, string $flashKey = 'success')
+    private function redirectAfterSellerRegistration(Request $request, string $message, string $flashKey = 'success', ?string $warning = null)
     {
-        if ($request->input('return') === 'mi-ruta') {
-            return redirect()
-                ->route('clients.orders.index', ['tab' => 'mi-ruta'])
-                ->with($flashKey, $message);
+        $returnTab = (string) $request->input('return', '');
+        $redirect = in_array($returnTab, ['mi-ruta', 'orders', 'mis-rutas'], true)
+            ? redirect()->route('clients.orders.index', ['tab' => $returnTab])
+            : redirect()->route('new-client.create');
+
+        $redirect->with($flashKey, $message);
+        if ($warning) {
+            $redirect->with('warning', $warning);
         }
 
-        return redirect()->route('new-client.create')->with($flashKey, $message);
+        return $redirect;
     }
 
     /**
@@ -669,6 +706,72 @@ class NewClientController extends Controller
                 'external_submitted_at' => ($externalClientId || $externalClientCode) ? now() : null,
             ]);
         });
+    }
+
+    /**
+     * Copy registration uploads out of PHP's temp directory before the
+     * external registration call. The copies keep the original filenames.
+     *
+     * @param  array<int, UploadedFile>  $files
+     * @return array<int, UploadedFile>
+     */
+    private function snapshotRegistrationFiles(array $files): array
+    {
+        $snapshots = [];
+        foreach ($files as $file) {
+            if (! $file instanceof UploadedFile) {
+                continue;
+            }
+
+            $extension = strtolower($file->getClientOriginalExtension());
+            if (! in_array($extension, ['jpg', 'jpeg', 'png', 'pdf'], true)) {
+                continue;
+            }
+
+            try {
+                $contents = $file->getContent();
+            } catch (\Throwable $e) {
+                Log::warning('NewClient: could not read upload before Activity submission', [
+                    'name' => $file->getClientOriginalName(),
+                    'error' => $e->getMessage(),
+                ]);
+
+                continue;
+            }
+
+            $tmp = tempnam(sys_get_temp_dir(), 'cn_doc_');
+            if ($tmp === false) {
+                continue;
+            }
+
+            $path = $extension !== '' ? $tmp.'.'.$extension : $tmp;
+            if ($path !== $tmp) {
+                @unlink($tmp);
+            }
+            file_put_contents($path, $contents);
+
+            $snapshots[] = new UploadedFile(
+                $path,
+                $file->getClientOriginalName(),
+                $file->getMimeType() ?: null,
+                null,
+                true
+            );
+        }
+
+        return $snapshots;
+    }
+
+    /**
+     * @param  array<int, UploadedFile>  $files
+     */
+    private function deleteSnapshotFiles(array $files): void
+    {
+        foreach ($files as $file) {
+            if ($file instanceof UploadedFile) {
+                @unlink($file->getPathname());
+            }
+        }
     }
 
     /**

@@ -9,6 +9,11 @@
     $displayEmail = $client->clientDisplayEmail() ?? '';
     $isClientSelfService = $isClientSelfService ?? false;
     $defaultAddress = old('address', $ruteroRoute['address'] ?? $zone?->address ?? '');
+    $returnLabel = match ($returnTab ?? 'mi-ruta') {
+        'orders' => 'Pedidos',
+        'mis-rutas' => 'Mis Zonas',
+        default => 'Mi Ruta',
+    };
 @endphp
 
 <section class="w-full max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -21,7 +26,7 @@
         @else
             <a href="{{ route('clients.orders.index', array_filter(['tab' => $returnTab, 'ruta' => $returnRoute ?: null, 'ruta_q' => $returnSearch ?: null])) }}"
                class="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-4">
-                ← Volver a Mi Ruta
+                ← Volver a {{ $returnLabel }}
             </a>
         @endif
 

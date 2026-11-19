@@ -290,7 +290,12 @@ class ContactController extends Controller
         $this->syncClientZoneData($linkedClient, $payload);
         $this->attemptPostCreateRuteroSync($linkedClient->fresh(['zones']));
 
-        return back()->with('success', "Cliente enviado correctamente a la API externa. Código: {$result['codigo_cliente']}");
+        $redirect = back()->with('success', "Cliente enviado correctamente a la API externa. Código: {$result['codigo_cliente']}");
+        if (! empty($mediaResult['warning'])) {
+            $redirect->with('warning', $mediaResult['warning']);
+        }
+
+        return $redirect;
     }
 
     /**
@@ -323,8 +328,9 @@ class ContactController extends Controller
     }
 
     /**
-     * Build Activity media payload: signature (or first PDF) as `pdf`, every other
-     * registration file (images and PDFs) as `imagenes[]`.
+     * Build Activity media payload: signature (or first PDF) as `pdf`, other
+     * registration files as attachments. NewClientService forwards only the
+     * signature PDF and up to three JPG/PNG images, which is what production accepts.
      *
      * @return array{0:?UploadedFile,1:array<int, UploadedFile>,2:?string}
      */
