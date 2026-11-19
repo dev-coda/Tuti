@@ -276,10 +276,10 @@ it('hasAnyDiscount returns true with product discount regardless of exclusion fl
 });
 
 // ──────────────────────────────────────────────────────────────────────────
-// hasAnyDiscountForAutoTag (product cards — vendor-only never triggers)
+// hasAnyDiscountForAutoTag (product cards — follows the price the customer sees)
 // ──────────────────────────────────────────────────────────────────────────
 
-it('hasAnyDiscountForAutoTag is false when only vendor has a discount', function () {
+it('hasAnyDiscountForAutoTag is true when only vendor has a discount', function () {
     $product = createProductWithDiscountHierarchy([
         'vendor_discount' => 15,
         'brand_discount' => 0,
@@ -288,7 +288,7 @@ it('hasAnyDiscountForAutoTag is false when only vendor has a discount', function
     ]);
 
     expect($product->hasAnyDiscount())->toBeTrue();
-    expect($product->hasAnyDiscountForAutoTag())->toBeFalse();
+    expect($product->hasAnyDiscountForAutoTag())->toBeTrue();
 });
 
 it('hasAnyDiscountForAutoTag is true when brand has discount', function () {

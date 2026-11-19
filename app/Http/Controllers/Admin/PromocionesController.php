@@ -7,6 +7,7 @@ use App\Models\Brand;
 use App\Models\Vendor;
 use App\Models\Bonification;
 use App\Models\Coupon;
+use App\Models\Product;
 use App\Models\Promocion;
 use App\Models\VolumeDiscount;
 use Illuminate\Http\Request;
@@ -42,6 +43,36 @@ class PromocionesController extends Controller
         $vendors = Vendor::all();
 
         return view('promociones.descuento-directo', compact('brands', 'vendors'));
+    }
+
+    /**
+     * Apply a direct discount to the selected product references (SKUs).
+     */
+    public function storeDescuentoDirecto(Request $request)
+    {
+        $validate = $request->validate([
+            'discount_type' => 'required|in:percentage,fixed_amount',
+            'discount' => 'required|numeric|min:0',
+            'product_ids' => 'required|array|min:1',
+            'product_ids.*' => 'integer|exists:products,id',
+            'first_purchase_only' => 'nullable|boolean',
+        ]);
+
+        if ($validate['discount_type'] === 'percentage' && $validate['discount'] > 100) {
+            return back()
+                ->withErrors(['discount' => 'El descuento porcentual no puede ser mayor a 100%'])
+                ->withInput();
+        }
+
+        Product::whereIn('id', $validate['product_ids'])->update([
+            'discount' => $validate['discount'],
+            'discount_type' => $validate['discount_type'],
+            'first_purchase_only' => $request->boolean('first_purchase_only'),
+        ]);
+
+        $count = count($validate['product_ids']);
+
+        return back()->with('success', "Descuento aplicado a {$count} ".($count === 1 ? 'referencia' : 'referencias').'.');
     }
 
     /**
@@ -179,16 +210,26 @@ class PromocionesController extends Controller
 
         switch ($type) {
             case 'products':
-                $elements = \App\Models\Product::where('active', true)
-                    ->where('name', 'like', "%{$search}%")
+                $elements = Product::query()
+                    ->where('active', true)
+                    ->when($search !== '', function ($query) use ($search) {
+                        $query->where(function ($inner) use ($search) {
+                            $inner->where('name', 'like', "%{$search}%")
+                                ->orWhere('sku', 'like', "%{$search}%");
+                        });
+                    })
                     ->select('id', 'name', 'sku')
+                    ->orderBy('name')
                     ->limit(50)
                     ->get()
                     ->map(function ($product) {
+                        $sku = $product->sku ?: 'Sin referencia';
+                        $name = $product->name ?: $sku;
+
                         return [
                             'id' => $product->id,
-                            'name' => $product->name,
-                            'description' => "SKU: {$product->sku}"
+                            'name' => $sku.' — '.$name,
+                            'description' => 'Referencia: '.$sku,
                         ];
                     });
                 break;

@@ -447,11 +447,14 @@ class Product extends Model
     }
 
     /**
-     * Whether the auto DESCUENTO tag should appear on cards (product or brand discount only).
+     * Whether the auto discount tag should appear on cards.
+     * Follows the catalog price: product, brand, or vendor direct discounts that actually apply.
      */
     public function hasAnyDiscountForAutoTag(): bool
     {
-        return $this->discountAppliesFromSources(includeVendor: false);
+        $final = $this->getFinalPriceForUser(false);
+
+        return ! empty($final['has_discount']) && (float) ($final['discount'] ?? 0) > 0;
     }
 
     /**

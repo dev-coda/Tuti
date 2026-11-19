@@ -10,6 +10,25 @@ beforeEach(function () {
     Role::firstOrCreate(['name' => 'supervisor', 'guard_name' => 'web']);
 });
 
+it('shows the seller report accordion to admins and hides it from clients', function () {
+    Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
+
+    $client = User::factory()->create();
+    actingAs($client)
+        ->get(route('clients.orders.index'))
+        ->assertOk()
+        ->assertDontSee('id="seller-dashboard"', false);
+
+    $admin = User::factory()->create();
+    $admin->assignRole('admin');
+    actingAs($admin)
+        ->get(route('clients.orders.index'))
+        ->assertOk()
+        ->assertSee('id="seller-dashboard"', false)
+        ->assertSee('id="dash-accordion"', false)
+        ->assertSee('con IVA', false);
+});
+
 it('hides the mi ruta tab from client mi cuenta', function () {
     $client = User::factory()->create();
 

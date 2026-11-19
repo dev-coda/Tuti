@@ -118,6 +118,18 @@
 </div>
 @endif
 
+@if(!empty($clientRouteZone))
+    <div class="mb-4">
+        @include('clients.orders.partials.route-client-card', [
+            'clientZone' => $clientRouteZone,
+            'selectedRoute' => request('return_ruta', ''),
+            'sellerZone' => request('return_zona', ''),
+            'coversAllZones' => request()->filled('return_zona'),
+            'searchTerm' => request('ruta_q', ''),
+        ])
+    </div>
+@endif
+
 <div class="space-y-4">
     @forelse ($orders as $order)
         <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-4">

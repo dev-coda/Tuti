@@ -46,6 +46,8 @@ class PromocionController extends Controller
      */
     public function store(Request $request)
     {
+        $this->normalizeIdList($request, 'level_ids');
+
         $validate = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
@@ -64,6 +66,10 @@ class PromocionController extends Controller
         // Validate discount based on type
         if ($validate['discount_type'] === 'percentage' && $validate['discount_value'] > 100) {
             return back()->withErrors(['discount_value' => 'El descuento porcentual no puede ser mayor a 100%']);
+        }
+
+        if ($validate['level'] !== 'zones' && empty($validate['level_ids'])) {
+            return back()->withErrors(['level_ids' => 'Selecciona al menos una referencia.'])->withInput();
         }
 
         $promocion = Promocion::create($validate);
@@ -98,6 +104,8 @@ class PromocionController extends Controller
      */
     public function update(Request $request, Promocion $promocion)
     {
+        $this->normalizeIdList($request, 'level_ids');
+
         $validate = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
@@ -118,6 +126,10 @@ class PromocionController extends Controller
             return back()->withErrors(['discount_value' => 'El descuento porcentual no puede ser mayor a 100%']);
         }
 
+        if ($validate['level'] !== 'zones' && empty($validate['level_ids'])) {
+            return back()->withErrors(['level_ids' => 'Selecciona al menos una referencia.'])->withInput();
+        }
+
         $promocion->update($validate);
 
         return redirect()->route('promociones.promociones')->with('success', 'Promoción actualizada exitosamente');
@@ -130,5 +142,28 @@ class PromocionController extends Controller
     {
         $promocion->delete();
         return redirect()->route('promociones.promociones')->with('success', 'Promoción eliminada exitosamente');
+    }
+
+    /**
+     * The picker posts selected ids as a JSON string. Validation expects an array.
+     */
+    private function normalizeIdList(Request $request, string $key): void
+    {
+        $value = $request->input($key);
+        if (! is_string($value)) {
+            return;
+        }
+
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            $request->merge([$key => null]);
+
+            return;
+        }
+
+        $decoded = json_decode($trimmed, true);
+        if (is_array($decoded)) {
+            $request->merge([$key => array_values(array_map('intval', $decoded))]);
+        }
     }
 }

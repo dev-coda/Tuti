@@ -484,9 +484,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
-            const allowed = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+            const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/pjpeg', 'image/x-png'];
+            const allowedExtensions = ['pdf', 'jpg', 'jpeg', 'png'];
             for (const file of files) {
-                if (!allowed.includes(file.type)) {
+                const extension = (file.name.split('.').pop() || '').toLowerCase();
+                const typeAllowed = allowedTypes.includes(file.type) || file.type === '' || file.type === 'application/octet-stream';
+                if (!typeAllowed || !allowedExtensions.includes(extension)) {
                     alert('Solo se permiten archivos PDF, JPG y PNG. Archivo rechazado: ' + file.name);
                     this.value = '';
                     documentsPreview.innerHTML = '';

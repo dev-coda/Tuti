@@ -30,6 +30,7 @@ class OrderController extends Controller
         // Only hydrate the active tab. Supervisors land on Mis Zonas; loading every
         // zone's pedidos + dashboard lists at once was timing out Mi Cuenta.
         $isAdmin = $user->hasRole('admin');
+        $showSellerReport = $isSeller || $isAdmin;
         $availableTabs = ['orders', 'account'];
         if ($isSeller) {
             $availableTabs[] = 'mi-ruta';
@@ -50,6 +51,9 @@ class OrderController extends Controller
         $defaultTab = $isSupervisor ? 'mis-rutas' : 'orders';
         $activeTab = in_array($requestedTab, $availableTabs, true) ? $requestedTab : $defaultTab;
         $clientFilter = $this->authorizeClientHistory($request, $user, $isSeller, $activeTab);
+        $clientRouteZone = $clientFilter
+            ? $clientFilter->zones()->with(['user.city'])->orderBy('id')->first()
+            : null;
 
         $recentFilters = $this->extractOrderFilters($request);
         if ($activeTab === 'orders') {
@@ -88,12 +92,14 @@ class OrderController extends Controller
             'isSeller',
             'isAdmin',
             'isSupervisor',
+            'showSellerReport',
             'sellerDashToday',
             'recentFilters',
             'myRoute',
             'myRoutes',
             'activeTab',
-            'clientFilter'
+            'clientFilter',
+            'clientRouteZone'
         ));
     }
 
@@ -608,158 +614,88 @@ class OrderController extends Controller
     public function sellerDashboard(Request $request)
     {
         $user = auth()->user();
+        $isAdmin = $user && $user->hasRole('admin');
 
-        if (! $user || ! $user->isStaffSeller()) {
+        if (! $user || (! $user->isStaffSeller() && ! $isAdmin)) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
         [$fromUtc, $toUtc, $canonicalFrom, $canonicalTo] = $this->resolveSellerDashboardUtcRange($request);
 
-        // ── Row 1: aggregate KPIs ──────────────────────────────
-        $ordersQuery = Order::where('seller_id', $user->id)
+        // Admins see every seller. Staff stay scoped to the orders they placed.
+        $ordersQuery = Order::query()
             ->whereNot('total', '0')
             ->whereBetween('created_at', [$fromUtc, $toUtc]);
+        if (! $isAdmin) {
+            $ordersQuery->where('seller_id', $user->id);
+        }
 
-        $totalPedidos = (clone $ordersQuery)->count();
-        // Chunked sum — never hydrate the full date range at once (wide ranges OOM).
-        $ventasTotales = Order::sumTotalWithTaxForQuery($ordersQuery);
-        $ticketPromedio = $totalPedidos > 0 ? round($ventasTotales / $totalPedidos, 2) : 0;
-
-        // ── Row 2: fixed sales buckets ───────────────────────────
-        $baseConditions = fn ($q) => $q
-            ->where('orders.seller_id', $user->id)
-            ->where('orders.total', '!=', 0)
-            ->whereBetween('orders.created_at', [$fromUtc, $toUtc]);
-
-        // Line sales with IVA (lista/SOAP basis). Approximate package + % discount in SQL;
-        // fixed_amount discounts are rare and still handled exactly by totalWithTax() KPIs.
-        // CASE clamps (not LEAST/GREATEST) so SQLite tests and Postgres prod both work.
-        $lineSalesSelect = 'COALESCE(SUM(
-            order_products.price * order_products.quantity
-            * CASE WHEN products.calculate_package_price THEN 1 ELSE COALESCE(NULLIF(order_products.package_quantity, 0), 1) END
-            * (1 - (
-                CASE
-                    WHEN COALESCE(order_products.percentage, 0) < 0 THEN 0
-                    WHEN COALESCE(order_products.percentage, 0) > 100 THEN 100
-                    ELSE COALESCE(order_products.percentage, 0)
-                END
-            ) / 100.0)
-            * (1 + COALESCE(taxes.tax, 0) / 100.0)
-        ), 0) as total, COALESCE(SUM(order_products.quantity), 0) as quantity';
-
-        // Helper: sales total + unit quantity for products in given category IDs.
-        // product_id IN (subquery on category_product) counts each order line once; the id list includes
-        // descendant categories so pivot rows on child categories match without duplicating lines.
-        $salesByCategories = function (array $categoryIds) use ($baseConditions, $lineSalesSelect) {
-            if (empty($categoryIds)) return ['total' => 0, 'quantity' => 0];
-            $row = DB::table('orders')
-                ->join('order_products', 'orders.id', '=', 'order_products.order_id')
-                ->join('products', 'order_products.product_id', '=', 'products.id')
-                ->leftJoin('taxes', 'products.tax_id', '=', 'taxes.id')
-                ->where(fn ($q) => $baseConditions($q))
-                ->whereIn('order_products.product_id', function ($sub) use ($categoryIds) {
-                    $sub->select('product_id')
-                        ->from('category_product')
-                        ->whereIn('category_id', $categoryIds)
-                        ->distinct();
-                })
-                ->selectRaw($lineSalesSelect)
-                ->first();
-            return ['total' => (float) $row->total, 'quantity' => (int) $row->quantity];
-        };
-
-        // Helper: sales total + unit quantity for products with given brand IDs
-        $salesByBrands = function (array $brandIds) use ($baseConditions, $lineSalesSelect) {
-            if (empty($brandIds)) return ['total' => 0, 'quantity' => 0];
-            $row = DB::table('orders')
-                ->join('order_products', 'orders.id', '=', 'order_products.order_id')
-                ->join('products', 'order_products.product_id', '=', 'products.id')
-                ->leftJoin('taxes', 'products.tax_id', '=', 'taxes.id')
-                ->where(fn ($q) => $baseConditions($q))
-                ->whereIn('products.brand_id', $brandIds)
-                ->selectRaw($lineSalesSelect)
-                ->first();
-            return ['total' => (float) $row->total, 'quantity' => (int) $row->quantity];
-        };
-
-        // Helper: sales total + unit quantity for products whose brand belongs to given vendor IDs
-        $salesByVendors = function (array $vendorIds) use ($baseConditions, $lineSalesSelect) {
-            if (empty($vendorIds)) return ['total' => 0, 'quantity' => 0];
-            $row = DB::table('orders')
-                ->join('order_products', 'orders.id', '=', 'order_products.order_id')
-                ->join('products', 'order_products.product_id', '=', 'products.id')
-                ->leftJoin('taxes', 'products.tax_id', '=', 'taxes.id')
-                ->join('brands', 'products.brand_id', '=', 'brands.id')
-                ->where(fn ($q) => $baseConditions($q))
-                ->whereIn('brands.vendor_id', $vendorIds)
-                ->selectRaw($lineSalesSelect)
-                ->first();
-            return ['total' => (float) $row->total, 'quantity' => (int) $row->quantity];
-        };
-
-        // Resolve IDs by name (case-insensitive) so it works across environments
-        $catIdsByName = fn (array $names) => Category::whereRaw(
-            'LOWER(name) IN (' . implode(',', array_fill(0, count($names), '?')) . ')',
-            array_map('strtolower', $names)
-        )->pluck('id')->toArray();
-
-        $brandIdsByName = fn (array $names) => Brand::whereRaw(
-            'LOWER(name) IN (' . implode(',', array_fill(0, count($names), '?')) . ')',
-            array_map('strtolower', $names)
-        )->pluck('id')->toArray();
-
-        $vendorIdsByName = fn (array $names) => Vendor::whereRaw(
-            'LOWER(name) IN (' . implode(',', array_fill(0, count($names), '?')) . ')',
-            array_map('strtolower', $names)
-        )->pluck('id')->toArray();
-
-        // 1–4: category roots (name match) + all descendant categories so products
-        // attached only to child categories still count (pivot uses leaf/junction ids).
-        $alcalinaIds = $this->categoryIdsWithDescendants($catIdsByName(['Alcalinas Tronex', 'Alcalinas GP']));
-        $manganesoIds = $this->categoryIdsWithDescendants($catIdsByName(['Manganeso Tronex', 'Manganeso GP']));
-        $encendedoresIds = $this->categoryIdsWithDescendants($catIdsByName(['Encendedores']));
-        $bombillosIds = $this->categoryIdsWithDescendants($catIdsByName(['Bombillos']));
-
-        // 5. Tronex — brand Tronex (Pilas Moneda, Linternas, and other Tronex-brand lines)
-        $tronexBrandIds = $brandIdsByName(['Tronex']);
-
-        // 6. Otros — brands GP, Mtek, General Electric (+ GE alias), ROCKET
-        $otrosBrandIds = $brandIdsByName(['GP', 'Gp', 'Mtek', 'General Electric', 'GE', 'ROCKET']);
-
-        // 7. Terceros — vendors Eterna, Prebel, Yass, Produsa, Dromatic, Sense, Knight
-        $tercerosVendorIds = $vendorIdsByName([
-            'Eterna', 'Prebel', 'Yass', 'Produsa', 'Dromatic', 'Sense', 'Knight',
-        ]);
-
-        // Brands claimed by name-based buckets; anything else folds into Otros.
-        $tercerosBrandIds = $tercerosVendorIds === [] ? [] : Brand::whereIn('vendor_id', $tercerosVendorIds)->pluck('id')->map(fn ($id) => (int) $id)->all();
-        $classifiedBrandIds = array_values(array_unique(array_merge($tronexBrandIds, $tercerosBrandIds, $otrosBrandIds)));
-
-        $alcalinaSales      = $salesByCategories($alcalinaIds);
-        $manganesoSales     = $salesByCategories($manganesoIds);
-        $encendedoresSales  = $salesByCategories($encendedoresIds);
-        $bombillosSales     = $salesByCategories($bombillosIds);
-        $tronexSales        = $salesByBrands($tronexBrandIds);
-        $otrosSales         = $this->salesOtrosOrUnclassified($baseConditions, $lineSalesSelect, $otrosBrandIds, $classifiedBrandIds, $salesByBrands);
-        $tercerosSales      = $salesByVendors($tercerosVendorIds);
-
-        // Line explanations (what each bucket reports) are admin-only; sellers
-        // see labels and amounts without the internal breakdown.
-        $showDescriptions = $user->hasRole('admin');
-        $describe = fn (string $text) => $showDescriptions ? $text : null;
-        $buckets = [
-            ['label' => 'Alcalina',      'description' => $describe('Categorías Alcalinas (Tronex/GP)'), 'total' => round($alcalinaSales['total'], 2),      'quantity' => $alcalinaSales['quantity']],
-            ['label' => 'Manganeso',     'description' => $describe('Categorías Manganeso (Tronex/GP)'), 'total' => round($manganesoSales['total'], 2),     'quantity' => $manganesoSales['quantity']],
-            ['label' => 'Encendedores',  'description' => $describe('Categoría Encendedores'), 'total' => round($encendedoresSales['total'], 2),  'quantity' => $encendedoresSales['quantity']],
-            ['label' => 'Bombillos',     'description' => $describe('Categoría Bombillos'), 'total' => round($bombillosSales['total'], 2),     'quantity' => $bombillosSales['quantity']],
-            ['label' => 'Tronex',        'description' => $describe('Marca Tronex (otras líneas)'), 'total' => round($tronexSales['total'], 2),        'quantity' => $tronexSales['quantity']],
-            ['label' => 'Otros',         'description' => $describe('Marcas GP, Mtek, GE y Rocket, marcas sin clasificar y diferencia a favor vs ventas totales'), 'total' => round($otrosSales['total'], 2),         'quantity' => $otrosSales['quantity']],
-            ['label' => 'Terceros',      'description' => $describe('Proveedores terceros (Eterna, Prebel, Yass, Produsa, Dromatic, Sense, Knight)'), 'total' => round($tercerosSales['total'], 2),      'quantity' => $tercerosSales['quantity']],
+        $catalog = $this->sellerDashboardCatalog();
+        $totals = [
+            'Alcalina' => ['total' => 0.0, 'quantity' => 0],
+            'Manganeso' => ['total' => 0.0, 'quantity' => 0],
+            'Encendedores' => ['total' => 0.0, 'quantity' => 0],
+            'Bombillos' => ['total' => 0.0, 'quantity' => 0],
+            'Tronex' => ['total' => 0.0, 'quantity' => 0],
+            'Otros' => ['total' => 0.0, 'quantity' => 0],
+            'Terceros' => ['total' => 0.0, 'quantity' => 0],
         ];
 
-        $bucketSum = round(array_sum(array_column($buckets, 'total')), 2);
-        $gap = round($ventasTotales - $bucketSum, 2);
-        if ($gap > 0.009) {
+        $totalPedidos = 0;
+        $ventasTotales = 0.0;
+
+        // One pass, same line math as Order::totalWithTax(), so the header and the
+        // buckets are both con IVA.
+        (clone $ordersQuery)
+            ->with(['products.product.tax', 'products.product.categories', 'products.product.brand'])
+            ->orderBy('id')
+            ->chunkById(200, function ($orders) use (&$totalPedidos, &$ventasTotales, &$totals, $catalog) {
+                foreach ($orders as $order) {
+                    $totalPedidos++;
+                    $orderTotal = $order->totalWithTax();
+                    $ventasTotales += $orderTotal;
+
+                    if ($order->products->isEmpty()) {
+                        $totals['Otros']['total'] += $orderTotal;
+
+                        continue;
+                    }
+
+                    foreach ($order->products as $line) {
+                        $label = $this->sellerDashboardBucketLabel($line->product, $catalog);
+                        $totals[$label]['total'] += $order->lineMerchandiseWithTax($line);
+                        $totals[$label]['quantity'] += (int) $line->quantity;
+                    }
+                }
+            });
+
+        $ventasTotales = round($ventasTotales, 2);
+        $showDescriptions = $isAdmin;
+        $describe = fn (string $text) => $showDescriptions ? $text : null;
+        $descriptions = [
+            'Alcalina' => $describe('Categorías Alcalinas (Tronex/GP)'),
+            'Manganeso' => $describe('Categorías Manganeso (Tronex/GP)'),
+            'Encendedores' => $describe('Categoría Encendedores'),
+            'Bombillos' => $describe('Categoría Bombillos'),
+            'Tronex' => $describe('Marca Tronex (otras líneas)'),
+            'Otros' => $describe('Marcas GP, Mtek, GE y Rocket, marcas sin clasificar y diferencia a favor vs ventas totales'),
+            'Terceros' => $describe('Proveedores terceros (Eterna, Prebel, Yass, Produsa, Dromatic, Sense, Knight)'),
+        ];
+
+        $buckets = [];
+        foreach ($totals as $label => $bucket) {
+            $buckets[] = [
+                'label' => $label,
+                'description' => $descriptions[$label],
+                'total' => round($bucket['total'], 2),
+                'quantity' => $bucket['quantity'],
+            ];
+        }
+
+        // Cents left by per-order rounding stay on Otros so the open buckets
+        // still add up to Ventas totales.
+        $gap = round($ventasTotales - array_sum(array_column($buckets, 'total')), 2);
+        if (abs($gap) >= 0.01) {
             foreach ($buckets as &$bucket) {
                 if ($bucket['label'] === 'Otros') {
                     $bucket['total'] = round($bucket['total'] + $gap, 2);
@@ -768,21 +704,98 @@ class OrderController extends Controller
             unset($bucket);
         }
 
+        $ticketPromedio = $totalPedidos > 0 ? round($ventasTotales / $totalPedidos, 2) : 0;
+
         return response()->json([
-            'total_pedidos'    => $totalPedidos,
-            'ventas_totales'   => round($ventasTotales, 2),
-            'ticket_promedio'  => $ticketPromedio,
-            'sales_buckets'    => $buckets,
+            'total_pedidos' => $totalPedidos,
+            'ventas_totales' => $ventasTotales,
+            'ticket_promedio' => $ticketPromedio,
+            'sales_buckets' => $buckets,
             'from_date' => $canonicalFrom,
-            'to_date'   => $canonicalTo,
+            'to_date' => $canonicalTo,
         ]);
     }
 
     /**
-     * Calendar-day range in seller timezone, as UTC bounds for DB timestamps.
+     * Catalog id sets for the production seller-report buckets.
      *
-     * @return array{0: \Carbon\Carbon, 1: \Carbon\Carbon, 2: string, 3: string}
+     * @return array<string, array<int, true>>
      */
+    private function sellerDashboardCatalog(): array
+    {
+        $catIdsByName = fn (array $names) => Category::whereRaw(
+            'LOWER(name) IN ('.implode(',', array_fill(0, count($names), '?')).')',
+            array_map('strtolower', $names)
+        )->pluck('id')->all();
+
+        $brandIdsByName = fn (array $names) => Brand::whereRaw(
+            'LOWER(name) IN ('.implode(',', array_fill(0, count($names), '?')).')',
+            array_map('strtolower', $names)
+        )->pluck('id')->all();
+
+        $vendorIdsByName = fn (array $names) => Vendor::whereRaw(
+            'LOWER(name) IN ('.implode(',', array_fill(0, count($names), '?')).')',
+            array_map('strtolower', $names)
+        )->pluck('id')->all();
+
+        $asSet = static fn (array $ids): array => array_fill_keys(array_map('intval', $ids), true);
+
+        return [
+            'alcalina' => $asSet($this->categoryIdsWithDescendants($catIdsByName(['Alcalinas Tronex', 'Alcalinas GP']))),
+            'manganeso' => $asSet($this->categoryIdsWithDescendants($catIdsByName(['Manganeso Tronex', 'Manganeso GP']))),
+            'encendedores' => $asSet($this->categoryIdsWithDescendants($catIdsByName(['Encendedores']))),
+            'bombillos' => $asSet($this->categoryIdsWithDescendants($catIdsByName(['Bombillos']))),
+            'tronex' => $asSet($brandIdsByName(['Tronex'])),
+            'terceros' => $asSet($vendorIdsByName([
+                'Eterna', 'Prebel', 'Yass', 'Produsa', 'Dromatic', 'Sense', 'Knight',
+            ])),
+        ];
+    }
+
+    /**
+     * Exclusive bucket. Category lines win, then Tronex, then third-party vendors.
+     *
+     * @param  array<string, array<int, true>>  $catalog
+     */
+    private function sellerDashboardBucketLabel($product, array $catalog): string
+    {
+        $categoryIds = $product?->categories?->pluck('id')->map(fn ($id) => (int) $id)->all() ?? [];
+        $inCategory = static function (string $key) use ($catalog, $categoryIds): bool {
+            foreach ($categoryIds as $categoryId) {
+                if (isset($catalog[$key][$categoryId])) {
+                    return true;
+                }
+            }
+
+            return false;
+        };
+
+        if ($inCategory('alcalina')) {
+            return 'Alcalina';
+        }
+        if ($inCategory('manganeso')) {
+            return 'Manganeso';
+        }
+        if ($inCategory('encendedores')) {
+            return 'Encendedores';
+        }
+        if ($inCategory('bombillos')) {
+            return 'Bombillos';
+        }
+
+        $brandId = (int) ($product?->brand_id ?? 0);
+        if ($brandId !== 0 && isset($catalog['tronex'][$brandId])) {
+            return 'Tronex';
+        }
+
+        $vendorId = (int) ($product?->brand?->vendor_id ?? 0);
+        if ($vendorId !== 0 && isset($catalog['terceros'][$vendorId])) {
+            return 'Terceros';
+        }
+
+        return 'Otros';
+    }
+
     private function resolveSellerDashboardUtcRange(Request $request): array
     {
         $tz = $this->sellerReportTimezone();

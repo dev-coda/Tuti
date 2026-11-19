@@ -148,7 +148,7 @@
                             
                             <!-- Search Input -->
                             <div class="mt-1 mb-3">
-                                <input type="text" id="element_search" placeholder="Buscar elementos..." 
+                                <input type="text" id="element_search" placeholder="Buscar por referencia (SKU) o nombre..." 
                                        class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
                             </div>
                             
@@ -247,28 +247,48 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function displayElements(elements) {
+        if (!Array.isArray(elements)) {
+            availableElements.innerHTML = '<div class="p-3 text-center text-red-500">Error al cargar elementos</div>';
+            return;
+        }
+
         if (elements.length === 0) {
             availableElements.innerHTML = '<div class="p-3 text-center text-gray-500">No se encontraron elementos</div>';
             return;
         }
 
-        const elementsHtml = elements.map(element => {
-            const isSelected = selectedElements.some(selected => selected.id === element.id);
-            return `
-                <div class="p-3 border-b border-gray-200 hover:bg-gray-50 cursor-pointer ${isSelected ? 'bg-blue-50' : ''}" 
-                     onclick="toggleElement(${element.id}, '${element.name.replace(/'/g, "\\'")}', '${element.description.replace(/'/g, "\\'")}')">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <div class="font-medium text-gray-900">${element.name}</div>
-                            <div class="text-sm text-gray-500">${element.description}</div>
-                        </div>
-                        ${isSelected ? '<span class="text-blue-600">✓</span>' : ''}
-                    </div>
-                </div>
-            `;
-        }).join('');
+        availableElements.innerHTML = '';
+        elements.forEach(function (element) {
+            const name = element.name || '';
+            const description = element.description || '';
+            const isSelected = selectedElements.some(selected => String(selected.id) === String(element.id));
+            const row = document.createElement('div');
+            row.className = 'p-3 border-b border-gray-200 hover:bg-gray-50 cursor-pointer' + (isSelected ? ' bg-blue-50' : '');
+            row.addEventListener('click', function () {
+                toggleElement(element.id, name, description);
+            });
 
-        availableElements.innerHTML = elementsHtml;
+            const wrap = document.createElement('div');
+            wrap.className = 'flex items-center justify-between';
+            const text = document.createElement('div');
+            const title = document.createElement('div');
+            title.className = 'font-medium text-gray-900';
+            title.textContent = name;
+            const subtitle = document.createElement('div');
+            subtitle.className = 'text-sm text-gray-500';
+            subtitle.textContent = description;
+            text.appendChild(title);
+            text.appendChild(subtitle);
+            wrap.appendChild(text);
+            if (isSelected) {
+                const mark = document.createElement('span');
+                mark.className = 'text-blue-600';
+                mark.textContent = '✓';
+                wrap.appendChild(mark);
+            }
+            row.appendChild(wrap);
+            availableElements.appendChild(row);
+        });
     }
 
     function toggleElement(id, name, description) {

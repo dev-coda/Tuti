@@ -46,6 +46,8 @@ class VolumeDiscountController extends Controller
      */
     public function store(Request $request)
     {
+        $this->normalizeIdList($request, 'applies_to_ids');
+
         $validate = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
@@ -66,15 +68,18 @@ class VolumeDiscountController extends Controller
         }
 
         // Validate max_quantity is greater than min_quantity
-        if ($validate['max_quantity'] && $validate['max_quantity'] <= $validate['min_quantity']) {
+        if (! empty($validate['max_quantity']) && $validate['max_quantity'] <= $validate['min_quantity']) {
             return back()->withErrors(['max_quantity' => 'La cantidad máxima debe ser mayor que la cantidad mínima']);
+        }
+
+        if ($validate['applies_to'] !== 'cart' && empty($validate['applies_to_ids'])) {
+            return back()->withErrors(['applies_to_ids' => 'Selecciona al menos una referencia.'])->withInput();
         }
 
         $volumeDiscount = VolumeDiscount::create($validate);
 
-        // Sync products if applies_to is products
-        if ($validate['applies_to'] === 'products' && $request->has('product_ids')) {
-            $volumeDiscount->products()->sync($request->product_ids);
+        if ($validate['applies_to'] === 'products') {
+            $volumeDiscount->products()->sync($validate['applies_to_ids'] ?? []);
         }
 
         return redirect()->route('promociones.descuento-volumen')->with('success', 'Descuento por volumen creado exitosamente');
@@ -109,6 +114,8 @@ class VolumeDiscountController extends Controller
      */
     public function update(Request $request, VolumeDiscount $volumeDiscount)
     {
+        $this->normalizeIdList($request, 'applies_to_ids');
+
         $validate = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
@@ -129,16 +136,19 @@ class VolumeDiscountController extends Controller
         }
 
         // Validate max_quantity is greater than min_quantity
-        if ($validate['max_quantity'] && $validate['max_quantity'] <= $validate['min_quantity']) {
+        if (! empty($validate['max_quantity']) && $validate['max_quantity'] <= $validate['min_quantity']) {
             return back()->withErrors(['max_quantity' => 'La cantidad máxima debe ser mayor que la cantidad mínima']);
+        }
+
+        if ($validate['applies_to'] !== 'cart' && empty($validate['applies_to_ids'])) {
+            return back()->withErrors(['applies_to_ids' => 'Selecciona al menos una referencia.'])->withInput();
         }
 
         $volumeDiscount->update($validate);
 
-        // Sync products if applies_to is products
-        if ($validate['applies_to'] === 'products' && $request->has('product_ids')) {
-            $volumeDiscount->products()->sync($request->product_ids);
-        }
+        $volumeDiscount->products()->sync(
+            $validate['applies_to'] === 'products' ? ($validate['applies_to_ids'] ?? []) : []
+        );
 
         return redirect()->route('promociones.descuento-volumen')->with('success', 'Descuento por volumen actualizado exitosamente');
     }
@@ -150,5 +160,28 @@ class VolumeDiscountController extends Controller
     {
         $volumeDiscount->delete();
         return redirect()->route('promociones.descuento-volumen')->with('success', 'Descuento por volumen eliminado exitosamente');
+    }
+
+    /**
+     * The picker posts selected ids as a JSON string. Validation expects an array.
+     */
+    private function normalizeIdList(Request $request, string $key): void
+    {
+        $value = $request->input($key);
+        if (! is_string($value)) {
+            return;
+        }
+
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            $request->merge([$key => null]);
+
+            return;
+        }
+
+        $decoded = json_decode($trimmed, true);
+        if (is_array($decoded)) {
+            $request->merge([$key => array_values(array_map('intval', $decoded))]);
+        }
     }
 }

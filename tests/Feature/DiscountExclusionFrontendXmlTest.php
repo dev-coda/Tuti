@@ -23,7 +23,7 @@ use function Pest\Laravel\getJson;
 | Verifies that exclude_from_brand_discount and exclude_from_vendor_discount
 | flags correctly suppress discounts in:
 |   1. The finalPrice accessor (used by all Blade views & components)
-|   2. The getActiveTags() auto descuento tag (product/brand only; not vendor-only)
+|   2. The getActiveTags() auto descuento tag (product, brand, or vendor when the price is discounted)
 |   3. API JSON responses (ProductsApi, PreciosApi, ProductosApi)
 |   4. OrderProduct line creation (percentage field)
 |   5. SOAP XML payload (dyn:discount element)
@@ -232,7 +232,7 @@ it('getActiveTags includes DESCUENTO when brand+vendor excluded but product has 
     expect($tagTypes)->toContain('auto_descuento');
 });
 
-it('getActiveTags omits DESCUENTO when only vendor has discount', function () {
+it('getActiveTags includes the discount label when only vendor has discount', function () {
     Setting::updateOrCreate(
         ['key' => 'auto_tag_descuento_enabled'],
         ['name' => 'Auto tag descuento', 'value' => '1', 'show' => false]
@@ -249,9 +249,10 @@ it('getActiveTags omits DESCUENTO when only vendor has discount', function () {
 
     $loaded = freshLoadProduct($product->id);
     $tags = $loaded->getActiveTags();
-    $tagTypes = array_column($tags, 'type');
+    $descTag = collect($tags)->firstWhere('type', 'auto_descuento');
 
-    expect($tagTypes)->not->toContain('auto_descuento');
+    expect($descTag)->not->toBeNull();
+    expect($descTag['content'])->toBe('-20%');
 });
 
 it('auto_descuento tag content shows the effective percent discount from product/brand', function () {
@@ -341,7 +342,7 @@ it('getActiveTags shows DESCUENTO when vendor excluded but brand still applies',
     expect($tagTypes)->toContain('auto_descuento');
 });
 
-it('getActiveTags omits DESCUENTO when brand excluded and only vendor discount applies', function () {
+it('getActiveTags shows the discount label when brand is excluded and vendor discount applies', function () {
     Setting::updateOrCreate(
         ['key' => 'auto_tag_descuento_enabled'],
         ['name' => 'Auto tag descuento', 'value' => '1', 'show' => false]
@@ -358,12 +359,13 @@ it('getActiveTags omits DESCUENTO when brand excluded and only vendor discount a
 
     $loaded = freshLoadProduct($product->id);
     $tags = $loaded->getActiveTags();
-    $tagTypes = array_column($tags, 'type');
+    $descTag = collect($tags)->firstWhere('type', 'auto_descuento');
 
-    expect($tagTypes)->not->toContain('auto_descuento');
+    expect($descTag)->not->toBeNull();
+    expect($descTag['content'])->toBe('-20%');
 });
 
-it('auto_descuento tag can diverge from finalPrice when only vendor discount applies', function () {
+it('auto_descuento tag matches finalPrice when only vendor discount applies', function () {
     Setting::updateOrCreate(
         ['key' => 'auto_tag_descuento_enabled'],
         ['name' => 'Auto tag descuento', 'value' => '1', 'show' => false]
@@ -383,7 +385,8 @@ it('auto_descuento tag can diverge from finalPrice when only vendor discount app
     $tagTypes = array_column($tags, 'type');
 
     expect($loaded->finalPrice['has_discount'])->toBeTrue();
-    expect($tagTypes)->not->toContain('auto_descuento');
+    expect($tagTypes)->toContain('auto_descuento');
+    expect(collect($tags)->firstWhere('type', 'auto_descuento')['content'])->toBe('-15%');
 });
 
 it('auto_descuento tag aligns with finalPrice when product or brand discount exists', function () {

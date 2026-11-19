@@ -34,51 +34,52 @@
             </div>
         @endif
 
-        {{-- ── Seller Mini Dashboard ─────────────────────────── --}}
-        @if(!empty($isSeller))
-        <div id="seller-dashboard" class="mb-8">
-            {{-- Date Range Picker --}}
-            <div class="flex flex-col gap-3 mb-4">
-                <span class="text-sm font-medium text-gray-600">Filtrar por fecha</span>
-                <div class="flex flex-col sm:flex-row sm:items-end gap-3 w-full">
-                    <div class="flex-1 min-w-0">
-                        <label for="dash-from" class="block text-xs font-medium text-gray-500 mb-1">Desde</label>
-                        <input type="date" id="dash-from" autocomplete="off"
-                               max="{{ $sellerDashToday }}"
-                               class="w-full min-h-[44px] border-gray-300 rounded-lg text-base sm:text-sm px-3 py-2 focus:ring-orange-500 focus:border-orange-500 touch-manipulation" />
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <label for="dash-to" class="block text-xs font-medium text-gray-500 mb-1">Hasta</label>
-                        <input type="date" id="dash-to" autocomplete="off"
-                               max="{{ $sellerDashToday }}"
-                               class="w-full min-h-[44px] border-gray-300 rounded-lg text-base sm:text-sm px-3 py-2 focus:ring-orange-500 focus:border-orange-500 touch-manipulation" />
-                    </div>
+        {{-- ── Seller report (admins see every seller) ─────────── --}}
+        @if(!empty($showSellerReport))
+        <div id="seller-dashboard" class="mb-6 bg-white border border-gray-200 rounded-2xl shadow-sm">
+            <div class="px-3 sm:px-4 pt-3 pb-2 flex flex-col sm:flex-row sm:items-end gap-2">
+                <div class="flex-1 min-w-0">
+                    <label for="dash-from" class="block text-[11px] font-medium text-gray-500 mb-1">Desde</label>
+                    <input type="date" id="dash-from" autocomplete="off"
+                           max="{{ $sellerDashToday }}"
+                           class="w-full min-h-[40px] border-gray-300 rounded-lg text-base sm:text-sm px-3 py-1.5 focus:ring-orange-500 focus:border-orange-500 touch-manipulation" />
+                </div>
+                <div class="flex-1 min-w-0">
+                    <label for="dash-to" class="block text-[11px] font-medium text-gray-500 mb-1">Hasta</label>
+                    <input type="date" id="dash-to" autocomplete="off"
+                           max="{{ $sellerDashToday }}"
+                           class="w-full min-h-[40px] border-gray-300 rounded-lg text-base sm:text-sm px-3 py-1.5 focus:ring-orange-500 focus:border-orange-500 touch-manipulation" />
                 </div>
             </div>
 
-            {{-- Row 1: KPI Cards --}}
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-                <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-5 flex flex-col items-center justify-center text-center">
-                    <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Total Pedidos</p>
-                    <p id="kpi-pedidos" class="mt-1 text-2xl font-bold text-gray-900">—</p>
+            <button type="button" id="dash-accordion" aria-expanded="false" aria-controls="dash-buckets"
+                    class="w-full px-3 sm:px-4 py-2.5 border-t border-gray-100 flex items-center gap-3 text-left hover:bg-gray-50">
+                <div class="flex-1 grid grid-cols-3 gap-2 min-w-0">
+                    <div class="min-w-0">
+                        <p class="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Pedidos</p>
+                        <p id="kpi-pedidos" class="text-base font-semibold text-gray-900 truncate">—</p>
+                    </div>
+                    <div class="min-w-0">
+                        <p class="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Ventas <span class="normal-case tracking-normal">con IVA</span></p>
+                        <p id="kpi-ventas" class="text-base font-semibold text-orange-600 truncate">—</p>
+                    </div>
+                    <div class="min-w-0">
+                        <p class="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Ticket <span class="normal-case tracking-normal">con IVA</span></p>
+                        <p id="kpi-ticket" class="text-base font-semibold text-gray-900 truncate">—</p>
+                    </div>
                 </div>
-                <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-5 flex flex-col items-center justify-center text-center">
-                    <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Ventas Totales</p>
-                    <p id="kpi-ventas" class="mt-1 text-2xl font-bold text-orange-600">—</p>
-                </div>
-                <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-5 flex flex-col items-center justify-center text-center">
-                    <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Ticket Promedio</p>
-                    <p id="kpi-ticket" class="mt-1 text-2xl font-bold text-gray-900">—</p>
-                </div>
-            </div>
+                <svg id="dash-chevron" class="w-4 h-4 text-gray-400 shrink-0 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+            </button>
 
-            {{-- Row 2: Category Sales Cards --}}
-            <div id="category-cards" class="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                {{-- Filled dynamically via JS --}}
+            <div id="dash-buckets" class="hidden border-t border-gray-100 px-3 sm:px-4 py-3">
+                <p class="text-[11px] text-gray-500 mb-2">Categorías, con IVA</p>
+                <div id="category-cards" class="grid grid-cols-2 sm:grid-cols-4 gap-2"></div>
             </div>
         </div>
         @endif
-        {{-- ── / Seller Mini Dashboard ───────────────────────── --}}
+        {{-- ── / Seller report ───────────────────────────────── --}}
 
         <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
             <div class="flex flex-col sm:flex-row">
@@ -171,6 +172,7 @@
                         'sellerDashToday' => $sellerDashToday,
                         'filters' => $recentFilters,
                         'clientFilter' => $clientFilter ?? null,
+                        'clientRouteZone' => $clientRouteZone ?? null,
                         'emptyMessage' => !empty($clientFilter) ? 'Este cliente no tiene pedidos anteriores.' : ((($recentFilters['from_date'] ?? '') !== '' || ($recentFilters['to_date'] ?? '') !== '') ? 'No tienes pedidos para el rango seleccionado.' : 'No tienes pedidos recientes.'),
                         'queryKeys' => [
                             'q' => 'q',
@@ -426,7 +428,7 @@
         });
 
         /* ── Seller Mini Dashboard ─────────────────────────── */
-        @if(!empty($isSeller))
+        @if(!empty($showSellerReport))
         (function(){
             const DASH_URL   = @json(route('api.seller.dashboard'));
             const SERVER_TODAY = @json($sellerDashToday);
@@ -462,35 +464,29 @@
 
             function renderBuckets(buckets) {
                 catCards.innerHTML = '';
-                const list = buckets || [];
-                list.forEach(function(b) {
+                (buckets || []).forEach(function(b) {
                     const qty = b.quantity != null ? Number(b.quantity).toLocaleString('es-CO') : '0';
                     const card = document.createElement('div');
-                    card.className = 'bg-white border border-gray-200 rounded-2xl shadow-sm p-4 flex flex-col items-center justify-center text-center';
+                    card.className = 'border border-gray-200 rounded-xl px-2.5 py-2 text-center';
                     card.title = b.description || b.label;
                     card.innerHTML =
-                        '<p class="text-xs font-medium text-gray-500 uppercase tracking-wide leading-tight mb-1">' + b.label + '</p>' +
-                        (b.description ? '<p class="text-[11px] text-gray-400 leading-tight mb-1">' + b.description + '</p>' : '') +
-                        '<p class="text-lg font-bold text-gray-900">' + currency(b.total) + '</p>' +
-                        '<p class="text-xs text-gray-500 mt-0.5">' + qty + ' uds</p>';
+                        '<p class="text-[10px] font-medium text-gray-500 uppercase tracking-wide leading-tight">' + b.label + '</p>' +
+                        (b.description ? '<p class="text-[10px] text-gray-400 leading-tight">' + b.description + '</p>' : '') +
+                        '<p class="text-sm font-semibold text-gray-900">' + currency(b.total) + '</p>' +
+                        '<p class="text-[10px] text-gray-500">' + qty + ' uds</p>';
                     catCards.appendChild(card);
                 });
-
-                const total = list.reduce(function(sum, b) { return sum + Number(b.total || 0); }, 0);
-                const qty = list.reduce(function(sum, b) { return sum + Number(b.quantity || 0); }, 0);
-                const showDescriptions = {{ !empty($isAdmin) ? 'true' : 'false' }};
-                const totalCard = document.createElement('div');
-                totalCard.className = 'col-span-2 sm:col-span-3 bg-orange-50 border border-orange-200 rounded-2xl shadow-sm p-4 flex flex-col items-center justify-center text-center';
-                if (showDescriptions) {
-                    totalCard.title = 'Suma de todas las líneas del reporte';
-                }
-                totalCard.innerHTML =
-                    '<p class="text-xs font-medium text-orange-700 uppercase tracking-wide leading-tight mb-1">Total</p>' +
-                    (showDescriptions ? '<p class="text-[11px] text-orange-600 leading-tight mb-1">Suma de todas las líneas</p>' : '') +
-                    '<p class="text-lg font-bold text-orange-700">' + currency(total) + '</p>' +
-                    '<p class="text-xs text-orange-700 mt-0.5">' + Number(qty).toLocaleString('es-CO') + ' uds</p>';
-                catCards.appendChild(totalCard);
             }
+
+            const accordion = document.getElementById('dash-accordion');
+            const bucketPanel = document.getElementById('dash-buckets');
+            const chevron = document.getElementById('dash-chevron');
+            accordion.addEventListener('click', function () {
+                const open = accordion.getAttribute('aria-expanded') === 'true';
+                accordion.setAttribute('aria-expanded', open ? 'false' : 'true');
+                bucketPanel.classList.toggle('hidden', open);
+                chevron.classList.toggle('rotate-180', !open);
+            });
 
             function fetchDashboard() {
                 normalizeDateOrder();

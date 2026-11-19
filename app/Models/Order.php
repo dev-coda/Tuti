@@ -325,15 +325,20 @@ class Order extends Model
 
         $sum = 0.0;
         foreach ($this->products as $line) {
-            $exclusive = $this->lineExclusiveNet($line);
-            if ($exclusive === null) {
-                return null;
-            }
-            $taxPct = (float) (optional($line->product?->tax)->tax ?? 0);
-            $sum += amount_with_tax($exclusive, $taxPct);
+            $sum += $this->lineMerchandiseWithTax($line);
         }
 
         return round($sum, 2);
+    }
+
+    /**
+     * Tax-inclusive net for one line. Same basis as totalWithTax() and the seller report.
+     */
+    public function lineMerchandiseWithTax(OrderProduct $line): float
+    {
+        $taxPct = (float) (optional($line->product?->tax)->tax ?? 0);
+
+        return amount_with_tax($this->lineExclusiveNet($line), $taxPct);
     }
 
     /**

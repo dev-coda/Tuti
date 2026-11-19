@@ -477,6 +477,9 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
                             </svg>
                             Dirección de entrega
+                            @if($client)
+                                (Elige la sucursal del pedido)
+                            @endif
                         </label>
                         <input type="hidden" name="sucursal_uid" id="checkout-sucursal-uid" value="">
                         <input type="hidden" name="sucursal_code" id="checkout-sucursal-code" value="">

@@ -333,6 +333,14 @@ class DiscountService
     {
         switch ($volumeDiscount->applies_to) {
             case 'products':
+                $ids = collect($volumeDiscount->applies_to_ids ?? [])
+                    ->map(fn ($id) => (int) $id)
+                    ->filter()
+                    ->all();
+                if ($ids !== []) {
+                    return in_array((int) $product->id, $ids, true);
+                }
+
                 return $volumeDiscount->products->contains($product);
             case 'categories':
                 return $product->categories->whereIn('id', $volumeDiscount->applies_to_ids ?? [])->isNotEmpty();

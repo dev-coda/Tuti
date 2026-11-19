@@ -177,3 +177,67 @@ it('folds unclassified brands into Otros so buckets add up to ventas totales', f
 
     Carbon::setTestNow();
 });
+
+it('opens the seller report to admins and keeps every bucket on the same IVA basis', function () {
+    Carbon::setTestNow(Carbon::parse('2026-07-29 15:00:00', 'America/Bogota'));
+    Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
+
+    $seller = User::factory()->create();
+    $seller->assignRole('seller');
+    $otherSeller = User::factory()->create();
+    $otherSeller->assignRole('seller');
+    $admin = User::factory()->create();
+    $admin->assignRole('admin');
+    $client = User::factory()->create();
+
+    $tax = Tax::create(['name' => 'IVA 19', 'tax' => 19]);
+    $vendor = Vendor::create(['name' => 'Tronex Vendor IVA', 'slug' => 'tronex-vendor-iva', 'minimum_purchase' => 0, 'active' => 1]);
+    $brand = Brand::create(['name' => 'Tronex', 'slug' => 'tronex-iva', 'vendor_id' => $vendor->id]);
+    $category = Category::create(['name' => 'Pilas Moneda', 'slug' => 'pilas-moneda-iva']);
+    $product = Product::create([
+        'name' => 'Pila IVA', 'description' => 'd', 'short_description' => 'd',
+        'sku' => 'IVA-1', 'slug' => 'pila-iva', 'active' => 1, 'price' => 1000,
+        'delivery_days' => 1, 'discount' => 0, 'quantity_min' => 1, 'quantity_max' => 100, 'step' => 1,
+        'tax_id' => $tax->id, 'brand_id' => $brand->id, 'package_quantity' => 1,
+        'calculate_package_price' => false,
+    ]);
+    $product->categories()->attach($category->id);
+
+    $order = Order::create([
+        'user_id' => $client->id,
+        'seller_id' => $seller->id,
+        'status_id' => Order::STATUS_PENDING,
+        'total' => 1,
+        'discount' => 0,
+    ]);
+    OrderProduct::create([
+        'order_id' => $order->id,
+        'product_id' => $product->id,
+        'quantity' => 2,
+        'price' => 1000,
+        'discount' => 0,
+        'percentage' => 10,
+        'package_quantity' => 1,
+    ]);
+
+    actingAs($otherSeller)
+        ->getJson(route('api.seller.dashboard', ['from_date' => '2026-07-29', 'to_date' => '2026-07-29']))
+        ->assertOk()
+        ->assertJsonPath('total_pedidos', 0);
+
+    $response = actingAs($admin)->getJson(route('api.seller.dashboard', [
+        'from_date' => '2026-07-29',
+        'to_date' => '2026-07-29',
+    ]));
+
+    $response->assertOk();
+    $buckets = collect($response->json('sales_buckets'));
+    $tronex = $buckets->firstWhere('label', 'Tronex');
+
+    expect($response->json('total_pedidos'))->toBe(1)
+        ->and((float) $response->json('ventas_totales'))->toBe(2142.0)
+        ->and((float) $tronex['total'])->toBe(2142.0)
+        ->and((float) $buckets->sum(fn ($bucket) => (float) $bucket['total']))->toBe(2142.0);
+
+    Carbon::setTestNow();
+});

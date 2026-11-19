@@ -157,6 +157,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::prefix('promociones')->name('promociones.')->group(function () {
         Route::get('/', [PromocionesController::class, 'index'])->name('index');
         Route::get('/descuento-directo', [PromocionesController::class, 'descuentoDirecto'])->name('descuento-directo');
+        Route::post('/descuento-directo', [PromocionesController::class, 'storeDescuentoDirecto'])->name('descuento-directo.store');
         Route::get('/descuento-volumen', [PromocionesController::class, 'descuentoVolumen'])->name('descuento-volumen');
         Route::get('/bonificaciones', [PromocionesController::class, 'bonificaciones'])->name('bonificaciones');
         Route::get('/cupones', [PromocionesController::class, 'cupones'])->name('cupones');
