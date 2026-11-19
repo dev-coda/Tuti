@@ -394,6 +394,22 @@ class CartController extends Controller
     //TODO crear plugin de agregar al carrito
     public function add(Request $request, Product $product)
     {
+        if (! auth()->check()) {
+            $message = 'Para agregar productos al carrito debes ser comerciante o tendero y estar registrado.';
+
+            if ($request->expectsJson() || $request->ajax()) {
+                session()->flash('info', $message);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => $message,
+                    'redirect' => route('form'),
+                ], 401);
+            }
+
+            return redirect()->route('form')->with('info', $message);
+        }
+
         // Check vacation mode (active based on date range)
         $vacationInfo = Setting::getVacationModeInfo();
 

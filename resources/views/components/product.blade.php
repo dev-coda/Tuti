@@ -55,18 +55,14 @@
                 @endif
             @endif
         @else
-            @php 
+            @php
                 $isManaged = $product->isInventoryManaged();
                 $preferredVariationItemId = $product->preferredVariationItemIdForBodega('MDTAT');
-                // Use orderable stock (available - safety) for client-facing display
-                $orderableStock = $product->getOrderableStockForBodega('MDTAT', $preferredVariationItemId);
             @endphp
             @if($showInventory && $isManaged)
-                @if($orderableStock <= 0)
-                    <p class="text-xs text-red-600 mt-1">Producto no disponible para tu ubicación</p>
-                @else
-                    <p class="text-xs {{ $orderableStock > 5 ? 'text-green-600' : 'text-red-600' }}">Inventario: {{ $orderableStock }}</p>
-                @endif
+                <p class="text-xs text-gray-500 mt-1">
+                    <a href="{{ route('form') }}" class="hover:underline">Registrate para conocer disponibilidad</a>
+                </p>
             @endif
         @endauth
         <div class="flex items-baseline gap-2 mt-2">

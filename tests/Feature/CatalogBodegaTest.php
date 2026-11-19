@@ -138,3 +138,128 @@ it('renders the product page with the domicile warehouse stock', function () {
         ->assertSee('80 unidades')
         ->assertDontSee('12 unidades');
 });
+
+it('hides Medellin inventory numbers from guests and asks them to register', function () {
+    $this->withoutVite();
+
+    Setting::updateOrCreate(
+        ['key' => 'inventory_enabled'],
+        ['name' => 'Inventario', 'value' => '1', 'show' => false]
+    );
+    Setting::updateOrCreate(
+        ['key' => 'global_minimum_inventory'],
+        ['name' => 'Minimo', 'value' => '0', 'show' => false]
+    );
+
+    $tax = Tax::create(['name' => 'IVA guest', 'tax' => 0]);
+    $vendor = Vendor::create([
+        'name' => 'Vendor guest',
+        'slug' => 'vendor-guest',
+        'minimum_purchase' => 0,
+        'active' => 1,
+    ]);
+    $brand = Brand::create([
+        'name' => 'Marca guest',
+        'slug' => 'marca-guest',
+        'vendor_id' => $vendor->id,
+        'active' => 1,
+    ]);
+    $product = Product::create([
+        'name' => 'Pila Medellin',
+        'description' => 'd',
+        'short_description' => 'd',
+        'sku' => 'SKU-MEDELLIN-GUEST',
+        'slug' => 'pila-medellin-guest',
+        'active' => 1,
+        'price' => 1000,
+        'delivery_days' => 1,
+        'discount' => 0,
+        'quantity_min' => 1,
+        'quantity_max' => 100,
+        'step' => 1,
+        'tax_id' => $tax->id,
+        'brand_id' => $brand->id,
+        'package_quantity' => 1,
+    ]);
+    ProductInventory::create([
+        'product_id' => $product->id,
+        'bodega_code' => 'MDTAT',
+        'available' => 12,
+        'physical' => 12,
+        'reserved' => 0,
+    ]);
+
+    $product = $product->fresh(['items', 'images', 'brand.vendor', 'bonifications', 'categories']);
+
+    $this->get(route('product', $product->slug))
+        ->assertOk()
+        ->assertSee('Registrate para conocer disponibilidad')
+        ->assertDontSee('12 unidades')
+        ->assertDontSee('Inventario: 12')
+        ->assertDontSee('data-orderable-stock="12"', false);
+
+    $this->blade('<x-product :product="$product" />', ['product' => $product])
+        ->assertSee('Registrate para conocer disponibilidad')
+        ->assertDontSee('Inventario:');
+
+    $medellin = catalogCity('Medellín');
+    $user = User::factory()->create([
+        'zone' => '102',
+        'city_id' => $medellin->id,
+    ]);
+
+    actingAs($user)
+        ->get(route('product', $product->slug))
+        ->assertOk()
+        ->assertSee('12 unidades')
+        ->assertDontSee('Registrate para conocer disponibilidad');
+});
+
+it('sends guests who add to cart to the login page with a registration toast', function () {
+    $this->withoutVite();
+
+    $tax = Tax::create(['name' => 'IVA cart', 'tax' => 0]);
+    $vendor = Vendor::create([
+        'name' => 'Vendor cart',
+        'slug' => 'vendor-cart',
+        'minimum_purchase' => 0,
+        'active' => 1,
+    ]);
+    $brand = Brand::create([
+        'name' => 'Marca cart',
+        'slug' => 'marca-cart',
+        'vendor_id' => $vendor->id,
+        'active' => 1,
+    ]);
+    $product = Product::create([
+        'name' => 'Pila carrito',
+        'description' => 'd',
+        'short_description' => 'd',
+        'sku' => 'SKU-CART-GUEST',
+        'slug' => 'pila-carrito-guest',
+        'active' => 1,
+        'price' => 1000,
+        'delivery_days' => 1,
+        'discount' => 0,
+        'quantity_min' => 1,
+        'quantity_max' => 100,
+        'step' => 1,
+        'tax_id' => $tax->id,
+        'brand_id' => $brand->id,
+        'package_quantity' => 1,
+    ]);
+
+    $this->postJson(route('cart.add', $product), ['quantity' => 1])
+        ->assertUnauthorized()
+        ->assertJsonPath('redirect', route('form'))
+        ->assertJsonPath('message', 'Para agregar productos al carrito debes ser comerciante o tendero y estar registrado.');
+
+    $this->post(route('cart.add', $product), ['quantity' => 1])
+        ->assertRedirect(route('form'));
+
+    expect(session('cart'))->toBeNull();
+
+    $this->get(route('form'))
+        ->assertOk()
+        ->assertSee('Para agregar productos al carrito debes ser comerciante o tendero y estar registrado.', false);
+});
