@@ -100,6 +100,8 @@ class DiscountService
     {
         $totalDiscount = 0;
         $discountDetails = [];
+        $lines = [];
+        $vendorTotals = [];
 
         foreach ($cartProducts as $cartItem) {
             $product = Product::with('brand.vendor')->find($cartItem['product_id']);
@@ -108,6 +110,21 @@ class DiscountService
             $quantity = $cartItem['quantity'];
             $unitPrice = $this->getProductBasePrice($product, $cartItem['variation_id'] ?? null);
             $lineTotal = $unitPrice * $quantity * ($product->package_quantity ?? 1);
+            $vendorId = $product->brand?->vendor?->id;
+
+            if ($vendorId) {
+                $vendorTotals[$vendorId] = ($vendorTotals[$vendorId] ?? 0) + $lineTotal;
+            }
+
+            $lines[] = [$product, $lineTotal, $vendorId];
+        }
+
+        foreach ($lines as [$product, $lineTotal, $vendorId]) {
+            $minimum = (float) ($product->brand?->vendor?->minimum_discount_amount ?? 0);
+            $minimumMet = $minimum <= 0 || ($vendorTotals[$vendorId] ?? 0) >= $minimum;
+            if (! $minimumMet) {
+                continue;
+            }
 
             // Check brand discount (skip if product excluded)
             if (!$product->exclude_from_brand_discount && $product->brand && $product->brand->discount > 0) {

@@ -470,7 +470,8 @@ class Product extends Model
             return true;
         }
 
-        if (! $this->exclude_from_brand_discount && $this->brand && $this->brand->discount > 0) {
+        if (! $this->exclude_from_brand_discount && $this->brand && $this->brand->discount > 0
+            && $this->purchaseMeetsVendorDiscountMinimum(null, null)) {
             return true;
         }
 
@@ -478,7 +479,8 @@ class Product extends Model
             && ! $this->exclude_from_vendor_discount
             && $this->brand
             && $this->brand->vendor
-            && $this->brand->vendor->discount > 0) {
+            && $this->brand->vendor->discount > 0
+            && $this->purchaseMeetsVendorDiscountMinimum(null, null)) {
             return true;
         }
 
@@ -557,8 +559,9 @@ class Product extends Model
             $bestDiscountSource = 'product';
         }
 
-        // Brand discount (skip if product explicitly excluded)
-        if (! $this->exclude_from_brand_discount && $this->brand && $this->brand->discount > 0) {
+        // Brand discount (skip if product explicitly excluded, or the vendor purchase minimum is not met)
+        if (! $this->exclude_from_brand_discount && $this->brand && $this->brand->discount > 0
+            && $this->purchaseMeetsVendorDiscountMinimum(null, null)) {
             $brandDiscount = $this->brand->discount;
             $brandDiscountType = $this->brand->discount_type ?? 'percentage';
 
@@ -579,8 +582,9 @@ class Product extends Model
             }
         }
 
-        // Vendor discount (skip if product explicitly excluded; highest priority - always wins if better or equal)
-        if (! $this->exclude_from_vendor_discount && $this->brand && $this->brand->vendor && $this->brand->vendor->discount > 0) {
+        // Vendor discount (skip if product explicitly excluded or the purchase minimum is not met)
+        if (! $this->exclude_from_vendor_discount && $this->brand && $this->brand->vendor && $this->brand->vendor->discount > 0
+            && $this->purchaseMeetsVendorDiscountMinimum(null, null)) {
             $vendorDiscount = $this->brand->vendor->discount;
             $vendorDiscountType = $this->brand->vendor->discount_type ?? 'percentage';
 
@@ -641,6 +645,29 @@ class Product extends Model
     }
 
     /**
+     * Brand and vendor discounts share the vendor purchase minimum.
+     * A null cart total is the catalog: this product's own sell price must already reach it.
+     * A numeric total (including 0) is that vendor's cart, before this discount.
+     */
+    protected function purchaseMeetsVendorDiscountMinimum($vendorCartTotal, ?int $variationItemId): bool
+    {
+        $minimum = (float) ($this->brand?->vendor?->minimum_discount_amount ?? 0);
+        if ($minimum <= 0) {
+            return true;
+        }
+
+        if ($vendorCartTotal !== null) {
+            return (float) $vendorCartTotal >= $minimum;
+        }
+
+        $price = $this->resolveUnitBasePrice($variationItemId);
+        $packageQuantity = $this->package_quantity ?? 1;
+        $priceWithTax = $this->taxValue() > 0 ? ($price + ($price * $this->taxValue() / 100)) : $price;
+
+        return ($priceWithTax * $packageQuantity) >= $minimum;
+    }
+
+    /**
      * @param  int|null  $variationItemId  Optional variation item id for storefront display (cart, PDP). When null, behaviour matches the original implementation (first variation or product price).
      */
     public function getFinalPriceForUser($has_orders = false, $vendorCartTotal = null, ?int $variationItemId = null)
@@ -663,9 +690,12 @@ class Product extends Model
             }
         }
 
-        // Brand discount (higher priority than product; skip if product excluded)
+        // Brand discount (higher priority than product; skip if product excluded).
+        // Shares the vendor purchase minimum, so a 5% brand discount does not
+        // apply until that vendor's cart reaches minimum_discount_amount.
         if (! $this->exclude_from_brand_discount && $this->brand && $this->brand->discount > $discount) {
-            if (! $enforce_first_purchase || ! $has_orders || ! $this->brand->first_purchase_only) {
+            $brandRulesPass = ! $enforce_first_purchase || ! $has_orders || ! $this->brand->first_purchase_only;
+            if ($brandRulesPass && $this->purchaseMeetsVendorDiscountMinimum($vendorCartTotal, $variationItemId)) {
                 $discount = $this->brand->discount;
                 $discount_on = 'Marca';
             }
@@ -677,25 +707,7 @@ class Product extends Model
 
             // Check if vendor discount should apply based on first purchase rules
             $vendorDiscountApplies = ! $enforce_first_purchase || ! $has_orders || ! $vendor->first_purchase_only;
-
-            // Check if vendor minimum discount amount is met
-            $vendorMinimumMet = true;
-            if ($vendor->minimum_discount_amount > 0) {
-                if ($vendorCartTotal !== null) {
-                    // In cart context: check the total cart amount for this vendor
-                    $vendorMinimumMet = $vendorCartTotal >= $vendor->minimum_discount_amount;
-                } else {
-                    // In catalog/home context: check if this individual product's price meets the minimum
-                    // Calculate the product's total price (with tax and package quantity)
-                    $price = $this->resolveUnitBasePrice($variationItemId);
-                    $packageQuantity = $this->package_quantity ?? 1;
-                    $priceWithTax = $this->taxValue() > 0 ? ($price + ($price * $this->taxValue() / 100)) : $price;
-                    $totalProductPrice = $priceWithTax * $packageQuantity;
-
-                    // Only apply discount if product price meets minimum
-                    $vendorMinimumMet = $totalProductPrice >= $vendor->minimum_discount_amount;
-                }
-            }
+            $vendorMinimumMet = $this->purchaseMeetsVendorDiscountMinimum($vendorCartTotal, $variationItemId);
 
             if ($vendorDiscountApplies && $vendorMinimumMet) {
                 $discount = $vendor->discount;

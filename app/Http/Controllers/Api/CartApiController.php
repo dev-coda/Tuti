@@ -19,15 +19,34 @@ class CartApiController extends Controller
             ]);
         }
 
-        $items = collect($cart)->map(function ($item) {
+        $loaded = [];
+        foreach ($cart as $item) {
             $product = Product::with(['brand.vendor', 'variation', 'items', 'bonifications', 'tax'])->find($item['product_id']);
-            if (!$product) {
-                return null;
+            if (! $product) {
+                continue;
             }
+            $loaded[] = [$item, $product];
+        }
 
+        // Totals before brand/vendor discounts, so a purchase minimum (e.g. 20.000 COP) is checked on the real subtotal.
+        $vendorTotals = [];
+        foreach ($loaded as [$item, $product]) {
+            $vendorId = $product->brand?->vendor?->id;
+            if (! $vendorId) {
+                continue;
+            }
+            $variationItemId = isset($item['variation_id']) ? (int) $item['variation_id'] : null;
+            $preDiscount = $product->getFinalPriceForUser(false, 0, $variationItemId)['price'];
+            $vendorTotals[$vendorId] = ($vendorTotals[$vendorId] ?? 0) + ($preDiscount * (int) $item['quantity']);
+        }
+
+        $items = collect($loaded)->map(function ($pair) use ($vendorTotals) {
+            [$item, $product] = $pair;
             $variation = $product->items->where('id', $item['variation_id'])->first();
             $variationItemId = isset($item['variation_id']) ? (int) $item['variation_id'] : null;
-            $lineGross = $product->getFinalPriceForUser(false, null, $variationItemId)['price'] * (int) $item['quantity'];
+            $vendorId = $product->brand?->vendor?->id;
+            $vendorTotal = $vendorId ? ($vendorTotals[$vendorId] ?? 0) : 0;
+            $lineGross = $product->getFinalPriceForUser(false, $vendorTotal, $variationItemId)['price'] * (int) $item['quantity'];
 
             return [
                 'id' => $item['product_id'],
